@@ -23,9 +23,9 @@ minimieren. Entscheidung und Abwägung: [ADR 0095](../adr/0095-gespeicherte-date
 Datenträger-/Schlüsselnachweis (3840-c), produktive Einrichtung/Abnahme der
 Diagnose-Leserolle (3840-f) und Backup-Abnahme (#3836). Die Diagnoserolle
 ist mit Migration `1.15.488` im Code umgesetzt und lokal getestet, nicht
-produktiv nachgewiesen. Gesundheitsfreitext im Elternportal-Protokoll wird
-inzwischen durch Slice 4844-a im Code maskiert; Rollout und Restore-Abnahme
-bleiben offen.
+produktiv nachgewiesen. Für Gesundheitsfreitext im Elternportal-Protokoll ist
+die Code-Abhilfe umgesetzt (#4854, Slice 4844-a); Rollout und produktiver
+Nachweis einschließlich Restore bleiben offen.
 Für Kinderfotos und Avatare ist die Code-Abhilfe umgesetzt (#4852): neue
 Dateien 0600, Zielverzeichnisse 0700. Bestand, Rollout und produktiver Nachweis
 bleiben offen (Slice 3840-h). Beide Befunde und ihr Status stehen unten.
@@ -77,7 +77,7 @@ hier keine neuen Aufbewahrungsfristen.
 | Personal-, Eltern- und Kinderdaten, insbesondere `users.persons`, `users.staff_master_data`, `users.staff_school_memberships`, `users.guardian_profiles`, `users.student_profiles`, `users.student_school_memberships`, `users.student_notes` | Fachliche Stammdaten, Adressen, Beschäftigung, Beziehungen und Notizen ohne Feldverschlüsselung; Zuordnung und Löschpfade im Katalog [D5] | Offen | Tatsächliche Rechte, Löschläufe, Datenminimierung und Fehlablagen in Freitext prüfen |
 | `audit.staff_master_data_changes`, `audit.guardian_financial_changes`: `old_value`, `new_value` | Finanzwerte beim Schreiben maskiert: IBAN-Ende bleibt sichtbar, Steuer-/Sozialversicherungsnummer und geänderter Kontoinhaber vollständig maskiert. Andere Personalwerte und freie Notizen sind nicht pauschal maskiert [D4] | Offen | Version/Bestand und Freitext prüfen; aus aktuellen Schreibern folgt kein vollständiger Nachweis historischer Bereinigung |
 | `audit.student_field_edits`: `health_info` | Nur Änderungsmarkierungen; Migration `1.15.475` bereinigt vorhandene Gesundheitswerte. `extra_info` und weitere Freitexte bleiben inhaltlich erhalten [D6] | Offen | Rollout und Bereinigung nach Restore nach [Prüfablauf](../operations/gesundheitsangaben-aenderungsprotokoll-3840.md); Maskierung ist keine Verschlüsselung |
-| `users.student_data_change_requests`: `old_value`, `new_value` bei `target=student`, `field_key=health_info` | Neue Werte durch Slice 4844-a maskiert; Migration `1.15.483` bereinigt historische Gesundheitskopien [D7] | Offen | Rollout, Bestandsbereinigung und Restore-Abnahme gesondert nachweisen; Diagnose erhält keinerlei Tabellenzugriff |
+| `users.student_data_change_requests`: `old_value`, `new_value` bei `target=student`, `field_key=health_info` | **Code umgesetzt (#4854, Slice 4844-a):** neue Werte maskiert; Migration `1.15.483` bereinigt historische Gesundheitskopien [D7] | Offen | Rollout, produktiven Nachweis einschließlich Bestandsbereinigung und Restore-Abnahme gesondert führen; Diagnose erhält keinerlei Tabellenzugriff |
 | Zugriffs-/weitere fachliche Protokolle, insbesondere `audit.data_access_log` | Finanz-Aufdecken als eigener Zugriffstyp vorgesehen; weitere Protokolle enthalten Akteur-/Objektbezug und teils Personal-/Kinderdaten [D4, D5] | Offen | Nicht mit inhaltsfreier Protokollierung gleichsetzen; Rechte, Fristen und privilegierte Betriebszugriffe prüfen |
 | Private Upload-Kinds `files`, `announcement-attachments`, `student-documents`, `staff-documents` | Datei-Inhalte ohne Anwendungsverschlüsselung, etwa Atteste, AU und Lohnunterlagen; `PrivateUploads.SavePrivate` beziehungsweise `SavePrivateNamedFile` für `staff-documents` schreiben 0600 für Datei und 0700 für Zielverzeichnis [D5, D8] | Offen | Altdateien, alle Schreibpfade, Eigentümer, übergeordnete Pfade, Mounts, Metadaten und verwaiste Dateien prüfen; Unix-Rechte schützen nicht vor Root |
 | Kinderfotos `student-photos` und Avatare `avatars` | Ohne Anwendungsverschlüsselung; HTTP-Auslieferung nur authentifiziert. **Code umgesetzt (#4852):** `common.SavePrivateImage` schreibt neue Dateien 0600 und sichert Zielverzeichnisse mit 0700 [D8] | Offen | Bestand, Rollout und produktiver Nachweis offen. Ältere Dateien können weiterhin 0644 haben und bei durchsuchbaren Elternverzeichnissen lokal lesbar sein; Eigentümer, übergeordnete Pfade und Auslieferung nach [Runbook 3840-h](../operations/private-fotodateien-3840.md) prüfen |
@@ -127,9 +127,9 @@ bis zu einer späteren Neubewertung ungeprüft weiterfreigeben.
 
 Vor Slice 4844-a schrieb die Eltern-Direktbearbeitung Alt-/Neuwerte von
 `health_info` als JSONB in `users.student_data_change_requests`, unabhängig
-vom bereits maskierten `audit.student_field_edits`. Der aktuelle Schreibpfad
-nutzt `maskedHealthDataRequestValues`; Migration `1.15.483` entfernt die
-historischen Gesundheitsinhalte. Belege: [D6, D7].
+vom bereits maskierten `audit.student_field_edits`. **Code umgesetzt (#4854,
+Slice 4844-a):** Der aktuelle Schreibpfad nutzt `maskedHealthDataRequestValues`;
+Migration `1.15.483` entfernt die historischen Gesundheitsinhalte. Belege: [D6, D7].
 
 Das ist Code-Abhilfe, kein Nachweis einer produktiven Bereinigung.
 Rollout, alte Sicherungen und erneute Maskierung nach Restore sind nach dem
@@ -177,7 +177,7 @@ Der [Mensch-Prüfablauf 3840-c](../operations/datentraegerschutz-3840.md) führt
 durch Datenträger-, Schlüssel- und Zugangsbelege. Unabhängig davon sind
 [Backup-Abnahme](../operations/daily-backup.md), die produktive Abnahme der
 [Diagnose-Leserolle 3840-f](../operations/diagnose-lesezugang-3840.md),
-der Gesundheitsmaskierung (#4844, Slice 4844-a) sowie Foto-/Avatar-Bestand,
+der Gesundheitsmaskierung (#4854, Slice 4844-a) sowie Foto-/Avatar-Bestand,
 Rollout und produktiver Nachweis (3840-h) offen; die Foto-Code-Abhilfe ist
 in #4852 umgesetzt. Änderungen an Hosting, Schlüsseln,
 Datenarten, Export-/Dumpwegen, Rechten, Kundenanforderungen oder ein Vorfall
