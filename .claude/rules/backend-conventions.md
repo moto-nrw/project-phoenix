@@ -344,9 +344,9 @@ testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 
 ---
 
-## 16. Module and Workflow Ratchets — the Code #2580 Moved
+## 16. Backend Source and Owner Ratchets
 
-**RULE: Size, complexity, facade width, and layering are measured under `backend/modules/` and `backend/workflows/` too, not only up to the `api/` and `models/` boundaries.** Migration #2580 moved 228,306 of 638,717 production LOC into those trees, where no gate in this document reached them: a file could pass every threshold above by being moved rather than by being written.
+**RULE: File size, function length and complexity are measured across the whole backend. Facade width, pass-throughs and legacy LOC keep their specific owner scopes below.** Migration #2580 moved 228,306 of 638,717 production LOC into those trees, where no gate in this document reached them: a file could pass every threshold above by being moved rather than by being written.
 
 Six ratchets freeze the state measured on **2026-09-18 at merge commit `ecf0003369`**, and #4071 extended three of them on 2026-10-15 (development `c49b81c3a9`) to where code went instead of where it left. The first seed was taken at `19feca2822`; five of them were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases. `scripts/backend-architecture.sh check` enforces this against the pull request's base for every ratchet file in `backend/test/`: a raised integer constant, a raised `map[string]int` value or sum, a grown `map[string]string` exception register, and a measurement that disappears or can no longer be evaluated fail unless the change adds a new-numbered ADR the entry cites. Rename a register only with `renamed from <old name>` in the new declaration's comment (ADR 0057 point 5; `backend/architecture/README.md`, "Source ratchet budgets").
 
@@ -365,7 +365,18 @@ file. #3423 is closed; zero is not the target for every register. ADR 0075
 records the pass-through floors. ADR 0083 defines tested successor cuts for
 shape accounting and compose LOC; keep the existing gates until then.
 
-Scope: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` and the owner compositions, without `legacy/`. The `legacy_*.go` register scans the whole backend outside `legacy/` trees. Since ADR 0082 (#4542), file size, function length and cognitive complexity also scan `roots/`, `api/` and `cmd/` recursively and direct backend-root Go files, including hooks and generated sources. Root baselines are shrink-only; the measured root pass-through classification does not add a pass-through allowance.
+Scope: file size, named function length and cognitive complexity scan **all
+of `backend/` recursively** (ADRs 0082, 0087), independently of build tags and
+platform. Only `_test.go` and hidden directories are excluded. Migrations,
+tools, hooks, legacy code, test helpers, `testdata` and generated sources stay
+measured; moving code never silences these gates. Generated error-code output
+is split into bounded chunks, not exempted; see the
+[ADR 0087 addendum for #4746](../../docs/adr/0087-every-backend-source-tree-stays-in-the-ratchets.md#addendum-2026-10-23-bounded-error-code-generation-4746).
+Facade width keeps its public-module-interface scope. Pass-throughs scan the
+owners' application layers and compositions, without `legacy/`, plus the exact
+moved paths in their register. The `legacy_*.go` register scans the whole
+backend outside `legacy/` trees. All budgets remain shrink-only; the measured
+root pass-through classification adds no allowance.
 
 Two former rows are gone (#4427). The `bun` import in `*/http` and `*/inbound` is an `orm-sql` import the `http` role has no rule for, so `scripts/backend-architecture.sh check` rejects it. Temporary allow-rules in `policy.json` (a transition marker or an `issue` field) are rejected by the evaluator when it loads the policy (`validateTargetOnlyRule`, `internal/architecture/target_rule.go`, ADR 0057).
 
@@ -388,7 +399,7 @@ Two former rows are gone (#4427). The `bun` import in `*/http` and `*/inbound` i
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 - [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
 - [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query_budgets.go`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
-- [ ] Code under `modules/`/`workflows/` stays inside the Rule 16 ratchets — no new file over 800 lines, function over 60 lines or `gocognit` 15, interface over 12 methods, or grown `legacy/` tree; entries lowered where the change earned it, never raised
+- [ ] All backend source stays inside Rule 16: no new file over 800 lines, function over 60 lines or `gocognit` 15; owner-scoped facade/pass-through/legacy budgets also stay unchanged or decrease
 
 ## Detection commands (one-shot health check)
 
@@ -398,7 +409,7 @@ cd backend
 # Rules 1 + 11 — the authoritative checks are the ratchet tests:
 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run 'TestHandlerLayerRatchet' -v
 
-# Rule 16 — the modules/ + workflows/ ratchets (authoritative; no database needed)
+# Rule 16 — source gates are backend-wide; other ratchets keep their named scopes
 ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run 'TestModule' -count=1
 
 # Rule 1 — manual sweep (should be zero)
