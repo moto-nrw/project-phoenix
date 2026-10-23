@@ -57,6 +57,8 @@ export function StaffBirthdayExportModal({
     isOpen,
     onDownload: (format: StaffBirthdayExportFormat) =>
       exportStaffBirthdays({ format, title, months }),
+    onPrint: (target) =>
+      exportStaffBirthdays({ format: "pdf", title, months }, target),
     errorObject: "die Geburtstagsliste",
     successMessage: "Die Geburtstagsliste ist erstellt.",
     onDone: onClose,

@@ -11,7 +11,12 @@ import {
 import { ExportDialog } from "~/components/ui/export-dialog";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { useExportRun } from "~/hooks/use-export-run";
-import { formatDate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import {
   exportStaffTimeTracking,
   type TimeTrackingExportFormat,
@@ -32,7 +37,7 @@ function addDays(date: Date, days: number): Date {
 }
 
 function defaultRange(): DateRange {
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   return { from: addDays(today, -29), to: today };
 }
 
@@ -67,6 +72,16 @@ export function StaffExportButton({
             format,
           )
         : Promise.resolve(),
+    onPrint: (target) =>
+      range?.from && range.to
+        ? exportStaffTimeTracking(
+            staffId,
+            toISODate(range.from),
+            toISODate(range.to),
+            "pdf",
+            target,
+          )
+        : Promise.resolve(),
     validate: () =>
       range?.from && range.to ? null : "Bitte wählen Sie einen Zeitraum aus.",
     errorObject: "den Zeitnachweis",
@@ -74,7 +89,7 @@ export function StaffExportButton({
     logName: "time_tracking",
   });
 
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   const hasRange = Boolean(range?.from && range.to);
 
   return (

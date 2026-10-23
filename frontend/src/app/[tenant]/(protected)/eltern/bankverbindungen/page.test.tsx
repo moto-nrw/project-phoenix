@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   render,
   screen,
@@ -15,7 +15,7 @@ const mockFetchOverview = vi.fn();
 const mockExport = vi.fn();
 vi.mock("~/lib/guardian-payment-api", () => ({
   fetchPaymentOverview: () => mockFetchOverview(),
-  exportPaymentOverview: (format: string) => mockExport(format),
+  exportPaymentOverview: (...args: unknown[]) => mockExport(...args),
 }));
 
 let mockPermissions: string[] = ["guardians:financial"];
@@ -73,6 +73,10 @@ describe("BankverbindungenPage", () => {
     mockFetchOverview.mockReset();
     mockExport.mockReset();
     mockFetchOverview.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("refuses the page without the bank permission", () => {
@@ -146,6 +150,22 @@ describe("BankverbindungenPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
 
     await waitFor(() => expect(mockExport).toHaveBeenCalledWith("pdf"));
+  });
+
+  it("prints the PDF in the tab opened from the dialog", async () => {
+    const target = {} as Window;
+    vi.spyOn(globalThis, "open").mockReturnValue(target);
+    mockFetchOverview.mockResolvedValue([row({})]);
+    mockExport.mockResolvedValue(undefined);
+
+    render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+    openExportDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Drucken" }));
+
+    await waitFor(() => expect(mockExport).toHaveBeenCalledWith("pdf", target));
   });
 
   // The defect this layout exists to fix: in the table the IBAN is a fourth

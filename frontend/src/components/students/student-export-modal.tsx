@@ -192,25 +192,27 @@ export function StudentExportModal({
       ? "Bitte wählen Sie mindestens eine Spalte aus."
       : null;
 
+  const request = (format: StudentExportFormat) => ({
+    format,
+    preset,
+    title,
+    filters: {
+      ...filters,
+      ...(groupByClass && !isSingleClassSelection(filters.school_class)
+        ? { group_by_class: true }
+        : {}),
+      // A birthday list is only readable in calendar order, so the preset
+      // carries its own sort rather than inheriting the page's.
+      ...(preset === "birthday_list" ? { months, sort: "birthday" } : {}),
+      ...(isHealthList
+        ? { include_without_health_info: includeWithoutHealthInfo }
+        : {}),
+    },
+    columns,
+  });
+
   const download = (format: StudentExportFormat) =>
-    exportStudents({
-      format,
-      preset,
-      title,
-      filters: {
-        ...filters,
-        ...(groupByClass && !isSingleClassSelection(filters.school_class)
-          ? { group_by_class: true }
-          : {}),
-        // A birthday list is only readable in calendar order, so the preset
-        // carries its own sort rather than inheriting the page's.
-        ...(preset === "birthday_list" ? { months, sort: "birthday" } : {}),
-        ...(isHealthList
-          ? { include_without_health_info: includeWithoutHealthInfo }
-          : {}),
-      },
-      columns,
-    });
+    exportStudents(request(format));
 
   const description = showsResultCount
     ? selectedCount !== undefined
@@ -221,6 +223,7 @@ export function StudentExportModal({
   const run = useExportRun({
     isOpen,
     onDownload: download,
+    onPrint: (target) => exportStudents(request("pdf"), target),
     validate,
     errorObject: "die Exportdatei",
     onDone: onClose,

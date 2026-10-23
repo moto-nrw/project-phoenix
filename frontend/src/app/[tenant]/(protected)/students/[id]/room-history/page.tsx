@@ -25,7 +25,7 @@ import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
-import { todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, todayISO } from "~/lib/date-helpers";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -823,7 +823,7 @@ function StudentRoomHistoryPageContent() {
           onClose={() => setExportOpen(false)}
           studentId={studentId}
           studentName={displayName}
-          today={todayISO()}
+          today={berlinTodayISO()}
           visibleDays={history.caps.attendanceDays}
         />
       ) : null}

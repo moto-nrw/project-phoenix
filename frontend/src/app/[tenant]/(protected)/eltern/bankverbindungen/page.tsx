@@ -120,6 +120,7 @@ function BankverbindungenContent() {
   const exportRun = useExportRun({
     isOpen: exportOpen,
     onDownload: exportPaymentOverview,
+    onPrint: (target) => exportPaymentOverview("pdf", target),
     errorObject: "das Herunterladen der Bankverbindungen",
     onDone: () => setExportOpen(false),
     logName: "payment_overview",

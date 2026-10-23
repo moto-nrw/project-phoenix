@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -27,6 +27,10 @@ describe("StaffExportButton", () => {
     exportStaffTimeTracking.mockReset();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("exports the time tracking of the given staff member", async () => {
     exportStaffTimeTracking.mockResolvedValue(undefined);
     renderButton();
@@ -50,6 +54,25 @@ describe("StaffExportButton", () => {
       expect(
         screen.queryByRole("heading", { name: "Zeitnachweis exportieren" }),
       ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("prints the PDF for the Berlin range in the tab opened from the click", async () => {
+    const target = {} as Window;
+    vi.spyOn(globalThis, "open").mockReturnValue(target);
+    exportStaffTimeTracking.mockResolvedValue(undefined);
+    renderButton();
+
+    fireEvent.click(screen.getByRole("button", { name: "Drucken" }));
+
+    await waitFor(() =>
+      expect(exportStaffTimeTracking).toHaveBeenCalledWith(
+        "7",
+        "2026-08-11",
+        "2026-09-09",
+        "pdf",
+        target,
+      ),
     );
   });
 

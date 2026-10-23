@@ -151,6 +151,21 @@ describe("StudentExportModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("prints the PDF in the tab opened from the dialog", async () => {
+    const target = {} as Window;
+    vi.spyOn(globalThis, "open").mockReturnValue(target);
+    await openModal();
+
+    fireEvent.click(screen.getByRole("button", { name: "Drucken" }));
+
+    await waitFor(() =>
+      expect(mockExportStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ format: "pdf" }),
+        target,
+      ),
+    );
+  });
+
   it("reports a missing column in the dialog, not in a toast", async () => {
     await openModal();
 

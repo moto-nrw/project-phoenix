@@ -1,6 +1,10 @@
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
-import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -427,6 +431,7 @@ export function buildStudentExportPresets(
 
 export async function exportStudents(
   request: StudentExportRequest,
+  printTarget?: Window,
 ): Promise<void> {
   const response = await transportFetch("/api/students/export", {
     method: "POST",
@@ -438,8 +443,13 @@ export async function exportStudents(
     throw await apiErrorFromResponse(response, "Export fehlgeschlagen");
   }
 
+  const blob = await response.blob();
+  if (printTarget) {
+    openBlobForPrint(blob, printTarget);
+    return;
+  }
   downloadBlob(
-    await response.blob(),
+    blob,
     filenameFromDisposition(response) ?? fallbackFilename(request),
   );
 }

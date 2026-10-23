@@ -1,6 +1,10 @@
 import { apiErrorFromResponse, unavailableApiError } from "./api-error";
 import { fetchWithAuth } from "./fetch-with-auth";
-import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 
 /** A request that never reached the API becomes `general.unavailable`. */
 async function authFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -157,6 +161,7 @@ export interface StaffBirthdayExportRequest {
 
 export async function exportStaffBirthdays(
   request: StaffBirthdayExportRequest,
+  printTarget?: Window,
 ): Promise<void> {
   let response: Response;
   try {
@@ -173,8 +178,13 @@ export async function exportStaffBirthdays(
     throw await apiErrorFromResponse(response, "Staff birthday export failed");
   }
 
+  const blob = await response.blob();
+  if (printTarget) {
+    openBlobForPrint(blob, printTarget);
+    return;
+  }
   downloadBlob(
-    await response.blob(),
+    blob,
     filenameFromDisposition(response) ??
       `geburtstagsliste-personal.${request.format}`,
   );

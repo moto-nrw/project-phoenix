@@ -1,5 +1,9 @@
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
-import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 
 export type TimeTrackingExportFormat = "pdf" | "xlsx" | "csv";
 
@@ -13,6 +17,7 @@ export async function exportStaffTimeTracking(
   from: string,
   to: string,
   format: TimeTrackingExportFormat,
+  printTarget?: Window,
 ): Promise<void> {
   const params = new URLSearchParams({ from, to, format });
   const response = await transportFetch(
@@ -21,8 +26,13 @@ export async function exportStaffTimeTracking(
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "time tracking export failed");
   }
+  const blob = await response.blob();
+  if (printTarget) {
+    openBlobForPrint(blob, printTarget);
+    return;
+  }
   downloadBlob(
-    await response.blob(),
+    blob,
     filenameFromDisposition(response) ?? `zeitnachweis-${from}-${to}.${format}`,
   );
 }

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -27,6 +27,10 @@ describe("StaffBirthdayExportModal", () => {
     exportStaffBirthdays.mockReset();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("schließt nach einem Export und meldet den Erfolg", async () => {
     exportStaffBirthdays.mockResolvedValue(undefined);
     const onClose = renderModal();
@@ -37,6 +41,22 @@ describe("StaffBirthdayExportModal", () => {
       await screen.findByText("Die Geburtstagsliste ist erstellt."),
     ).toBeInTheDocument();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("druckt die PDF im vor dem Laden geöffneten Tab", async () => {
+    const target = {} as Window;
+    vi.spyOn(globalThis, "open").mockReturnValue(target);
+    exportStaffBirthdays.mockResolvedValue(undefined);
+    renderModal();
+
+    fireEvent.click(screen.getByRole("button", { name: "Drucken" }));
+
+    await waitFor(() =>
+      expect(exportStaffBirthdays).toHaveBeenCalledWith(
+        expect.objectContaining({ format: "pdf" }),
+        target,
+      ),
+    );
   });
 
   it("zeigt einen Fehler im offenen Dialog und wiederholt mit der aktuellen Auswahl", async () => {

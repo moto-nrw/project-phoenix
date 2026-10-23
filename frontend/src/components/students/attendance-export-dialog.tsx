@@ -7,7 +7,11 @@ import { ExportDialog } from "~/components/ui/export-dialog";
 import { useExportRun } from "~/hooks/use-export-run";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
-import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 
 type AttendanceExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -28,6 +32,7 @@ async function downloadAttendanceExport(
   from: string,
   to: string,
   format: AttendanceExportFormat,
+  printTarget?: Window,
 ): Promise<void> {
   const params = new URLSearchParams({ format, from, to });
   const response = await transportFetch(
@@ -36,8 +41,13 @@ async function downloadAttendanceExport(
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "attendance export failed");
   }
+  const blob = await response.blob();
+  if (printTarget) {
+    openBlobForPrint(blob, printTarget);
+    return;
+  }
   downloadBlob(
-    await response.blob(),
+    blob,
     filenameFromDisposition(response) ?? `anwesenheit.${format}`,
   );
 }
@@ -88,6 +98,8 @@ export function AttendanceExportDialog({
     isOpen,
     onDownload: (format: AttendanceExportFormat) =>
       downloadAttendanceExport(studentId, from, to, format),
+    onPrint: (target) =>
+      downloadAttendanceExport(studentId, from, to, "pdf", target),
     validate: () => rangeError,
     errorObject: "die Exportdatei",
     onDone: onClose,
