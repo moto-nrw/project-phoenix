@@ -74,6 +74,52 @@ root, Docker-Administratoren oder einem kompromittierten Backend.
    lokaler Nutzer dürfen keine Bildbytes erhalten. Datum, Image-/Commit-Stand,
    UID, Zähler und Prüfergebnis ohne personenbezogene Inhalte dokumentieren.
 
+### Container-Aufruf und pausierte Schreiber
+
+Die [Produktions-Compose](../../environments/production.compose.yml) nennt den
+Backend-Dienst `server` und mountet das Upload-Volume unter
+`/app/public/uploads`. Das Backend-Image enthält Bash und läuft als UID `1001`.
+Die folgenden Befehle sind ausschließlich für den berechtigten Betrieb
+vorbereitet, hier nicht am Server ausgeführt. Im geprüften Deployment-Verzeichnis
+mit dessen bestehender Compose-/Env-Konfiguration arbeiten, damit kein anderes
+Compose-Projekt oder leeres Volume verwendet wird. UID und Mount vorher mit dem
+tatsächlichen Deployment abgleichen, bei Abweichungen abbrechen.
+
+Den vollständigen Bash-Block aus dem nächsten Abschnitt in der Datei
+`/tmp/private-fotodateien-3840.sh` speichern.
+Das Skript enthält keine Daten oder Zugangswerte und wird über stdin übergeben;
+es muss nicht ins Image kopiert werden. Ein erster Trockenlauf im laufenden
+Container ist möglich, ersetzt aber nicht die Prüfung bei pausierten Schreibern:
+
+```sh
+docker compose exec -T --user 1001 \
+  -e UPLOAD_ROOT=/app/public/uploads -e APPLY=0 \
+  server bash -s < /tmp/private-fotodateien-3840.sh
+```
+
+Im Wartungsfenster den Dienst stoppen. Damit pausieren dessen Uploads und
+eingebettete Hintergrundjobs. Etwaige zusätzliche Backend-Replikate, externe
+Jobs und andere Schreiber auf dasselbe Volume ebenfalls pausieren und
+automatischen Neustart durch Deployment-Automation ausschließen. PostgreSQL
+muss dafür nicht gestoppt werden. Ein Einmal-Container kann das Skript auch
+bei gestopptem `server` mit dessen Image, Nutzer und Volume ausführen:
+
+```sh
+docker compose stop server
+docker compose run --rm --no-deps -T --user 1001 --entrypoint bash \
+  -e UPLOAD_ROOT=/app/public/uploads -e APPLY=0 \
+  server -s < /tmp/private-fotodateien-3840.sh
+```
+
+`--entrypoint bash` ersetzt den Image-Einstieg; `-s` ersetzt das Compose-Kommando
+`./main serve`. Der Einmal-Container startet daher keinen Anwendungsschreiber;
+`--no-deps` startet keine abhängigen Dienste. Nach geprüftem Trockenlauf den
+`run`-Aufruf bewusst mit `-e APPLY=1` wiederholen, dann mit `-e APPLY=0`
+null Abweichungen nachweisen. Bei einem Fehler die Schreiber pausiert lassen.
+Erst nach erfolgreicher Bestandsprüfung und Rollout des korrigierten Images
+`docker compose up -d --no-deps server` ausführen, weitere pausierte Schreiber
+kontrolliert freigeben und die Auslieferung nach Schritt 5 prüfen.
+
 ### Trockenlauf und bewusst freigegebener Bestandsschritt
 
 `UPLOAD_ROOT` auf den geprüften absoluten Pfad setzen; `APPLY=0` ist der
