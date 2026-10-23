@@ -603,8 +603,10 @@ export default function MealPlanPage() {
         </>
       }
     >
-      {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
-            kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
+      {/* Eine Karte für den Wochenplan: Titel, Wochenwechsel und „Vorwoche
+            übernehmen“ in der Kopfzeile, die fünf Tage als Körper darunter. */}
+      <FormErrorAlert message={saveErrors.error} />
+
       <SectionCard
         className={canReadPlan ? undefined : "hidden"}
         title="Wochenplan"
@@ -628,7 +630,7 @@ export default function MealPlanPage() {
                 <div className="text-sm font-semibold text-gray-900">
                   KW {weekNumber}
                   {isCurrentWeek ? (
-                    <span className="text-moto-green ml-1.5">
+                    <span className="ml-1.5 font-normal text-gray-500">
                       · Diese Woche
                     </span>
                   ) : null}
@@ -673,135 +675,132 @@ export default function MealPlanPage() {
             ) : null}
           </>
         }
-      />
-
-      <FormErrorAlert message={saveErrors.error} />
-
-      <SectionCard
-        className={`${canReadPlan ? "" : "hidden"} transition-opacity duration-200 ${
-          loading ? "opacity-50" : "opacity-100"
-        }`}
-        bodyClassName=""
       >
-        <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-y-0">
-          {weekDates.map((date) => {
-            const rows = drafts[date] ?? [];
-            const isToday = date === today;
-            const hasContent = dayHasContent(rows);
-            return (
-              <div
-                key={date}
-                data-meal-day-column
-                className={`flex flex-col border-gray-200 md:border-r md:last:border-r-transparent ${isToday ? "bg-moto-green/[0.04]" : ""}`}
-              >
+        <div
+          className={`compact:-mx-4 compact:-mb-4 -mx-5 -mb-5 border-t border-gray-200 transition-opacity duration-200 max-sm:-mx-4 max-sm:-mb-4 ${
+            loading ? "opacity-50" : "opacity-100"
+          }`}
+        >
+          <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-y-0">
+            {weekDates.map((date) => {
+              const rows = drafts[date] ?? [];
+              const isToday = date === today;
+              const hasContent = dayHasContent(rows);
+              return (
                 <div
-                  className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
-                    isToday ? "border-moto-green/30" : "border-gray-200"
-                  }`}
+                  key={date}
+                  data-meal-day-column
+                  className={`flex flex-col border-gray-200 md:border-r md:last:border-r-transparent ${isToday ? "bg-moto-green/[0.04]" : ""}`}
                 >
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">
-                      {weekdayLabel(date)}
+                  <div
+                    className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
+                      isToday ? "border-moto-green/30" : "border-gray-200"
+                    }`}
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        {weekdayLabel(date)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {shortDate(date)}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {shortDate(date)}
+                    <div className="flex items-center gap-1">
+                      {isToday && (
+                        <span className="bg-moto-green rounded-full px-2 py-0.5 text-xs font-semibold text-gray-950">
+                          Heute
+                        </span>
+                      )}
+                      {canEdit && (
+                        <OverflowMenu
+                          ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
+                          triggerClassName="!size-7"
+                          matchContainerSelector="[data-meal-day-column]"
+                          items={[
+                            {
+                              label: "Tag kopieren",
+                              icon: <Copy className="h-4 w-4" />,
+                              onClick: () => copyDay(date),
+                              disabled: !hasContent || editingLocked,
+                            },
+                            {
+                              label: "Einfügen",
+                              icon: <ClipboardPaste className="h-4 w-4" />,
+                              onClick: () => pasteDay(date),
+                              disabled: clipboard === null || editingLocked,
+                            },
+                            {
+                              label: "Tag leeren",
+                              icon: <Trash2 className="h-4 w-4" />,
+                              onClick: () => clearDay(date),
+                              destructive: true,
+                              disabled: !hasContent || editingLocked,
+                            },
+                          ]}
+                        />
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {isToday && (
-                      <span className="bg-moto-green rounded-full px-2 py-0.5 text-xs font-semibold text-gray-950">
-                        Heute
-                      </span>
-                    )}
+
+                  <div className="flex flex-1 flex-col gap-3 p-3">
+                    {rows.map((row, idx) => (
+                      <div
+                        key={row.clientId}
+                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
+                      >
+                        <textarea
+                          rows={1}
+                          className={dishFieldClass}
+                          value={row.dish}
+                          placeholder="Gericht eintragen…"
+                          readOnly={!canEditNow}
+                          onChange={(e) =>
+                            updateDish(date, idx, "dish", e.target.value)
+                          }
+                        />
+                        <textarea
+                          rows={1}
+                          className={noteFieldClass}
+                          value={row.note}
+                          placeholder="Hinweis (optional)"
+                          readOnly={!canEditNow}
+                          onChange={(e) =>
+                            updateDish(date, idx, "note", e.target.value)
+                          }
+                        />
+                        {canEdit &&
+                          (rows.length > 1 ||
+                            row.dish.trim() !== "" ||
+                            row.note.trim() !== "") && (
+                            <button
+                              type="button"
+                              aria-label="Gericht entfernen"
+                              onClick={() => requestRemove(date, idx)}
+                              disabled={editingLocked}
+                              className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                      </div>
+                    ))}
+
                     {canEdit && (
-                      <OverflowMenu
-                        ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
-                        triggerClassName="!size-7"
-                        matchContainerSelector="[data-meal-day-column]"
-                        items={[
-                          {
-                            label: "Tag kopieren",
-                            icon: <Copy className="h-4 w-4" />,
-                            onClick: () => copyDay(date),
-                            disabled: !hasContent || editingLocked,
-                          },
-                          {
-                            label: "Einfügen",
-                            icon: <ClipboardPaste className="h-4 w-4" />,
-                            onClick: () => pasteDay(date),
-                            disabled: clipboard === null || editingLocked,
-                          },
-                          {
-                            label: "Tag leeren",
-                            icon: <Trash2 className="h-4 w-4" />,
-                            onClick: () => clearDay(date),
-                            destructive: true,
-                            disabled: !hasContent || editingLocked,
-                          },
-                        ]}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => addRow(date)}
+                        disabled={editingLocked}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Gericht
+                      </button>
                     )}
                   </div>
                 </div>
-
-                <div className="flex flex-1 flex-col gap-3 p-3">
-                  {rows.map((row, idx) => (
-                    <div
-                      key={row.clientId}
-                      className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
-                    >
-                      <textarea
-                        rows={1}
-                        className={dishFieldClass}
-                        value={row.dish}
-                        placeholder="Gericht eintragen…"
-                        readOnly={!canEditNow}
-                        onChange={(e) =>
-                          updateDish(date, idx, "dish", e.target.value)
-                        }
-                      />
-                      <textarea
-                        rows={1}
-                        className={noteFieldClass}
-                        value={row.note}
-                        placeholder="Hinweis (optional)"
-                        readOnly={!canEditNow}
-                        onChange={(e) =>
-                          updateDish(date, idx, "note", e.target.value)
-                        }
-                      />
-                      {canEdit &&
-                        (rows.length > 1 ||
-                          row.dish.trim() !== "" ||
-                          row.note.trim() !== "") && (
-                          <button
-                            type="button"
-                            aria-label="Gericht entfernen"
-                            onClick={() => requestRemove(date, idx)}
-                            disabled={editingLocked}
-                            className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
-                    </div>
-                  ))}
-
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => addRow(date)}
-                      disabled={editingLocked}
-                      className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Gericht
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </SectionCard>
 
@@ -812,16 +811,18 @@ export default function MealPlanPage() {
         />
       ) : null}
 
+      {/* Der Caterer der Schule (ADR 0077): nur wer den Essensplan
+          verwaltet, lädt ihn ein oder beendet die Belieferung. */}
+      {canEdit && mealRegistrationEnabled === true ? <MealCaterer /> : null}
+
+      {/* Die Tagesliste ist die längste Fläche und steht darum zuletzt:
+          sie reicht bis zur Unterkante, Caterer bleibt neben Bestellung. */}
       {canReadParticipants || canRegister ? (
         <MealParticipantList
           canRegister={canRegister}
           canExport={canReadParticipants}
         />
       ) : null}
-
-      {/* Der Caterer der Schule (ADR 0077): nur wer den Essensplan
-          verwaltet, lädt ihn ein oder beendet die Belieferung. */}
-      {canEdit && mealRegistrationEnabled === true ? <MealCaterer /> : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
       {canEdit && isDirty && !loading && !hasLoadError && (

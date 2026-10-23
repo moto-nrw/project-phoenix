@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -215,6 +216,7 @@ function WeekNavigation({
   weekRange,
   weekReady,
   onWeekChange,
+  action,
 }: Readonly<{
   weekOffset: WeekOffset;
   lastWeek: WeekOffset;
@@ -222,6 +224,8 @@ function WeekNavigation({
   weekRange: string;
   weekReady: boolean;
   onWeekChange: (offset: WeekOffset) => void;
+  /** Eine Aktion für die ganze Woche, rechts in derselben Zeile. */
+  action?: ReactNode;
 }>) {
   const t = useTranslations("parentMealPlan");
   const weekLabel =
@@ -232,45 +236,52 @@ function WeekNavigation({
         : t("inWeeks", { count: weekOffset });
 
   return (
-    <nav
-      aria-label={t("weekNavigation")}
-      className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="min-h-11 min-w-11"
-        aria-label={t("previousWeek")}
-        disabled={!weekReady || weekOffset === 0}
-        onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
+    <div className="relative flex flex-wrap items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5">
+      <nav
+        aria-label={t("weekNavigation")}
+        className="flex items-center justify-center gap-2"
       >
-        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-      </Button>
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="min-w-40 text-center"
-      >
-        <p className="text-sm font-semibold text-gray-900">
-          {t("calendarWeek", { week: isoWeek(mondayISO) })}
-          <span className="ml-1.5 text-gray-500">· {weekLabel}</span>
-        </p>
-        <p className="text-xs text-gray-500">{weekRange}</p>
-      </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="min-h-11 min-w-11"
-        aria-label={t("nextWeek")}
-        disabled={!weekReady || weekOffset >= lastWeek}
-        onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
-      >
-        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-      </Button>
-    </nav>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="min-h-11 min-w-11"
+          aria-label={t("previousWeek")}
+          disabled={!weekReady || weekOffset === 0}
+          onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        </Button>
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="min-w-40 text-center"
+        >
+          <p className="text-sm font-semibold text-gray-900">
+            {t("calendarWeek", { week: isoWeek(mondayISO) })}
+            <span className="ml-1.5 text-gray-500">· {weekLabel}</span>
+          </p>
+          <p className="text-xs text-gray-500">{weekRange}</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="min-h-11 min-w-11"
+          aria-label={t("nextWeek")}
+          disabled={!weekReady || weekOffset >= lastWeek}
+          onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </nav>
+      {action ? (
+        <div className="flex w-full justify-center sm:absolute sm:inset-y-0 sm:right-5 sm:w-auto sm:items-center">
+          {action}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -845,25 +856,8 @@ function ParticipationWeek({
           weekRange={weekRange}
           weekReady={weekReady && !isEditing}
           onWeekChange={onWeekChange}
-        />
-      </div>
-
-      {weekReady &&
-      !loading &&
-      (weekCancellable || weekResult?.monday === mondayISO) ? (
-        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
-          {weekResult?.monday === mondayISO ? (
-            <Alert
-              type="success"
-              message={
-                weekResult.locked.length > 0
-                  ? `${t("cancelWeekDone")} ${t("cancelWeekLocked", { days: lockedLabel(weekResult.locked) })}`
-                  : t("cancelWeekDone")
-              }
-            />
-          ) : null}
-          {weekCancellable ? (
-            <div className="flex justify-end">
+          action={
+            weekReady && !loading && weekCancellable ? (
               <Button
                 type="button"
                 variant="outline"
@@ -877,7 +871,26 @@ function ParticipationWeek({
               >
                 {t("cancelWeek")}
               </Button>
-            </div>
+            ) : null
+          }
+        />
+      </div>
+
+      {/* „Woche abmelden“ steht in der Zeile des Wochenwechsels; eine eigene
+          Zeile gibt es nur noch für das Ergebnis oder einen Fehler. */}
+      {weekReady &&
+      !loading &&
+      (weekResult?.monday === mondayISO || (weekCancellable && saveError)) ? (
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
+          {weekResult?.monday === mondayISO ? (
+            <Alert
+              type="success"
+              message={
+                weekResult.locked.length > 0
+                  ? `${t("cancelWeekDone")} ${t("cancelWeekLocked", { days: lockedLabel(weekResult.locked) })}`
+                  : t("cancelWeekDone")
+              }
+            />
           ) : null}
           {!isEditing && saveError ? (
             <FormErrorAlert message={saveError} />
@@ -1031,9 +1044,9 @@ function ParticipationWeek({
                               dayEditTriggerRefs.current.set(date, node);
                             }}
                             type="button"
-                            variant="ghost"
+                            variant="outline"
                             size="compact"
-                            className="-mr-2.5 ml-auto min-h-11 text-sm underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+                            className="ml-auto min-h-11"
                             aria-label={t("editDayRegistration", {
                               date: fullDate(date),
                             })}
