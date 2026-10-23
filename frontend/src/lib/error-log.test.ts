@@ -4,6 +4,7 @@ import { ERROR_CODE_CLASSES } from "~/lib/error-codes.generated";
 import {
   ERROR_DISPLAYED,
   errorLogFields,
+  logDisplayedCrash,
   logDisplayedError,
   statusErrorClass,
 } from "~/lib/error-log";
@@ -53,6 +54,14 @@ describe("errorLogFields", () => {
     });
   });
 
+  it("does not take a status in the message for a dropped connection", () => {
+    // expectedFailure reads 409 here as a conflict; it is no transport failure.
+    expect(errorLogFields(new Error("HTTP error! status: 409"))).toEqual({
+      error_class: "crash",
+      error_name: "Error",
+    });
+  });
+
   it("drops a code or name that is not an identifier", () => {
     const error = new ApiError("x", 500, { code: "Anna Schmidt fehlt" });
     error.name = "Anna Schmidt";
@@ -69,6 +78,35 @@ describe("errorLogFields", () => {
         ERROR_CODE_CLASSES[errorClassCode(status)],
       );
     }
+  });
+});
+
+describe("logDisplayedCrash", () => {
+  it("logs a crash page with the class crash and without the message", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logDisplayedCrash(new TypeError("Failed to fetch Anna"));
+    logDisplayedCrash(
+      new ApiError("Anna", 403, { code: "general.permission" }),
+    );
+
+    expect(warn.mock.calls).toEqual([
+      [
+        ERROR_DISPLAYED,
+        { surface: "page", error_class: "crash", error_name: "TypeError" },
+      ],
+      [
+        ERROR_DISPLAYED,
+        {
+          surface: "page",
+          error_class: "crash",
+          error_code: "general.permission",
+          status: 403,
+          error_name: "ApiError",
+        },
+      ],
+    ]);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("Anna");
   });
 });
 

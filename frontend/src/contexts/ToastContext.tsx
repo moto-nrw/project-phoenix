@@ -470,9 +470,23 @@ function useApiErrorCore(
   // A catalog import can finish after the caller has cleared the error, shown
   // another one, or unmounted. Only the latest request may update its state.
   const showVersion = useRef(0);
+  // A failed load stays on screen while SWR retries it, and every retry
+  // hands `show` a new error. Count it once until the caller clears it.
+  const loadLogged = useRef(false);
   const invalidatePendingShow = useCallback(() => {
     showVersion.current += 1;
+    loadLogged.current = false;
   }, []);
+  const logShown = useCallback(
+    (fields: Parameters<typeof logDisplayedError>[1]) => {
+      if (surface === "load") {
+        if (loadLogged.current) return;
+        loadLogged.current = true;
+      }
+      logDisplayedError(surface, fields);
+    },
+    [surface],
+  );
 
   useEffect(() => invalidatePendingShow, [invalidatePendingShow]);
 
@@ -529,7 +543,7 @@ function useApiErrorCore(
           return;
         }
         setFieldErrors({});
-        logDisplayedError(surface, errorLogFields(error));
+        logShown(errorLogFields(error));
         const message = emergencyErrorByLocale[locale].replace(
           "{object}",
           options.object,
@@ -557,7 +571,7 @@ function useApiErrorCore(
         return presentation;
       }
       const logged = errorLogFields(error);
-      logDisplayedError(surface, {
+      logShown({
         ...logged,
         // The class of the code; an exception keeps the class of its cause.
         error_class: presentation.errorClass ?? logged.error_class,
@@ -587,7 +601,7 @@ function useApiErrorCore(
       );
       return presentation;
     },
-    [deliver, markFields, surface],
+    [deliver, logShown, markFields],
   );
 
   const clearFieldErrors = useCallback(() => setFieldErrors({}), []);
@@ -682,8 +696,10 @@ export function useApiFormError(formRef?: RefObject<HTMLElement | null>) {
     (message: string, fields: Readonly<Record<string, string>> = {}) => {
       invalidatePendingShow();
       const names = Object.keys(fields);
+      // The form's own check: the class and code of an invalid input.
       logDisplayedError("form", {
-        error_class: "local",
+        error_class: "input",
+        error_code: "general.input",
         ...(names.length > 0 && { fields: names }),
       });
       setError(message);

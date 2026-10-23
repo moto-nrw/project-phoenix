@@ -125,4 +125,29 @@ describe("useSSE — connection error log (#2512)", () => {
       }),
     );
   });
+
+  it("leaves a stream the server closed unclassed, so it stays an error", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    renderHook(() =>
+      useSSE("/api/sse/events", {
+        onMessage: () => undefined,
+        maxReconnectAttempts: 0,
+      }),
+    );
+    const es = MockEventSource.instances.at(-1)!;
+    // The browser fails the connection on a non-200 answer: readyState CLOSED.
+    es.readyState = 2;
+
+    act(() => {
+      es.onerror?.call(es as unknown as EventSource, new Event("error"));
+    });
+
+    const context = consoleError.mock.calls.find(
+      ([msg]) => msg === "sse connection error",
+    )?.[1] as Record<string, unknown>;
+    expect(context).toMatchObject({ ready_state: 2 });
+    expect(context).not.toHaveProperty("error_class");
+  });
 });

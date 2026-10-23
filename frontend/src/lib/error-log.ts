@@ -73,7 +73,10 @@ export function errorLogFields(error: unknown): ErrorLogFields {
   const name = errorName(error);
   if (!(error instanceof ApiError)) {
     const message = error instanceof Error ? error.message : "";
-    const transport = expectedFailure({ error: message }, "client");
+    // Only the browser's texts for a request without a response; a status
+    // the message names (HTTP error! status: 409) is no transport failure.
+    const expected = expectedFailure({ error: message }, "client");
+    const transport = expected === "network" || expected === "aborted";
     return {
       error_class: transport ? "unavailable" : "crash",
       ...(name && { error_name: name }),
@@ -93,6 +96,14 @@ export function errorLogFields(error: unknown): ErrorLogFields {
       }),
     ...(name && { error_name: name }),
   };
+}
+
+/**
+ * A crash page or notice. The class is `crash` whatever was thrown; an API
+ * error thrown while rendering keeps its code for the search.
+ */
+export function logDisplayedCrash(error: unknown): void {
+  logDisplayedError("page", { ...errorLogFields(error), error_class: "crash" });
 }
 
 /** One entry per failure a person saw, whatever surface showed it. */

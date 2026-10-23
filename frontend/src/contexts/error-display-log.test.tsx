@@ -127,9 +127,32 @@ describe("error_displayed entries (#2512)", () => {
 
     expect(displayedEntries(warn)).toEqual([
       { surface: "toast", error_class: "local" },
-      { surface: "form", error_class: "local", fields: ["first_name"] },
+      {
+        surface: "form",
+        error_class: "input",
+        error_code: "general.input",
+        fields: ["first_name"],
+      },
     ]);
     expect(JSON.stringify(warn.mock.calls)).not.toContain("Anna");
+  });
+
+  it("counts a failed load once while SWR retries it, and again after it cleared", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { result } = renderHook(() => useApiLoadError(), { wrapper });
+    const retryFailure = () => new ApiError("down", 503, { instance: "r" });
+
+    await act(async () => {
+      await result.current.show(retryFailure(), { object: "die Liste" });
+      await result.current.show(retryFailure(), { object: "die Liste" });
+    });
+    expect(displayedEntries(warn)).toHaveLength(1);
+
+    act(() => result.current.clear());
+    await act(async () => {
+      await result.current.show(retryFailure(), { object: "die Liste" });
+    });
+    expect(displayedEntries(warn)).toHaveLength(2);
   });
 
   it("logs nothing for an expired session, which opens the login instead", async () => {

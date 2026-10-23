@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { errorLogFields, logDisplayedError } from "~/lib/error-log";
+import { logDisplayedCrash } from "~/lib/error-log";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SSEErrorBoundary" });
@@ -33,10 +33,7 @@ export class SSEErrorBoundary extends React.Component<
       error: error instanceof Error ? error.message : String(error),
       error_info: String(errorInfo),
     });
-    logDisplayedError("page", {
-      ...errorLogFields(error),
-      error_class: "crash",
-    });
+    logDisplayedCrash(error);
   }
 
   render() {

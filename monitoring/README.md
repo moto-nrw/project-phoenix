@@ -101,7 +101,11 @@ saw (`surface`: `toast`, `form`, `load`, `page`). Failed background loads
 (`swr_fetch_failed`, `swr_fetch_rate_limited`) and dropped live-update
 streams (`sse connection error`) get their own table. All of them carry only
 identifiers: `error_code`, `error_class`, `status`, `request_id`,
-`error_name`, and field names. The client log route adds `tenant_id`,
+`error_name`, and field names. `error_class` is the registry class of the
+code, `crash` for an exception without an API answer, or `local` for a
+failure the screen found itself. A form's own input check counts as
+`general.input`. A failed load counts once while SWR retries it. An SSE
+error after the server answered (`ready_state` 2) carries no class. The client log route adds `tenant_id`,
 `portal` and `user_id` from the verified session. The list of fields that can
 name a person and are never logged is in `frontend/src/lib/error-log.ts`.
 
