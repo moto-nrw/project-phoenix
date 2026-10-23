@@ -252,7 +252,7 @@ const permissionDescriptions: Record<string, string> = {
 
   // System & Admin
   "system:manage": "Einstellungen von moto verwalten (nur moto-Team)",
-  "admin:*": "Darf alles, auch Bereiche des moto-Teams (nur moto-Team)",
+  "admin:*": "Darf alles in der Schule (nur Rolle Verwaltung)",
   "*:*": "Darf alles, auch Bereiche des moto-Teams (nur moto-Team)",
 
   // Legacy names (from initial migration)
@@ -284,12 +284,12 @@ export function localizeDescription(
 }
 
 /**
- * Permissions only the platform operator may hold (#4574). A school role can
- * never gain one: the role editor hides them, and the backend refuses them
- * with identity.role_platform_permission. Mirrors platformOnlyPermissions in
- * backend/modules/identityaccess/role_templates.go.
+ * Permissions no school role may gain (#4574): admin:* stays with the system
+ * role Verwaltung, the others belong to the moto team. The role editor hides
+ * them, and the backend refuses them with identity.role_platform_permission.
+ * Mirrors reservedPermissions in backend/modules/identityaccess/role_templates.go.
  */
-const PLATFORM_ONLY_PERMISSIONS: ReadonlySet<string> = new Set([
+const RESERVED_PERMISSIONS: ReadonlySet<string> = new Set([
   "*:*",
   "admin:*",
   "system:manage",
@@ -298,11 +298,11 @@ const PLATFORM_ONLY_PERMISSIONS: ReadonlySet<string> = new Set([
   "permissions:delete",
 ]);
 
-export function isPlatformOnlyPermission(
+export function isReservedPermission(
   resource: string,
   action: string,
 ): boolean {
-  return PLATFORM_ONLY_PERMISSIONS.has(`${resource}:${action}`);
+  return RESERVED_PERMISSIONS.has(`${resource}:${action}`);
 }
 
 /**

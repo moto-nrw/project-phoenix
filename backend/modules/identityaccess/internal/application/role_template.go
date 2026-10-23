@@ -10,8 +10,9 @@ import (
 const opCreateRoleFromTemplate = "create role from template"
 
 // createRoleFromTemplate creates a custom role that starts as a copy of the
-// template system role (#4574): the same tier and the same permissions, minus
-// the platform permissions a school role may not hold. It runs inside
+// template system role (#4574): the same tier and the permissions the
+// template effectively holds, minus the reserved permissions a school role may
+// not hold. It runs inside
 // CreateRole's transaction, so role and copy commit together.
 func (r *RoleAdministration) createRoleFromTemplate(ctx context.Context, name, description string, requestedBase *string, templates []identityaccess.RoleTemplate) (domain.ManagedRole, error) {
 	// The template sets the tier; a second template or an explicit tier
@@ -36,7 +37,9 @@ func (r *RoleAdministration) createRoleFromTemplate(ctx context.Context, name, d
 }
 
 // roleTemplate resolves the template system role to the tier and the
-// permissions a school role copies from it.
+// permissions a school role copies from it. The admin template stands for the
+// whole catalog: admin holds many permissions only through admin:*, which
+// stays reserved, so its explicit grants alone would fall short.
 func (r *RoleAdministration) roleTemplate(ctx context.Context, template identityaccess.RoleTemplate) (string, []domain.ManagedPermission, error) {
 	if !template.Valid() {
 		return "", nil, failed(opCreateRoleFromTemplate, domain.ErrRoleNotFound)
@@ -52,13 +55,18 @@ func (r *RoleAdministration) roleTemplate(ctx context.Context, template identity
 	if baseRole == "" {
 		return "", nil, failed(opCreateRoleFromTemplate, domain.ErrBaseRoleRequired)
 	}
-	permissions, err := r.store.ListRolePermissions(ctx, source.ID)
+	var permissions []domain.ManagedPermission
+	if template == identityaccess.RoleTemplateAdministration {
+		permissions, err = r.store.ListPermissions(ctx, domain.PermissionFilter{})
+	} else {
+		permissions, err = r.store.ListRolePermissions(ctx, source.ID)
+	}
 	if err != nil {
 		return "", nil, failed(opCreateRoleFromTemplate, err)
 	}
 	copied := make([]domain.ManagedPermission, 0, len(permissions))
 	for _, permission := range permissions {
-		if !identityaccess.IsPlatformOnlyPermission(permissionKey(permission)) {
+		if !identityaccess.IsReservedPermission(permissionKey(permission)) {
 			copied = append(copied, permission)
 		}
 	}

@@ -446,7 +446,26 @@ describe("RolePermissionsTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(onCancelEdit).toHaveBeenCalledOnce();
   });
-  it("offers no platform permission and keeps one the role already holds removable", async () => {
+  it("names the Verwaltung role as the owner of a held admin:*", async () => {
+    const adminWildcard = permission("p10", "admin", "*");
+    mockGetPermissions.mockResolvedValue([...allPermissions, adminWildcard]);
+    mockGetRolePermissions.mockResolvedValue([adminWildcard]);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("checkbox", { name: "admin:*" }),
+    ).toHaveAccessibleDescription(
+      "Nur für die Rolle Verwaltung. Sie können es entfernen, aber nicht wieder vergeben.",
+    );
+  });
+  it("offers no reserved permission and keeps one the role already holds removable", async () => {
     const adminWildcard = permission("p10", "admin", "*");
     const systemManage = permission("p11", "system", "manage");
     mockGetPermissions.mockResolvedValue([

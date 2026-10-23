@@ -245,7 +245,7 @@ describe("permission-labels", () => {
         "Einstellungen von moto verwalten (nur moto-Team)",
       );
       expect(localizeDescription("admin", "*")).toBe(
-        "Darf alles, auch Bereiche des moto-Teams (nur moto-Team)",
+        "Darf alles in der Schule (nur Rolle Verwaltung)",
       );
     });
   });

@@ -85,7 +85,7 @@ func (r *RoleAdministration) AssignPermissionToRole(ctx context.Context, roleID,
 		if err != nil {
 			return err
 		}
-		if err := requireNoNewPlatformPermission(map[int64]domain.ManagedPermission{permission.ID: permission}, current, opAssignPermissionToRole); err != nil {
+		if err := requireNoNewReservedPermission(map[int64]domain.ManagedPermission{permission.ID: permission}, current, opAssignPermissionToRole); err != nil {
 			return err
 		}
 		if err := r.store.AssignRolePermission(txCtx, roleID, permissionID); err != nil {
@@ -115,7 +115,7 @@ func (r *RoleAdministration) lockMutableRole(ctx context.Context, roleID int64, 
 // ReplaceRolePermissions applies a complete permission selection to a custom
 // role in one transaction. All requested permissions are validated before the
 // current selection is changed, so an invalid request leaves it untouched.
-// A platform permission the role does not hold yet is refused (#4574); one it
+// A reserved permission the role does not hold yet is refused (#4574); one it
 // already holds may stay or be removed, so a role from before the rule stays
 // editable.
 func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) (err error) {
@@ -141,7 +141,7 @@ func (r *RoleAdministration) ReplaceRolePermissions(ctx context.Context, roleID 
 		if err != nil {
 			return err
 		}
-		if err := requireNoNewPlatformPermission(desired, current, op); err != nil {
+		if err := requireNoNewReservedPermission(desired, current, op); err != nil {
 			return err
 		}
 		return r.applyRolePermissionSelection(txCtx, roleID, desired, current, op)
@@ -238,9 +238,9 @@ func (r *RoleAdministration) rolePermissions(txCtx context.Context, roleID int64
 	return current, nil
 }
 
-// requireNoNewPlatformPermission refuses a selection that adds a platform
+// requireNoNewReservedPermission refuses a selection that adds a reserved
 // permission the role does not hold yet (#4574).
-func requireNoNewPlatformPermission(desired map[int64]domain.ManagedPermission, current []domain.ManagedPermission, op string) error {
+func requireNoNewReservedPermission(desired map[int64]domain.ManagedPermission, current []domain.ManagedPermission, op string) error {
 	held := make(map[int64]struct{}, len(current))
 	for _, permission := range current {
 		held[permission.ID] = struct{}{}
@@ -249,17 +249,17 @@ func requireNoNewPlatformPermission(desired map[int64]domain.ManagedPermission, 
 		if _, ok := held[id]; ok {
 			continue
 		}
-		if name := permissionKey(permission); identityaccess.IsPlatformOnlyPermission(name) {
-			return failed(op, &identityaccess.PlatformPermissionError{Permission: name})
+		if name := permissionKey(permission); identityaccess.IsReservedPermission(name) {
+			return failed(op, &identityaccess.ReservedPermissionError{Permission: name})
 		}
 	}
 	return nil
 }
 
 // permissionKey checks the canonical name before metadata so inconsistent
-// catalog entries cannot hide a platform permission from guards or templates.
+// catalog entries cannot hide a reserved permission from guards or templates.
 func permissionKey(permission domain.ManagedPermission) string {
-	if identityaccess.IsPlatformOnlyPermission(permission.Name) || (permission.Resource == "" && permission.Action == "") {
+	if identityaccess.IsReservedPermission(permission.Name) || (permission.Resource == "" && permission.Action == "") {
 		return permission.Name
 	}
 	return permission.Resource + ":" + permission.Action

@@ -157,9 +157,9 @@ func renderRoleMutationError(err error) render.Renderer {
 	if errors.Is(err, identityaccess.ErrRoleNameTaken) {
 		return common.ErrorConflictOnField(err, common.CodeIdentityRoleNameTaken, "name")
 	}
-	var platformErr *identityaccess.PlatformPermissionError
-	if errors.As(err, &platformErr) {
-		return common.ErrorInvalidRequestWithDetails(err, common.CodeIdentityRolePlatformPermission, map[string]any{"permission": platformErr.Permission})
+	var reservedErr *identityaccess.ReservedPermissionError
+	if errors.As(err, &reservedErr) {
+		return common.ErrorInvalidRequestWithDetails(err, common.CodeIdentityRolePlatformPermission, map[string]any{"permission": reservedErr.Permission})
 	}
 	var roleErr *identityaccess.AuthenticationError
 	if errors.As(err, &roleErr) {

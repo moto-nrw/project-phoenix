@@ -15,7 +15,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// Role templates and the platform permission rule over the HTTP routes
+// Role templates and the reserved permission rule over the HTTP routes
 // (#4574).
 
 func (e *accountIsolationEnv) createRole(t *testing.T, body map[string]string) authAPI.RoleResponse {
@@ -32,6 +32,19 @@ func (e *accountIsolationEnv) createRole(t *testing.T, body map[string]string) a
 func (e *accountIsolationEnv) permissionNamesOf(t *testing.T, roleID int64) []string {
 	t.Helper()
 	permissions, err := e.tc.resource.Sessions.GetRolePermissions(tenant.WithTenantID(t.Context(), e.tenantID), roleID)
+	require.NoError(t, err)
+	names := make([]string, 0, len(permissions))
+	for _, permission := range permissions {
+		names = append(names, permission.FullName())
+	}
+	return names
+}
+
+// catalogPermissionNames lists the whole permission catalog, which the admin
+// template copies minus the reserved permissions.
+func (e *accountIsolationEnv) catalogPermissionNames(t *testing.T) []string {
+	t.Helper()
+	permissions, err := e.tc.resource.Sessions.ListPermissions(tenant.WithTenantID(t.Context(), e.tenantID), identityaccess.PermissionFilter{})
 	require.NoError(t, err)
 	names := make([]string, 0, len(permissions))
 	for _, permission := range permissions {
@@ -60,9 +73,13 @@ func TestCreateRoleFromTemplateCopiesTheTemplatePermissions(t *testing.T) {
 	for _, template := range identityaccess.RoleTemplates() {
 		role := e.createRole(t, map[string]string{"name": fmt.Sprintf("Vorlage %s %d", template, e.tenantID), "template": string(template)})
 
+		source := e.permissionNamesOf(t, e.systemRole(t, string(template)).ID)
+		if template == identityaccess.RoleTemplateAdministration {
+			source = e.catalogPermissionNames(t)
+		}
 		want := []string{}
-		for _, name := range e.permissionNamesOf(t, e.systemRole(t, string(template)).ID) {
-			if !identityaccess.IsPlatformOnlyPermission(name) {
+		for _, name := range source {
+			if !identityaccess.IsReservedPermission(name) {
 				want = append(want, name)
 			}
 		}
@@ -86,7 +103,7 @@ func TestCreateRoleRejectsTemplateWithBaseRole(t *testing.T) {
 	}
 }
 
-func TestReplaceRolePermissionsRefusesPlatformPermissions(t *testing.T) {
+func TestReplaceRolePermissionsRefusesReservedPermissions(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)
 	ctx := tenant.WithTenantID(t.Context(), e.tenantID)
@@ -94,7 +111,7 @@ func TestReplaceRolePermissionsRefusesPlatformPermissions(t *testing.T) {
 	groupsRead, err := e.tc.resource.Sessions.GetPermissionByName(ctx, "groups:read")
 	require.NoError(t, err)
 
-	for _, name := range platformOnlyPermissionNames {
+	for _, name := range reservedPermissionNames {
 		platform, err := e.tc.resource.Sessions.GetPermissionByName(ctx, name)
 		require.NoError(t, err, name)
 
@@ -113,6 +130,6 @@ func TestReplaceRolePermissionsRefusesPlatformPermissions(t *testing.T) {
 	}
 }
 
-// platformOnlyPermissionNames is the platform list #4574 names, written out
+// reservedPermissionNames is the reserved list #4574 names, written out
 // so the tests do not read it back from the code under test.
-var platformOnlyPermissionNames = []string{"*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete"}
+var reservedPermissionNames = []string{"*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete"}

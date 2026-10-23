@@ -281,7 +281,7 @@ export const ERROR_CATALOG = {
       "identity.role_name_taken":
         "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
       "identity.role_platform_permission":
-        "Dieses Recht gibt es nur für das moto-Team. Rollen der Schule können es nicht bekommen.",
+        "Eigene Rollen können dieses Recht nicht bekommen.",
       "identity.invitation_account_login_required":
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
       "identity.invitation_account_mismatch":

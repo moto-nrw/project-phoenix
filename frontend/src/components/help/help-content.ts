@@ -4722,7 +4722,7 @@ function removeStaffTopic(): HelpTopic {
  * Rollen unter `/database/roles`, Rechteliste unter `/database/permissions`.
  * Vorgegebene Rollen (`role.isSystem`) haben keine Kopfaktionen
  * (roles-master-detail.tsx). Eine neue Rolle startet mit den Rechten ihrer
- * Vorlage; Plattformrechte bietet der Reiter nicht an (#4574).
+ * Vorlage; gesperrte Rechte bietet der Reiter nicht an (#4574).
  */
 function staffPermissionsTopic(): HelpTopic {
   return {
@@ -4768,6 +4768,7 @@ function staffPermissionsTopic(): HelpTopic {
       "Die neue Rolle gilt, sobald sich die Person das nächste Mal anmeldet.",
     notes: [
       "Eine neue Rolle bekommt einmal die Rechte ihrer Vorlage. Danach ändern Sie die Rechte nur noch an der Rolle selbst.",
+      "`Wie Verwaltung` gibt fast alle Rechte der Verwaltung. Einiges kann nur die Rolle `Verwaltung` selbst, zum Beispiel Mitteilungen an Eltern schreiben.",
       "Bei manchen Rechten steht ein Hinweis. Damit kann eine Person Rollen, Konten oder Einstellungen ändern. Geben Sie diese Rechte nur der Leitung.",
       "`Position` im Reiter `Konto` ist nur ein Text für die Personalliste. Sie ändert keine Rechte.",
       "Unter `Datenverwaltung` → `Berechtigungen` sehen Sie alle verfügbaren Rechte. Diese Übersicht können Sie nur ansehen. Die Rechte einer eigenen Rolle ändern Sie unter `Rollen`.",
@@ -4777,7 +4778,7 @@ function staffPermissionsTopic(): HelpTopic {
       "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `Eltern` und `Gast`. Sie sind als `Vorgegeben` markiert.",
       "Bei einer vorgegebenen Rolle fehlen `Bearbeiten` und `Löschen`. Zum Ändern von Rechten legen Sie deshalb eine eigene Rolle an.",
       "`Gast` ist eine alte Rolle. Sie lässt sich nicht mehr vergeben. Wer sie schon hat, behält sie.",
-      "Einige Rechte gibt es nur für das moto-Team. Sie stehen nicht zur Auswahl.",
+      "Einige Rechte stehen nicht zur Auswahl. Sie gehören nur der Rolle `Verwaltung` oder dem moto-Team.",
     ],
     troubleshootingDetails: [
       "Eine Person sieht einen Bereich nicht? Prüfen Sie die Rechte ihrer Rolle.",

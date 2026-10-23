@@ -29,7 +29,7 @@ import type { Permission, Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   formatPermissionDisplay,
-  isPlatformOnlyPermission,
+  isReservedPermission,
   localizeAction,
   localizeDescription,
   localizeResource,
@@ -65,18 +65,22 @@ function permissionLabel(permission: Permission): string {
   return formatPermissionDisplay(permission.resource, permission.action);
 }
 
-function isPlatformOnly(permission: Permission): boolean {
-  return isPlatformOnlyPermission(permission.resource, permission.action);
+function isReserved(permission: Permission): boolean {
+  return isReservedPermission(permission.resource, permission.action);
 }
 
 /**
  * Der Warnhinweis unter einem Recht im Bearbeiten-Zustand (#4574): ein
- * Plattformrecht, das die Rolle noch aus der Zeit vor der Sperre trägt, oder
+ * gesperrtes Recht, das die Rolle noch aus der Zeit vor der Sperre trägt, oder
  * ein Recht, mit dem jemand Rollen, Konten oder Einstellungen ändern kann.
  */
 function permissionHint(permission: Permission): string | undefined {
-  if (isPlatformOnly(permission)) {
-    return "Nur für das moto-Team. Sie können es entfernen, aber nicht wieder vergeben.";
+  if (isReserved(permission)) {
+    const owner =
+      permission.resource === "admin"
+        ? "die Rolle Verwaltung"
+        : "das moto-Team";
+    return `Nur für ${owner}. Sie können es entfernen, aber nicht wieder vergeben.`;
   }
   return riskyPermissionHint(permission.resource, permission.action);
 }
@@ -182,12 +186,12 @@ export function RolePermissionsTab({
     [allPermissions, assignedMap],
   );
 
-  // Plattformrechte bekommt eine Rolle der Schule nicht (#4574). Trägt sie
+  // Gesperrte Rechte bekommt eine Rolle der Schule nicht (#4574). Trägt sie
   // eins schon, bleibt es sichtbar, damit es entfernt werden kann.
   const selectablePermissions = useMemo(
     () =>
       allPermissions.filter(
-        (p) => !isPlatformOnly(p) || assignedMap[p.id] === true,
+        (p) => !isReserved(p) || assignedMap[p.id] === true,
       ),
     [allPermissions, assignedMap],
   );

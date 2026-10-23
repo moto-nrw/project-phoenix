@@ -234,7 +234,11 @@ func (s *raStore) UpdatePermission(context.Context, domain.ManagedPermission) er
 func (s *raStore) DeletePermission(context.Context, int64) error                    { return nil }
 
 func (s *raStore) ListPermissions(context.Context, domain.PermissionFilter) ([]domain.ManagedPermission, error) {
-	return nil, nil
+	result := make([]domain.ManagedPermission, 0, len(s.permissions))
+	for _, permission := range s.permissions {
+		result = append(result, permission)
+	}
+	return result, nil
 }
 
 func (s *raStore) ListRolePermissions(_ context.Context, roleID int64) ([]domain.ManagedPermission, error) {
@@ -948,16 +952,19 @@ func TestRoleAdministration_CreateRoleFromTemplate(t *testing.T) {
 		assert.ElementsMatch(t, []string{"groups:read", "visits:create"}, f.store.permissionNames(role.ID))
 	})
 
-	t.Run("leaves out the platform permissions of the admin template", func(t *testing.T) {
+	t.Run("gives the admin template every permission except the reserved ones", func(t *testing.T) {
 		f := newRAFixture(t)
 		admin := f.store.addRole(systemRoleOf("admin", nil))
 		f.store.grant(admin.ID, "*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete", "permissions:read", "users:manage", "config:manage")
+		// admin reaches these only through admin:*.
+		f.store.addPermission("staff:financial")
+		f.store.addPermission("users:checkin")
 
 		role, err := f.admin.CreateRole(raContext(), "Leitung", "", nil, identityaccess.RoleTemplateAdministration)
 		require.NoError(t, err)
 		require.NotNil(t, role.BaseRole)
 		assert.Equal(t, "admin", *role.BaseRole)
-		assert.ElementsMatch(t, []string{"permissions:read", "users:manage", "config:manage"}, f.store.permissionNames(role.ID))
+		assert.ElementsMatch(t, []string{"permissions:read", "users:manage", "config:manage", "staff:financial", "users:checkin"}, f.store.permissionNames(role.ID))
 	})
 
 	t.Run("takes the stored tier of the Lehrkraft template", func(t *testing.T) {
@@ -994,10 +1001,10 @@ func TestRoleAdministration_CreateRoleFromTemplate(t *testing.T) {
 	})
 }
 
-func TestRoleAdministration_PlatformPermissionsStayOffSchoolRoles(t *testing.T) {
+func TestRoleAdministration_ReservedPermissionsStayOffSchoolRoles(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range platformOnlyPermissionNames {
+	for _, name := range reservedPermissionNames {
 		t.Run(name, func(t *testing.T) {
 			f := newRAFixture(t)
 			role := f.store.addRole(customRoleOf("ogs", "user"))
@@ -1005,13 +1012,13 @@ func TestRoleAdministration_PlatformPermissionsStayOffSchoolRoles(t *testing.T) 
 			platform := f.store.addPermission(name)
 
 			err := f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept[0], platform.ID})
-			require.ErrorIs(t, err, identityaccess.ErrPlatformPermissionNotAllowed)
-			var platformErr *identityaccess.PlatformPermissionError
-			require.ErrorAs(t, err, &platformErr)
-			assert.Equal(t, name, platformErr.Permission)
+			require.ErrorIs(t, err, identityaccess.ErrReservedPermissionNotAllowed)
+			var reservedErr *identityaccess.ReservedPermissionError
+			require.ErrorAs(t, err, &reservedErr)
+			assert.Equal(t, name, reservedErr.Permission)
 			assert.Equal(t, kept, f.store.rolePerms[role.ID])
 
-			require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, platform.ID), identityaccess.ErrPlatformPermissionNotAllowed)
+			require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, platform.ID), identityaccess.ErrReservedPermissionNotAllowed)
 			assert.Equal(t, kept, f.store.rolePerms[role.ID])
 		})
 	}
@@ -1030,13 +1037,13 @@ func TestRoleAdministration_PlatformPermissionsStayOffSchoolRoles(t *testing.T) 
 	})
 }
 
-// platformOnlyPermissionNames is the platform list #4574 names, written out
+// reservedPermissionNames is the reserved list #4574 names, written out
 // so the tests do not read it back from the code under test.
-var platformOnlyPermissionNames = []string{"*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete"}
+var reservedPermissionNames = []string{"*:*", "admin:*", "system:manage", "permissions:create", "permissions:update", "permissions:delete"}
 
-func TestRoleAdministration_PlatformPermissionsWithInconsistentMetadata(t *testing.T) {
+func TestRoleAdministration_ReservedPermissionsWithInconsistentMetadata(t *testing.T) {
 	t.Parallel()
-	for _, name := range platformOnlyPermissionNames {
+	for _, name := range reservedPermissionNames {
 		for _, canonical := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%s/canonical=%t", name, canonical), func(t *testing.T) {
 				f := newRAFixture(t)
@@ -1052,11 +1059,11 @@ func TestRoleAdministration_PlatformPermissionsWithInconsistentMetadata(t *testi
 				f.store.permissions[permission.ID] = permission
 
 				err := f.admin.ReplaceRolePermissions(raContext(), role.ID, []int64{kept[0], permission.ID})
-				require.ErrorIs(t, err, identityaccess.ErrPlatformPermissionNotAllowed)
-				var platformErr *identityaccess.PlatformPermissionError
-				require.ErrorAs(t, err, &platformErr)
-				assert.Equal(t, name, platformErr.Permission)
-				require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, permission.ID), identityaccess.ErrPlatformPermissionNotAllowed)
+				require.ErrorIs(t, err, identityaccess.ErrReservedPermissionNotAllowed)
+				var reservedErr *identityaccess.ReservedPermissionError
+				require.ErrorAs(t, err, &reservedErr)
+				assert.Equal(t, name, reservedErr.Permission)
+				require.ErrorIs(t, f.admin.AssignPermissionToRole(raContext(), role.ID, permission.ID), identityaccess.ErrReservedPermissionNotAllowed)
 				assert.Equal(t, kept, f.store.rolePerms[role.ID])
 
 				source := f.store.addRole(domain.ManagedRole{Name: "user", IsSystem: true})

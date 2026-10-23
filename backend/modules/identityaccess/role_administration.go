@@ -202,9 +202,9 @@ type PermissionCommand interface {
 	DeletePermission(ctx context.Context, id int64) error
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error
 	// ReplaceRolePermissions applies a complete selection atomically; an
-	// invalid request leaves the current selection untouched. A platform
+	// invalid request leaves the current selection untouched. A reserved
 	// permission the role does not hold yet is refused with
-	// ErrPlatformPermissionNotAllowed; one it already holds may stay or go.
+	// ErrReservedPermissionNotAllowed; one it already holds may stay or go.
 	ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error
 }
