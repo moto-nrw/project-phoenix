@@ -146,9 +146,17 @@ a full review of the remaining default-to-translation sites is made.
 
 Device Fleet's reads are inspectable with
 `git show 2c7907c2fe725dd7e124a8b866d5dce2d8b09718:backend/modules/devicefleet/internal/application/deviceservice/iot_service.go`:
-the eleven `Get*` read methods call a converter, not unchanged direct returns.
-The converters may still duplicate same-owner vocabulary; this measurement
-neither proves their necessity nor licenses their deletion.
+eight `Get*` methods, `DetectNewDevices` and `ListDevices` call converters;
+`UpdateDeviceStatus` supplies the eleventh site with a same-type status cast.
+`git show 2c7907c2fe725dd7e124a8b866d5dce2d8b09718:backend/modules/devicefleet/internal/application/deviceservice/mapping.go`
+shows `toModel` returns `&device` and `toAdministrationDevice` returns `*device`,
+both using the same public `devicefleet.Device`. Nine read wrappers plus the
+status cast therefore do not translate vocabulary. The eleventh example,
+`ListDevices`, additionally calls `toFilter`, which validates/maps the filter
+map into `DeviceFilter`; its classification as a real translation is justified.
+Thus the issue's concern survives, but not its claim that all eleven are pure.
+Copy allocation, filter validation, collection and nil/error behavior must
+survive any later removal.
 
 ## Local runtime and CI runtime
 

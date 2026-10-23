@@ -181,10 +181,15 @@ The unchanged root script finds 1,040 hits, but defaults unmatched bodies to
 translation. At least seven additional nil-guard-only methods reduce its
 claimed translation total from 830 to **at most 823** (root-composition subset:
 823 to **at most 816**). ADR 0082's correction names them. This is not a full
-semantic reclassification. Device Fleet's eleven named reads currently call
-`toModel`/`administrationToModels`; they are not eleven unchanged direct
-forwards. Same-owner duplicate vocabulary remains an ADR 0080 cleanup
-candidate, not evidence that any conversion is intrinsically necessary.
+semantic reclassification. The Device Fleet example is mostly valid: eight
+`Get*` reads and `DetectNewDevices` call converters, but `mapping.go:10-11`
+merely copies the same `devicefleet.Device`; `UpdateDeviceStatus` casts
+`DeviceStatus` to itself. These ten sites do not translate domain vocabulary.
+The eleventh, `ListDevices`, also validates/maps a filter map into a typed
+`DeviceFilter`, so it is not an unchanged forward. Syntactic conversion alone
+must not earn a translation classification. Preserve copy allocation, nil/error,
+filter and collection behavior when evaluating deletion; this is a follow-up,
+not permission to remove adapters by name.
 
 Move the executable `docs/architecture/4542-root-passthroughs.py` into tested
 measurement tooling sharing the scanner, or retire it when that tooling can
