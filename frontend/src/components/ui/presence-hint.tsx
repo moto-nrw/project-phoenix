@@ -14,7 +14,7 @@ export type PresenceHintKind = "notArrival" | "sick" | "classTrip" | "excused";
 export type PresenceHintSize = "sm" | "md" | "lg";
 
 const HINT_TEXT_SIZE: Record<PresenceHintSize, string> = {
-  sm: "text-[11px]",
+  sm: "text-xs",
   md: "text-xs",
   lg: "text-sm",
 };
@@ -48,11 +48,7 @@ interface PresenceHintProps {
   readonly size?: PresenceHintSize;
 }
 
-export function PresenceHint({
-  kind,
-  title,
-  size = "md",
-}: PresenceHintProps) {
+export function PresenceHint({ kind, title, size = "md" }: PresenceHintProps) {
   const hint = HINTS[kind];
   return (
     <span
