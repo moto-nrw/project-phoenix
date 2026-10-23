@@ -24,9 +24,14 @@ Personalfinanzrechte verlangen MFA unabhängig von der Schuleinstellung.
    und zulässige Antwortwiederherstellung erhalten sie. MFA-Zurücksetzung entzieht
    sie. Mint und Refresh prüfen aktuelle Rechte und Policy unter den vorhandenen
    Sperren erneut. Elternsitzungen sind ein eigener Bereich ohne Personalrechte.
-4. Ein Wechsel in eine MFA-pflichtige Schule verlangt eine direkte Anmeldung an
-   deren Adresse. Der Schulwechsel selbst ist keine zweite Authentisierung.
-   Die bisherigen Operator- und Eltern-Anmeldeverfahren bleiben unverändert.
+4. Der Schulwechsel selbst ist keine zweite Authentisierung. Er erhält den
+   vorhandenen Nachweis nur aus der vorgelegten, lebenden OGS-Sitzungsfamilie
+   desselben Kontos. Identity & Access liest ihn unter der Kontosperre erneut;
+   MFA-Zurücksetzung, Widerruf, Ablauf und fremde Portalbereiche dürfen keinen
+   Nachweis liefern. Die Rechte und MFA-Regel der Zielschule gelten unverändert.
+   Ohne gültigen Nachweis verlangt eine MFA-pflichtige Zielschule eine direkte
+   Anmeldung; die API lehnt den Wechsel mit 401 statt 500 ab. Die bisherigen
+   Operator- und Eltern-Anmeldeverfahren bleiben unverändert.
 
 ## Folgen
 

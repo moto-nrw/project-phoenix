@@ -51,9 +51,11 @@ Rotation und zulässige Wiederherstellung verlorener Refresh-Antworten.
 Access-Token bleiben bis zu ihrer vorhandenen Ablaufzeit gültig; es gibt keine
 nachträgliche Sofortsperre aller Access-Token.
 
-Ein Schulwechsel stellt keine neue MFA-Bestätigung dar. Verlangt die Zielschule
-MFA, muss die Person sich direkt an deren Adresse neu anmelden. Eine
-Passwort-Zurücksetzung stellt keine Sitzung und keinen MFA-Nachweis aus.
+Ein Schulwechsel erhält die Bestätigung der laufenden Anmeldung im OGS-Portal.
+Nach Zurücksetzen der zweiten Prüfung gilt diese Bestätigung nicht mehr.
+Sie gilt auch nicht nach Abmeldung oder Ablauf der Sitzung.
+Fehlt die Bestätigung, melden Sie sich direkt bei der Zielschule an.
+Eine Passwort-Zurücksetzung stellt keine Sitzung und keinen MFA-Nachweis aus.
 
 ## Verlorener zweiter Faktor
 

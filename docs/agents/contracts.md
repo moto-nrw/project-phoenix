@@ -242,8 +242,11 @@ unverified; their next refresh refuses privileged access and requires login.
 Completed email/passkey exchanges and valid school-bound trusted devices
 produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
 preserve it. MFA reset clears proof across existing sessions. Password reset
-issues no session. Target-school MFA requires direct login at that school when
-switching: a source-school session is not a fresh second-factor exchange.
+issues no session. Tenant switching preserves proof only from the presented
+account's live tenant-session family, read under the account lock shared with
+MFA reset. Missing, expired, revoked, unverified or foreign-portal families
+cannot satisfy target-school MFA. Such a switch returns 401 (`general.permission`)
+and requires direct login at the target school; MFA lookup failures return 503.
 Parent-scope sessions remain separate and carry no staff permissions.
 
 Enrollment uses the existing email-code flow in tenant and school portals;

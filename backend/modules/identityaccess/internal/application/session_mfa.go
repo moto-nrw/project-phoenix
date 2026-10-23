@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,7 +38,7 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 
 // prepareSessionMint orders policy -> account -> permission-source locks and
 // rejects the transaction before it persists an unverified privileged session.
-func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard) (time.Time, error) {
+func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account domain.LoginAccount, session *domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (time.Time, error) {
 	if s.mfa.Configured() && scopeNeedsMFA(session.PortalScope) {
 		if err := s.lockMFAPolicyForMint(ctx, account.ID, tenantID); err != nil {
 			return time.Time{}, err
@@ -52,10 +53,35 @@ func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account 
 	if _, err := s.store.RecordAccountLogin(ctx, account.ID, loginTime); err != nil {
 		return time.Time{}, fmt.Errorf("update last login before token issuance: %w", err)
 	}
+	if retireFamilyID != "" && session.PortalScope == domain.PortalScopeTenant {
+		verified, err := s.tenantSwitchMFAProof(ctx, account.ID, retireFamilyID)
+		if err != nil {
+			return time.Time{}, &mintGuardError{err: err}
+		}
+		session.MFAVerified = verified
+	}
 	if err := s.requireSessionMFA(ctx, account.ID, tenantID, session.PortalScope, session.MFAVerified); err != nil {
 		return time.Time{}, &mintGuardError{err: err}
 	}
 	return loginTime, nil
+}
+
+// The signed access token supplies the family, not a client-provided MFA flag.
+// Read its current generation after taking the account lock shared with MFA
+// reset. A revoked, expired or foreign-portal family cannot restore proof,
+// even while its old access JWT remains valid.
+func (s *AccountAuthentication) tenantSwitchMFAProof(ctx context.Context, accountID int64, familyID string) (bool, error) {
+	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
+	if err != nil {
+		if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+			return false, nil
+		}
+		return false, identityaccess.ErrMFAStatusUnavailable
+	}
+	now := time.Now()
+	return source.AccountID == accountID && source.PortalScope == domain.PortalScopeTenant &&
+		source.MFAVerified && source.RotatedAt == nil && source.Expiry.After(now) &&
+		(source.FamilyExpiryCap == nil || source.FamilyExpiryCap.After(now)), nil
 }
 
 // A reset/revocation may commit between the initial cookie check and mint.

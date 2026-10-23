@@ -316,7 +316,7 @@ func (s *AccountAuthentication) newRefreshSession(accountID int64, scope string)
 func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
 	var stored domain.AccountSession
 	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		loginTime, err := s.prepareSessionMint(txCtx, account, session, tenantID, guard)
+		loginTime, err := s.prepareSessionMint(txCtx, account, &session, tenantID, guard, retireFamilyID)
 		if err != nil {
 			return err
 		}

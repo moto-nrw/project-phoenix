@@ -330,6 +330,14 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 	}
 	accessToken, refreshToken, err := rs.Sessions.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID)
 	if err != nil {
+		if errors.Is(err, identityaccess.ErrInvalidToken) {
+			common.RenderError(w, r, common.ErrorUnauthorized(err))
+			return
+		}
+		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
+			common.RenderError(w, r, common.ErrorServiceUnavailable(err))
+			return
+		}
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
