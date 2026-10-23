@@ -148,3 +148,78 @@ func TestParentRequestReviewScopeProjectsSwitchAndDrivesAbsenceInheritance(t *te
 		})
 	}
 }
+
+func reviewScopeOptionValues(t *testing.T, field *configModel.ResolvedSetting) []any {
+	t.Helper()
+	require.NotNil(t, field)
+	values := make([]any, 0, len(field.Options.Static))
+	for _, option := range field.Options.Static {
+		values = append(values, option.Value)
+	}
+	return values
+}
+
+// #1480: a school without fixed groups has no group leaders, so neither
+// review scope offers them. An effective group-leader choice stays listed so
+// the page still shows what applies until an admin changes it.
+func TestParentReviewScopesHideGroupLeadersInOpenCare(t *testing.T) {
+	t.Parallel()
+	const requestKey = configModel.KeyParentRequestReviewScope
+	const absenceKey = configModel.KeyParentAbsenceReviewScope
+	groupLeaders := configModel.ParentRequestReviewScopeGroupLeaders
+
+	t.Run("fixed groups keep the option", func(t *testing.T) {
+		t.Parallel()
+		ctx := testpkg.OwnCtx(t)
+		settings := attendanceScopeSettings(t)
+		require.NoError(t, settings.SetValue(ctx, configModel.KeyGroupMode, configModel.GroupModeFixedGroups, nil, nil))
+		for _, key := range []string{requestKey, absenceKey} {
+			require.Contains(t, reviewScopeOptionValues(t, schemaSetting(t, ctx, settings, key)), groupLeaders)
+		}
+	})
+
+	t.Run("open care drops the option", func(t *testing.T) {
+		t.Parallel()
+		ctx := testpkg.OwnCtx(t)
+		settings := attendanceScopeSettings(t)
+		require.NoError(t, settings.SetValue(ctx, configModel.KeyGroupMode, configModel.GroupModeOpenCare, nil, nil))
+		for _, key := range []string{requestKey, absenceKey} {
+			field := schemaSetting(t, ctx, settings, key)
+			require.Equal(t, []any{
+				configModel.ParentRequestReviewScopeAdmins,
+				configModel.ParentRequestReviewScopeAllStaff,
+			}, reviewScopeOptionValues(t, field), key)
+		}
+	})
+
+	t.Run("open care keeps an effective group-leader choice", func(t *testing.T) {
+		t.Parallel()
+		ctx := testpkg.OwnCtx(t)
+		settings := attendanceScopeSettings(t)
+		require.NoError(t, settings.SetValue(ctx, configModel.KeyGroupMode, configModel.GroupModeOpenCare, nil, nil))
+		require.NoError(t, settings.SetValue(ctx, requestKey, groupLeaders, nil, nil))
+		require.NoError(t, settings.SetValue(ctx, absenceKey, configModel.ParentAbsenceReviewScopeAllStaff, nil, nil))
+
+		request := schemaSetting(t, ctx, settings, requestKey)
+		require.Equal(t, groupLeaders, request.Value)
+		require.Contains(t, reviewScopeOptionValues(t, request), groupLeaders)
+		absence := schemaSetting(t, ctx, settings, absenceKey)
+		require.NotContains(t, reviewScopeOptionValues(t, absence), groupLeaders)
+	})
+	// The old switch names group leaders a school without groups has none of;
+	// the inherited scope falls to admins, as the review policy enforces.
+	t.Run("open care ignores the switch on the inherited path", func(t *testing.T) {
+		t.Parallel()
+		ctx := testpkg.OwnCtx(t)
+		settings := attendanceScopeSettings(t)
+		require.NoError(t, settings.SetValue(ctx, configModel.KeyGroupMode, configModel.GroupModeOpenCare, nil, nil))
+		require.NoError(t, settings.SetValue(ctx, configModel.KeyParentRequestGroupLeaderReviewEnabled, true, nil, nil))
+
+		for _, key := range []string{requestKey, absenceKey} {
+			field := schemaSetting(t, ctx, settings, key)
+			require.Equal(t, configModel.ParentRequestReviewScopeAdmins, field.Value, key)
+			require.Equal(t, configModel.ParentRequestReviewScopeAdmins, field.Default, key)
+			require.NotContains(t, reviewScopeOptionValues(t, field), groupLeaders, key)
+		}
+	})
+}
