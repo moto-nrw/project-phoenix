@@ -41,8 +41,8 @@ ungefilterter Export noch ein frei ausführbares Superuser-Skript.
 Die neue Komposition bindet ausschließlich DB-Pool und die am Root gelieferten
 SHA-256-Funktionen von Security Runtime. Sie führt kein SQL aus und baut
 keinen fremden Servicegraphen. Dafür steigt der konkrete Kompositionsumfang
-von `modules/organizationtenancy/compose` von **253 auf 271 LOC**, das
-Gesamtbudget von **12379 auf 12397 LOC**. Die 18 LOC sind exakt der neue
+von `modules/organizationtenancy/compose` von **252 auf 270 LOC**, das
+Gesamtbudget von **12378 auf 12396 LOC**. Die 18 LOC sind exakt der neue
 Konstruktor, ohne Reserve und ohne verschobene Bestandslogik. Dies ist die
 begrenzte Erweiterung nach ADR 0057 Punkt 5; andere Budgets steigen nicht.
 

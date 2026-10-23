@@ -154,6 +154,21 @@ gegen den Auftrag prüfen. Ein unveränderter Hash beweist weder fachliche
 Vollständigkeit noch die Berechtigung des Empfängers. Offene Pflichtbestandteile
 verhindern die Meldung „Rückgabe vollständig“, auch wenn der CLI-Lauf gelingt.
 
+### Referenziertes Original fehlt endgültig
+
+Der Export bricht bei einem fehlenden referenzierten Original bewusst ab und
+schreibt kein `COMPLETE`. Ein vorhandener Namespace allein genügt nicht.
+Es gibt keinen Modus zum stillen Überspringen.
+
+1. Wenn möglich, das Original aus einer zugehörigen Sicherung in den
+   geschützten lokalen Arbeitsstand wiederherstellen. Herkunft und Zuordnung
+   prüfen; anschließend in ein neues Zielverzeichnis exportieren.
+2. Ist keine Wiederherstellung möglich, nach dokumentierter Entscheidung den
+   betroffenen Verweis in Vorlage oder Snapshot gezielt bereinigen. Keine
+   automatische oder eigenmächtige Änderung historischer Nachweise. Entscheidung,
+   Umfang und verbleibende Lücke im geschützten Auftrag festhalten und die
+   fachliche Vollständigkeit neu bewerten. Danach den Export neu ausführen.
+
 ## 4. Verschlüsselt übergeben und aufräumen
 
 1. Empfänger und dessen Verschlüsselungsschlüssel über einen bestätigten
