@@ -337,7 +337,7 @@ func (s *AccountAuthentication) LoadAccountClaims(ctx context.Context, accountID
 	}
 	roles := make([]identityaccess.AccountRole, 0, len(payload.Roles))
 	for _, role := range payload.Roles {
-		roles = append(roles, identityaccess.AccountRole{ID: role.RoleID, Name: role.Name, IsSystem: role.IsSystem, TenantID: role.TenantID})
+		roles = append(roles, identityaccess.AccountRole{ID: role.RoleID, Name: role.Name, IsSystem: role.IsSystem, TenantID: role.TenantID, SchoolPortal: role.SchoolPortal})
 	}
 	return identityaccess.AccountClaims{
 		RoleNames: payload.RoleNames, Roles: roles, Permissions: payload.Permissions, Username: payload.Username,

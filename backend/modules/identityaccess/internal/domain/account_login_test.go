@@ -19,6 +19,9 @@ func TestIsSchoolPortalOnly(t *testing.T) {
 	customLehrkraft := RoleAssignment{RoleID: 2, Name: "Lehrkraft", TenantID: &tenantScoped}
 	caregiver := RoleAssignment{RoleID: 3, Name: "user", IsSystem: true}
 	admin := RoleAssignment{RoleID: 4, Name: "admin", IsSystem: true}
+	// A school role made from the Lehrkraft template (#4574) carries the mark,
+	// whatever it is called.
+	lehrkraftCopy := RoleAssignment{RoleID: 5, Name: "klassenleitung", TenantID: &tenantScoped, SchoolPortal: true}
 
 	tests := []struct {
 		name  string
@@ -34,6 +37,9 @@ func TestIsSchoolPortalOnly(t *testing.T) {
 		// the name would refuse it here while the school login refuses it too.
 		{"custom role named lehrkraft", []RoleAssignment{customLehrkraft}, false},
 		{"custom lehrkraft plus system lehrkraft", []RoleAssignment{customLehrkraft, systemLehrkraft}, false},
+		{"lehrkraft copy alone", []RoleAssignment{lehrkraftCopy}, true},
+		{"lehrkraft copy plus system lehrkraft", []RoleAssignment{lehrkraftCopy, systemLehrkraft}, true},
+		{"lehrkraft copy plus caregiver", []RoleAssignment{lehrkraftCopy, caregiver}, false},
 		// No roles at all is a different problem and stays on the existing path.
 		{"no roles", nil, false},
 		// The old nil role pointer: an assignment without role facts.

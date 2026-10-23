@@ -308,7 +308,7 @@ func (l *AccountLifecycle) canPreviewStaff(ctx context.Context, info domain.Tena
 	if len(roles) == 0 || domain.IsGuardianOnly(roles) {
 		return false, nil
 	}
-	if isLehrkraftOnlyByName(roles) {
+	if info.HoldsSchoolPortalCopy || isLehrkraftOnlyByName(roles) {
 		schoolPortalOnly, err := l.isSchoolPortalOnlyAtTenant(ctx, info.AccountID, tenantID)
 		if err != nil {
 			return false, failed("list staff preview candidates", err)

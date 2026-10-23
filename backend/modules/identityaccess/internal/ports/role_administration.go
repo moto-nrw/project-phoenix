@@ -59,7 +59,7 @@ type RoleStore interface {
 // RoleAssignmentPolicy classifies roles for the assignment rules; the public
 // package owns the decisions, the composition binds them.
 type RoleAssignmentPolicy interface {
-	IsLehrkraftSystemRole(role *domain.RoleFacts) bool
+	IsLehrkraftRole(role *domain.RoleFacts) bool
 	IsGuardianTierRole(role *domain.RoleFacts) bool
 	// IsPlatformCaregiverRole reports whether the role already is the
 	// platform caregiver role, so the caregiver upgrade adds nothing.
@@ -109,6 +109,8 @@ type PermissionStore interface {
 	ListPermissions(ctx context.Context, filter domain.PermissionFilter) ([]domain.ManagedPermission, error)
 	ListRolePermissions(ctx context.Context, roleID int64) ([]domain.ManagedPermission, error)
 	AssignRolePermission(ctx context.Context, roleID, permissionID int64) error
+	// AssignRolePermissions skips listed permissions the catalog no longer holds.
+	AssignRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error
 	RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error
 	DeletePermissionAssignments(ctx context.Context, permissionID int64) error
 	DeletePermissionGrants(ctx context.Context, permissionID int64) error

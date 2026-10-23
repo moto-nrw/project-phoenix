@@ -3659,6 +3659,14 @@
   ],
   "data_objects": [
     {
+      "name": "platform.live_billing_key_date_counts",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.school_erasures",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.demo_school_states",
       "write_owner": "organization-tenancy"
     },
@@ -4997,7 +5005,6 @@
         "iot.push_subscriptions",
         "iot.pwa_standalone_usage",
         "platform.announcement_views",
-        "platform.billing_key_date_counts",
         "platform.email_outbox",
         "platform.organizations",
         "platform.push_outbox",

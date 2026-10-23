@@ -23,7 +23,15 @@ Read-only-Isolation garantiert.
 
 Die NOLOGIN-Rolle `phoenix_tenant_export` kann über `pg_read_all_data` lesen,
 auch in später angelegten Schemas, und RLS für diesen administrativen Pfad
-umgehen. Sie hat keine Schreibrechte und wird nicht der HTTP-Rolle zugewiesen.
+umgehen. Auf dem vollständig migrierten Schema prüft
+`TestTenantExportReaderCannotWriteOrBeUsedByHTTPRole` die effektiven Rechte
+INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES und TRIGGER auf allen
+Anwendungstabellen und Views, einschließlich `auth.mfa_overrides`,
+`platform.school_erasures` und der Billing-View. Er belegt dort das Fehlen
+dieser Rechte einschließlich geerbter PUBLIC-Grants sowie NOLOGIN und
+fehlende Mitgliedschaft der HTTP-Rolle. Migration 1.15.481 entzieht zuvor
+die PUBLIC-Schreibrechte auf MFA-Overrides. Der Test macht keine Aussage
+über abweichende produktive ACLs oder schreibende Funktionen.
 Die gesamte DB-Lektüre läuft zusätzlich in `REPEATABLE READ READ ONLY`.
 Tabellen-, Personen-/Schulbezüge und Geheimnisausschlüsse bleiben Aufgabe des
 einzigen Katalogexecutors. Die Rolle ist kein Kundenzugang. Ein breiter

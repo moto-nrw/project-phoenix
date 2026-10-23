@@ -3,25 +3,26 @@
 Stand: 23.10.2026. Entscheidung:
 [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md) und
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md).
-Grundlage für #3837 und #3838, Slice 3837-a.
+Grundlage für #3837 und #3838, Slices 3837-a/b und 3838-a.
 
 ## Stand und Quelle
 
-**Im Code klassifiziert:** 247 Tabellen und neun Upload-Kinds in
+**Im Code klassifiziert:** 248 Tabellen und neun Upload-Kinds in
 `backend/modules/organizationtenancy/data_lifecycle_catalog.json`.
 `organizationtenancy.DataLifecycleCatalogSource` stellt denselben Katalog zur
 Laufzeit als `embed.FS` bereit. `ReadFile("data_lifecycle_catalog.json")` liefert
 eine unabhängige Byte-Kopie; JSON wird in `DataLifecycleCatalog` dekodiert. Kein zweiter
 Lösch-/Exportkatalog. Der JSON-Drahtvertrag hat Version 1.
 
-Schemaabgleich mit Migrationen bis 1.15.479: `users.external_caregivers`
+Ausgangsschema mit Migrationen bis 1.15.479: `users.external_caregivers`
 ersetzt `users.guests` (1.15.477, ADR 0091). Der Eintrag bleibt `tenant` mit
 `export: include` und dem Personen-FK `staff_id` auf
 `users.staff_school_memberships.id`. Die Migrationen 1.15.478 (`ag-leitung`)
 und 1.15.479 (Gast nur lesend) ändern Datensätze in den bereits erfassten
 Tabellen `auth.roles`, `auth.role_permissions` und `auth.permissions`, keine
 Tabellen oder Spalten. Die Tabellenzahl und die Spaltenausschlüsse bleiben
-unverändert. Globale Systemrollen mit `tenant_id IS NULL` sind kein
+unverändert; 1.15.481 ergänzt anschließend die Nachweistabelle.
+Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
@@ -36,7 +37,22 @@ verhindert den Fertig-Marker. Zwei-Mandanten-Tests prüfen jede Katalogtabelle,
 alle Datei-Kinds und alle ausgeschlossenen Spalten. Ausführung, Übergabe und
 Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 
-**Noch nicht umgesetzt:** vollständige Mandantenlöschung und Personenauskunft.
+**Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
+`platform.erase_school` und die getrennte Nachweistabelle
+`platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
+installierter Plan enthält 221 Löschziele mit `tenant`, `tenantChild` oder
+`school`. Die explizit gesperrten Rechnungsreferenzen
+`platform.billing_key_date_counts` bleiben zehn Jahre ab Kalenderjahresende
+erhalten und sind von der Datenrückgabe an Dritte ausgeschlossen (ADR 0092). Ein Wächter gleicht ihn mit dem Produktionskatalog ab.
+FK-Reihenfolge, Trigger-Nachläufe, Restprüfung, Mandantentrennung und
+Wiederholung nach DB-Fehlern werden lokal geprüft. Der Nachweis bleibt nach
+dem DB-Schritt bei `db_done`, nicht `completed`.
+[Vertrag und Grenzen](mandantenloeschung-datenbank.md).
+
+**Noch nicht umgesetzt:** vollständiges Löschverfahren mit CLI, Dateien,
+Nebensystemen und Gesamtabschluss (3837-c), Wiederholung nach Restore
+(3837-d) und Personenauskunft (3838-b). Die Katalogeinträge selbst sind
+keine Berechtigungen und kein produktiver Durchführungsnachweis.
 Die breiten Ausschlüsse geheimer/undurchsichtiger Container bleiben wirksam;
 nicht geheimer Settings-/Nachrichtenkontext und rechtlich erforderlicher
 Kontext aus internen Protokollen brauchen weitere geprüfte Projektionen.
@@ -84,7 +100,10 @@ Snapshots, JSON/Freitext und Drittpersonenrechte bleiben in #3838 zu bearbeiten.
 
 Datei-Kinds verwenden `tenantDir` (`kind/tenant/name`), `tenantPrefix`
 (`kind/tenant_name`) oder `account` (aktuell `avatars/global/name`, über die
-Kontoreferenz). Originaldateien, Metadaten und offene Datei-Löschaufträge
+Kontoreferenz). Die Alt-Avatarablage `avatars/<tenantId>/` existiert daneben
+weiterhin; 3837-c muss sie ausdrücklich neben `avatars/global/` berücksichtigen.
+Globale Avatare bleiben beim geteilten Kontenlebenszyklus.
+Originaldateien, Metadaten und offene Datei-Löschaufträge
 gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
 
 ## Pflege und Prüfung
@@ -109,7 +128,9 @@ gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
    `../scripts/run-go-toolchain.sh go test -tags=testhooks ./database/migrations ./modules/organizationtenancy`.
    Die lokale Test-DB initialisiert sich selbst. Wächter:
    `TestEveryTableHasDataLifecycleClassification` und
-   `TestEveryUploadKindHasDataLifecycleClassification`.
+   `TestEveryUploadKindHasDataLifecycleClassification` sowie
+   `TestSchoolErasurePlanCoversCatalogAndDeleteTriggers` und die
+   `TestSchoolErasure*`-Verhaltenstests.
 5. Bei Verfahrensänderungen den Katalogstand im späteren datensparsamen
    Durchführungsnachweis festhalten. Schemaabdeckung allein beweist weder
    Mandantentrennung des Verfahrens noch erfolgreiche Löschung/Rückgabe.

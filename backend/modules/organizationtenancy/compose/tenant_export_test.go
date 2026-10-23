@@ -162,7 +162,7 @@ func TestTenantExportEveryCatalogTableAndKindIsIsolated(t *testing.T) {
 	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
 	manifest := readExportManifest(t, out)
 	require.Len(t, manifest.Tables, len(catalog.Tables))
-	assertExportTables(t, out, catalog, a, b)
+	assertExportTables(t, out, catalog, manifest, a, b)
 	assertExportArtifacts(t, out, manifest)
 	assertExportObjects(t, out, catalog, a, b)
 	// Repeating into a fresh directory yields the same table/file bytes.
@@ -189,7 +189,7 @@ func readExportManifest(t *testing.T, out string) organizationtenancy.ExportMani
 	return manifest
 }
 
-func assertExportTables(t *testing.T, out string, catalog organizationtenancy.DataLifecycleCatalog, a, b int64) {
+func assertExportTables(t *testing.T, out string, catalog organizationtenancy.DataLifecycleCatalog, manifest organizationtenancy.ExportManifest, a, b int64) {
 	t.Helper()
 	modelData, err := os.ReadFile(filepath.Join(out, "model.json"))
 	require.NoError(t, err)
@@ -205,6 +205,14 @@ func assertExportTables(t *testing.T, out string, catalog organizationtenancy.Da
 		file := filepath.Join(out, table.Name+".jsonl")
 		if table.Export != "include" {
 			require.NoFileExists(t, file)
+			index := slices.IndexFunc(manifest.Tables, func(entry organizationtenancy.ExportTable) bool { return entry.Name == table.Name })
+			require.NotEqual(t, -1, index, table.Name)
+			entry := manifest.Tables[index]
+			require.Equal(t, table.Export, entry.Classification, table.Name)
+			require.NotEmpty(t, entry.Reason, table.Name)
+			require.Equal(t, table.ExportReason, entry.Reason, table.Name)
+			require.Zero(t, entry.Rows, table.Name)
+			require.Equal(t, -1, slices.IndexFunc(model, func(entry organizationtenancy.ExportModelTable) bool { return entry.Name == table.Name }), table.Name)
 			continue
 		}
 		data, err := os.ReadFile(file)

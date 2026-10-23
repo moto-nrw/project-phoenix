@@ -123,23 +123,33 @@ func detectAllowedContentType(file io.ReadSeeker, allowed map[string]bool, inval
 // Returns the full file path on disk.
 func SaveImage(file io.Reader, targetDir, prefix, contentType string, uploads UploadStorage) (string, error) {
 	ext := fileExtension(contentType)
-	return saveUploadedFile(file, targetDir, prefix, ext, uploads)
+	return saveUploadedFile(file, targetDir, prefix, ext, uploads, false)
+}
+
+// SavePrivateImage preserves SaveImage's filename format while storing the
+// image and its destination directory with owner-only permissions.
+func SavePrivateImage(file io.Reader, targetDir, prefix, contentType string, uploads UploadStorage) (string, error) {
+	return saveUploadedFile(file, targetDir, prefix, fileExtension(contentType), uploads, true)
 }
 
 // SavePDF writes the uploaded PDF to targetDir with a generated filename of the form
 // {prefix}_{random}.pdf. It creates targetDir if it doesn't exist.
 // Returns the full file path on disk.
 func SavePDF(file io.Reader, targetDir, prefix string, uploads UploadStorage) (string, error) {
-	return saveUploadedFile(file, targetDir, prefix, ".pdf", uploads)
+	return saveUploadedFile(file, targetDir, prefix, ".pdf", uploads, false)
 }
 
-func saveUploadedFile(file io.Reader, targetDir, prefix, ext string, uploads UploadStorage) (string, error) {
+func saveUploadedFile(file io.Reader, targetDir, prefix, ext string, uploads UploadStorage, private bool) (string, error) {
 	randomStr, err := securityruntime.UploadFilenameSuffix()
 	if err != nil {
 		return "", errors.New("failed to generate filename")
 	}
 
-	return SaveNamedFile(file, targetDir, prefix+"_"+randomStr+ext, uploads)
+	filename := prefix + "_" + randomStr + ext
+	if private {
+		return SavePrivateNamedFile(file, targetDir, filename, uploads)
+	}
+	return SaveNamedFile(file, targetDir, filename, uploads)
 }
 
 // SaveNamedFile writes the uploaded file to targetDir under the exact given

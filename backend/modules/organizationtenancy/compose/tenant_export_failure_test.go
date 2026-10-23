@@ -117,9 +117,29 @@ func TestTenantExportWriteFailureCannotComplete(t *testing.T) {
 func TestTenantExportReaderCannotWriteOrBeUsedByHTTPRole(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	var canWrite, canLogin, canAssume bool
-	require.NoError(t, db.NewRaw("SELECT has_table_privilege('phoenix_tenant_export','users.persons','INSERT'), rolcanlogin, pg_has_role('phoenix_auth','phoenix_tenant_export','MEMBER') FROM pg_roles WHERE rolname='phoenix_tenant_export'").Scan(t.Context(), &canWrite, &canLogin, &canAssume))
-	require.False(t, canWrite)
+	var canLogin, canAssume bool
+	require.NoError(t, db.NewRaw("SELECT rolcanlogin, pg_has_role('phoenix_auth','phoenix_tenant_export','MEMBER') FROM pg_roles WHERE rolname='phoenix_tenant_export'").Scan(t.Context(), &canLogin, &canAssume))
 	require.False(t, canLogin)
 	require.False(t, canAssume)
+	var relations []struct {
+		Name     string
+		CanWrite bool
+	}
+	// Effective privileges include grants inherited from PUBLIC and other roles.
+	// Cover application tables and views, not just the current export projection.
+	require.NoError(t, db.NewRaw(`SELECT n.nspname || '.' || c.relname AS name,
+		has_table_privilege('phoenix_tenant_export', c.oid,
+			'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AS can_write
+		FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')
+		AND n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema'
+		ORDER BY name`).Scan(t.Context(), &relations))
+	names := make([]string, 0, len(relations))
+	for _, relation := range relations {
+		names = append(names, relation.Name)
+		require.False(t, relation.CanWrite, relation.Name+": export reader must not have write privileges")
+	}
+	for _, name := range []string{"users.persons", "auth.mfa_overrides", "platform.school_erasures", "platform.billing_key_date_counts", "platform.live_billing_key_date_counts"} {
+		require.Contains(t, names, name, "privilege guard must cover this relation")
+	}
 }

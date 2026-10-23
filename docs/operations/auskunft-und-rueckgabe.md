@@ -57,15 +57,28 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    Verfahren benötigt eine privilegierte Wartungsverbindung, die in die
    reine Leserolle wechseln darf. Keine HTTP-Zugangsdaten nachrüsten und
    die Leserolle nicht an Anwendungsrollen vergeben.
-2. DB und vollständiges Upload-Verzeichnis derselben Installation prüfen.
-   Einen geschützten lokalen Arbeitsstand verwenden. Die folgenden
-   Beispiele sind ausschließlich für **localhost** gedacht. Agents greifen
-   niemals auf Produktion/Staging zu und verwenden kein SSH.
-3. Upload-, Änderungs- und Löschvorgänge einschließlich Cleanup-Jobs vor
-   dem DB-Snapshot anhalten und bis zum Abschluss der Dateikopie angehalten
-   lassen, oder DB und Uploads aus demselben eingefrorenen Stand lesen.
-   Ein beliebiges älteres Upload-Backup passt nicht zu einer aktuellen DB.
-   PostgreSQL-Snapshot-Isolation allein friert das Dateisystem nicht ein.
+2. Einen berechtigten Menschen DB-Dump und vollständigen Upload-Stand
+   derselben Installation bereitstellen lassen. Zuerst sämtliche Upload-,
+   Änderungs- und Löschvorgänge einschließlich Cleanup-Jobs anhalten, dann
+   den DB-Dump erstellen und anschließend den vollständigen Upload-Root
+   kopieren. Die Schreibpause bis zum Ende beider Kopien halten und die
+   gemeinsame Herkunft im geschützten Auftrag dokumentieren. Ein beliebiges
+   älteres Upload-Backup passt nicht zu einer aktuellen DB; PostgreSQL-
+   Snapshot-Isolation allein friert das Dateisystem nicht ein.
+3. Diesen zusammengehörigen Stand auf einer getrennten, geschützten lokalen
+   Installation nach dem [Restore-Verfahren](daily-backup.md#wiederherstellung-app-bleibt-gesperrt)
+   wiederherstellen: frische DB und frisches Upload-Volume vorbereiten,
+   Rollen/ACLs und DB-Dump einspielen, danach das zugehörige Upload-Archiv
+   wiederherstellen. Bei einem Daily-Bundle erledigt
+   `scripts/restore-daily-backup.sh` diese Schritte samt Prüfsummenprüfung.
+   Die dort beschriebene Löschprüfung nach Restore und den DB-Dateiabgleich
+   abschließen, erforderliche Migrationen bis mindestens 1.15.489 anwenden
+   und Rollenrechte prüfen. App und Jobs während Vorbereitung und Export
+   gestoppt lassen. Ein online erzeugtes Daily-Bundle ist nicht automatisch
+   dateikonsistent; seine gemeinsame Herkunft und Dateireferenzen müssen
+   geprüft sein. Die folgenden Beispiele sind ausschließlich für
+   **localhost** gedacht. Agents greifen niemals auf Produktion/Staging zu
+   und verwenden kein SSH.
 4. Vollständigen Upload-Root angeben, nicht ein einzelnes Schulverzeichnis.
    Die Pfade sind `kind/school/name`, `kind/school_name` und für freigegebene
    Kontoreferenzen `avatars/global/name`. Vorhandene verwaiste Dateien in
