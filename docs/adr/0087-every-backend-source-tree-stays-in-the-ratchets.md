@@ -197,3 +197,57 @@ Do not edit the files owned by #4541 or #4736 in this change.
 - `backend/architecture/WORKPLAN.md`: mark #4737's complete-source-gates cut
   done after merge; leave handler-complexity deduplication, typed composition
   checks and the pass-through successor as separate unfinished cuts.
+
+## Addendum 2026-10-23: bounded error-code generation (#4746)
+
+Status: accepted. Supersedes point 4's frozen error-code output shape, not its
+inclusion in the source gates. A single new registry entry grows the old file
+from 1,348 to 1,350 lines and fails its exact allowance. This measures registry
+cardinality, not handwritten complexity, and conflicts with additive error
+identities (ADR 0006).
+
+**Decision: option 1, split the generator output.** Sort codes as before and
+emit at most 300 entries per numbered `error_codes_NNN.generated.go`. Each
+contains constants and a class table, plus a short `init` that adds its disjoint
+entries to the existing `errorClassByCode` map and releases the temporary table.
+The fixed entry file declares that map. Initialization finishes before callers
+can use the package; no caller reads the map from another package initializer.
+Exports, constant values, class mappings and the TypeScript output stay the same.
+Numbered chunks bound growth even when a single error area becomes large;
+a domain-only split would merely postpone the same failure.
+
+**Invariant:** every generated and handwritten backend file remains scanned.
+A full chunk is 615 physical lines, regardless of registry size; the entry file
+is four lines. No banner, filename, owner or generator grants an exclusion.
+The 800/60/15 thresholds and scan scope do not change. Remove only the old
+1,348-line size entry. This is a decrease, so no new-numbered ADR or budget
+acceptor is required by ADR 0070 or `ratchet_budgets.go`.
+
+Option 2 was rejected: trusted-generator exemptions would add identity and
+provenance validation to a gate that can stay unchanged. A banner alone would
+allow handwritten code to escape it. Bounded output needs neither exemption
+nor a new trust boundary. The other generated Go source found in the audit is
+the four-line error-code scan fixture under `api/common/testdata/errorcodes/`;
+it stays unchanged and measured.
+
+### Lock points and evidence
+
+- `scripts/generate-error-codes.mjs` bounds chunks and owns only the entry
+  file, numbered shards and existing TypeScript output. Regeneration removes
+  obsolete numbered shards. `--check` compares all expected bytes and rejects
+  missing, modified or obsolete shards without writing. CI's error-code job
+  uses this mode; its path filter covers every shard. Lefthook and frontend
+  checks did not invoke generation before this change and still do not.
+- `TestErrorCodeGenerationRatchetsAllowAdditionalCode` copies the real registry
+  and generator into a temporary tree, adds one code (and separately 2,000),
+  runs the CLI, and checks all three real source scanners with no allowances.
+  The one-code red run reported `1350 lines, allowed 1348`; after the split
+  the same scenario passes without increasing a budget.
+- `TestModuleRootSourceRatchetsRejectNewViolations` rejects handwritten
+  oversized/overlength/complex sources, including sources with the exact
+  generator banner and generated output names. All three gates stay red for
+  these negative fixtures.
+- Generator tests cover chunk boundaries, preservation of every constant and
+  class entry, and read-only drift detection and stale-shard cleanup.
+  `TestErrorPathsAnswerWithRegisteredCodes`, `TestErrorWritesUseTheSharedEnvelope`
+  and the error-catalog check keep their contracts unchanged.

@@ -47,8 +47,7 @@ jobs:
       - name: Check error code registry and generated files
         run: |
           node --test scripts/generate-error-codes.test.mjs
-          node scripts/generate-error-codes.mjs
-          git diff --exit-code -- backend/api/common/error_codes.generated.go frontend/src/lib/error-codes.generated.ts
+          node scripts/generate-error-codes.mjs --check
 
   backend-quality:
     if: ${{ inputs.run-backend }}
