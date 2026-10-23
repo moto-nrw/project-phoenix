@@ -60,9 +60,10 @@ Schulweit: **Einstellungen → Betrieb → Kinderfotos**
    Einen bestehenden widersprechenden Zustand wie einen Widerruf bereinigen.
    Ablehnung extern festhalten: Ein fehlender Zeitstempel allein unterscheidet
    nicht zwischen „abgelehnt“ und „noch nicht angefragt“.
-3. **Widerruf:** Häkchen entfernen und **Speichern**. Neu öffnen: Häkchen aus,
-   Foto weg. Der Code entfernt Fotoverweis und Einwilligungszeitstempel;
-   Ein neuer Upload ohne Einwilligungsbestätigung wird abgewiesen; der Abruf
+3. **Widerruf bei eingeschalteten Kinderfotos:** Häkchen entfernen und
+   **Speichern**. Neu öffnen: Häkchen aus, Foto weg. Der Code entfernt
+   Fotoverweis und Einwilligungszeitstempel;
+   ein neuer Upload ohne Einwilligungsbestätigung wird abgewiesen; der Abruf
    findet nach dem Widerruf keinen Fotoverweis mehr. Dateilöschung wird
    nach dem Commit versucht und über einen dauerhaften Aufräumauftrag
    nachgeholt. Der Widerruf bleibt im Einwilligungsprotokoll nachvollziehbar.
@@ -74,6 +75,39 @@ Kinderfotos schulweit auszuschalten entfernt **alle** Fotos, nicht nur das
 betroffene. Die Einwilligungsnachweise bleiben dabei bestehen. Das ist ein
 Ersatzweg bei nicht beherrschbarer Nutzung, kein kindbezogener Widerruf.
 Das moto-Team bestätigt den Abschluss offener Datei-Aufräumaufträge separat.
+
+**Widerruf bei bereits ausgeschalteten Kinderfotos:** Der Fotobereich samt
+Häkchen ist dann nicht sichtbar. Die alte Einwilligung lässt sich dort nicht
+entfernen und überlebt das Aus-/Einschalten. Deshalb gilt folgender Ablauf:
+
+1. Schule hält den Widerruf im bestehenden externen Nachweis fest. Kinderfotos
+   bleiben ausgeschaltet. Im bestehenden externen Auftrag vermerken:
+   **Widerruf in moto noch nicht nachgetragen**. Nicht als technisch vollständig
+   umgesetzt melden; dafür gibt es kein eigenes Statusfeld in moto.
+2. **Vor jedem erneuten Einschalten** gleicht die zuständige Leitung alle
+   extern geführten Foto-Widerrufe ab und bereitet die betroffenen Kindakten
+   vor. Für das Nachtragen eine verbindliche Uploadpause mit allen zum
+   Foto-Upload berechtigten Personen vereinbaren und sicherstellen, dass keine
+   laufenden Uploads mehr bestehen. Kann die Schule diese Pause nicht
+   zuverlässig gewährleisten, bleiben Kinderfotos aus; Nachtragen bleibt offen.
+3. Während der Uploadpause **Einstellungen → Betrieb → Kinderfotos** einschalten.
+   Sofort für jedes betroffene Kind **Datenverwaltung → Kinderdaten → Kind →
+   Bearbeiten → Foto** öffnen, Häkchen entfernen und **Speichern**. Jede Kindakte
+   erneut öffnen und prüfen: Häkchen aus, kein Foto. Bis zum vollständigen
+   Abgleich keine Uploads zulassen, auch nicht bei anderen Kindern.
+4. Erst nach erfolgreichem Nachtragen und Prüfen aller Widerrufe die Uploadpause
+   beenden. Bei Fehler oder unterbrochenem Abgleich Kinderfotos wieder
+   ausschalten und offene Schritte dokumentieren; dabei werden erneut alle
+   Fotos gelöscht. Vor dem nächsten Einschalten den Abgleich wiederholen.
+
+Dieser Ersatzweg vermeidet ein zusätzliches kurzes Einschalten allein für den
+Widerruf. Ausgeschaltet sind Uploads bereits gesperrt; kritisch ist das spätere
+Einschalten mit alten Einwilligungszeitstempeln. **Offen:** Die Oberfläche erlaubt
+keinen Foto-Widerruf bei ausgeschalteter Funktion, und Wiedereinschalten verwirft
+alte Einwilligungen nicht. Vorschlag: Das Entfernen der Fotoeinwilligung auch
+bei ausgeschalteten Kinderfotos ermöglichen, ohne Uploads freizugeben. Bis dahin
+ersetzt das Ausschalten den externen Abgleich vor erneutem Einschalten nicht.
+Der beschriebene Ersatzweg ist durch Schule und Betrieb noch zu erproben.
 
 ### 2.2 Raumhistorie und Anwesenheitsprotokoll
 
@@ -181,9 +215,10 @@ Dokument-Dateinamen können weiterhin Personenbezug enthalten.
    Zeitraum und Kopien. Aufbewahrung oder Einschränkung nicht mit einem
    pauschalen „alles löschen“ übergehen. Ein Widerruf verlangt nicht automatisch
    die Löschung des gesamten betreuten Kindes.
-2. Angaben wie oben bearbeiten. Für Dateien **Alle Kinder → Kind → Dokumente**
-   öffnen, betroffene Datei über **Löschen** auswählen und im Dialog
-   **Endgültig löschen** bestätigen (Dialog „Dokument löschen“).
+2. Angaben wie oben bearbeiten. Für Dateien **Datenverwaltung → Kinderdaten →
+   Kind → Dokumente** öffnen. Betroffene Datei über **Löschen** auswählen und
+   im Dialog „Dokument löschen“ zuerst **Ja, löschen**, dann
+   **Endgültig löschen** wählen.
    Kategorien Attest/Impfnachweis/
    Medikamentenplan brauchen `student_documents:health`, Sorgerecht
    `student_documents:legal`, sonst `users:update`. Eine Rolle mit nur einem
