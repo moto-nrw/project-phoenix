@@ -21,6 +21,7 @@ var accountTenantInsert = regexp.MustCompile(`(?i)insert\s+into\s+auth\.account_
 // expression that could insert into auth.account_tenants without the check.
 // Migrations backfill history and are not scanned.
 func TestEveryAccountTenantInsertRefusesCaterers(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", "..", "..", "..", ".."))
 	if err != nil {
 		t.Fatal(err)
