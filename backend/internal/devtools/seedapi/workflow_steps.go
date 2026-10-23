@@ -238,9 +238,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedStaffMessagingStep{},
 		seedParentMessageCountScopeStep{},
 		seedStaffNoticesStep{},
-		seedExternalCaregiversStep{},
-		// After the externals: the AG's leader is one of them (#4573).
-		seedExternalAGStep{},
+		seedExternalCaregiversStep{}, seedExternalAGStep{},
 		seedStudentNotesStep{},
 		seedFileStorageStep{},
 		// Der einzige Block, der über die Stempeluhr läuft: nach ihm stempelt

@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -56,34 +57,43 @@ func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, ma
 		if relativeFile == "" || filepath.Ext(relativeFile) != ".go" || strings.HasSuffix(relativeFile, "_test.go") {
 			continue
 		}
-		contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relativeFile)))
-		if err != nil {
-			return nil, nil, fmt.Errorf("read candidate migration %s: %w", relativeFile, err)
-		}
-		objects, renames, err := migrationCreateDataObjects(relativeFile, contents)
-		if err != nil {
+		if err := addCandidateMigration(root, sha, relativeMigrationDir, relativeFile, result, renamed); err != nil {
 			return nil, nil, err
-		}
-		for object := range objects {
-			mentioned, err := baseMigrationsMentionDataObject(root, sha, relativeMigrationDir, object)
-			if err != nil {
-				return nil, nil, err
-			}
-			if !mentioned {
-				result[object] = struct{}{}
-			}
-		}
-		for object, previous := range renames {
-			mentioned, err := baseMigrationsMentionDataObject(root, sha, relativeMigrationDir, object)
-			if err != nil {
-				return nil, nil, err
-			}
-			if !mentioned {
-				renamed[object] = previous
-			}
 		}
 	}
 	return result, renamed, nil
+}
+
+// addCandidateMigration adds the data objects one new migration file creates
+// or renames, unless a base migration already mentions them.
+func addCandidateMigration(root, sha, migrationDir, relativeFile string, created map[string]struct{}, renamed map[string]string) error {
+	contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relativeFile)))
+	if err != nil {
+		return fmt.Errorf("read candidate migration %s: %w", relativeFile, err)
+	}
+	objects, renames, err := migrationCreateDataObjects(relativeFile, contents)
+	if err != nil {
+		return err
+	}
+	for object := range objects {
+		mentioned, err := baseMigrationsMentionDataObject(root, sha, migrationDir, object)
+		if err != nil {
+			return err
+		}
+		if !mentioned {
+			created[object] = struct{}{}
+		}
+	}
+	for object, previous := range renames {
+		mentioned, err := baseMigrationsMentionDataObject(root, sha, migrationDir, object)
+		if err != nil {
+			return err
+		}
+		if !mentioned {
+			renamed[object] = previous
+		}
+	}
+	return nil
 }
 
 // migrationCreateDataObjects inspects statically resolved SQL passed to NewRaw
@@ -131,22 +141,13 @@ func migrationCreateDataObjects(filename string, contents []byte) (map[string]st
 			problems = append(problems, fmt.Errorf("candidate migration %s: SQL argument cannot be resolved statically", filename))
 			return true
 		}
-		objects, sqlErr := migrationSQLDataObjects(sql)
+		objects, renames, sqlErr := migrationSQLChanges(sql)
 		if sqlErr != nil {
 			problems = append(problems, fmt.Errorf("candidate migration %s: %w", filename, sqlErr))
 			return true
 		}
-		for name := range objects {
-			result[name] = struct{}{}
-		}
-		renames, sqlErr := migrationSQLRenamedDataObjects(sql)
-		if sqlErr != nil {
-			problems = append(problems, fmt.Errorf("candidate migration %s: %w", filename, sqlErr))
-			return true
-		}
-		for name, previous := range renames {
-			renamed[name] = previous
-		}
+		maps.Copy(result, objects)
+		maps.Copy(renamed, renames)
 		return true
 	})
 	return result, renamed, errors.Join(problems...)

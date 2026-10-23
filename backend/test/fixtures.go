@@ -1326,8 +1326,7 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 	return substitution
 }
 
-// CreateTestExternalCaregiverRecord creates an external caregiver record in
-// the database.
+// CreateTestExternalCaregiverRecord creates an external caregiver record.
 // This requires a Staff record, which is created automatically.
 func CreateTestExternalCaregiverRecord(tb testing.TB, db *bun.DB, expertise string) *ExternalCaregiverRecord {
 	tb.Helper()

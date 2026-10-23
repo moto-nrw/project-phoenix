@@ -203,6 +203,20 @@ func migrationSQLBodyDataObjects(query string, inBody bool) (map[string]struct{}
 	return objects, nil
 }
 
+// migrationSQLChanges returns the data objects a statement creates and the
+// tables it renames (migrationSQLRenamedDataObjects).
+func migrationSQLChanges(query string) (map[string]struct{}, map[string]string, error) {
+	objects, err := migrationSQLDataObjects(query)
+	if err != nil {
+		return nil, nil, err
+	}
+	renamed, err := migrationSQLRenamedDataObjects(query)
+	if err != nil {
+		return nil, nil, err
+	}
+	return objects, renamed, nil
+}
+
 // migrationSQLRenamedDataObjects returns the tables a statement renames,
 // keyed by the new schema-qualified name and valued by the old one:
 // ALTER TABLE [IF EXISTS] [ONLY] schema.old RENAME TO new. PostgreSQL keeps
@@ -220,39 +234,57 @@ func migrationSQLRenamedDataObjects(query string) (map[string]string, error) {
 		if !tokens[i].keyword("ALTER") || !tokens[i+1].keyword("TABLE") {
 			continue
 		}
-		next := i + 2
-		if next+1 < len(tokens) && tokens[next].keyword("IF") && tokens[next+1].keyword("EXISTS") {
-			next += 2
-		}
-		if next < len(tokens) && tokens[next].keyword("ONLY") {
-			next++
-		}
-		if next+1 < len(tokens) && tokens[next+1].keyword("RENAME") {
-			if next+2 < len(tokens) && tokens[next+2].keyword("TO") {
-				return nil, fmt.Errorf("renamed data object must be schema-qualified")
-			}
-			continue
-		}
-		if next+5 >= len(tokens) || !tokens[next+3].keyword("RENAME") || !tokens[next+4].keyword("TO") {
-			continue
-		}
-		old, err := migrationObjectName(tokens, next)
+		name, old, end, err := migrationSQLTableRename(tokens, alterTableTarget(tokens, i+2))
 		if err != nil {
 			return nil, err
 		}
-		target := tokens[next+5]
-		if target.literal {
-			return nil, fmt.Errorf("renamed data object %s has no valid new name", old)
+		if end > 0 {
+			renamed[name] = old
+			i = end
 		}
-		schema, _, _ := strings.Cut(old, ".")
-		name := schema + "." + migrationIdentifier(target)
-		if !isDataObjectName(name) {
-			return nil, fmt.Errorf("renamed data object %q cannot be represented by the ownership policy", name)
-		}
-		renamed[name] = old
-		i = next + 5
 	}
 	return renamed, nil
+}
+
+// alterTableTarget skips IF EXISTS and ONLY after ALTER TABLE and returns the
+// index of the table name.
+func alterTableTarget(tokens []migrationSQLToken, next int) int {
+	if next+1 < len(tokens) && tokens[next].keyword("IF") && tokens[next+1].keyword("EXISTS") {
+		next += 2
+	}
+	if next < len(tokens) && tokens[next].keyword("ONLY") {
+		next++
+	}
+	return next
+}
+
+// migrationSQLTableRename reads "schema.old RENAME TO new" at next. end is
+// the index of the new name, or 0 when the statement renames something else
+// (a column, a constraint) or alters the table otherwise.
+func migrationSQLTableRename(tokens []migrationSQLToken, next int) (name, old string, end int, err error) {
+	if next+1 < len(tokens) && tokens[next+1].keyword("RENAME") {
+		if next+2 < len(tokens) && tokens[next+2].keyword("TO") {
+			return "", "", 0, fmt.Errorf("renamed data object must be schema-qualified")
+		}
+		return "", "", 0, nil
+	}
+	if next+5 >= len(tokens) || !tokens[next+3].keyword("RENAME") || !tokens[next+4].keyword("TO") {
+		return "", "", 0, nil
+	}
+	old, err = migrationObjectName(tokens, next)
+	if err != nil {
+		return "", "", 0, err
+	}
+	target := tokens[next+5]
+	if target.literal {
+		return "", "", 0, fmt.Errorf("renamed data object %s has no valid new name", old)
+	}
+	schema, _, _ := strings.Cut(old, ".")
+	name = schema + "." + migrationIdentifier(target)
+	if !isDataObjectName(name) {
+		return "", "", 0, fmt.Errorf("renamed data object %q cannot be represented by the ownership policy", name)
+	}
+	return name, old, next + 5, nil
 }
 
 func migrationObjectName(tokens []migrationSQLToken, next int) (string, error) {

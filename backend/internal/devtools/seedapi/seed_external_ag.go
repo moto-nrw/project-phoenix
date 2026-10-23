@@ -14,7 +14,8 @@ const seedExternalAGLeader = "Jonas Becker"
 // seedExternalAGStep plans a weekly AG as a Regeltermin with an external
 // caregiver as its only and responsible staff member (#4573), so the planner
 // shows an external in a regular event and the external's own „Heute“ has a
-// block to run.
+// block to run. It runs right after seedExternalCaregiversStep, which records
+// the AG's leader.
 type seedExternalAGStep struct{}
 
 func (seedExternalAGStep) Name() string { return "Seeding an AG led by an external caregiver" }
