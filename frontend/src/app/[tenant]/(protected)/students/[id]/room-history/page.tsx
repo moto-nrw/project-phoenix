@@ -45,11 +45,18 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { RoomHistorySkeleton } from "./page-skeleton";
 import type { HistoryChartPoint } from "./history-charts";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
 const EXPORT_FORMATS = ["pdf", "docx", "xlsx"] as const;
 type ExportFormat = (typeof EXPORT_FORMATS)[number];
+// Dieselben Formatnamen wie in jedem anderen Export-Menü.
+const EXPORT_FORMAT_LABELS: Record<ExportFormat, string> = {
+  pdf: "PDF",
+  docx: "Word",
+  xlsx: "Excel",
+};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -736,19 +743,10 @@ function StudentRoomHistoryPageContent() {
         if (!res.ok) {
           throw await apiErrorFromResponse(res, "attendance export failed");
         }
-        const blob = await res.blob();
-        const disposition = res.headers.get("Content-Disposition") ?? "";
-        const filename =
-          /filename="([^"]+)"/.exec(disposition)?.[1] ??
-          `anwesenheit.${format}`;
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        URL.revokeObjectURL(url);
+        downloadBlob(
+          await res.blob(),
+          filenameFromDisposition(res) ?? `anwesenheit.${format}`,
+        );
       } catch (err) {
         logger.error("attendance_history_export_failed", {
           student_id: studentId,
@@ -833,7 +831,7 @@ function StudentRoomHistoryPageContent() {
                   label:
                     exporting === format
                       ? "Wird exportiert…"
-                      : format.toUpperCase(),
+                      : EXPORT_FORMAT_LABELS[format],
                   icon: <Download className="h-4 w-4" aria-hidden />,
                   onClick: () => void downloadExport(format),
                   disabled: exporting !== null,

@@ -4,6 +4,7 @@ import {
   apiErrorFromResponse,
   transportFetch,
 } from "~/lib/api-error";
+import { downloadBlob } from "~/lib/file-download";
 
 /**
  * Requests of the import pages (#2517): every failure is an `ApiError` with
@@ -80,13 +81,5 @@ export async function downloadImportTemplate(
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "Template download failed");
   }
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = objectUrl;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(objectUrl);
+  downloadBlob(await response.blob(), filename);
 }

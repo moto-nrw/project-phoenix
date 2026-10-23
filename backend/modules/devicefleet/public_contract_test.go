@@ -30,3 +30,53 @@ func TestPublicDeviceContractPersistsRoomAndMapsMissingDevice(t *testing.T) {
 	_, err = fleet.FindDevice(testpkg.Ctx(t), device.ID)
 	require.ErrorIs(t, err, devicefleet.ErrDeviceNotFound)
 }
+
+func TestDeviceCredentialIsOnlyReturnedAtCreation(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	fleet, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	created, err := fleet.CreateDevice(ctx, devicefleet.CreateDevice{DeviceID: "credential-reader", DeviceType: "terminal"})
+	require.NoError(t, err)
+	require.NotNil(t, created.APIKey)
+	key := *created.APIKey
+	found, err := fleet.FindDeviceByAPIKey(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, created.ID, found.ID)
+	require.Len(t, found.MaskedAPIKey, 7, "reads expose only a masked suffix, never the complete key")
+	require.True(t, found.APIKey == nil, "reads must never return a device credential")
+	listed, err := fleet.ListDevices(ctx, devicefleet.DeviceFilter{})
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.True(t, listed[0].APIKey == nil, "list must never return a device credential")
+	_, err = fleet.FindDevice(testpkg.NewTenantScope(t, db).Context(), created.ID)
+	require.ErrorIs(t, err, devicefleet.ErrDeviceNotFound)
+}
+
+func TestDeviceCredentialRotationRevokesOldKeyAndPreservesExactBytes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	fleet, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	oldKey := " " + testpkg.NewTestSigningSecret() + " "
+	created, err := fleet.CreateDevice(ctx, devicefleet.CreateDevice{DeviceID: "legacy-reader", DeviceType: "terminal", APIKey: &oldKey})
+	require.NoError(t, err)
+	found, err := fleet.FindDeviceByAPIKey(ctx, oldKey)
+	require.NoError(t, err)
+	require.Equal(t, created.ID, found.ID)
+	_, err = fleet.FindDeviceByAPIKey(ctx, oldKey[1:len(oldKey)-1])
+	require.ErrorIs(t, err, devicefleet.ErrDeviceNotFound)
+	newKey := testpkg.NewTestSigningSecret()
+	updated, err := fleet.UpdateDevice(ctx, devicefleet.UpdateDevice{ID: found.ID, DeviceID: found.DeviceID, DeviceType: found.DeviceType, Status: found.Status, APIKey: &newKey})
+	require.NoError(t, err)
+	require.True(t, updated.APIKey == nil, "storage updates must not disclose credentials")
+	_, err = fleet.FindDeviceByAPIKey(ctx, oldKey)
+	require.ErrorIs(t, err, devicefleet.ErrDeviceNotFound)
+	found, err = fleet.FindDeviceByAPIKey(ctx, newKey)
+	require.NoError(t, err)
+	require.Equal(t, created.ID, found.ID)
+	require.Len(t, *found.APIKeyHash, 64)
+	require.True(t, *found.APIKeyHash != newKey, "stored value must be a hash, not the credential")
+}

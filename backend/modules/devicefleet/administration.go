@@ -84,7 +84,7 @@ func (s *administration) CreateDevice(ctx context.Context, device *Device) error
 
 	created, err := s.devices.CreateDevice(ctx, CreateDevice{
 		DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: DeviceStatus(device.Status), APIKey: device.APIKey,
+		Status: DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey,
 		LastSeen: device.LastSeen, RegisteredByID: device.RegisteredByID, RoomID: device.RoomID,
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func (s *administration) UpdateDevice(ctx context.Context, device *Device) error
 
 	updated, err := s.devices.UpdateDevice(ctx, UpdateDevice{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: DeviceStatus(device.Status), APIKey: device.APIKey, LastSeen: device.LastSeen,
+		Status: DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey, LastSeen: device.LastSeen,
 		RegisteredByID: device.RegisteredByID, RoomID: device.RoomID, ArchivedAt: device.ArchivedAt,
 		TransferredToDeviceID: device.TransferredToDeviceID,
 	})

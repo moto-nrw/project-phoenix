@@ -108,6 +108,8 @@ type TokenMinter interface {
 // APIKeyMinter issues device API keys.
 type APIKeyMinter interface {
 	Mint() (string, error)
+	Hash(string) string
+	Mask(string) string
 }
 
 // Clock is the owner's time source; the composition root supplies Berlin time.
