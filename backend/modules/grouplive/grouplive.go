@@ -350,8 +350,10 @@ func projectStudents(students []RosterStudent, presence PresenceSnapshot, fullAc
 			ID: model.ID, FirstName: model.FirstName, LastName: model.LastName,
 			SchoolClass: model.SchoolClass, Location: location.Name,
 			LocationSince: location.Since, RoomColor: location.RoomColor, fullAccess: fullAccess && canReadPlans,
-			Sick: model.Sick, SickSince: model.SickSince,
-			Excused: model.Excused, ExcusedSince: model.ExcusedSince,
+		}
+		if canReadPlans {
+			student.Sick, student.SickSince = model.Sick, model.SickSince
+			student.Excused, student.ExcusedSince = model.Excused, model.ExcusedSince
 		}
 		if photosEnabled && fullAccess && model.PhotoPath != nil {
 			student.PhotoURL = buildPhotoURL(model.ID, *model.PhotoPath)
@@ -369,7 +371,7 @@ func buildPhotoURL(studentID int64, storedURL string) string {
 }
 
 func (s *service) applyStatusDays(ctx context.Context, state *buildState) error {
-	if len(state.projected) == 0 {
+	if !state.caller.CanReadStudentPlans || len(state.projected) == 0 {
 		return nil
 	}
 	statuses, err := s.deps.Presence.EffectiveStatuses(ctx, state.studentIDs, state.today)

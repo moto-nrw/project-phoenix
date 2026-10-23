@@ -73,6 +73,9 @@ einladen“ wählt man eine von drei Stufen:
   Admin-Zugriff. Das gilt auch für die Tagespläne und Notizen der
   Gruppenansicht. Die Abwesenheitsübersicht (`/students/status-days`) bleibt
   hinter `users:read`, ebenso die Abwesenheiten eines einzelnen Kindes.
+  Auch Krankheits-, Entschuldigungs- und Klassenfahrtstatus samt Zeitstempeln
+  in Kinderliste, Kinderseite und Gruppenansicht brauchen `users:read`,
+  unabhängig vom angefragten Datum.
   Kinderfotos bleiben für Gäste sichtbar, wenn die Schule sie aktiviert hat.
   Die Beschreibung „Eingeschränkter Zugriff für nicht authentifizierte Benutzer“
   war falsch; Gast ist ein angemeldetes Konto, das nur liest.

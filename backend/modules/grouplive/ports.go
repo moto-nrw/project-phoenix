@@ -24,7 +24,7 @@ type Date string
 // Caller carries the request principal's projection-relevant rights. The
 // access port resolves them once per request from the shared authorize rules.
 type Caller struct {
-	// CanReadStudentPlans is users:read, required for planning times and notes.
+	// CanReadStudentPlans is users:read, required for plans, notes and absence statuses.
 	CanReadStudentPlans bool
 	// CanReadGroups is the groups:read permission gating the group-derived
 	// sections (room status, transfers, tracking indicators).
