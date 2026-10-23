@@ -30,14 +30,14 @@ export const EXTERNAL_CAREGIVER_HINT =
   "Zum Beispiel jemand von der Musikschule oder vom Sportverein. Sie können die Person sofort einplanen.";
 
 /** Shown at the email field while the chosen access sends an invitation. */
-export const EXTERNAL_INVITATION_HINT =
+const EXTERNAL_INVITATION_HINT =
   "Die Person bekommt eine Einladung per E-Mail. Damit meldet sie sich selbst bei moto an.";
 
 /**
  * The three access levels of ADR 0085, each with one line on what the person
  * can do. The order is the order on screen.
  */
-export const EXTERNAL_ACCESS_OPTIONS: Readonly<
+const EXTERNAL_ACCESS_OPTIONS: Readonly<
   Record<
     ExternalAccess,
     { readonly label: string; readonly description: string }
@@ -63,7 +63,7 @@ export const EXTERNAL_ACCESS_OPTIONS: Readonly<
  * The levels this session may grant. „Nur ansehen“ needs `users:manage`
  * (`canGrantExternalViewAccess`); without it the backend refuses the role.
  */
-export function grantableExternalAccess(
+function grantableExternalAccess(
   canGrantView: boolean,
 ): readonly ExternalAccess[] {
   return canGrantView ? ["none", "view", "supervise"] : ["none", "supervise"];
