@@ -1,6 +1,7 @@
 package careplanhttp_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -218,6 +220,44 @@ func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 	longNoteResponse := authExec(t, tc, longNote, claims, []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, longNoteResponse.Code)
 	assert.Contains(t, longNoteResponse.Body.String(), "die Begründung ist zu lang.")
+}
+
+// A child the school no longer knows and a child who left at the grade
+// transition are expected refusals with their own code, not 500s (#4407).
+func TestCareResumeHandler_RefusesUnknownAndGraduatedChildWithCodes(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRouteWithCareLifecycle(t, false, fixedCalendarClock)
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-resume-refusals@example.com")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+	body := map[string]any{"new_start": studentsTestToday.String(), "checked": true}
+
+	graduated := testpkg.CreateTestStudent(t, tc.db, "Api", "Abgang", "4a")
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("status = ?", careplan.StudentStatusAlumnus).
+		Where("student_profile_id = ? AND deleted_at IS NULL", graduated.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		studentID int64
+		status    int
+		code      string
+	}{
+		{"unknown child", graduated.ID + 1_000_000, http.StatusNotFound, common.CodeTimetableStudentNotFound},
+		{"child left at grade transition", graduated.ID, http.StatusConflict, common.CodeStudentsCareResumeAlumnus},
+	}
+	for _, c := range cases {
+		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/care-end/resume", c.studentID), body)
+		response := authExec(t, tc, request, claims, []string{"users:delete"})
+		require.Equal(t, c.status, response.Code, "%s. Body: %s", c.name, response.Body.String())
+		var problem struct {
+			Code string `json:"code"`
+		}
+		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &problem))
+		assert.Equal(t, c.code, problem.Code, c.name)
+	}
 }
 
 func flipCareExitTokenHex(t *testing.T, token string) string {

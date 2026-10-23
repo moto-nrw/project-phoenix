@@ -1709,6 +1709,12 @@
       "legacy": "care_offerings_disabled"
     },
     {
+      "code": "students.care_resume_alumnus",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_alumnus"
+    },
+    {
       "code": "students.care_resume_missing",
       "class": "business_rejection",
       "parameters": [],
