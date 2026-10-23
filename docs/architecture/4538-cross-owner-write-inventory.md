@@ -226,10 +226,28 @@ the locked re-read must reject the old version and leave the request pending.
 
 The care exit is scheduled after the offering switch, so both commands must
 succeed, not merely avoid `40P01`. Request terminal state and expected version
-are checked again under `FOR UPDATE`; the preliminary read only supplies the
-immutable student ID. Authorization and the mutation still use locked state.
+are checked again under `FOR UPDATE`; missing, terminal and stale requests may
+be rejected before the gates. The preliminary read supplies the immutable student
+ID, not authority to mutate. Authorization and the mutation still use locked state.
 Tenant transactions, errors, responses and preview fingerprints are unchanged.
 The existing consumer-owned gates suffice; no new root logic or policy rule.
+
+Round-2 error-path regression: the unlocked `Rows.Find` must return
+`ErrOfferingChangeNotFound`, just like `FindForUpdate`, for missing and
+tenant-hidden IDs. Review can also lose the child (and its cascading request)
+while waiting on the gates; its locked child read maps a missing row to the
+same sentinel. Other database failures retain their wrappers. Service and real
+HTTP regressions cover approve/reject/MarkDone (404, existing `general.input`);
+service tests also cover offering conflict pre-lock/decision and preview. Four
+two-connection deletion cases pin the gate-wait race. Missing request/child
+adjustments and missing/foreign-child pickup reset retain their existing errors.
+
+All unlocked `Rows.Find` callers were audited: `pendingRow` serves conflict
+candidates and the new review pre-read; `previewableRow` serves decision preview.
+Both now expose the domain not-found outcome. `Edit` reloads after its guarded
+update and `recordOfferingDecision` reloads after deciding; both already hold
+the request lock in the same tenant transaction, so concurrent deletion cannot
+remove that row before either reload. Those reloads still wrap other failures.
 
 Additional request/child audit (static evidence, not a claim of global freedom):
 

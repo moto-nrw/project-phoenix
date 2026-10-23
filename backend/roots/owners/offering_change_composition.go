@@ -159,8 +159,8 @@ func (p offeringChangeConflictPort) WriteStaffValue(ctx context.Context, write c
 }
 
 // offeringChangeRows reads and writes enrollment.offering_change_requests
-// through Care Plan's own capability, with the not-found and database error
-// shapes of the retained request repository.
+// through Care Plan's own capability. Both read modes expose the same domain
+// not-found sentinel; other failures retain their database error shape.
 type offeringChangeRows struct{ carePlan careplan.Capability }
 
 func (r offeringChangeRows) Create(ctx context.Context, row careplan.OfferingChangeRequest) (careplan.OfferingChangeRequest, error) {
@@ -172,7 +172,11 @@ func (r offeringChangeRows) Create(ctx context.Context, row careplan.OfferingCha
 }
 
 func (r offeringChangeRows) Find(ctx context.Context, id int64) (careplan.OfferingChangeRequest, error) {
-	return r.find(ctx, id, false, "find by id")
+	row, err := r.find(ctx, id, false, "find by id")
+	if errors.Is(err, careplan.ErrOfferingChangeNotFound) || errors.Is(err, transactionruntime.ErrNoRows) {
+		return careplan.OfferingChangeRequest{}, careplan.ErrOfferingChangeNotFound
+	}
+	return row, err
 }
 
 func (r offeringChangeRows) FindForUpdate(ctx context.Context, id int64) (careplan.OfferingChangeRequest, error) {
@@ -380,6 +384,11 @@ func (s offeringChangeStudents) FindStudent(ctx context.Context, id int64) (*car
 
 func (s offeringChangeStudents) LockStudent(ctx context.Context, id int64) (*carePlanCompose.ReviewStudent, error) {
 	student, err := s.students.FindByIDForUpdate(ctx, id)
+	// Deletion may cascade to the request after its preliminary read, while
+	// review waits for the gates. Preserve the request's not-found outcome.
+	if errors.Is(err, transactionruntime.ErrNoRows) {
+		return nil, careplan.ErrOfferingChangeNotFound
+	}
 	return offeringReviewStudent(student), err
 }
 
