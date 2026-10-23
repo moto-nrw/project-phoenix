@@ -26,7 +26,7 @@ interface UseExportRunOptions<F extends ExportFileFormat> {
   /** Checks the options before a run; a returned text blocks it. */
   readonly validate?: () => string | null;
   /** Object of the error text, e.g. „die Klassenliste“. */
-  readonly errorObject: string;
+  readonly errorObject: string | ((kind: ExportRunKind) => string);
   /** Success toast after a download. */
   readonly successMessage?: string;
   /** Closes the dialog after a successful run. */
@@ -104,7 +104,8 @@ export function useExportRun<F extends ExportFileFormat>({
         error: error instanceof Error ? error.message : String(error),
       });
       await formErrors.show(error, {
-        object: errorObject,
+        object:
+          typeof errorObject === "string" ? errorObject : errorObject(kind),
         // Der Klick auf „Wiederholen“ ist wieder eine Nutzeraktion: das
         // Druckfenster darf dort erneut aufgehen.
         retry: () => latestRunRef.current(kind, format),

@@ -68,6 +68,11 @@ interface ExportDialogProps<F extends ExportFileFormat> {
   /** Preselected format; defaults to the first one. */
   readonly defaultFormat?: F;
   readonly run: ExportDialogRun<F>;
+  /**
+   * The options cannot produce a file right now (an invalid period). The
+   * options themselves say why; Drucken and Herunterladen wait.
+   */
+  readonly blocked?: boolean;
   /** Panel width on desktop. */
   readonly widthClass?: string;
   /** Options of this export (template, period, columns). */
@@ -92,6 +97,7 @@ export function ExportDialog<F extends ExportFileFormat>({
   formats,
   defaultFormat,
   run,
+  blocked = false,
   widthClass = "sm:w-[560px]",
   children,
 }: ExportDialogProps<F>) {
@@ -187,7 +193,7 @@ export function ExportDialog<F extends ExportFileFormat>({
               variant="outline"
               size="md"
               onClick={run.print}
-              disabled={busy !== null}
+              disabled={busy !== null || blocked}
             >
               <Printer className="h-4 w-4" aria-hidden />
               {busy === "print" ? "Wird geöffnet…" : "Drucken"}
@@ -200,7 +206,7 @@ export function ExportDialog<F extends ExportFileFormat>({
             onClick={() => {
               if (format) run.download(format);
             }}
-            disabled={busy !== null || !format}
+            disabled={busy !== null || blocked || !format}
           >
             <Download className="h-4 w-4" aria-hidden />
             {busy === "download" ? "Wird erstellt…" : "Herunterladen"}
