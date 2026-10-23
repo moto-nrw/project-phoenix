@@ -249,7 +249,7 @@ func composeServeRoot(
 		},
 		func() (err error) { mealPlanSettings, err = owners.BuildMealPlanSettings(settings.Service); return },
 		func() (err error) {
-			mealPlan, err = owners.BuildServeMealPlan(db, mealPlanSettings, owners.NewStudentRootReads(people.Students))
+			mealPlan, err = owners.BuildServeMealPlan(db, mealPlanSettings, calendar, owners.NewStudentRootReads(people.Students))
 			return
 		},
 		func() (err error) { feedbackSettings, err = owners.BuildFeedbackSettings(settings.Service); return },

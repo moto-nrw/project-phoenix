@@ -448,7 +448,7 @@ jobs:
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/staging/deploy-remote.sh"
+            "DEPLOY_DIR=staging DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 RELEASE_SNAPSHOT_MAX_AGE_DAYS=30 bash ~/scripts/staging/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 
@@ -567,7 +567,7 @@ jobs:
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 bash ~/scripts/production/deploy-remote.sh"
+            "DEPLOY_DIR=production DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=7 RELEASE_SNAPSHOT_MAX_AGE_DAYS=30 bash ~/scripts/production/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 
@@ -686,7 +686,7 @@ jobs:
 
           set +e
           ssh -i ~/.ssh/deploy_key root@$SSH_HOST \
-            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 bash ~/scripts/demo/deploy-remote.sh"
+            "DEPLOY_DIR=demo DEPLOY_SHA=$SHORT_SHA BACKUP_RETENTION=3 RELEASE_SNAPSHOT_MAX_AGE_DAYS=30 bash ~/scripts/demo/deploy-remote.sh"
           DEPLOY_EXIT=$?
           set -e
 

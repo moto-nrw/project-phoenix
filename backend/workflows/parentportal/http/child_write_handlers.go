@@ -361,8 +361,14 @@ type MealParticipationResponse struct {
 	CutoffTime    string                      `json:"cutoff_time"`
 	// CutoffLeadDays is how many school days before the meal day the
 	// cutoff time applies; 0 is the meal day itself.
-	CutoffLeadDays int                            `json:"cutoff_lead_days"`
-	Days           []MealParticipationDayResponse `json:"days"`
+	CutoffLeadDays int `json:"cutoff_lead_days"`
+	// CutoffWeekday 1-5 ends the changes of a week on that weekday of the
+	// week before; 0 uses CutoffLeadDays.
+	CutoffWeekday int `json:"cutoff_weekday"`
+	// CancellationCutoffTime is empty unless parents may cancel later.
+	CancellationCutoffTime     string                         `json:"cancellation_cutoff_time,omitempty"`
+	CancellationCutoffLeadDays int                            `json:"cancellation_cutoff_lead_days"`
+	Days                       []MealParticipationDayResponse `json:"days"`
 }
 
 type ReplaceMealParticipationRequest struct {
@@ -507,7 +513,10 @@ func mealParticipationResponse(plan parentService.MealParticipationPlan) MealPar
 	for _, day := range plan.Days {
 		days = append(days, MealParticipationDayResponse{Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable})
 	}
-	return MealParticipationResponse{Weekdays: plan.Weekdays, EffectiveFrom: string(plan.EffectiveFrom), CutoffTime: plan.CutoffTime, CutoffLeadDays: plan.CutoffLeadDays, Days: days}
+	return MealParticipationResponse{
+		Weekdays: plan.Weekdays, EffectiveFrom: string(plan.EffectiveFrom), CutoffTime: plan.CutoffTime, CutoffLeadDays: plan.CutoffLeadDays, CutoffWeekday: plan.CutoffWeekday,
+		CancellationCutoffTime: plan.CancellationCutoffTime, CancellationCutoffLeadDays: plan.CancellationCutoffLeadDays, Days: days,
+	}
 }
 
 // --- shared helpers ---

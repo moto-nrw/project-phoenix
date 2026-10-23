@@ -37,10 +37,14 @@ func (l DailyList) Export() (DailyListExport, error) {
 	for _, participant := range l.Participants {
 		lines = append(lines, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
 	}
+	filters := append(cutoffFilters(l.Cutoffs), fmt.Sprintf("%d Kinder", len(lines)))
+	if l.Closed {
+		filters = append(filters, closedDayNote)
+	}
 	return DailyListExport{
 		Title:    "Mittagessen – Tagesliste",
 		Subtitle: "Tagesliste für den " + date,
-		Filters:  []string{cutoffFilter(l.CutoffTime, l.CutoffLeadDays), fmt.Sprintf("%d Kinder", len(lines))},
+		Filters:  filters,
 		Columns:  []DailyListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
 		Lines:    lines,
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
@@ -88,19 +92,11 @@ func (w WeeklyList) Export() (DailyListExport, error) {
 		line[1] = participant.SchoolClass
 		lines = append(lines, line)
 	}
-	total := make([]string, len(columns))
-	total[0] = "Summe"
-	for index, day := range w.Days {
-		for _, participant := range day.Participants {
-			lines[rowOf[participant.StudentID]][index+2] = "✓"
-		}
-		total[index+2] = strconv.Itoa(len(day.Participants))
-	}
-	lines = append(lines, total)
+	lines = append(lines, markWeekDays(w.Days, lines, rowOf, len(columns)))
 	return DailyListExport{
 		Title:    "Mittagessen – Wochenliste",
 		Subtitle: "Wochenliste vom " + from + " bis " + to,
-		Filters:  []string{cutoffFilter(w.CutoffTime, w.CutoffLeadDays), fmt.Sprintf("%d Kinder", len(participants))},
+		Filters:  append(cutoffFilters(w.Cutoffs), fmt.Sprintf("%d Kinder", len(participants))),
 		Columns:  columns,
 		Lines:    lines,
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
@@ -108,16 +104,53 @@ func (w WeeklyList) Export() (DailyListExport, error) {
 	}, nil
 }
 
+// markWeekDays ticks each child's days and returns the line with the count
+// of each day; a closed day counts no meal.
+func markWeekDays(days []DailyList, lines [][]string, rowOf map[int64]int, width int) []string {
+	total := make([]string, width)
+	total[0] = "Summe"
+	for index, day := range days {
+		for _, participant := range day.Participants {
+			lines[rowOf[participant.StudentID]][index+2] = "✓"
+		}
+		total[index+2] = strconv.Itoa(len(day.Participants))
+		if day.Closed {
+			total[index+2] = closedDayTotal
+		}
+	}
+	return total
+}
+
 var weekdayAbbreviations = [...]string{"Mo", "Di", "Mi", "Do", "Fr"}
 
-func cutoffFilter(cutoffTime string, leadDays int) string {
+const (
+	closedDayNote  = "Kein Essen: Feiertag oder Schließtag"
+	closedDayTotal = "kein Essen"
+)
+
+var weekdayNames = [...]string{"Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"}
+
+// cutoffFilters describe the change cutoff and, when parents may cancel
+// later, the cancellation cutoff.
+func cutoffFilters(cutoffs Cutoffs) []string {
+	filters := []string{"Änderungsfrist: " + cutoffText(cutoffs.CutoffTime, cutoffs.CutoffLeadDays, cutoffs.CutoffWeekday)}
+	if cutoffs.CancellationCutoffTime != "" {
+		filters = append(filters, "Abmeldefrist: "+cutoffText(cutoffs.CancellationCutoffTime, cutoffs.CancellationCutoffLeadDays, 0))
+	}
+	return filters
+}
+
+func cutoffText(cutoffTime string, leadDays int, weekday Weekday) string {
+	if weekday >= Monday && weekday <= Friday {
+		return fmt.Sprintf("%s Uhr, %s der Vorwoche", cutoffTime, weekdayNames[weekday-1])
+	}
 	switch leadDays {
 	case 0:
-		return "Änderungsfrist: " + cutoffTime + " Uhr"
+		return cutoffTime + " Uhr"
 	case 1:
-		return "Änderungsfrist: " + cutoffTime + " Uhr, 1 Werktag vorher"
+		return cutoffTime + " Uhr, 1 Werktag vorher"
 	default:
-		return fmt.Sprintf("Änderungsfrist: %s Uhr, %d Werktage vorher", cutoffTime, leadDays)
+		return fmt.Sprintf("%s Uhr, %d Werktage vorher", cutoffTime, leadDays)
 	}
 }
 
