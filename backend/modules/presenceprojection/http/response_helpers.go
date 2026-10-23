@@ -23,6 +23,7 @@ type StudentResponseOpts struct {
 	Person           *peopleModule.Person
 	Group            *SchoolGroup
 	HasFullAccess    bool
+	HasPhotoAccess   bool
 	LocationOverride *string
 	// Resolve once per request and thread through — populatePhotoFields
 	// runs per-student in list paths.
@@ -73,9 +74,6 @@ func populateCareEndFields(response *StudentResponse, student *peopleModule.Stud
 // populatePublicStudentFields sets fields visible to all authenticated staff
 func populatePublicStudentFields(response *StudentResponse, student *peopleModule.StudentState) {
 	populateCareEndFields(response, student)
-	if student.HealthInfo != nil {
-		response.HealthInfo = *student.HealthInfo
-	}
 	allowed := student.AllowedDepartureModes.Normalize()
 	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
 	if !allowed.HasAny() {
@@ -115,8 +113,11 @@ func responsePickupStatus(student *peopleModule.StudentState, derived string) st
 	return *student.PickupStatus
 }
 
-// populateSensitiveStudentFields sets fields visible only to supervisors/admins
+// populateSensitiveStudentFields sets fields visible only with users:read.
 func populateSensitiveStudentFields(response *StudentResponse, student *peopleModule.StudentState) {
+	if student.HealthInfo != nil {
+		response.HealthInfo = *student.HealthInfo
+	}
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
 	}
@@ -167,7 +168,7 @@ func populateStudentAddressFields(response *StudentResponse, student *peopleModu
 // response uses, so the two endpoints can never drift.
 // populatePhotoFields fills the response with photo URL + consent metadata.
 //
-// hasFullAccess MUST mirror the predicate serveStudentPhoto uses internally
+// hasPhotoAccess MUST mirror the predicate serveStudentPhoto uses internally
 // (authorize.CanReadStudent — i.e. admin or verified staff, #2329): the
 // byte-serving route 403s callers that
 // fail it, so emitting photo_url for rows the same session is forbidden to
@@ -179,7 +180,7 @@ func populateStudentAddressFields(response *StudentResponse, student *peopleModu
 // When photosEnabled is false we still skip every photo field so an admin
 // who turns the feature off mid-session no longer sees photo_url + consent
 // metadata in API responses for rows that already had a photo uploaded.
-func populatePhotoFields(response *StudentResponse, student *peopleModule.StudentState, photosEnabled, hasFullAccess bool) {
+func populatePhotoFields(response *StudentResponse, student *peopleModule.StudentState, photosEnabled, hasPhotoAccess bool) {
 	if !photosEnabled {
 		// All photo fields stay at their zero values. With
 		// PhotoConsentGiven typed as *bool + omitempty, leaving it nil
@@ -189,9 +190,9 @@ func populatePhotoFields(response *StudentResponse, student *peopleModule.Studen
 		return
 	}
 	// PhotoURL is only emitted when the caller can actually fetch it.
-	// hasFullAccess matches the access gate inside serveStudentPhoto so
+	// hasPhotoAccess matches the access gate inside serveStudentPhoto so
 	// the URL we hand out is one the same session is allowed to render.
-	if hasFullAccess && student.PhotoPath != nil {
+	if hasPhotoAccess && student.PhotoPath != nil {
 		response.PhotoURL = common.BuildStudentPhotoServeURL(student.ID, *student.PhotoPath)
 	}
 	// Surface the explicit boolean state to the frontend so the consent
@@ -222,32 +223,6 @@ func populateEnrollmentConsents(response *StudentResponse, student *peopleModule
 	}
 	if student.EmailContactAcceptedAt != nil {
 		response.EmailContactAcceptedAt = student.EmailContactAcceptedAt
-	}
-}
-
-// populateSnapshotSensitiveFields sets sensitive fields for the snapshot version
-// Note: This differs from populateSensitiveStudentFields by including HealthInfo
-func populateSnapshotSensitiveFields(response *StudentResponse, student *peopleModule.StudentState) {
-	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
-		response.ExtraInfo = *student.ExtraInfo
-	}
-	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
-		response.DepartureCompanionNote = *student.DepartureCompanionNote
-	}
-	if student.HealthInfo != nil {
-		response.HealthInfo = *student.HealthInfo
-	}
-	if student.Sick != nil {
-		response.Sick = *student.Sick
-	}
-	if student.SickSince != nil {
-		response.SickSince = student.SickSince
-	}
-	if student.Excused != nil {
-		response.Excused = *student.Excused
-	}
-	if student.ExcusedSince != nil {
-		response.ExcusedSince = student.ExcusedSince
 	}
 }
 
@@ -352,7 +327,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 	student := opts.Student
 	person := opts.Person
 	group := opts.Group
-	hasFullAccess := opts.HasFullAccess
+	hasFullAccess := opts.HasFullAccess && canReadSensitiveStudentData(ctx)
 	locationOverride := opts.LocationOverride
 	response := StudentResponse{
 		ID:          student.ID,
@@ -383,16 +358,21 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
 	populatePublicStudentFields(&response, student)
 
-	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
-	populateSensitiveStudentFields(&response, student)
+	// Notes and health information require users:read, independently of the
+	// staff-only address and planning scope.
+	if canReadSensitiveStudentData(ctx) {
+		populateSensitiveStudentFields(&response, student)
+	} else {
+		response.PickupStatus = response.AllowedDepartureModes.LegacyPickupStatus()
+	}
 	if hasFullAccess {
 		populateStudentAddressFields(&response, student)
 	}
 
 	// Photo + consent metadata. Suppressed entirely when the feature is
-	// off; PhotoURL additionally requires hasFullAccess so we never hand
+	// off; PhotoURL additionally requires photo access so we never hand
 	// out a URL the same session would 403 against in serveStudentPhoto.
-	populatePhotoFields(&response, student, opts.PhotosEnabled, hasFullAccess)
+	populatePhotoFields(&response, student, opts.PhotosEnabled, opts.HasFullAccess || opts.HasPhotoAccess)
 
 	// AGB / Datenschutz / E-Mail consents flow through independently
 	// of the photo feature flag — see populateEnrollmentConsents.
@@ -403,7 +383,9 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 
 // newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data
 // This eliminates N+1 queries by using cached person, group, and location data
-func newStudentResponseFromSnapshot(_ context.Context, student *peopleModule.StudentState, person *peopleModule.Person, group *SchoolGroup, hasFullAccess bool, snapshot *studentDataSnapshot, photosEnabled bool) StudentResponse {
+func newStudentResponseFromSnapshot(ctx context.Context, student *peopleModule.StudentState, person *peopleModule.Person, group *SchoolGroup, hasFullAccess bool, snapshot *studentDataSnapshot, photosEnabled bool) StudentResponse {
+	hasPhotoAccess := hasFullAccess
+	hasFullAccess = hasFullAccess && canReadSensitiveStudentData(ctx)
 	response := StudentResponse{
 		ID:          student.ID,
 		PersonID:    student.PersonID,
@@ -425,14 +407,17 @@ func newStudentResponseFromSnapshot(_ context.Context, student *peopleModule.Stu
 	populatePersonAndGroupData(&response, person, student, group, hasFullAccess)
 	populateSnapshotPublicFields(&response, student)
 
-	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
-	populateSnapshotSensitiveFields(&response, student)
+	if canReadSensitiveStudentData(ctx) {
+		populateSensitiveStudentFields(&response, student)
+	} else {
+		response.PickupStatus = response.AllowedDepartureModes.LegacyPickupStatus()
+	}
 	if hasFullAccess {
 		populateStudentAddressFields(&response, student)
 	}
 
 	// Photo + consent metadata — same rationale as in newStudentResponseWithOpts.
-	populatePhotoFields(&response, student, photosEnabled, hasFullAccess)
+	populatePhotoFields(&response, student, photosEnabled, hasFullAccess || hasPhotoAccess)
 	populateEnrollmentConsents(&response, student)
 
 	return response

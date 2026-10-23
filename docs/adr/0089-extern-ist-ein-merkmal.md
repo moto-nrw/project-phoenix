@@ -64,8 +64,14 @@ einladen“ wählt man eine von drei Stufen:
   nur die Leserouten der Kinder (Liste, Detail, aktueller Ort, Klassen, Foto,
   OGS-Gruppenansicht), die bisher allein an `users:read` hingen. Damit sieht
   ein Gast keine Elternnachrichten, kein Elternverzeichnis, keine
-  Telefonnummern der Eltern, keine Notizen und keine Exporte mehr. Die
-  Beschreibung „Eingeschränkter Zugriff für nicht authentifizierte Benutzer“
+  Telefonnummern der Eltern, keine Notizen und keine Exporte mehr.
+  Auch die JSON-Antworten der Kinder-Liste und Kinderseite geben mit
+  `students:read` allein keine Wohnadresse, Gesundheitsinformationen,
+  Elternnotizen, keine freien Abholhinweise oder Ankunfts- und Abholnotizen aus.
+  Diese Felder brauchen `users:read`. Wohnadressen und der Vollzugriff auf
+  Tagespläne brauchen weiterhin auch den bisherigen Personal- oder
+  Admin-Zugriff. Kinderfotos bleiben für Gäste sichtbar, wenn die Schule sie aktiviert hat.
+  Die Beschreibung „Eingeschränkter Zugriff für nicht authentifizierte Benutzer“
   war falsch; Gast ist ein angemeldetes Konto, das nur liest.
 
 Nicht gewählt:
