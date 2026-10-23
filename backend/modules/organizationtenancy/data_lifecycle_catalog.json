@@ -259,6 +259,6 @@
     {"kind": "login-images", "layout": "tenantPrefix", "export": "include", "reason": "School-prefixed login images referenced by settings."},
     {"kind": "enrollment-legal-documents", "layout": "tenantPrefix", "export": "include", "reason": "School-prefixed legal document originals referenced by settings."},
     {"kind": "enrollment-form-legal-documents", "layout": "tenantPrefix", "export": "include", "reason": "School-prefixed form-specific legal document originals."},
-    {"kind": "avatars", "layout": "account", "export": "include", "reason": "Shared account avatar references under avatars/global; no tenant prefix. Include only authorized account references; remove only when no remaining school needs the account/file."}
+    {"kind": "avatars", "layout": "account", "export": "include", "reason": "Shared account avatars under avatars/global and legacy avatars/<tenantId>. References in auth.accounts.avatar and users.profiles.avatar, plus durable deletion intents in auth.account_avatar_file_cleanup. Include only authorized account references; reconcile both layouts and pending intents before treating a file as orphaned."}
   ]
 }

@@ -68,9 +68,11 @@ Belege, nicht ihre Vollständigkeit für Art.-15-Auskunft. Indirekte Beziehungen
 Snapshots, JSON/Freitext und Drittpersonenrechte bleiben in #3838 zu bearbeiten.
 
 Datei-Kinds verwenden `tenantDir` (`kind/tenant/name`), `tenantPrefix`
-(`kind/tenant_name`) oder `account` (aktuell `avatars/global/name`, über die
-Kontoreferenz). Originaldateien, Metadaten und offene Datei-Löschaufträge
-gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
+(`kind/tenant_name`) oder `account` (`avatars/global/name` und die Altablage
+`avatars/<tenantId>/name`). Avatarverweise stehen in `auth.accounts.avatar` und
+`users.profiles.avatar`; offene Löschaufträge in `auth.account_avatar_file_cleanup`
+gehören ebenfalls zum Abgleich beider Ablagen. Originaldateien, Metadaten und
+offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
 
 ## Pflege und Prüfung
 
