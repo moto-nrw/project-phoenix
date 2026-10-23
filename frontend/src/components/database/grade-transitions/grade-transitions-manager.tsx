@@ -557,9 +557,9 @@ export function GradeTransitionsManager({
                 Noch kein Schuljahreswechsel angelegt.
               </p>
               <p className="mt-1">
-                Mit Neuer Schuljahreswechsel werden alle Klassen automatisch
-                vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
-                anpassen.
+                Mit einem neuen Schuljahreswechsel werden alle Klassen
+                automatisch vorgeschlagen (z. B. 1a in 2a) und lassen sich vor
+                dem Anwenden anpassen.
               </p>
             </div>
           }

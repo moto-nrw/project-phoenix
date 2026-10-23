@@ -60,7 +60,9 @@ test.describe("Planung navigation", () => {
     // Der zentrale Einstieg bündelt alle Vertretungsvorgänge; er steht im
     // Tagesbetrieb, der standardmäßig offen ist.
     await expect(sidebar.getByText("Übergaben", { exact: true })).toBeVisible();
-    await expect(sidebar.getByText("Übergaben")).toHaveCount(0);
+    await expect(
+      sidebar.getByText("Vertretungen", { exact: true }),
+    ).toHaveCount(0);
 
     await sidebar.getByText("Betreuungsplan").click();
     await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));

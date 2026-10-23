@@ -163,6 +163,11 @@ describe("GradeTransitionsManager", () => {
     expect(
       screen.getByText(/Noch kein Schuljahreswechsel/i),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Mit einem neuen Schuljahreswechsel werden alle Klassen/i,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("prefills the editor from suggestions", async () => {
