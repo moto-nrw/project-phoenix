@@ -29,6 +29,11 @@ architecture; the principle ADRs 0066 to 0071 state its rules. Where older
 code, docs or examples show a Handler → Service → Repository layout, the
 target wins.
 
+Apply these boundaries while implementing every backend change, including bug
+fixes and small edits, even without a PR. Existing violations are debt to remove,
+not precedents for new dependencies. Choose the owning capability and allowed
+dependency direction before writing code; keep the change within those boundaries.
+
 Before backend design, implementation, or review:
 
 1. Read the matching principle ADR (table in `backend/architecture/README.md`)
@@ -54,11 +59,15 @@ Before backend design, implementation, or review:
 
 Before completing a backend code change:
 
-1. Run `scripts/backend-architecture.sh check` from the root. Inspect policy,
+1. Check the final code against the affected principles and policy entries,
+   including runtime access and transaction boundaries, not just imports.
+   Run `scripts/backend-architecture.sh check` from the root. Inspect policy,
    baseline, and composition-inventory diffs; green only proves detected rules.
 2. Run `scripts/test-changed.sh origin/development` without `--fast` before push.
-3. Record owner/capability and before/after counts for touched shrink-only
-   surfaces in the PR. Counts must stay equal or decrease.
+3. Fill in **Backend-Architektur** in the
+   [PR template](../.github/PULL_REQUEST_TEMPLATE.md) with the boundary rationale
+   and evidence it requires. Update it after backend fixes so it describes the
+   final diff and check results.
 
 If a feature cannot fit these boundaries, stop its structural change and open
 an architecture issue for an ADR decision before continuing.
