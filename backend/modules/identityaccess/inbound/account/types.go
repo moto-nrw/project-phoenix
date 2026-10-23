@@ -117,24 +117,24 @@ type TenantResolveResponse struct {
 	// (#3603): the OGS portal records masked sessions and sends pseudonymous
 	// user IDs only while it is true, and shows staff a notice. Shell metadata
 	// because every page load reads it, so switching it off takes effect at
-	// the next load. Fails closed to false on any resolution error.
+	// the next load. A resolution error fails the shell request.
 	AnalyticsFreigabe bool `json:"analytics_freigabe"`
 	// AnalyticsRecordingSamplePercent is the share of OGS sessions recorded
-	// with the Freigabe (analytics.recording_sample_percent). 0 when it cannot
-	// be resolved, which records nothing.
+	// with the Freigabe (analytics.recording_sample_percent). A lookup error
+	// fails the shell request; an explicit zero records nothing.
 	AnalyticsRecordingSamplePercent int `json:"analytics_recording_sample_percent"`
 	// EarlyCheckoutNoteEnabled and EarlyCheckoutNoteToleranceMinutes are the
 	// school's resolved operations.early_checkout_note_* settings (#3324).
 	// Shell metadata: the web checkout dialogs offer an optional note when a
 	// child leaves more than the tolerance before its pickup time, and staff
 	// carry no config:read. The note is never required, so a settings read
-	// error only hides the field (fails closed to false).
+	// error fails the shell request.
 	EarlyCheckoutNoteEnabled          bool `json:"early_checkout_note_enabled"`
 	EarlyCheckoutNoteToleranceMinutes int  `json:"early_checkout_note_tolerance_minutes"`
 	// WeekendFollowsFriday is the tenant's resolved
 	// operations.weekend_follows_friday setting (#3921): Saturday and Sunday
 	// are care days on Friday's plan. Shell metadata so day pickers and day
-	// views stop skipping the weekend. Fails closed (false).
+	// views stop skipping the weekend. A lookup error fails the shell request.
 	WeekendFollowsFriday bool `json:"weekend_follows_friday"`
 	// ChildSearchOnlyNavigation is the tenant's resolved
 	// operations.child_search_only_navigation setting (#1321): staff find

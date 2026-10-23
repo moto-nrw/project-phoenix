@@ -175,23 +175,35 @@ config.Register(config.Definition{
 
 Use `Resolve*(ctx, key)` inside tenant middleware, or
 `Resolve*ForTenant(ctx, tenantID, key)` outside it (device auth, scheduler,
-login). Handle the error and use the resolved value directly. Privacy reads (history,
-exports, consent retention and room-history settings) propagate lookup errors
-without returning data; route composition rejects a missing settings port.
-Guardian invitation commands also propagate lifetime lookup errors and never
-use the deployment lifetime for staff invitations.
+login). Handle the error and use the resolved value directly.
 
-Privacy and permission settings (including `gdpr.*`, visibility/scope keys,
-photo policy, edit permission and token lifetimes) propagate lookup errors.
-HTTP readers return the shared error envelope without data; scheduler jobs log
-the error and skip that tenant in the current tick. Required settings ports
-fail at construction, before requests or jobs can run.
+**Target rule:** privacy, permission and token-lifetime reads propagate lookup
+errors; HTTP readers return the shared error envelope without internal details
+or replacement data, and scheduler jobs skip the affected tenant. Require
+settings ports at construction, not on the first request. The history, export,
+consent, tenant-shell, enrollment edit/token, MFA lifetime/lockout and retention
+paths migrated in #4543 follow this contract. Parent invitation lifetimes never
+use the deployment lifetime configured for staff invitations.
 
-The existing operational error fallbacks are inventoried by key and source
-location in [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
-That finite inventory is migration debt, not permission to add a fallback.
-`Resolve*OrDefault` still resolves the registry default without an override;
-its caller literal applies only to a failed read. New consumers use `Resolve*`
+**Known exceptions, not patterns for new code:**
+
+- `security.ogs_device_pin` still converts a read failure or a missing resolver
+  into the legacy `OGS_DEVICE_PIN` chain. Removing that fail-open chain and
+  choosing the setup/default-PIN policy belongs to
+  [#3841](https://github.com/moto-nrw/project-phoenix/issues/3841), not #4543.
+- Existing fail-closed feature/display readers (for example trusted-device
+  availability, staff-name visibility and offering-change availability) still
+  suppress errors. Some older constructors still permit nil settings and the
+  affected consumers answer restrictive values. These are migration debt,
+  not proof that every required port is already checked at startup.
+- Existing operational readers still use literals on errors or nil resolvers.
+  The complete per-reader classification, including nil-only cases, lives in
+  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
+  That inventory separates fixed paths, the #3841 exception and remaining
+  debt; it is not permission to add a fallback.
+
+`Resolve*OrDefault` resolves the registry default without an override; its
+caller literal applies only to a failed read. New consumers use `Resolve*`
 and handle the error; touching an inventoried consumer should remove its fallback.
 
 Require the settings service at composition time. A missing service is a
