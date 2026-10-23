@@ -7,7 +7,6 @@ import { downloadBlob, filenameFromDisposition } from "./file-download";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
-import { downloadBlob } from "~/lib/file-download";
 
 const logger = createLogger({ component: "MealPlanAPI" });
 
