@@ -77,7 +77,7 @@ func (s *CareLifecycle) ApplyDueEffects(ctx context.Context, asOf calendar.Date)
 func (s *CareLifecycle) applyDueEffects(ctx context.Context, ids []int64, asOf calendar.Date) (careDueEffects, error) {
 	var effects careDueEffects
 	if err := s.lockCareExitWrites(ctx); err != nil {
-		return effects, fmt.Errorf("care lifecycle: lock care booking writes for due effects: %w", err)
+		return effects, fmt.Errorf("care lifecycle: lock care exit writes for due effects: %w", err)
 	}
 	// The candidate lookup ran outside this transaction. An operator can
 	// change or resume an exit in between, so every row is locked and
@@ -124,7 +124,7 @@ func (s *CareLifecycle) reconcileExpiredCareBookings(ctx context.Context, asOf c
 		// The scheduler supplies an ambient transaction, so this gate remains
 		// held through the later child-locking effect pages as well.
 		if err := s.lockCareExitWrites(txCtx); err != nil {
-			return fmt.Errorf("care lifecycle: lock care booking writes for booking expiry: %w", err)
+			return fmt.Errorf("care lifecycle: lock care exit writes for booking expiry: %w", err)
 		}
 		authoritative, err := s.bookingsAuthoritative(txCtx)
 		if err != nil || !authoritative {
