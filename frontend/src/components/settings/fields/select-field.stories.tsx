@@ -53,3 +53,25 @@ export const Disabled: Story = {
     );
   },
 };
+
+export const Multiple: Story = {
+  args: {
+    value: ["a"],
+    onChange: () => {
+      // no-op for story fixture; render() below manages its own state
+    },
+    options,
+    multiple: true,
+  },
+  render: function Render() {
+    const [value, setValue] = useState<unknown>(["a"]);
+    return (
+      <SelectField
+        value={value}
+        onChange={setValue}
+        options={options}
+        multiple
+      />
+    );
+  },
+};

@@ -23,6 +23,10 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 			Err: &config.InvalidValueError{Key: key, Reason: err.Error()},
 		}
 	}
+	if def.Type == config.FieldMultiSelect {
+		// Validated above; store the choice in option order and never as null.
+		value, _ = normalizeMultiSelectValue(def, value)
+	}
 
 	valueJSON, err := json.Marshal(value)
 	if err != nil {

@@ -39,8 +39,44 @@ func validateValue(def *config.Definition, value any) error {
 		if !isValidSelectOption(value, def.Options.Static) {
 			return fmt.Errorf("value is not a valid option")
 		}
+	case config.FieldMultiSelect:
+		_, err := normalizeMultiSelectValue(def, value)
+		return err
 	}
 	return nil
+}
+
+// normalizeMultiSelectValue checks a FieldMultiSelect write and returns it in
+// option order, so equal choices are stored identically. The value must be a
+// JSON array (never null) of distinct option values; an empty array is valid.
+func normalizeMultiSelectValue(def *config.Definition, value any) ([]string, error) {
+	if value == nil {
+		return nil, fmt.Errorf("expected a list")
+	}
+	values, err := config.MultiSelectValues(value)
+	if err != nil {
+		return nil, fmt.Errorf("expected a list of options")
+	}
+	if def.Options == nil {
+		return nil, fmt.Errorf("select field has no options defined")
+	}
+	chosen := make(map[string]bool, len(values))
+	for _, element := range values {
+		if chosen[element] {
+			return nil, fmt.Errorf("option %q is listed twice", element)
+		}
+		if !isValidSelectOption(element, def.Options.Static) {
+			return nil, fmt.Errorf("value is not a valid option")
+		}
+		chosen[element] = true
+	}
+	normalized := make([]string, 0, len(values))
+	for _, option := range def.Options.Static {
+		if text, ok := option.Value.(string); ok && chosen[text] {
+			normalized = append(normalized, text)
+		}
+	}
+	return normalized, nil
 }
 
 func validateNumberValue(def *config.Definition, value any) error {

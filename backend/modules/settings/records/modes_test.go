@@ -28,8 +28,14 @@ func TestScopePredicatesOpenOnlyForTheirValue(t *testing.T) {
 	if !OverviewOpenToAllStaff(OverviewScopeAllStaff) || OverviewOpenToAllStaff(OverviewScopeOwn) || OverviewOpenToAllStaff(OverviewScopeAdmins) || OverviewOpenToAllStaff("") {
 		t.Error("only the all-staff overview scope opens every group")
 	}
-	if !SchoolPortalWritesClassArrivalExceptions(SchoolPortalWriteScopeClassArrivalExceptions) || SchoolPortalWritesClassArrivalExceptions(SchoolPortalWriteScopeNone) || SchoolPortalWritesClassArrivalExceptions("") {
-		t.Error("only the class arrival exception scope opens the school portal write")
+	both := []string{SchoolPortalWriteScopeClassArrivalExceptions, SchoolPortalWriteScopeClassTrips}
+	if !SchoolPortalWritesClassArrivalExceptions([]string{SchoolPortalWriteScopeClassArrivalExceptions}) || !SchoolPortalWritesClassArrivalExceptions(both) ||
+		SchoolPortalWritesClassArrivalExceptions([]string{SchoolPortalWriteScopeClassTrips}) || SchoolPortalWritesClassArrivalExceptions([]string{}) || SchoolPortalWritesClassArrivalExceptions(nil) {
+		t.Error("only a scope listing class arrival exceptions opens that school portal write")
+	}
+	if !SchoolPortalWritesClassTrips([]string{SchoolPortalWriteScopeClassTrips}) || !SchoolPortalWritesClassTrips(both) ||
+		SchoolPortalWritesClassTrips([]string{SchoolPortalWriteScopeClassArrivalExceptions}) || SchoolPortalWritesClassTrips([]string{}) || SchoolPortalWritesClassTrips(nil) {
+		t.Error("only a scope listing class trips opens the class trip report")
 	}
 	if !IsBinaryPresence(PresenceModeBinary) || IsBinaryPresence(PresenceModeDetailed) || IsBinaryPresence("") {
 		t.Error("only the binary value is the binary presence mode")

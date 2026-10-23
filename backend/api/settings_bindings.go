@@ -17,26 +17,44 @@ import (
 // compositions take a narrow, key-free port (#4004, #4085): the owner names
 // what it needs, the root resolves it from the settings.
 
-// classDayWriteScopeSettings is the slice of the settings service the arrival
-// exceptions resolve operations.school_portal_write_scope with.
+// classDayWriteScopeSettings is the slice of the settings service the class
+// day's school-portal writes resolve operations.school_portal_write_scope with.
 type classDayWriteScopeSettings interface {
-	ResolveString(ctx context.Context, key string) (string, error)
+	Resolve(ctx context.Context, key string) (any, error)
 }
 
-// ClassDayWriteScope applies operations.school_portal_write_scope: only the
-// class arrival exception scope opens the school's write.
+// ClassDayWriteScope applies operations.school_portal_write_scope: each
+// chosen value of the multi-select opens one school-portal write.
 type ClassDayWriteScope struct{ Settings classDayWriteScopeSettings }
 
 func (b ClassDayWriteScope) SchoolMayWriteClassArrivalExceptions(ctx context.Context) (bool, error) {
-	scope, err := b.Settings.ResolveString(ctx, configModels.KeySchoolPortalWriteScope)
+	scope, err := b.scope(ctx)
 	if err != nil {
 		return false, err
 	}
 	return configModels.SchoolPortalWritesClassArrivalExceptions(scope), nil
 }
 
+// SchoolMayReportClassTrips reports whether a Lehrkraft may report a class
+// trip through the school portal (#4799).
+func (b ClassDayWriteScope) SchoolMayReportClassTrips(ctx context.Context) (bool, error) {
+	scope, err := b.scope(ctx)
+	if err != nil {
+		return false, err
+	}
+	return configModels.SchoolPortalWritesClassTrips(scope), nil
+}
+
+func (b ClassDayWriteScope) scope(ctx context.Context) ([]string, error) {
+	value, err := b.Settings.Resolve(ctx, configModels.KeySchoolPortalWriteScope)
+	if err != nil {
+		return nil, err
+	}
+	return configModels.MultiSelectValues(value)
+}
+
 // newClassDayWriteScope binds the write scope; nil settings leave it unbound.
-func newClassDayWriteScope(settings classDayWriteScopeSettings) classdayCompose.ArrivalWriteScope {
+func newClassDayWriteScope(settings classDayWriteScopeSettings) classdayCompose.SchoolWriteScope {
 	if settings == nil {
 		return nil
 	}
