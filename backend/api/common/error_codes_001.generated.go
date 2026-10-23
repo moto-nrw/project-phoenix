@@ -302,7 +302,6 @@ const (
 	CodeTimetableTemplateRosterRebaseConflict         = "timetable.template_roster_rebase_conflict"
 	CodeTimetableTemplateSplitInPast                  = "timetable.template_split_in_past"
 	CodeTimetableTemplateSplitInvalid                 = "timetable.template_split_invalid"
-	CodeTimetableTemplateStartInPast                  = "timetable.template_start_in_past"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -606,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_roster_rebase_conflict":           "business_rejection",
 	"timetable.template_split_in_past":                    "input",
 	"timetable.template_split_invalid":                    "input",
-	"timetable.template_start_in_past":                    "input",
 }
 
 func init() {

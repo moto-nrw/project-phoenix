@@ -39,6 +39,7 @@ func TestOperatorPersonAndAccountRoutesAuditOneAttemptPerRequest(t *testing.T) {
 	}
 	request := func(path string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodGet, path+"?search=untrusted-filter", nil)
+		req.RemoteAddr = "198.51.100.44:12345"
 		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, req)
@@ -49,13 +50,15 @@ func TestOperatorPersonAndAccountRoutesAuditOneAttemptPerRequest(t *testing.T) {
 			assert.Equal(t, http.StatusOK, request(tc.path).Code)
 			var entries []struct {
 				ResourceType string
+				RequestIP    string
 				Changes      json.RawMessage
 			}
-			err := db.NewRaw(`SELECT resource_type, changes FROM platform.operator_audit_log
+			err := db.NewRaw(`SELECT resource_type, COALESCE(host(request_ip), '') AS request_ip, changes FROM platform.operator_audit_log
 			WHERE operator_id = ? AND action = 'view' AND changes->>'view' = ?`, operatorID, tc.view).Scan(ctx, &entries)
 			require.NoError(t, err)
 			require.Len(t, entries, 1)
 			assert.Equal(t, tc.resource, entries[0].ResourceType)
+			assert.Equal(t, "198.51.100.44", entries[0].RequestIP)
 			expected := map[string]any{"view": tc.view}
 			for key, value := range tc.scope {
 				expected[key] = value

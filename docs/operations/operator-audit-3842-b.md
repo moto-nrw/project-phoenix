@@ -11,7 +11,8 @@ Schulzugangsliste mit und ohne abschließenden Schrägstrich.
 Die Vorschau zum Zusammenführen doppelter Mitarbeitendendatensätze protokolliert
 ebenfalls einen Lesezugriff über ihren vorhandenen Workflow-Audit-Port. Dieser
 Eintrag teilt die bestehende administrative Anfrage-Transaktion; scheitert das
-Lesen danach, rollt auch der Eintrag zurück.
+Lesen danach, rollt auch der Eintrag zurück. Die HTTP-Schicht reicht die geparste
+Anfrage-IP durch den Vorschau- und Audit-Port bis in `request_ip` weiter.
 
 Ein Eintrag bezeichnet einen **Zugriffsversuch**, keinen bestätigten Empfang.
 Er enthält Operator-ID, Zeitpunkt, Anfrage-IP, eine feste Ansichtskategorie und
@@ -29,7 +30,10 @@ Transaktion zurück und rollen mit ihr zurück:
   transaktional protokolliert; sie verwendet nun denselben Fehlercode.
 - Schulbezogener und globaler MFA-Override, auch das Entfernen eines Overrides,
   sowie das Zurücksetzen der MFA-Anmeldung durch einen Operator. Das neue
-  schulbezogene Operator-Protokoll speichert keine Freitextbegründung.
+  schulbezogene Operator-Protokoll speichert keine Freitextbegründung. Die
+  HTTP-Schicht bindet die geparste Anfrage-IP als request-lokale Audit-Metadaten;
+  MFA-Kommandos reichen sie über ihren bestehenden Audit-Port weiter. Bei
+  Aufrufen ohne HTTP-Anfrage bleibt eine unbekannte Quelladresse unbekannt.
 
 Bei diesen Audit-Ausfällen und bei nicht protokollierbaren Lesezugriffen antwortet
 die API mit `503`, Code `operator.audit_unavailable`. Der Operator erhält eine
@@ -53,10 +57,13 @@ Testdatenbanken. Ein Trigger verweigert das Einfügen von Audit-Zeilen. Geprüft
 werden Rollback von Schlüssel, Transfer, Löschungen und MFA-Zustand sowie die
 Sperre der gemounteten Personen-/Kontenlisten. Port-Fehlerinjektion prüft auch
 Audit-Ausfälle, die PostgreSQL nicht selbst in einen Fehlerzustand versetzen.
+HTTP-Regressionstests prüfen die gespeicherte Quelladresse für Merge-Vorschau,
+Operator-MFA und Provisioning-Leselisten, einschließlich direkter IPv4-Adressen
+und der vom vertrauenswürdigen Proxy gewählten IPv6-Adresse.
 
 ```sh
 scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./api \
-  -run 'TestOperatorAuditFailure|TestOperatorPersonAndAccountRoutesAuditOneAttemptPerRequest' -count=1
+  -run 'TestOperatorAuditFailure|TestOperatorMFAAuditsPersistRequestIP|TestStaffPersonMergePreview|TestOperatorPersonAndAccountRoutesAuditOneAttemptPerRequest' -count=1
 scripts/run-go-toolchain.sh go -C backend test -tags=testhooks \
   ./modules/organizationtenancy/internal/application \
   ./modules/organizationtenancy/inbound/operator

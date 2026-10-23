@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net"
 	"sort"
 	"time"
 
@@ -67,7 +68,7 @@ type Runtime interface {
 }
 type Audit interface {
 	RecordStaffPersonMerge(context.Context, int64, int64, Candidate) error
-	RecordStaffPersonMergePreview(context.Context, int64, int64) error
+	RecordStaffPersonMergePreview(context.Context, int64, int64, net.IP) error
 }
 type Workflow struct {
 	people      peopledirectory.StaffPersonMerge
@@ -82,7 +83,7 @@ func New(people peopledirectory.StaffPersonMerge, memberships schoolmembership.S
 	}
 	return &Workflow{people: people, memberships: memberships, runtime: runtime, audit: audit}, nil
 }
-func (w *Workflow) Preview(ctx context.Context, schoolID int64) ([]Candidate, error) {
+func (w *Workflow) Preview(ctx context.Context, schoolID int64, clientIP net.IP) ([]Candidate, error) {
 	if w.runtime.OperatorID(ctx) <= 0 {
 		return nil, ErrUnauthorized
 	}
@@ -92,7 +93,7 @@ func (w *Workflow) Preview(ctx context.Context, schoolID int64) ([]Candidate, er
 	if err := w.runtime.RequireAdmin(ctx); err != nil {
 		return nil, err
 	}
-	if err := w.audit.RecordStaffPersonMergePreview(ctx, w.runtime.OperatorID(ctx), schoolID); err != nil {
+	if err := w.audit.RecordStaffPersonMergePreview(ctx, w.runtime.OperatorID(ctx), schoolID, clientIP); err != nil {
 		w.runtime.MarkRollback(ctx)
 		return nil, ErrAuditUnavailable
 	}

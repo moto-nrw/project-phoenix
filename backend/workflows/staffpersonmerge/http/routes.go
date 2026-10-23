@@ -3,6 +3,7 @@ package http
 
 import (
 	"context"
+	"net"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,7 +13,7 @@ import (
 )
 
 type Capability interface {
-	Preview(rctx context.Context, schoolID int64) ([]staffpersonmerge.Candidate, error)
+	Preview(rctx context.Context, schoolID int64, clientIP net.IP) ([]staffpersonmerge.Candidate, error)
 	Execute(rctx context.Context, schoolID int64, request staffpersonmerge.Request) error
 }
 
@@ -25,10 +26,17 @@ func Router(workflow Capability, bindScope func(http.Handler) http.Handler) http
 	rs := resource{workflow: workflow}
 	r := chi.NewRouter()
 	r.Use(bindScope, common.TenantTxMiddleware)
-	r.Get("/{schoolId}", common.IDFetch("schoolId", "invalid school ID", workflow.Preview, errorRenderer, "staff person merge candidates"))
+	r.Get("/{schoolId}", rs.preview)
 	r.Post("/{schoolId}", rs.execute)
 	return r
 }
+func (rs resource) preview(w http.ResponseWriter, r *http.Request) {
+	load := func(ctx context.Context, schoolID int64) ([]staffpersonmerge.Candidate, error) {
+		return rs.workflow.Preview(ctx, schoolID, common.ParseClientIP(r))
+	}
+	common.IDFetch("schoolId", "invalid school ID", load, errorRenderer, "staff person merge candidates")(w, r)
+}
+
 func (rs resource) execute(w http.ResponseWriter, r *http.Request) {
 	schoolID, err := common.ParseIDParam(r, "schoolId")
 	if err != nil {

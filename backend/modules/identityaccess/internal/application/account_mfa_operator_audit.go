@@ -20,7 +20,7 @@ func (f *AccountMFAFlows) disableForAdmin(ctx context.Context, actorType string,
 }
 
 func (f *AccountMFAFlows) recordOperatorMFAChange(ctx context.Context, operatorID, targetID int64, evidence domain.OperatorMFAOverrideEvidence) error {
-	if err := f.audit.RecordOperatorAction(ctx, domain.OperatorAuditEntry{OperatorID: operatorID, Action: domain.OperatorAuditActionMFAAdminOverride, ResourceType: domain.OperatorAuditResourceAccount, ResourceID: &targetID, MFA: &domain.OperatorMFAEvidence{Override: &evidence}}); err != nil {
+	if err := f.audit.RecordOperatorAction(ctx, domain.OperatorAuditEntry{IPAddress: identityaccess.OperatorAuditClientAddress(ctx), OperatorID: operatorID, Action: domain.OperatorAuditActionMFAAdminOverride, ResourceType: domain.OperatorAuditResourceAccount, ResourceID: &targetID, MFA: &domain.OperatorMFAEvidence{Override: &evidence}}); err != nil {
 		f.logger.Error("operator audit unavailable", slog.String("action", evidence.Action))
 		return errors.Join(identityaccess.ErrOperatorAuditUnavailable, err)
 	}
