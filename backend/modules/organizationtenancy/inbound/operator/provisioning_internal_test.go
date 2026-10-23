@@ -3069,3 +3069,7 @@ func TestProvisioningResource_ListOrganizationPersons_OrganizationNotFound(t *te
 	resource.ListOrganizationPersons(rr, req)
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
+
+func (m *mockProvisioningService) RecordOperatorRead(context.Context, organizationtenancy.OperatorReadAccess) error {
+	return nil
+}

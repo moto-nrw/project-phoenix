@@ -2882,6 +2882,9 @@
         "external_email_required": "Please enter an email address.",
         "external_has_account": "This person already has an account. No invitation is needed.",
         "not_external": "This person is not listed as external. Please invite them like other staff members."
+      },
+      "operator": {
+        "audit_unavailable": "{object} is unavailable right now. Please try again."
       }
     },
     "actions": {
