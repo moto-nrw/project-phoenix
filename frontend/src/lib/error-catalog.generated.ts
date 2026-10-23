@@ -1174,14 +1174,14 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie eine E-Mail-Adresse ein.",
       "staff.external_email_invalid":
         "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
-      "staff.external_role_missing":
-        "Die Rolle „Extern“ fehlt. Die Leitung kann sie unter Rollen anlegen.",
       "staff.not_external":
         "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein.",
       "staff.external_has_account":
         "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
       "staff.external_email_invited":
         "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
+      "staff.external_access_invalid":
+        "Bitte wählen Sie, welchen Zugang die Person bekommt.",
     },
   },
   en: {
@@ -1459,14 +1459,14 @@ export const ERROR_CATALOG = {
       "staff.external_email_required": "Please enter an email address.",
       "staff.external_email_invalid":
         "This email address is not valid. Please check it.",
-      "staff.external_role_missing":
-        "The role “Extern” is missing. The school management can create it under Roles.",
       "staff.not_external":
         "This person is not listed as external. Please invite them like other staff members.",
       "staff.external_has_account":
         "This person already has an account. No invitation is needed.",
       "staff.external_email_invited":
         "This email address already has an open invitation for someone else. Please use another address.",
+      "staff.external_access_invalid":
+        "Please choose which access this person gets.",
     },
   },
   ru: {

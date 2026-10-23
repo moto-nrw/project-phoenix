@@ -73,22 +73,18 @@ func setupExternalCaregiverRoute(t *testing.T, appEnv string) *externalRoute {
 	return &externalRoute{router: router, db: db, identity: auth.Auth, tenantID: testpkg.Tenant(t), actor: actor.ID}
 }
 
-// externRole gives a school the role „Extern“ with the permissions; it
-// returns the role ID.
-func externRole(t *testing.T, db *bun.DB, tenantID int64, permissions ...string) int64 {
+// systemRoleID returns the ID of the platform system role with that name.
+func systemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 	t.Helper()
-	ctx := context.Background()
 	var roleID int64
-	require.NoError(t, db.NewRaw(`INSERT INTO auth.roles (tenant_id, name, description, is_system, base_role)
-		VALUES (?, 'extern', 'Externe Betreuungskraft', FALSE, 'user') RETURNING id`, tenantID).Scan(ctx, &roleID))
-	_, err := db.NewRaw(`INSERT INTO auth.role_permissions (role_id, permission_id)
-		SELECT ?, p.id FROM auth.permissions p WHERE p.name IN (?)`, roleID, bun.List(permissions)).Exec(ctx)
-	require.NoError(t, err)
+	require.NoError(t, db.NewRaw(`SELECT id FROM auth.roles WHERE name = ? AND tenant_id IS NULL AND is_system`, name).
+		Scan(context.Background(), &roleID))
 	return roleID
 }
 
 // betreuer mints the token of the route's Betreuer: the unmodified user role
-// holds schedules:read, the one permission of the role „Extern“.
+// holds schedules:read, the one permission of the system role ag-leitung,
+// but not users:manage, which granting the role guest needs.
 func (e *externalRoute) betreuer(t *testing.T, extra ...string) testutil.RequestOption {
 	t.Helper()
 	claims := testutil.DefaultTestClaims()
@@ -160,24 +156,24 @@ func uniqueAddress(t *testing.T, local string) string {
 }
 
 // TestBetreuerRecordsAnExternalCaregiver pins #3823 and #4573: a Betreuer
-// records an external caregiver with an e-mail address; person, staff
-// member, caregiver and external caregiver record exist, an invitation in the role
-// „Extern“ names the person, its mail sits in the outbox, and the directory
-// marks the entry as external with an open invitation.
+// records an external caregiver with the access supervise; person, staff
+// member, caregiver and external caregiver record exist, an invitation in
+// the system role ag-leitung names the person, its mail sits in the outbox,
+// and the directory marks the entry as external with an open invitation.
 func TestBetreuerRecordsAnExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	roleID := externRole(t, e.db, e.tenantID, "schedules:read")
+	roleID := systemRoleID(t, e.db, identityaccess.AGLeitungRoleName)
 	address := uniqueAddress(t, "lea")
 
 	status, body := e.post(t, "/staff/externals",
-		map[string]any{"first_name": "  Lea ", "last_name": "Gastmann", "email": " " + strings.ToUpper(address) + " ", "organization": " Musikschule "}, e.betreuer(t))
+		map[string]any{"first_name": "  Lea ", "last_name": "Gastmann", "email": " " + strings.ToUpper(address) + " ", "organization": " Musikschule ", "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusCreated, status, string(body))
 	created := decodeExternal(t, body)
 	require.NotEmpty(t, created.ID)
 	assert.True(t, created.IsExternal)
-	assert.True(t, created.IsTeacher, "the role „Extern“ needs a caregiver profile")
+	assert.True(t, created.IsTeacher, "every external has a caregiver profile and stays plannable")
 	assert.Equal(t, "Musikschule", created.ExternalOrganization)
 	assert.Equal(t, "invitation_pending", created.ExternalAccountStatus)
 	assert.Empty(t, created.InvitationToken, "the token never leaves the server outside the local seeder")
@@ -188,7 +184,7 @@ func TestBetreuerRecordsAnExternalCaregiver(t *testing.T) {
 	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, created.ID))
 	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.external_caregivers WHERE staff_id = ? AND organization = 'Musikschule'`, created.ID))
 	_, invitedRole, invitedTenant := e.pendingToken(t, created.PersonID)
-	assert.Equal(t, roleID, invitedRole)
+	assert.Equal(t, roleID, invitedRole, "supervise invites into the system role ag-leitung")
 	assert.Equal(t, e.tenantID, invitedTenant, "the invitation belongs to the caller's school")
 	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id = ? AND email = ?`, created.PersonID, address),
 		"the address is stored trimmed and in lower case")
@@ -230,10 +226,10 @@ func TestExternalCaregiverRequiresBothNamesAndCreatePermission(t *testing.T) {
 
 	readOnly := testutil.WithJWTBearer(staffCompositionToken(t, "users:read"))
 	rr := testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodPost, "/staff/externals",
-		map[string]any{"first_name": "Lea", "last_name": "Gastmann", "email": "lea@example.test"}, readOnly))
+		map[string]any{"first_name": "Lea", "last_name": "Gastmann", "email": "lea@example.test", "access": "supervise"}, readOnly))
 	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodPost, "/staff/externals/1/invitation",
-		map[string]any{"email": "lea@example.test"}, readOnly))
+		map[string]any{"email": "lea@example.test", "access": "supervise"}, readOnly))
 	assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 
 	rr = testutil.ExecuteRequest(ctx.router, testutil.NewAuthenticatedRequest(t, http.MethodGet, "/staff", nil, betreuer))
@@ -247,14 +243,13 @@ func TestExternalCaregiverAddressErrorsNameTheField(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	externRole(t, e.db, e.tenantID, "schedules:read")
 	for email, code := range map[string]string{
 		"   ":                  "staff.external_email_required",
 		"keine-adresse":        "staff.external_email_invalid",
 		"Lea <lea@example.de>": "staff.external_email_invalid",
 	} {
 		status, body := e.post(t, "/staff/externals",
-			map[string]any{"first_name": "Lea", "last_name": "Ohneadresse", "email": email}, e.betreuer(t))
+			map[string]any{"first_name": "Lea", "last_name": "Ohneadresse", "email": email, "access": "supervise"}, e.betreuer(t))
 		require.Equal(t, http.StatusBadRequest, status, string(body))
 		wire := decodeError(t, body)
 		assert.Equal(t, code, wire.Code, email)
@@ -271,11 +266,10 @@ func TestExternalCaregiverRefusesAnAddressAlreadyAtTheSchool(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	externRole(t, e.db, e.tenantID, "schedules:read")
 	_, colleague := testpkg.CreateTestStaffWithAccountForTenant(t, e.db, e.tenantID, "Schon", "Da")
 
 	status, body := e.post(t, "/staff/externals",
-		map[string]any{"first_name": "Doppelt", "last_name": "Angelegt", "email": colleague.Email}, e.betreuer(t))
+		map[string]any{"first_name": "Doppelt", "last_name": "Angelegt", "email": colleague.Email, "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
 	wire := decodeError(t, body)
 	assert.Equal(t, "identity.account_already_has_tenant_access", wire.Code)
@@ -286,41 +280,88 @@ func TestExternalCaregiverRefusesAnAddressAlreadyAtTheSchool(t *testing.T) {
 		JOIN users.persons p ON p.id = s.person_id WHERE p.last_name = 'Angelegt'`))
 }
 
-// TestExternalCaregiverRefusesARoleTheCallerMayNotGrant: CanGrantRole
-// applies unchanged; nothing is written.
-func TestExternalCaregiverRefusesARoleTheCallerMayNotGrant(t *testing.T) {
+// TestExternalCaregiverViewNeedsUsersManage: CanGrantRole applies
+// unchanged. The system role guest has no base role, so only users:manage
+// grants it; a Betreuer holding users:create is refused and nothing is
+// written. The access view invites into guest.
+func TestExternalCaregiverViewNeedsUsersManage(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	// The school widened the role beyond what a Betreuer holds.
-	externRole(t, e.db, e.tenantID, "schedules:read", "rooms:read")
-
 	status, body := e.post(t, "/staff/externals",
-		map[string]any{"first_name": "Nicht", "last_name": "Erlaubt", "email": uniqueAddress(t, "grant")}, e.betreuer(t))
+		map[string]any{"first_name": "Nicht", "last_name": "Erlaubt", "email": uniqueAddress(t, "grant"), "access": "view"}, e.betreuer(t))
 	require.Equal(t, http.StatusForbidden, status, string(body))
 	assert.Equal(t, "general.permission", decodeError(t, body).Code)
 	assert.Zero(t, e.personsNamed(t, "Erlaubt"))
 
+	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
+	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID),
+		map[string]any{"email": uniqueAddress(t, "grant-invite"), "access": "view"}, e.betreuer(t))
+	require.Equal(t, http.StatusForbidden, status, string(body))
+	assert.Equal(t, "general.permission", decodeError(t, body).Code)
+	assert.Zero(t, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id = ?`, legacy.Staff.PersonID))
+
 	status, body = e.post(t, "/staff/externals",
-		map[string]any{"first_name": "Doch", "last_name": "Erlaubt", "email": uniqueAddress(t, "grant")}, e.betreuer(t, "users:manage"))
+		map[string]any{"first_name": "Doch", "last_name": "Erlaubt", "email": uniqueAddress(t, "grant"), "access": "view"}, e.betreuer(t, "users:manage"))
 	require.Equal(t, http.StatusCreated, status, string(body), "users:manage may grant every role")
+	created := decodeExternal(t, body)
+	assert.Equal(t, "invitation_pending", created.ExternalAccountStatus)
+	_, invitedRole, _ := e.pendingToken(t, created.PersonID)
+	assert.Equal(t, systemRoleID(t, e.db, identityaccess.GuestRoleName), invitedRole, "view invites into the system role guest")
 }
 
-// TestExternalCaregiverNeedsTheSchoolsRoleExtern: a renamed or deleted
-// role, or one of another school, refuses the quick create.
-func TestExternalCaregiverNeedsTheSchoolsRoleExtern(t *testing.T) {
+// TestExternalCaregiverWithoutAccess: access none records a placeholder
+// with caregiver profile and external caregiver record, needs no address,
+// ignores one that is sent and invites nobody.
+func TestExternalCaregiverWithoutAccess(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	// Another school's role „Extern“ is invisible here.
-	foreignTenantID, _ := testpkg.CreateTestTenant(t, e.db)
-	externRole(t, e.db, foreignTenantID, "schedules:read")
+	for _, body := range []map[string]any{
+		{"first_name": "Platz", "last_name": "Halter", "organization": "Förderverein", "access": "none"},
+		{"first_name": "Platz", "last_name": "Halterin", "email": "keine-adresse", "access": "none"},
+	} {
+		status, raw := e.post(t, "/staff/externals", body, e.betreuer(t))
+		require.Equal(t, http.StatusCreated, status, string(raw))
+		created := decodeExternal(t, raw)
+		assert.True(t, created.IsExternal)
+		assert.True(t, created.IsTeacher, "the placeholder stays plannable")
+		assert.Equal(t, "none", created.ExternalAccountStatus)
+		assert.Empty(t, created.InvitationToken)
+		assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.external_caregivers WHERE staff_id = ?`, created.ID))
+		assert.Zero(t, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id = ?`, created.PersonID), "no invitation")
+	}
+}
 
-	status, body := e.post(t, "/staff/externals",
-		map[string]any{"first_name": "Ohne", "last_name": "Rolle", "email": uniqueAddress(t, "role")}, e.betreuer(t))
-	require.Equal(t, http.StatusConflict, status, string(body))
-	assert.Equal(t, "staff.external_role_missing", decodeError(t, body).Code)
-	assert.Zero(t, e.personsNamed(t, "Rolle"))
+// TestExternalCaregiverAccessErrorsNameTheField: a missing or unknown
+// access, and none on „Konto einladen“, refuse on the field access before
+// any write.
+func TestExternalCaregiverAccessErrorsNameTheField(t *testing.T) {
+	t.Parallel()
+
+	e := setupExternalCaregiverRoute(t, "")
+	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
+	for path, bodies := range map[string][]map[string]any{
+		"/staff/externals": {
+			{"first_name": "Ohne", "last_name": "Zugang", "email": uniqueAddress(t, "zugang")},
+			{"first_name": "Ohne", "last_name": "Zugang", "email": uniqueAddress(t, "zugang"), "access": "admin"},
+		},
+		fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID): {
+			{"email": uniqueAddress(t, "zugang-invite")},
+			{"email": uniqueAddress(t, "zugang-invite"), "access": "none"},
+		},
+	} {
+		for _, body := range bodies {
+			status, raw := e.post(t, path, body, e.betreuer(t))
+			require.Equal(t, http.StatusBadRequest, status, string(raw))
+			wire := decodeError(t, raw)
+			assert.Equal(t, "staff.external_access_invalid", wire.Code)
+			require.Len(t, wire.Errors, 1)
+			assert.Equal(t, "access", wire.Errors[0].Field)
+		}
+	}
+	assert.Zero(t, e.personsNamed(t, "Zugang"))
+	assert.Zero(t, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id = ?`, legacy.Staff.PersonID))
 }
 
 // TestExternalCaregiverAcceptsOnTheSamePerson: accepting the invitation
@@ -330,9 +371,8 @@ func TestExternalCaregiverAcceptsOnTheSamePerson(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	externRole(t, e.db, e.tenantID, "schedules:read")
 	status, body := e.post(t, "/staff/externals",
-		map[string]any{"first_name": "Jonas", "last_name": "Becker", "email": uniqueAddress(t, "jonas")}, e.betreuer(t))
+		map[string]any{"first_name": "Jonas", "last_name": "Becker", "email": uniqueAddress(t, "jonas"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusCreated, status, string(body))
 	created := decodeExternal(t, body)
 	staffID, err := strconv.ParseInt(created.ID, 10, 64)
@@ -369,12 +409,11 @@ func TestInviteExistingExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	externRole(t, e.db, e.tenantID, "schedules:read")
 	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
 	path := fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID)
 	personID := strconv.FormatInt(legacy.Staff.PersonID, 10)
 
-	status, body := e.post(t, path, map[string]any{"email": uniqueAddress(t, "tippfehler")}, e.betreuer(t))
+	status, body := e.post(t, path, map[string]any{"email": uniqueAddress(t, "tippfehler"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusOK, status, string(body))
 	invited := decodeExternal(t, body)
 	assert.Equal(t, strconv.FormatInt(legacy.StaffID, 10), invited.ID)
@@ -382,7 +421,7 @@ func TestInviteExistingExternalCaregiver(t *testing.T) {
 	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, legacy.StaffID), "the caregiver profile is added")
 	firstToken, _, _ := e.pendingToken(t, personID)
 
-	status, body = e.post(t, path, map[string]any{"email": uniqueAddress(t, "richtig")}, e.betreuer(t))
+	status, body = e.post(t, path, map[string]any{"email": uniqueAddress(t, "richtig"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusOK, status, string(body))
 	assert.Equal(t, 1, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, legacy.StaffID), "the profile is not duplicated")
 	secondToken, _, _ := e.pendingToken(t, personID)
@@ -395,7 +434,7 @@ func TestInviteExistingExternalCaregiver(t *testing.T) {
 	require.Equal(t, http.StatusOK, status, string(body))
 	assert.Equal(t, "account", decodeExternal(t, body).ExternalAccountStatus)
 
-	status, body = e.post(t, path, map[string]any{"email": uniqueAddress(t, "nochmal")}, e.betreuer(t))
+	status, body = e.post(t, path, map[string]any{"email": uniqueAddress(t, "nochmal"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
 	assert.Equal(t, "staff.external_has_account", decodeError(t, body).Code)
 }
@@ -404,7 +443,6 @@ func TestInviteRefusesStaffThatIsNoExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	externRole(t, e.db, e.tenantID, "schedules:read")
 	internal := testpkg.CreateTestStaff(t, e.db, "Interne", "Kollegin")
 	foreignTenantID, _ := testpkg.CreateTestTenant(t, e.db)
 	foreign, _ := testpkg.CreateTestStaffWithAccountForTenant(t, e.db, foreignTenantID, "Fremde", "Schule")
@@ -413,20 +451,20 @@ func TestInviteRefusesStaffThatIsNoExternalCaregiver(t *testing.T) {
 	// and without an account, which its own school could invite.
 	foreignExternal := recordForeignExternal(t, e.db, foreignTenantID)
 
-	status, body := e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", internal.ID), map[string]any{"email": uniqueAddress(t, "intern")}, e.betreuer(t))
+	status, body := e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", internal.ID), map[string]any{"email": uniqueAddress(t, "intern"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
 	assert.Equal(t, "staff.not_external", decodeError(t, body).Code)
 
-	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", foreign.ID), map[string]any{"email": uniqueAddress(t, "fremd")}, e.betreuer(t))
+	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", foreign.ID), map[string]any{"email": uniqueAddress(t, "fremd"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusNotFound, status, string(body))
-	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", foreignExternal.ID), map[string]any{"email": uniqueAddress(t, "fremdextern")}, e.betreuer(t))
+	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", foreignExternal.ID), map[string]any{"email": uniqueAddress(t, "fremdextern"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusNotFound, status, string(body), "another school's external is unknown here")
 	assert.Zero(t, e.count(t, `SELECT count(*) FROM auth.invitation_tokens WHERE person_id IN (?, ?, ?)`, internal.PersonID, foreign.PersonID, foreignExternal.PersonID),
 		"no invitation names any of the persons")
 	assert.Zero(t, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, foreignExternal.ID),
 		"the other school's external gets no caregiver profile")
 
-	status, body = e.post(t, "/staff/externals/abc/invitation", map[string]any{"email": uniqueAddress(t, "abc")}, e.betreuer(t))
+	status, body = e.post(t, "/staff/externals/abc/invitation", map[string]any{"email": uniqueAddress(t, "abc"), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusBadRequest, status, string(body))
 }
 
@@ -436,19 +474,18 @@ func TestExternalCaregiverSeedTokenOnlyForTheLocalSeeder(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "development")
-	externRole(t, e.db, e.tenantID, "schedules:read")
 	seeder := func(req *http.Request) {
 		req.Host = "localhost:8080"
 		req.Header.Set("X-Phoenix-Seed-Token", "true")
 	}
 
-	status, body := e.post(t, "/staff/externals", map[string]any{"first_name": "Seed", "last_name": "Person", "email": uniqueAddress(t, "seed")}, e.betreuer(t), seeder)
+	status, body := e.post(t, "/staff/externals", map[string]any{"first_name": "Seed", "last_name": "Person", "email": uniqueAddress(t, "seed"), "access": "supervise"}, e.betreuer(t), seeder)
 	require.Equal(t, http.StatusCreated, status, string(body))
 	created := decodeExternal(t, body)
 	token, _, _ := e.pendingToken(t, created.PersonID)
 	assert.Equal(t, token, created.InvitationToken)
 
-	status, body = e.post(t, "/staff/externals", map[string]any{"first_name": "Fremd", "last_name": "Host", "email": uniqueAddress(t, "host")}, e.betreuer(t),
+	status, body = e.post(t, "/staff/externals", map[string]any{"first_name": "Fremd", "last_name": "Host", "email": uniqueAddress(t, "host"), "access": "supervise"}, e.betreuer(t),
 		func(req *http.Request) { req.Header.Set("X-Phoenix-Seed-Token", "true") })
 	require.Equal(t, http.StatusCreated, status, string(body))
 	assert.Empty(t, decodeExternal(t, body).InvitationToken)
@@ -516,12 +553,12 @@ func TestExternalCaregiverKeepsAnotherPersonsOpenInvitation(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	roleID := externRole(t, e.db, e.tenantID, "schedules:read")
+	roleID := systemRoleID(t, e.db, identityaccess.AGLeitungRoleName)
 	address := uniqueAddress(t, "vergeben")
 	staffInvitation := e.openInvitation(t, e.tenantID, roleID, address)
 
 	status, body := e.post(t, "/staff/externals",
-		map[string]any{"first_name": "Doppelt", "last_name": "Eingeladen", "email": strings.ToUpper(address)}, e.betreuer(t))
+		map[string]any{"first_name": "Doppelt", "last_name": "Eingeladen", "email": strings.ToUpper(address), "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
 	wire := decodeError(t, body)
 	assert.Equal(t, "staff.external_email_invited", wire.Code)
@@ -532,7 +569,7 @@ func TestExternalCaregiverKeepsAnotherPersonsOpenInvitation(t *testing.T) {
 
 	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
 	path := fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID)
-	status, body = e.post(t, path, map[string]any{"email": address}, e.betreuer(t))
+	status, body = e.post(t, path, map[string]any{"email": address, "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusConflict, status, string(body))
 	assert.Equal(t, "staff.external_email_invited", decodeError(t, body).Code)
 	assert.True(t, e.stillOpen(t, staffInvitation))
@@ -540,10 +577,10 @@ func TestExternalCaregiverKeepsAnotherPersonsOpenInvitation(t *testing.T) {
 	assert.Zero(t, e.count(t, `SELECT count(*) FROM users.teachers WHERE staff_id = ?`, legacy.StaffID), "nothing is written")
 
 	own := uniqueAddress(t, "eigene")
-	status, body = e.post(t, path, map[string]any{"email": own}, e.betreuer(t))
+	status, body = e.post(t, path, map[string]any{"email": own, "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusOK, status, string(body))
 	firstToken, _, _ := e.pendingToken(t, strconv.FormatInt(legacy.Staff.PersonID, 10))
-	status, body = e.post(t, path, map[string]any{"email": own}, e.betreuer(t))
+	status, body = e.post(t, path, map[string]any{"email": own, "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusOK, status, string(body), "the external's own invitation is sent again")
 	secondToken, _, _ := e.pendingToken(t, strconv.FormatInt(legacy.Staff.PersonID, 10))
 	assert.NotEqual(t, firstToken, secondToken)
@@ -557,18 +594,17 @@ func TestExternalCaregiverCannotReachAnotherSchoolsInvitation(t *testing.T) {
 	t.Parallel()
 
 	e := setupExternalCaregiverRoute(t, "")
-	externRole(t, e.db, e.tenantID, "schedules:read")
 	foreignTenantID, _ := testpkg.CreateTestTenant(t, e.db)
-	foreignRole := externRole(t, e.db, foreignTenantID, "schedules:read")
+	foreignRole := systemRoleID(t, e.db, identityaccess.AGLeitungRoleName)
 	created, invited := uniqueAddress(t, "beide-schulen"), uniqueAddress(t, "auch-dort")
 	foreignCreated := e.openInvitation(t, foreignTenantID, foreignRole, created)
 	foreignInvited := e.openInvitation(t, foreignTenantID, foreignRole, invited)
 
 	status, body := e.post(t, "/staff/externals",
-		map[string]any{"first_name": "Zwei", "last_name": "Schulen", "email": created}, e.betreuer(t))
+		map[string]any{"first_name": "Zwei", "last_name": "Schulen", "email": created, "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusCreated, status, string(body))
 	legacy := testpkg.CreateTestExternalCaregiverRecord(t, e.db, "Musik")
-	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID), map[string]any{"email": invited}, e.betreuer(t))
+	status, body = e.post(t, fmt.Sprintf("/staff/externals/%d/invitation", legacy.StaffID), map[string]any{"email": invited, "access": "supervise"}, e.betreuer(t))
 	require.Equal(t, http.StatusOK, status, string(body))
 
 	assert.True(t, e.stillOpen(t, foreignCreated), "the other school's invitation is not spent by the create")

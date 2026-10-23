@@ -54,22 +54,19 @@ func trimmedLogoURL(origin string) string {
 // systemRoleDisplayNames maps the system role names to the German display
 // names the invitation mail shows.
 var systemRoleDisplayNames = map[string]string{
-	"admin":     "Administrator",
-	"user":      "Betreuer",
-	"guest":     "Gast",
-	"guardian":  "Erziehungsberechtigter",
-	"lehrkraft": "Lehrkraft",
+	"admin":      "Administrator",
+	"user":       "Betreuer",
+	"guest":      "Gast",
+	"guardian":   "Erziehungsberechtigter",
+	"lehrkraft":  "Lehrkraft",
+	"ag-leitung": "AG-Leitung",
 }
 
 // RoleDisplayName is the German name the invitation mail shows for a role;
-// a school's own role keeps its name. The role store keeps custom names in
-// lower case, so the role „Extern“ (#4573) gets its display name back.
+// a school's own role keeps its name.
 func RoleDisplayName(roleName string) string {
 	if translated, ok := systemRoleDisplayNames[strings.ToLower(roleName)]; ok {
 		return translated
-	}
-	if IsExternalCaregiverRoleName(roleName) {
-		return ExternalCaregiverRoleName
 	}
 	return roleName
 }

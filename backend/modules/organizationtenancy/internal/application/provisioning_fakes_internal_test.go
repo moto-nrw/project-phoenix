@@ -565,7 +565,6 @@ type fakeIdentity struct {
 	invalidated   []int64
 	deactivated   []int64
 	anonymized    map[int64]string
-	schoolRoles   []int64
 	calls         []string
 	fail          map[string]error
 }
@@ -730,16 +729,6 @@ func (f *fakeIdentity) AnonymizeAccount(ctx context.Context, accountID int64, em
 		return err
 	}
 	f.anonymized[accountID] = email
-	return nil
-}
-
-// EnsureSchoolRoles runs in the administrative transaction that creates the
-// school; the root scopes the identity write to the school.
-func (f *fakeIdentity) EnsureSchoolRoles(ctx context.Context, tenantID int64) error {
-	if err := f.call(ctx, "EnsureSchoolRoles"); err != nil {
-		return err
-	}
-	f.schoolRoles = append(f.schoolRoles, tenantID)
 	return nil
 }
 

@@ -77,7 +77,7 @@ Nicht gewählt:
 
 ## Begriff „Gastprofil“ entfällt
 
-Die Tabelle `users.guests` heißt ab Migration 1.15.475
+Die Tabelle `users.guests` heißt ab Migration 1.15.474
 `users.external_caregivers`; Sequenz, Indizes, Constraints, RLS-Policy und
 Trigger folgen dem Namen. Zeilen, Row-Level-Security, Rechte der
 Datenbankrollen und Fremdschlüssel bleiben, weil PostgreSQL sie an die Tabelle

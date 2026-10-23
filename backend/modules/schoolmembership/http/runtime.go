@@ -90,13 +90,15 @@ type CreateStaffResult struct {
 	TeacherCreationFailed bool
 }
 
-// ExternalCaregiverInput records an external caregiver with an account
-// invitation (#4573): the bound body plus the acting account.
+// ExternalCaregiverInput records an external caregiver with an access
+// level (#4573, ADR 0083): the bound body plus the acting account. Access is
+// passed on as sent; the workflow validates it.
 type ExternalCaregiverInput struct {
 	FirstName        string
 	LastName         string
 	Email            string
 	Organization     string
+	Access           string
 	ActorAccountID   int64
 	ActorPermissions []string
 }
@@ -106,15 +108,18 @@ type ExternalCaregiverInput struct {
 type ExternalInvitationInput struct {
 	StaffID          int64
 	Email            string
+	Access           string
 	ActorAccountID   int64
 	ActorPermissions []string
 }
 
 // ExternalCaregiverResult names the staff member the flow recorded or
-// invited. InvitationToken redeems the invitation; the adapter exposes it
-// only when ExposeSeedInvitationToken allows it.
+// invited. Invited is false for a placeholder without access. InvitationToken
+// redeems the invitation; the adapter exposes it only when
+// ExposeSeedInvitationToken allows it.
 type ExternalCaregiverResult struct {
 	StaffID         int64
+	Invited         bool
 	InvitationToken string
 }
 
@@ -185,10 +190,10 @@ type Runtime struct {
 	// CreateExternalCaregiver and InviteExternalCaregiver run the
 	// external-caregiver workflow (#4573), which writes across the People
 	// Directory, School Membership and Identity & Access. ExternalFailure
-	// renders (and observes) its refusals: missing or invalid address ->
-	// 400 on field email, unknown staff -> 404, role grant denied -> 403,
-	// role „Extern“ missing, no external caregiver record, account exists, address
-	// already at the school -> 409, else 500.
+	// renders (and observes) its refusals: invalid access -> 400 on field
+	// access, missing or invalid address -> 400 on field email, unknown
+	// staff -> 404, role grant denied -> 403, no external caregiver record,
+	// account exists, address already at the school -> 409, else 500.
 	CreateExternalCaregiver func(context.Context, ExternalCaregiverInput) (ExternalCaregiverResult, error)
 	InviteExternalCaregiver func(context.Context, ExternalInvitationInput) (ExternalCaregiverResult, error)
 	ExternalFailure         func(http.ResponseWriter, *http.Request, error)
@@ -302,7 +307,8 @@ func (rs *Resource) Register(r chi.Router, withTx Middleware) {
 	// Every caregiver holds users:create, so whoever starts or runs a
 	// supervision can record the external person who helps with it (#3823)
 	// and invite them to an account (#4573). Whether the caller may hand out
-	// the role „Extern“ is Identity & Access's role-grant check.
+	// the access level's system role (guest needs users:manage, ag-leitung
+	// schedules:read) is Identity & Access's role-grant check.
 	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/externals", rs.createExternalStaff)
 	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/externals/{id}/invitation", rs.inviteExternalStaff)
 	r.With(rs.runtime.Permission(permissions.StaffManage), withTx).Put("/{id}", rs.updateStaff)

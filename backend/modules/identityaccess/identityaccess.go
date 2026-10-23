@@ -354,7 +354,6 @@ type Owner interface {
 	OperatorAccountAccess
 	AccountLifecycle
 	RoleAdministration
-	ExternalCaregiverRoles
 	AccountProvisioning
 	AccountAdministration
 	OperatorProvisioning

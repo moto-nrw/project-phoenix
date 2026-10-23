@@ -140,6 +140,14 @@ const (
 	BaseRoleUser     = "user"
 	BaseRoleGuardian = "guardian"
 
+	// GuestRoleName is the system role „Gast“: the access level „Nur
+	// ansehen“ (ADR 0083), children, rooms and AGs without parent data.
+	GuestRoleName = "guest"
+	// AGLeitungRoleName is the system role „AG-Leitung“ (migration
+	// 1.15.475, ADR 0083): base role user, only schedules:read, runs the
+	// own blocks. The role does not make anyone external.
+	AGLeitungRoleName = "ag-leitung"
+
 	lehrkraftRoleName     = "lehrkraft"
 	legacyTeacherRoleName = "teacher"
 )

@@ -22,6 +22,7 @@ type fakeOwners struct {
 	failAt     string
 	roleID     int64
 	noRole     bool
+	roleName   string
 	hasTeacher bool
 	staff      []schoolmembership.Staff
 	person     *peopledirectory.Person
@@ -83,8 +84,16 @@ func (f *fakeOwners) ListStaff(context.Context, schoolmembership.StaffFilter) ([
 	return f.staff, f.step("list_staff")
 }
 
-func (f *fakeOwners) FindExternalCaregiverRole(context.Context) (identityaccess.Role, bool, error) {
-	return identityaccess.Role{ID: f.roleID}, !f.noRole, f.step("external_role")
+// ListRoles serves the platform system role of the filtered name and, to
+// prove it is never picked, a school's own role of the same name.
+func (f *fakeOwners) ListRoles(_ context.Context, filter identityaccess.RoleFilter) ([]identityaccess.Role, error) {
+	f.roleName = filter.Name
+	tenantID := f.roleID * 10 // any school; only its presence matters
+	roles := []identityaccess.Role{{ID: f.roleID + 1000, Name: filter.Name, TenantID: &tenantID}}
+	if !f.noRole {
+		roles = append(roles, identityaccess.Role{ID: f.roleID, Name: filter.Name, IsSystem: true})
+	}
+	return roles, f.step("system_role")
 }
 
 func (f *fakeOwners) CreateSchoolInvitation(_ context.Context, request identityaccess.SchoolInvitationRequest) (identityaccess.SchoolInvitation, error) {
@@ -126,7 +135,8 @@ func newWorkflow(t *testing.T, owners *fakeOwners) (*externalcaregiver.Workflow,
 func createInput() externalcaregiver.RecordInput {
 	return externalcaregiver.RecordInput{
 		FirstName: "Jonas", LastName: "Becker", Email: "  Jonas@Example.TEST ", Organization: "Musikschule",
-		Actor: externalcaregiver.Actor{AccountID: 7, Permissions: []string{"users:create", "schedules:read"}},
+		Access: externalcaregiver.AccessSupervise,
+		Actor:  externalcaregiver.Actor{AccountID: 7, Permissions: []string{"users:create", "schedules:read"}},
 	}
 }
 
@@ -149,9 +159,10 @@ func TestRecordWritesInOrderInsideOneSavepoint(t *testing.T) {
 	result, err := workflow.Record(context.Background(), createInput())
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"external_role", "pending_invitations", "create_person", "create_staff", "find_teacher", "create_teacher", "create_external_caregiver_record", "invite"}, owners.calls)
+	assert.Equal(t, []string{"system_role", "pending_invitations", "create_person", "create_staff", "find_teacher", "create_teacher", "create_external_caregiver_record", "invite"}, owners.calls)
+	assert.Equal(t, identityaccess.AGLeitungRoleName, owners.roleName, "supervise invites into the system role ag-leitung")
 	assert.Equal(t, 1, savepoint.opened)
-	assert.Equal(t, externalcaregiver.Result{StaffID: 601, PersonID: 501, InvitationExpiresAt: expires, InvitationToken: "token"}, result)
+	assert.Equal(t, externalcaregiver.Result{StaffID: 601, PersonID: 501, Invited: true, InvitationExpiresAt: expires, InvitationToken: "token"}, result)
 	assert.Equal(t, schoolmembership.ExternalCaregiverRecordFields{StaffID: 601, Organization: "Musikschule", ActivityExpertise: externalcaregiver.Expertise}, owners.record)
 	require.Len(t, owners.invited, 1)
 	assert.Equal(t, identityaccess.SchoolInvitationRequest{
@@ -159,6 +170,44 @@ func TestRecordWritesInOrderInsideOneSavepoint(t *testing.T) {
 		FirstName: stringPtr("Jonas"), LastName: stringPtr("Becker"),
 		CreatedBy: 7, ActorPermissions: []string{"users:create", "schedules:read"},
 	}, owners.invited[0])
+}
+
+func TestRecordViewInvitesIntoTheGuestRole(t *testing.T) {
+	t.Parallel()
+	owners := &fakeOwners{roleID: 32}
+	workflow, _ := newWorkflow(t, owners)
+	input := createInput()
+	input.Access = externalcaregiver.AccessView
+
+	result, err := workflow.Record(context.Background(), input)
+	require.NoError(t, err)
+	assert.True(t, result.Invited)
+	assert.Equal(t, identityaccess.GuestRoleName, owners.roleName)
+	require.Len(t, owners.invited, 1)
+	assert.Equal(t, int64(32), owners.invited[0].RoleID, "the platform role, not a school's role of the same name")
+}
+
+// TestRecordNoneIsAPlaceholderWithoutInvitation: access none writes the
+// four records in one savepoint, ignores the address and invites nobody.
+func TestRecordNoneIsAPlaceholderWithoutInvitation(t *testing.T) {
+	t.Parallel()
+	for name, email := range map[string]string{"no address": "", "address ignored": "kein gültiger Wert"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			owners := &fakeOwners{roleID: 31, pending: []identityaccess.SchoolInvitation{{ID: 91, Email: "kein gültiger Wert"}}}
+			workflow, savepoint := newWorkflow(t, owners)
+			input := createInput()
+			input.Access = externalcaregiver.AccessNone
+			input.Email = email
+
+			result, err := workflow.Record(context.Background(), input)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"create_person", "create_staff", "find_teacher", "create_teacher", "create_external_caregiver_record"}, owners.calls)
+			assert.Equal(t, 1, savepoint.opened)
+			assert.Equal(t, externalcaregiver.Result{StaffID: 601, PersonID: 501}, result)
+			assert.Empty(t, owners.invited)
+		})
+	}
 }
 
 func TestRecordRollsTheSavepointBackWhenAStepFails(t *testing.T) {
@@ -181,14 +230,18 @@ func TestRecordRefusesBeforeAnyWrite(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
 		email  string
+		access externalcaregiver.Access
 		noRole bool
 		want   error
 	}{
-		"empty email":        {email: "   ", want: externalcaregiver.ErrEmailRequired},
-		"not an address":     {email: "jonas", want: externalcaregiver.ErrEmailInvalid},
-		"display name form":  {email: "Jonas <jonas@example.test>", want: externalcaregiver.ErrEmailInvalid},
-		"address too long":   {email: strings.Repeat("a", 250) + "@x.de", want: externalcaregiver.ErrEmailInvalid},
-		"school has no role": {email: "jonas@example.test", noRole: true, want: externalcaregiver.ErrRoleMissing},
+		"empty email":         {email: "   ", want: externalcaregiver.ErrEmailRequired},
+		"empty email to view": {email: "", access: externalcaregiver.AccessView, want: externalcaregiver.ErrEmailRequired},
+		"not an address":      {email: "jonas", want: externalcaregiver.ErrEmailInvalid},
+		"display name form":   {email: "Jonas <jonas@example.test>", want: externalcaregiver.ErrEmailInvalid},
+		"address too long":    {email: strings.Repeat("a", 250) + "@x.de", want: externalcaregiver.ErrEmailInvalid},
+		"missing access":      {email: "jonas@example.test", access: "-", want: externalcaregiver.ErrAccessInvalid},
+		"unknown access":      {email: "jonas@example.test", access: "admin", want: externalcaregiver.ErrAccessInvalid},
+		"system role missing": {email: "jonas@example.test", noRole: true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -197,9 +250,20 @@ func TestRecordRefusesBeforeAnyWrite(t *testing.T) {
 			workflow, savepoint := newWorkflow(t, owners)
 			input := createInput()
 			input.Email = tc.email
+			switch tc.access {
+			case "":
+			case "-":
+				input.Access = ""
+			default:
+				input.Access = tc.access
+			}
 
 			_, err := workflow.Record(context.Background(), input)
-			require.ErrorIs(t, err, tc.want)
+			if tc.want == nil {
+				require.Error(t, err, "a missing system role is a server error")
+			} else {
+				require.ErrorIs(t, err, tc.want)
+			}
 			assert.Zero(t, savepoint.opened)
 			assert.NotContains(t, owners.calls, "create_person")
 		})
@@ -226,15 +290,16 @@ func TestInviteRevokesThePersonsOpenInvitationsBeforeInviting(t *testing.T) {
 	workflow, savepoint := newWorkflow(t, owners)
 
 	result, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{
-		StaffID: 601, Email: "selin@example.test", Actor: externalcaregiver.Actor{AccountID: 7},
+		StaffID: 601, Email: "selin@example.test", Access: externalcaregiver.AccessView, Actor: externalcaregiver.Actor{AccountID: 7},
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{
-		"list_staff", "find_person", "external_role", "pending_invitations",
+		"list_staff", "find_person", "system_role", "pending_invitations",
 		"find_teacher", "create_teacher", "revoke", "revoke", "invite",
 	}, owners.calls)
 	assert.Equal(t, []int64{91, 94}, owners.revoked, "only the person's own invitations are spent")
+	assert.Equal(t, identityaccess.GuestRoleName, owners.roleName, "view invites into the system role guest")
 	assert.Equal(t, 1, savepoint.opened)
 	require.Len(t, owners.invited, 1)
 	assert.Equal(t, identityaccess.SchoolInvitationRequest{
@@ -251,7 +316,7 @@ func TestInviteKeepsAnExistingCaregiverProfile(t *testing.T) {
 	owners.hasTeacher = true
 	workflow, _ := newWorkflow(t, owners)
 
-	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test"})
+	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test", Access: externalcaregiver.AccessView})
 	require.NoError(t, err)
 	assert.NotContains(t, owners.calls, "create_teacher")
 }
@@ -262,7 +327,7 @@ func TestInviteRollsBackWhenRevokingFails(t *testing.T) {
 	owners.failAt = "revoke"
 	workflow, savepoint := newWorkflow(t, owners)
 
-	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test"})
+	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test", Access: externalcaregiver.AccessView})
 	require.ErrorIs(t, err, errStep)
 	assert.ErrorIs(t, savepoint.rolledBack, errStep)
 	assert.Empty(t, owners.invited)
@@ -278,7 +343,6 @@ func TestInviteRefusesWhoCannotBeInvited(t *testing.T) {
 		"no active external caregiver record": {edit: func(f *fakeOwners) { f.staff[0].HasExternalCaregiverRecord = false }, want: externalcaregiver.ErrNotExternal},
 		"person gone":                         {edit: func(f *fakeOwners) { f.person = nil }, want: externalcaregiver.ErrStaffNotFound},
 		"already has an account":              {edit: func(f *fakeOwners) { f.person.AccountID = int64Ptr(44) }, want: externalcaregiver.ErrHasAccount},
-		"school has no role":                  {edit: func(f *fakeOwners) { f.noRole = true }, want: externalcaregiver.ErrRoleMissing},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -287,7 +351,7 @@ func TestInviteRefusesWhoCannotBeInvited(t *testing.T) {
 			tc.edit(owners)
 			workflow, savepoint := newWorkflow(t, owners)
 
-			_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test"})
+			_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test", Access: externalcaregiver.AccessView})
 			require.ErrorIs(t, err, tc.want)
 			assert.Zero(t, savepoint.opened)
 			assert.Empty(t, owners.revoked)
@@ -301,9 +365,36 @@ func TestInviteRequiresAnAddress(t *testing.T) {
 	owners := inviteOwners()
 	workflow, _ := newWorkflow(t, owners)
 
-	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601})
+	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Access: externalcaregiver.AccessSupervise})
 	require.ErrorIs(t, err, externalcaregiver.ErrEmailRequired)
 	assert.Empty(t, owners.calls)
+}
+
+// TestInviteRequiresAnAccessWithAnAccount: none invites nobody, and a
+// missing or unknown access is refused before any read.
+func TestInviteRequiresAnAccessWithAnAccount(t *testing.T) {
+	t.Parallel()
+	for _, access := range []externalcaregiver.Access{"", externalcaregiver.AccessNone, "admin"} {
+		owners := inviteOwners()
+		workflow, savepoint := newWorkflow(t, owners)
+
+		_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test", Access: access})
+		require.ErrorIs(t, err, externalcaregiver.ErrAccessInvalid, string(access))
+		assert.Empty(t, owners.calls)
+		assert.Zero(t, savepoint.opened)
+	}
+}
+
+func TestInviteFailsWithoutTheSystemRole(t *testing.T) {
+	t.Parallel()
+	owners := inviteOwners()
+	owners.noRole = true
+	workflow, savepoint := newWorkflow(t, owners)
+
+	_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test", Access: externalcaregiver.AccessSupervise})
+	require.Error(t, err)
+	assert.Zero(t, savepoint.opened)
+	assert.Empty(t, owners.invited)
 }
 
 // TestRecordRefusesAnAddressWithAnOpenInvitation: creating the invitation
@@ -345,7 +436,7 @@ func TestInviteRefusesAnAddressInvitedForSomeoneElse(t *testing.T) {
 			owners.pending = append(owners.pending, pending)
 			workflow, savepoint := newWorkflow(t, owners)
 
-			_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test"})
+			_, err := workflow.Invite(context.Background(), externalcaregiver.InviteInput{StaffID: 601, Email: "selin@example.test", Access: externalcaregiver.AccessView})
 			require.ErrorIs(t, err, externalcaregiver.ErrEmailInvited)
 			assert.Zero(t, savepoint.opened)
 			assert.Empty(t, owners.revoked)

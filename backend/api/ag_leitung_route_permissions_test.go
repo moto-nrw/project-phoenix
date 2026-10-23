@@ -1,30 +1,50 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
-// checkExternRoleRoutePermissions is the per-route permission test of the
-// school role „Extern“ (#4573) on the assembled production router. A token
-// with exactly the role's default permissions runs the caller's own block of
-// the day („Heute“: planned-now, roster, start, check-in, check-out,
-// complete) and is refused on time tracking, staff, settings, roles, parent
-// messaging, student directory and documents, guardians and finance.
-func checkExternRoleRoutePermissions(t *testing.T, api *goldenRuntime) {
+// systemRolePermissions reads the permissions the migrations gave a platform
+// system role, so the route tests below drive exactly the migrated set.
+func systemRolePermissions(t *testing.T, db *bun.DB, name string) []string {
+	t.Helper()
+	var names []string
+	require.NoError(t, db.NewRaw(`
+		SELECT p.name FROM auth.roles r
+		JOIN auth.role_permissions rp ON rp.role_id = r.id
+		JOIN auth.permissions p ON p.id = rp.permission_id
+		WHERE r.name = ? AND r.tenant_id IS NULL AND r.is_system`, name).Scan(context.Background(), &names))
+	sort.Strings(names)
+	return names
+}
+
+// checkAGLeitungRoutePermissions is the per-route permission test of the
+// system role ag-leitung (ADR 0083) on the assembled production router. A
+// token with exactly the role's migrated permissions runs the caller's own
+// block of the day („Heute“: planned-now, roster, start, check-in,
+// check-out, complete) and is refused on time tracking, staff, settings,
+// roles, parent messaging, student directory and documents, guardians and
+// finance.
+func checkAGLeitungRoutePermissions(t *testing.T, api *goldenRuntime) {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	external, account := testpkg.CreateTestTeacherWithAccount(t, db, "Extern", "Konto")
-	claims := testutil.TenantUserTestClaims(int(account.ID), tenantID, identityaccess.ExternalCaregiverDefaultPermissions...)
-	claims.Roles = []string{identityaccess.ExternalCaregiverRoleName}
+	granted := systemRolePermissions(t, db, identityaccess.AGLeitungRoleName)
+	require.Equal(t, []string{"schedules:read"}, granted)
+	external, account := testpkg.CreateTestTeacherWithAccount(t, db, "AG", "Leitung")
+	claims := testutil.TenantUserTestClaims(int(account.ID), tenantID, granted...)
+	claims.Roles = []string{identityaccess.AGLeitungRoleName}
 	token := testutil.MintTestJWT(t, claims)
 
 	testpkg.EnsureWebManualDevice(t, db)

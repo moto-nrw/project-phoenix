@@ -2826,11 +2826,11 @@
         "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "staff": {
+        "external_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_email_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_email_invited": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "external_email_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_has_account": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "external_role_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "not_external": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       }
     },

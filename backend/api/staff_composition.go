@@ -29,8 +29,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/externalcaregiver"
 )
 
 // The staff surface under /api/staff is composed from two adapters (#2667):
@@ -181,26 +179,12 @@ func newStaffResource(
 	module schoolMembershipModule.Capability, people peopleModule.Capability, identity identityaccess.Owner, appEnv string,
 	buildRuntime func(StaffMembershipHooks) StaffMembershipRuntime, staffAdmin *timeTrackingHTTP.StaffAdminResource, logger *slog.Logger,
 ) (*staffHTTP.Resource, error) {
-	// The owners' public capabilities satisfy the workflow's ports; its
-	// savepoint runs inside the request's tenant transaction.
-	externals, err := externalcaregiver.New(people, module, identity, tenant.WithSavepoint)
-	if err != nil {
-		return nil, err
-	}
 	runtime := buildRuntime(StaffMembershipHooks{
 		ResolveEditorStaffID:           staffAdmin.ResolveEditorStaffID,
 		QueueOffboardedDocumentCleanup: staffAdmin.QueueOffboardedStaffDocumentCleanup,
 	})
-	return staffHTTP.NewResource(module, staffHTTP.Runtime{
-		// Protected composes the shared /api/staff router: the membership
-		// routes register first, then the workforce admin routes from
-		// the Workforce module, both inside one protected tenant group.
-		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
-			ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
-				register(protected, withTx)
-				staffAdmin.RegisterStaffRoutes(protected, withTx)
-			})
-		},
+	resourceRuntime := staffHTTP.Runtime{
+		Protected:          staffProtectedRoutes(staffAdmin),
 		Permission:         staffPermissionGate,
 		Success:            apiCommon.Respond,
 		Failure:            renderStaffFailure,
@@ -218,14 +202,6 @@ func newStaffResource(
 		Person:         staffPersonLookup(runtime),
 		PersonNotFound: apiCommon.IsNotFound,
 		Persons:        staffPersonsLookup(runtime),
-
-		CreateExternalCaregiver: externalCaregiverCreate(externals),
-		InviteExternalCaregiver: externalCaregiverInvite(externals),
-		ExternalFailure:         renderExternalCaregiverFailure,
-		ExposeSeedInvitationToken: func(r *http.Request) bool {
-			return apiCommon.ShouldExposeSeedInvitationToken(r, appEnv)
-		},
-		PendingInvitationPersons: pendingInvitationPersons(identity),
 
 		PresentStaffIDs:     runtime.PresentStaffIDs,
 		WorkStatusMap:       runtime.WorkStatusMap,
@@ -250,7 +226,23 @@ func newStaffResource(
 		Offboard:    runtime.Offboard,
 
 		Log: logger,
-	}), nil
+	}
+	if err := bindExternalCaregivers(&resourceRuntime, module, people, identity, appEnv); err != nil {
+		return nil, err
+	}
+	return staffHTTP.NewResource(module, resourceRuntime), nil
+}
+
+// staffProtectedRoutes composes the shared /api/staff router: the membership
+// routes register first, then the workforce admin routes from the Workforce
+// module, both inside one protected tenant group.
+func staffProtectedRoutes(staffAdmin *timeTrackingHTTP.StaffAdminResource) func(chi.Router, func(chi.Router, staffHTTP.Middleware)) {
+	return func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
+		ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
+			register(protected, withTx)
+			staffAdmin.RegisterStaffRoutes(protected, withTx)
+		})
+	}
 }
 
 func staffPermissionGate(required ...string) staffHTTP.Middleware {

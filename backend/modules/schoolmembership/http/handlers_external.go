@@ -15,10 +15,12 @@ type externalStaffResponse struct {
 	InvitationToken string `json:"invitation_token,omitempty"`
 }
 
-// createExternalStaff records an external caregiver and invites them to a
-// moto account in the school role „Extern“ (#3823, #4573). The workflow
-// writes person, staff member, caregiver profile and external caregiver record and the
-// invitation in one savepoint, so a refused invitation leaves nothing behind.
+// createExternalStaff records an external caregiver with an access level
+// (#3823, #4573, ADR 0083): a placeholder without an account, or an
+// invitation into the system role guest (view) or ag-leitung (supervise).
+// The workflow writes person, staff member, caregiver profile, external
+// caregiver record and the invitation in one savepoint, so a refused
+// invitation leaves nothing behind.
 func (rs *Resource) createExternalStaff(w http.ResponseWriter, r *http.Request) {
 	req := &ExternalStaffRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -27,14 +29,18 @@ func (rs *Resource) createExternalStaff(w http.ResponseWriter, r *http.Request) 
 	}
 	ctx := r.Context()
 	result, err := rs.runtime.CreateExternalCaregiver(ctx, ExternalCaregiverInput{
-		FirstName: req.FirstName, LastName: req.LastName, Email: req.Email, Organization: req.Organization,
+		FirstName: req.FirstName, LastName: req.LastName, Email: req.Email, Organization: req.Organization, Access: req.Access,
 		ActorAccountID: rs.runtime.CurrentAccountID(ctx), ActorPermissions: rs.runtime.Permissions(ctx),
 	})
 	if err != nil {
 		rs.runtime.ExternalFailure(w, r, err)
 		return
 	}
-	rs.respondExternal(w, r, http.StatusCreated, result, "Externe Betreuungskraft eingetragen und eingeladen")
+	message := "Externe Betreuungskraft eingetragen"
+	if result.Invited {
+		message = "Externe Betreuungskraft eingetragen und eingeladen"
+	}
+	rs.respondExternal(w, r, http.StatusCreated, result, message)
 }
 
 // inviteExternalStaff („Konto einladen“) invites an existing external
@@ -52,7 +58,7 @@ func (rs *Resource) inviteExternalStaff(w http.ResponseWriter, r *http.Request) 
 	}
 	ctx := r.Context()
 	result, err := rs.runtime.InviteExternalCaregiver(ctx, ExternalInvitationInput{
-		StaffID: id, Email: req.Email,
+		StaffID: id, Email: req.Email, Access: req.Access,
 		ActorAccountID: rs.runtime.CurrentAccountID(ctx), ActorPermissions: rs.runtime.Permissions(ctx),
 	})
 	if err != nil {
@@ -63,7 +69,8 @@ func (rs *Resource) inviteExternalStaff(w http.ResponseWriter, r *http.Request) 
 }
 
 // respondExternal answers with the staff response of the external caregiver
-// the workflow just invited: its invitation is open by construction.
+// the workflow just recorded or invited: an invitation it sent is open by
+// construction, a placeholder has none.
 func (rs *Resource) respondExternal(w http.ResponseWriter, r *http.Request, status int, result ExternalCaregiverResult, message string) {
 	ctx := r.Context()
 	staff, person, err := rs.externalCaregiver(ctx, result.StaffID)
@@ -72,7 +79,7 @@ func (rs *Resource) respondExternal(w http.ResponseWriter, r *http.Request, stat
 		return
 	}
 	response := externalStaffResponse{
-		StaffResponse: buildStaffResponse(rs.fieldAccess(ctx), staff, person, true, enrichment{invitationPending: true}),
+		StaffResponse: buildStaffResponse(rs.fieldAccess(ctx), staff, person, true, enrichment{invitationPending: result.Invited}),
 	}
 	if rs.runtime.ExposeSeedInvitationToken(r) {
 		response.InvitationToken = result.InvitationToken

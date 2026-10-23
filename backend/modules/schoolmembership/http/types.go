@@ -173,15 +173,18 @@ const (
 	maxExternalOrganizationLength = 150
 )
 
-// ExternalStaffRequest records an external caregiver (#3823) and invites
-// them to an account (#4573): name, e-mail address and, optionally, the
-// organization they come from. The workflow validates the address, so its
-// refusal carries the field code (staff.external_email_*).
+// ExternalStaffRequest records an external caregiver (#3823) with an access
+// level (#4573, ADR 0083): name, optionally the organization they come from,
+// the access ("none" | "view" | "supervise") and, for view and supervise,
+// the e-mail address the invitation goes to. The workflow validates access
+// and address, so its refusals carry the field codes
+// (staff.external_access_invalid, staff.external_email_*).
 type ExternalStaffRequest struct {
 	FirstName    string `json:"first_name"`
 	LastName     string `json:"last_name"`
-	Email        string `json:"email"`
+	Email        string `json:"email,omitempty"`
 	Organization string `json:"organization,omitempty"`
+	Access       string `json:"access"`
 }
 
 // Bind trims and validates the external caregiver request.
@@ -190,6 +193,7 @@ func (req *ExternalStaffRequest) Bind(*http.Request) error {
 	req.LastName = strings.TrimSpace(req.LastName)
 	req.Email = strings.TrimSpace(req.Email)
 	req.Organization = strings.TrimSpace(req.Organization)
+	req.Access = strings.TrimSpace(req.Access)
 	switch {
 	case req.FirstName == "":
 		return errors.New("first name is required")
@@ -203,14 +207,17 @@ func (req *ExternalStaffRequest) Bind(*http.Request) error {
 	return nil
 }
 
-// ExternalInvitationRequest is the body of „Konto einladen“ (#4573).
+// ExternalInvitationRequest is the body of „Konto einladen“ (#4573): the
+// address and the access ("view" | "supervise").
 type ExternalInvitationRequest struct {
-	Email string `json:"email"`
+	Email  string `json:"email"`
+	Access string `json:"access"`
 }
 
-// Bind trims the address; the workflow validates it.
+// Bind trims address and access; the workflow validates both.
 func (req *ExternalInvitationRequest) Bind(*http.Request) error {
 	req.Email = strings.TrimSpace(req.Email)
+	req.Access = strings.TrimSpace(req.Access)
 	return nil
 }
 

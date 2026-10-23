@@ -31,9 +31,8 @@ var defaultActivityCategories = []domain.ActivityCategory{
 
 const webManualDeviceName = "Web-Portal (Manuell)"
 
-// CreateSchool creates a school with its default activity categories, the
-// roles every school starts with and the virtual device that attributes
-// manual web check-ins.
+// CreateSchool creates a school with its default activity categories and the
+// virtual device that attributes manual web check-ins.
 func (p *Provisioning) CreateSchool(ctx context.Context, input *organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
 	if input == nil {
 		return nil, &organizationtenancy.InvalidProvisioningDataError{Err: errors.New("school is required")}
@@ -51,9 +50,6 @@ func (p *Provisioning) CreateSchool(ctx context.Context, input *organizationtena
 			return nil, mapSchoolError(err, 0, school.OrganizationID)
 		}
 		if err := p.categories.SeedCategories(adminCtx, created.ID, defaultActivityCategories); err != nil {
-			return nil, err
-		}
-		if err := p.identity.EnsureSchoolRoles(adminCtx, created.ID); err != nil {
 			return nil, err
 		}
 		if err := p.createWebManualDevice(adminCtx, created.ID); err != nil {
@@ -301,9 +297,7 @@ func (p *Provisioning) SoftDeleteSchool(ctx context.Context, schoolID, operatorI
 }
 
 // RestoreSchool returns a soft-deleted school to its pre-deletion state; an
-// inactive school stays inactive. The school gets the roles every school
-// starts with, which it lacks when it was deleted while they were introduced
-// (the „Extern“ role of migration 1.15.474 skips deleted schools, #4573).
+// inactive school stays inactive.
 func (p *Provisioning) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
 	return p.inAdmin(ctx, func(adminCtx context.Context) error {
 		school, err := p.findSchool(adminCtx, schoolID)
@@ -322,9 +316,6 @@ func (p *Provisioning) RestoreSchool(ctx context.Context, schoolID, operatorID i
 		}
 		if _, err := p.organizations.RestoreSchool(adminCtx, schoolID); err != nil {
 			return mapSchoolError(err, schoolID, school.OrganizationID)
-		}
-		if err := p.identity.EnsureSchoolRoles(adminCtx, schoolID); err != nil {
-			return err
 		}
 		p.logAction(adminCtx, operatorID, domain.AuditActionRestore, domain.AuditResourceSchool, &schoolID, clientIP, map[string]any{
 			"name":      school.Name,
