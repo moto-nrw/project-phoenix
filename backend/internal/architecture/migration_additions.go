@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -53,25 +54,32 @@ func candidateMigrationDataObjects(project, ref string) (map[string]struct{}, er
 		if relativeFile == "" || filepath.Ext(relativeFile) != ".go" || strings.HasSuffix(relativeFile, "_test.go") {
 			continue
 		}
-		contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relativeFile)))
-		if err != nil {
-			return nil, fmt.Errorf("read candidate migration %s: %w", relativeFile, err)
-		}
-		objects, err := migrationCreateDataObjects(relativeFile, contents)
-		if err != nil {
+		if err := addCandidateMigrationDataObjects(root, sha, relativeMigrationDir, relativeFile, result); err != nil {
 			return nil, err
-		}
-		for object := range objects {
-			mentioned, err := baseMigrationsMentionDataObject(root, sha, relativeMigrationDir, object)
-			if err != nil {
-				return nil, err
-			}
-			if !mentioned {
-				result[object] = struct{}{}
-			}
 		}
 	}
 	return result, nil
+}
+
+func addCandidateMigrationDataObjects(root, sha, migrationDir, relativeFile string, result map[string]struct{}) error {
+	contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relativeFile)))
+	if err != nil {
+		return fmt.Errorf("read candidate migration %s: %w", relativeFile, err)
+	}
+	objects, err := migrationCreateDataObjects(relativeFile, contents)
+	if err != nil {
+		return err
+	}
+	for object := range objects {
+		mentioned, err := baseMigrationsMentionDataObject(root, sha, migrationDir, object)
+		if err != nil {
+			return err
+		}
+		if !mentioned {
+			result[object] = struct{}{}
+		}
+	}
+	return nil
 }
 
 // migrationCreateDataObjects inspects statically resolved SQL passed to NewRaw
@@ -123,9 +131,7 @@ func migrationCreateDataObjects(filename string, contents []byte) (map[string]st
 			problems = append(problems, fmt.Errorf("candidate migration %s: %w", filename, sqlErr))
 			return true
 		}
-		for name := range objects {
-			result[name] = struct{}{}
-		}
+		maps.Copy(result, objects)
 		return true
 	})
 	return result, errors.Join(problems...)

@@ -96,14 +96,18 @@ func CoreActionMiddleware(cfg CoreActionConfig) func(http.Handler) http.Handler 
 			if action.CreatedOnly && !responseCreated(body.Bytes()) {
 				return
 			}
-			actor, ok := resolveActor(cfg, r, action, body)
-			if !ok {
-				return
-			}
-			ctx, distinct := identify(r.Context(), cfg, actor)
-			cfg.Tracker.CaptureContext(ctx, distinct, action.Event, action.properties(actor))
+			captureCoreAction(cfg, r, action, body)
 		})
 	}
+}
+
+func captureCoreAction(cfg CoreActionConfig, r *http.Request, action CoreAction, body *cappedBuffer) {
+	actor, ok := resolveActor(cfg, r, action, body)
+	if !ok {
+		return
+	}
+	ctx, distinct := identify(r.Context(), cfg, actor)
+	cfg.Tracker.CaptureContext(ctx, distinct, action.Event, action.properties(actor))
 }
 
 // VerifiedSessionClaims returns the raw claims of the session token the root
