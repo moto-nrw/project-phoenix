@@ -39,7 +39,8 @@ type SchoolDirectory interface {
 }
 
 // Settings resolves tenant settings outside a tenant transaction. The
-// settings service satisfies it.
+// settings service satisfies it. Errors must not contain stored values or credentials;
+// the authentication boundary logs the lookup cause.
 type Settings interface {
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
 }
@@ -59,18 +60,16 @@ type SchoolErrors interface {
 
 // Dependencies are the collaborators the device authenticators need.
 type Dependencies struct {
+	// Logger records operational authentication failures.
+	Logger *slog.Logger
 	// Devices resolves API keys and records device activity. Required.
 	Devices Fleet
 	// Schools blocks devices of deleted schools. Optional: a nil directory
 	// skips the check, which only test graphs use.
 	Schools      SchoolDirectory
 	SchoolErrors SchoolErrors
-	// Settings resolves the tenant device PIN. Optional: without it only
-	// FallbackPIN authenticates.
+	// Settings resolves the tenant device PIN. Required.
 	Settings Settings
-	// FallbackPIN is the OGS_DEVICE_PIN value used when no tenant PIN
-	// resolves.
-	FallbackPIN string
 }
 
 // Authenticators are the composed device middlewares. Both share one
@@ -86,16 +85,19 @@ func New(deps Dependencies) *Authenticators {
 	if deps.Schools != nil && deps.SchoolErrors == nil {
 		panic("device authentication composition: school error classifier is required")
 	}
+	if deps.Settings == nil {
+		panic("device authentication composition: settings resolver is required")
+	}
 	var schools device.SchoolLookup
 	if deps.Schools != nil {
 		schools = schoolLookup{schools: deps.Schools, errors: deps.SchoolErrors}
 	}
 	return &Authenticators{authenticator: device.NewAuthenticator(device.Dependencies{
-		Devices:     fleetDirectory{fleet: deps.Devices},
-		BindTenant:  bindTenant,
-		Schools:     schools,
-		PIN:         pinResolver(deps.Settings),
-		FallbackPIN: deps.FallbackPIN,
+		Logger:     deps.Logger,
+		Devices:    fleetDirectory{fleet: deps.Devices},
+		BindTenant: bindTenant,
+		Schools:    schools,
+		PIN:        pinResolver(deps.Settings),
 	})}
 }
 
@@ -176,22 +178,9 @@ func bindTenant(ctx context.Context, tenantID int64) (context.Context, error) {
 	return tenant.WithTenant(ctx, id), nil
 }
 
-// pinResolver reads the tenant device PIN from the settings service. It
-// returns nil without a settings service, so the adapter falls back to the
-// configured PIN.
+// pinResolver propagates settings failures to the authentication boundary.
 func pinResolver(settings Settings) device.PINResolver {
-	if settings == nil {
-		return nil
-	}
-	return func(ctx context.Context, tenantID int64) string {
-		pin, err := settings.ResolveStringForTenant(ctx, tenantID, devicePINSettingKey)
-		if err != nil {
-			slog.Error("failed to resolve tenant PIN from settings, falling back to env var",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return ""
-		}
-		return pin
+	return func(ctx context.Context, tenantID int64) (string, error) {
+		return settings.ResolveStringForTenant(ctx, tenantID, devicePINSettingKey)
 	}
 }

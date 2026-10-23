@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
@@ -43,13 +42,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
-func newDeviceAuthentication(iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService) *deviceauth.Authenticators {
+func newDeviceAuthentication(iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService, logger *slog.Logger) *deviceauth.Authenticators {
 	return deviceauth.New(deviceauth.Dependencies{
+		Logger:       logger,
 		Devices:      iot.Fleet(),
 		Schools:      deviceSchoolDirectory{schools: organizations},
 		SchoolErrors: devicefleetCompose.NewSchoolReadErrors(),
 		Settings:     settings,
-		FallbackPIN:  os.Getenv("OGS_DEVICE_PIN"),
 	})
 }
 

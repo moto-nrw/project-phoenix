@@ -14,7 +14,7 @@ The groups below explain why each set exists.
 | --- | --- | --- |
 | Frontend runtime | `NEXTAUTH_SECRET` signs portal sessions; `METRICS_BEARER_TOKEN` protects metrics. JWT expiry/refresh timing remains required, without the backend JWT signing key. API URL, portal/domain URLs, log level, public analytics/Sentry settings, proxy trust, timezone, port and hostname complete its allowlist. | `frontend/src/env.js`, `lib/env-validation.js`, `lib/server-runtime-env.ts`, `proxy.ts`, NextAuth host-trust configuration |
 | Frontend build | Public `NEXT_PUBLIC_*` values plus internal `API_URL` and `TENANT_DOMAIN`. CI build arguments supply browser-inlined values. Runtime values cannot replace an already built browser bundle. No authentication, database, SMTP or push private key is a build argument. | `frontend/Dockerfile.prod`, `.github/workflows/build.yml` |
-| Serving backend | Backend JWT key, application-role password, SMTP credentials, device PIN, VAPID private key, Turnstile keys, metrics token, analytics settings; pool sizing, public API and portal URLs, auth timing, rate limits, logging, scheduler and checkout configuration. | `backend/cmd/serve.go`, `backend/modules/transactionruntime/internal/adapters/database/database_config.go`, `backend/api/server.go`, `backend/api/base.go`, `backend/modules/schedulerruntime/` |
+| Serving backend | Backend JWT key, application-role password, SMTP credentials, VAPID private key, Turnstile keys, metrics token, analytics settings; pool sizing, public API and portal URLs, auth timing, rate limits, logging, scheduler and checkout configuration. | `backend/cmd/serve.go`, `backend/modules/transactionruntime/internal/adapters/database/database_config.go`, `backend/api/server.go`, `backend/api/base.go`, `backend/modules/schedulerruntime/` |
 | PostgreSQL | `POSTGRES_PASSWORD` and `TZ` only. Database administration stays inside this boundary. | PostgreSQL image startup; existing backup/restore commands |
 | Migration job | Privileged `DB_DSN`, pool sizing, `APP_ENV`, `TZ`, `PHOENIX_AUTH_PASSWORD`, and admin/operator bootstrap credentials. No HTTP signing, SMTP, device or push secrets. | `backend/cmd/migrate.go`; migrations `001006002`, `001011003`, `001014001` |
 | Demo sidecar only | Privileged `DB_DSN`, pool sizing, `APP_ENV`, `TZ`, operator bootstrap credentials and device PIN. No JWT signing, SMTP or frontend secrets; no filesystem state beyond a tmpfs heartbeat file. The environment and target-host guards reject staging, production and public hosts. | `backend/cmd/devtools/demo.go`, `demo-runtime` in `environments/demo.compose.yml`, [standing demo operations](standing-demo.md) |
@@ -108,3 +108,10 @@ or rendered Compose values.
 No deployment, live exploitation, credential rotation or post-deploy inspection
 was performed. The observed runtime result is from the disposable local project,
 not a claim about currently deployed containers.
+
+`OGS_DEVICE_PIN` is a demo/seeder input only. Only `demo-runtime` receives it;
+serving backends read `security.ogs_device_pin` through tenant settings and
+reject empty or unreadable values. The root example retains the seed input
+for demo Compose validation and shared SOPS key parity. Removing the unused
+production/staging SOPS key is a human follow-up, with key-parity policy updated
+in the same change. See [3841-b rollout](geraete-zugang-3841.md#pin-auflösung-ohne-env-fallback-slice-3841-b).
