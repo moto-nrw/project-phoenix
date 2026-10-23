@@ -22,7 +22,7 @@ type Registry struct {
 }
 
 func scope() string {
-	return "all-backend/non-hidden/non-_test.go/exported-method/14-lines/one-receiver-field-call:v1"
+	return fmt.Sprintf("all-backend/non-hidden/non-_test.go/exported-method/%d-lines/one-receiver-field-call:v1", MaxBodyLines)
 }
 
 // CompareRegisters prevents spending a deleted method's allowance elsewhere,

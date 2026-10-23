@@ -1,8 +1,11 @@
 package passthrough_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/passthrough"
@@ -220,5 +223,32 @@ func TestPassthroughCLIRequiresHostInventoryButNotForeignFixtures(t *testing.T) 
 	put(t, foreign, "go.mod", "module github.com/moto-nrw/project-phoenix\n")
 	if err := passthrough.CheckProject(host, foreign, ""); err != nil {
 		t.Fatalf("independent synthetic project requires host inventory: %v", err)
+	}
+}
+
+func TestPassthroughSnapshotExportsReviewableFiniteEvidence(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	put(t, root, "roots/owners/port.go", "package owners\n// A comment is not evidence.\nfunc (s *Port) Find(ctx Context) error { return s.store.Renamed(ctx) }")
+	var output bytes.Buffer
+	if err := passthrough.WriteSnapshot(&output, root, "0090"); err != nil {
+		t.Fatal(err)
+	}
+	var registry passthrough.Registry
+	if err := json.Unmarshal(output.Bytes(), &registry); err != nil {
+		t.Fatal(err)
+	}
+	if registry.Scope != "all-backend/non-hidden/non-_test.go/exported-method/14-lines/one-receiver-field-call:v1" {
+		t.Fatalf("unexpected scanner scope: %s", registry.Scope)
+	}
+	if len(registry.Sites) != 1 {
+		t.Fatalf("exported sites: %v", registry.Sites)
+	}
+	site := registry.Sites[0]
+	if site.ID != "roots/owners/Port.Find" || site.Form != "forward-debt" || site.Decision != "0090" || site.Reason == "" {
+		t.Fatalf("missing finite decision evidence: %+v", site)
+	}
+	if !strings.Contains(site.Evidence, "s.store.Renamed(ctx)") || strings.Contains(site.Evidence, "comment") {
+		t.Fatalf("unreviewable normalized evidence: %q", site.Evidence)
 	}
 }

@@ -62,6 +62,14 @@ PR #4758; 0090 was the next free number on development and in open PRs.
    Go scanner and `passthrough-snapshot` command replace its copied predicate.
    Historical semantic counts remain in ADR 0082/0083, with their stated limits.
 
+The dead-code gate follows both tooling packages into the standalone architecture
+command: `internal/architecture` and `internal/passthrough` are measured from that
+production entry point, not from the unrelated backend server. Both remain
+checked with backend test entry points too. Negative shell fixtures require the
+CLI filter to include both packages and reject findings in either context; no
+backend production delegation is excluded. Snapshot export has a behavioral
+JSON/identity/body/decision test, not an artificial liveness exemption.
+
 ## Evidence and reproduction
 
 Baseline: `e417e90b4377d3b1cfe73b168bb8d6b45e145d7c` (fetched before branching).

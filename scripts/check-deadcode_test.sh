@@ -39,7 +39,7 @@ if [[ "${*: -1}" == './...' ]]; then
   mode=architecture
   # The command run must report internal/architecture, whose only production
   # entry point is that command.
-  [[ "${1:-}" == -filter && "${2:-}" == *internal/architecture* ]] || exit 9
+  [[ "${1:-}" == -filter && "${2:-}" == *internal/architecture* && "${2:-}" == *internal/passthrough* ]] || exit 9
 fi
 printf 'blacksmith-gocacheprog pid=%s\n' "$$" >&2
 if [[ "$mode" == "$FAIL_MODE" ]]; then
@@ -85,3 +85,6 @@ done
 run_case 'analyzer build errors still fail' '' build 7
 # internal/architecture is no longer exempt when tests are entry points.
 FINDING_PATH=internal/architecture/example.go run_case 'internal/architecture test findings fail' tests '' 1
+
+FINDING_PATH=internal/passthrough/example.go run_case 'pass-through scanner test findings fail' tests '' 1
+FINDING_PATH=internal/passthrough/example.go run_case 'pass-through scanner CLI findings fail' architecture '' 1
