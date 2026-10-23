@@ -135,7 +135,7 @@ func activeDevice(deviceID string) *AuthenticatedDevice {
 }
 
 func newTestAuthenticator(directory DeviceDirectory, options ...func(*Dependencies)) *Authenticator {
-	deps := Dependencies{Devices: directory, BindTenant: bindTenant}
+	deps := Dependencies{Devices: directory, BindTenant: bindTenant, PIN: func(context.Context, int64) (string, error) { return "", nil }}
 	for _, option := range options {
 		option(&deps)
 	}
@@ -146,10 +146,14 @@ func withSchools(schools SchoolLookup) func(*Dependencies) {
 	return func(deps *Dependencies) { deps.Schools = schools }
 }
 
-func withPIN(resolver PINResolver, fallback string) func(*Dependencies) {
+func withPIN(resolver func(context.Context, int64) string, pin string) func(*Dependencies) {
 	return func(deps *Dependencies) {
-		deps.PIN = resolver
-		deps.FallbackPIN = fallback
+		deps.PIN = func(ctx context.Context, tenantID int64) (string, error) {
+			if resolver != nil {
+				return resolver(ctx, tenantID), nil
+			}
+			return pin, nil
+		}
 	}
 }
 
@@ -525,7 +529,7 @@ func TestDevice_UsesPINResolver(t *testing.T) {
 	assert.True(t, resolverCalled, "PIN resolver should have been called")
 }
 
-func TestDevice_PINResolverFallsBackToConfiguredPIN(t *testing.T) {
+func TestDevice_EmptyPINResolverRejects(t *testing.T) {
 	t.Parallel()
 
 	directory := newMockDeviceDirectory()
@@ -536,7 +540,8 @@ func TestDevice_PINResolverFallsBackToConfiguredPIN(t *testing.T) {
 	authenticator := newTestAuthenticator(directory, withPIN(resolver, "env-pin"))
 
 	_, errResp := authenticator.authenticateDevice(context.Background(), pinCredentials("valid-api-key-fallback", "env-pin"))
-	assert.Nil(t, errResp, "should fall back to OGS_DEVICE_PIN env var")
+	require.NotNil(t, errResp, "empty tenant PIN must reject access")
+	assert.Equal(t, statusUnauthorized, errResp.HTTPStatusCode)
 }
 
 func TestDevice_PINResolverWrongPIN(t *testing.T) {
@@ -731,8 +736,8 @@ func TestNewAuthenticator_UsesSuppliedDebouncer(t *testing.T) {
 	directory.addDevice("key", activeDevice("device"))
 	debouncer := NewLastSeenDebouncer()
 
-	first := NewAuthenticator(Dependencies{Devices: directory, BindTenant: bindTenant, LastSeen: debouncer})
-	second := NewAuthenticator(Dependencies{Devices: directory, BindTenant: bindTenant, LastSeen: debouncer})
+	first := NewAuthenticator(Dependencies{Devices: directory, BindTenant: bindTenant, PIN: func(context.Context, int64) (string, error) { return "", nil }, LastSeen: debouncer})
+	second := NewAuthenticator(Dependencies{Devices: directory, BindTenant: bindTenant, PIN: func(context.Context, int64) (string, error) { return "", nil }, LastSeen: debouncer})
 
 	_, errResp := first.authenticateDeviceOnly(context.Background(), bearer("key"))
 	require.Nil(t, errResp)

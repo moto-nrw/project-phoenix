@@ -85,8 +85,8 @@ type SchoolLookup interface {
 }
 
 // PINResolver resolves the device PIN for a given tenant.
-// Returns the PIN string, or empty if not configured.
-type PINResolver func(ctx context.Context, tenantID int64) string
+// Returns an error when the setting cannot be read. Empty values reject access.
+type PINResolver func(ctx context.Context, tenantID int64) (string, error)
 
 // TenantBinder makes the device's school the ambient tenant of the request.
 // Device routes carry no session, so this is where the tenant boundary is
@@ -103,10 +103,8 @@ type Dependencies struct {
 	// Schools rejects devices of deleted schools. A nil lookup skips the
 	// check.
 	Schools SchoolLookup
-	// PIN resolves the tenant device PIN; FallbackPIN is used when it is nil
-	// or returns an empty PIN.
-	PIN         PINResolver
-	FallbackPIN string
+	// PIN resolves the tenant device PIN. Required.
+	PIN PINResolver
 	// LastSeen debounces last_seen writes. Authenticators built from one
 	// Dependencies value share it; a nil debouncer gets a fresh one.
 	LastSeen *LastSeenDebouncer
@@ -120,6 +118,9 @@ type Authenticator struct{ deps Dependencies }
 func NewAuthenticator(deps Dependencies) *Authenticator {
 	if deps.Devices == nil || deps.BindTenant == nil {
 		panic("device authenticator: device directory and tenant binder are required")
+	}
+	if deps.PIN == nil {
+		panic("device authenticator: PIN resolver is required")
 	}
 	if deps.LastSeen == nil {
 		deps.LastSeen = NewLastSeenDebouncer()
@@ -331,28 +332,15 @@ func (a *Authenticator) rejectDeletedSchool(ctx context.Context, device *Authent
 	return nil
 }
 
-func (a *Authenticator) resolveDevicePIN(ctx context.Context, tenantID int64) string {
-	if a.deps.PIN != nil && tenantID > 0 {
-		if pin := a.deps.PIN(ctx, tenantID); pin != "" {
-			return pin
-		}
-	}
-
-	slog.Warn("settings service returned no PIN, falling back to OGS_DEVICE_PIN env var",
-		slog.Int64("tenant_id", tenantID),
-	)
-	return a.deps.FallbackPIN
-}
-
 func (a *Authenticator) validateDevicePIN(ctx context.Context, device *AuthenticatedDevice, staffPIN string) *ErrResponse {
 	if staffPIN == "" {
 		slog.Warn("device authentication failed: missing X-Staff-PIN header")
 		return ErrDeviceUnauthorized(ErrMissingPIN)
 	}
 
-	ogsPIN := a.resolveDevicePIN(ctx, device.TenantID)
-	if ogsPIN == "" {
-		slog.Error("OGS_DEVICE_PIN not configured")
+	ogsPIN, err := a.deps.PIN(ctx, device.TenantID)
+	if err != nil || ogsPIN == "" {
+		slog.Warn("device authentication rejected: tenant PIN unavailable", slog.Int64("tenant_id", device.TenantID))
 		return ErrDeviceUnauthorized(ErrInvalidPIN)
 	}
 

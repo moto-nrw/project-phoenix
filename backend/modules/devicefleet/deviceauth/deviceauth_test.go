@@ -152,7 +152,7 @@ func TestNew_RequiresFleet(t *testing.T) {
 	t.Parallel()
 
 	assert.Panics(t, func() { New(Dependencies{}) })
-	assert.NotPanics(t, func() { New(Dependencies{Devices: newFakeFleet()}) })
+	assert.NotPanics(t, func() { New(Dependencies{Devices: newFakeFleet(), Settings: fakeSettings{}}) })
 }
 
 func TestDeviceOnly_BindsPrincipalAndTenant(t *testing.T) {
@@ -167,7 +167,7 @@ func TestDeviceOnly_BindsPrincipalAndTenant(t *testing.T) {
 
 	var seen *device.AuthenticatedDevice
 	var boundTenant int64
-	handler := router(New(Dependencies{Devices: fleet}).DeviceOnly(), func(w http.ResponseWriter, r *http.Request) {
+	handler := router(New(Dependencies{Devices: fleet, Settings: fakeSettings{}}).DeviceOnly(), func(w http.ResponseWriter, r *http.Request) {
 		seen = device.DeviceFromCtx(r.Context())
 		boundTenant = tenant.FromContext(r.Context())
 		assert.False(t, device.IsIoTDeviceRequest(r.Context()))
@@ -198,7 +198,7 @@ func TestDeviceOnly_WireContract(t *testing.T) {
 	inactive := activeDevice(2, "inactive")
 	inactive.Status = devicefleet.DeviceStatusInactive
 	fleet.add("inactive-key", inactive)
-	handler := router(New(Dependencies{Devices: fleet}).DeviceOnly(), nil)
+	handler := router(New(Dependencies{Devices: fleet, Settings: fakeSettings{}}).DeviceOnly(), nil)
 
 	tests := []struct {
 		name     string
@@ -237,7 +237,7 @@ func TestDeviceOnly_ReadFailureIsInvalidAPIKey(t *testing.T) {
 
 	fleet := newFakeFleet()
 	fleet.findErr = errors.New("connection reset")
-	rr := serve(router(New(Dependencies{Devices: fleet}).DeviceOnly(), nil), request(http.MethodGet, "any", nil))
+	rr := serve(router(New(Dependencies{Devices: fleet, Settings: fakeSettings{}}).DeviceOnly(), nil), request(http.MethodGet, "any", nil))
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"detail":"invalid device API key"`)
 }
@@ -247,7 +247,7 @@ func TestDeviceOnly_ZeroTenantIsObservedAndRejected(t *testing.T) {
 
 	fleet := newFakeFleet()
 	fleet.devices["zero-tenant"] = activeDevice(3, "zero-tenant")
-	handler := router(New(Dependencies{Devices: fleet}).DeviceOnly(), func(http.ResponseWriter, *http.Request) {
+	handler := router(New(Dependencies{Devices: fleet, Settings: fakeSettings{}}).DeviceOnly(), func(http.ResponseWriter, *http.Request) {
 		t.Fatal("zero-tenant device must not reach the wrapped handler")
 	})
 
@@ -263,7 +263,7 @@ func TestDeviceOnly_LastSeenWriteFailureDoesNotBlock(t *testing.T) {
 	fleet := newFakeFleet()
 	fleet.writeErr = errors.New("database error")
 	fleet.add("key", activeDevice(4, "device"))
-	rr := serve(router(New(Dependencies{Devices: fleet}).DeviceOnly(), nil), request(http.MethodGet, "key", nil))
+	rr := serve(router(New(Dependencies{Devices: fleet, Settings: fakeSettings{}}).DeviceOnly(), nil), request(http.MethodGet, "key", nil))
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
@@ -272,7 +272,7 @@ func TestAuthenticators_ShareLastSeenDebouncer(t *testing.T) {
 
 	fleet := newFakeFleet()
 	fleet.add("shared", activeDevice(5, "shared"))
-	authenticators := New(Dependencies{Devices: fleet, FallbackPIN: "1234"})
+	authenticators := New(Dependencies{Devices: fleet, Settings: fakeSettings{pins: map[int64]string{testTenantID: "1234"}}})
 
 	rr := serve(router(authenticators.DeviceOnly(), nil), request(http.MethodGet, "shared", nil))
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -298,22 +298,21 @@ func TestDevice_PINResolution(t *testing.T) {
 	tests := []struct {
 		name     string
 		settings Settings
-		fallback string
 		pin      string
 		wantCode int
 	}{
-		{"tenant pin from settings", fakeSettings{pins: map[int64]string{42: "9999"}}, "1234", "9999", http.StatusOK},
-		{"fallback rejected once tenant pin resolves", fakeSettings{pins: map[int64]string{42: "9999"}}, "1234", "1234", http.StatusUnauthorized},
-		{"empty tenant pin falls back", fakeSettings{pins: map[int64]string{}}, "1234", "1234", http.StatusOK},
-		{"settings failure falls back", fakeSettings{err: errors.New("settings unavailable")}, "1234", "1234", http.StatusOK},
-		{"no settings service uses fallback", nil, "1234", "1234", http.StatusOK},
-		{"no pin configured anywhere", nil, "", "1234", http.StatusUnauthorized},
-		{"wrong pin", fakeSettings{pins: map[int64]string{42: "9999"}}, "", "0000", http.StatusUnauthorized},
+		{"tenant pin from settings", fakeSettings{pins: map[int64]string{42: "9999"}}, "9999", http.StatusOK},
+		{"deployment PIN rejected", fakeSettings{pins: map[int64]string{42: "9999"}}, "1234", http.StatusUnauthorized},
+		{"empty tenant pin rejects", fakeSettings{pins: map[int64]string{}}, "1234", http.StatusUnauthorized},
+		{"settings failure rejects", fakeSettings{err: errors.New("settings unavailable")}, "1234", http.StatusUnauthorized},
+		{"other school pin rejected", fakeSettings{pins: map[int64]string{7: "1234", 42: "9999"}}, "1234", http.StatusUnauthorized},
+		{"default-valued override accepted", fakeSettings{pins: map[int64]string{42: "1234"}}, "1234", http.StatusOK},
+		{"wrong pin", fakeSettings{pins: map[int64]string{42: "9999"}}, "0000", http.StatusUnauthorized},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			handler := router(New(Dependencies{Devices: fleet, Settings: tc.settings, FallbackPIN: tc.fallback}).Device(), func(w http.ResponseWriter, r *http.Request) {
+			handler := router(New(Dependencies{Devices: fleet, Settings: tc.settings}).Device(), func(w http.ResponseWriter, r *http.Request) {
 				assert.True(t, device.IsIoTDeviceRequest(r.Context()))
 				assert.Equal(t, int64(42), tenant.FromContext(r.Context()))
 				w.WriteHeader(http.StatusOK)
@@ -322,6 +321,7 @@ func TestDevice_PINResolution(t *testing.T) {
 			assert.Equal(t, tc.wantCode, rr.Code, rr.Body.String())
 			if tc.wantCode != http.StatusOK {
 				assert.Contains(t, rr.Body.String(), `"detail":"invalid staff PIN"`)
+				assert.Contains(t, rr.Body.String(), `"code":"iot.device_pin_invalid"`)
 			}
 		})
 	}
@@ -332,7 +332,7 @@ func TestDevice_MissingPIN(t *testing.T) {
 
 	fleet := newFakeFleet()
 	fleet.add("kiosk-key", activeDevice(7, "kiosk"))
-	rr := serve(router(New(Dependencies{Devices: fleet, FallbackPIN: "1234"}).Device(), nil), request(http.MethodPost, "kiosk-key", nil))
+	rr := serve(router(New(Dependencies{Devices: fleet, Settings: fakeSettings{pins: map[int64]string{testTenantID: "1234"}}}).Device(), nil), request(http.MethodPost, "kiosk-key", nil))
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"detail":"staff PIN is required"`)
 }
@@ -358,7 +358,7 @@ func TestDevice_StaffHeadersNeverBindStaff(t *testing.T) {
 			fleet := newFakeFleet()
 			fleet.add("kiosk-key", activeDevice(10, "kiosk"))
 			served := false
-			handler := router(New(Dependencies{Devices: fleet, FallbackPIN: "1234"}).Device(), func(w http.ResponseWriter, r *http.Request) {
+			handler := router(New(Dependencies{Devices: fleet, Settings: fakeSettings{pins: map[int64]string{testTenantID: "1234"}}}).Device(), func(w http.ResponseWriter, r *http.Request) {
 				served = true
 				assert.Nil(t, device.StaffFromCtx(r.Context()))
 				assert.NotNil(t, device.DeviceFromCtx(r.Context()))
@@ -453,7 +453,7 @@ func TestDeviceOnly_SchoolGuard(t *testing.T) {
 			d := activeDevice(12, "kiosk")
 			d.TenantID = 100
 			fleet.add("kiosk-key", d)
-			rr := serve(router(New(Dependencies{Devices: fleet, Schools: tc.schools, SchoolErrors: devicetest.SchoolErrors()}).DeviceOnly(), nil), request(http.MethodGet, "kiosk-key", nil))
+			rr := serve(router(New(Dependencies{Devices: fleet, Settings: fakeSettings{}, Schools: tc.schools, SchoolErrors: devicetest.SchoolErrors()}).DeviceOnly(), nil), request(http.MethodGet, "kiosk-key", nil))
 			assert.Equal(t, tc.wantCode, rr.Code, rr.Body.String())
 			if tc.wantCode == http.StatusForbidden {
 				assert.Contains(t, rr.Body.String(), `"detail":"device is not active"`)
@@ -479,3 +479,20 @@ func TestBindTenant(t *testing.T) {
 
 // Exercise the real Root-bound classifier with the existing assertions.
 func isTransientDBErr(err error) bool { return devicetest.SchoolErrors().Transient(err) }
+
+// Settings outages must never authenticate with the deployment-wide seed PIN.
+func TestDevice_SettingsFailureRejectsFallback(t *testing.T) {
+	t.Parallel()
+	fleet := newFakeFleet()
+	fleet.add("kiosk-key", activeDevice(6, "kiosk"))
+	handler := router(New(Dependencies{Devices: fleet, Settings: fakeSettings{err: errors.New("settings unavailable")}}).Device(), func(http.ResponseWriter, *http.Request) { t.Error("unverified PIN reached handler") })
+	rr := serve(handler, request(http.MethodPost, "kiosk-key", map[string]string{"X-Staff-PIN": "1234"}))
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Contains(t, rr.Body.String(), `"code":"iot.device_pin_invalid"`)
+	assert.Zero(t, fleet.writes())
+}
+
+func TestNew_RequiresSettings(t *testing.T) {
+	t.Parallel()
+	assert.PanicsWithValue(t, "device authentication composition: settings resolver is required", func() { New(Dependencies{Devices: newFakeFleet()}) })
+}

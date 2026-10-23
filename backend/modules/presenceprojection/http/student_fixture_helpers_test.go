@@ -136,7 +136,5 @@ func deviceAuthenticator(t testing.TB, db *bun.DB, live api.DeviceTestModule, li
 	t.Helper()
 	schools, err := api.NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return testutil.NewDeviceAuthenticators(live.IoT.Fleet(), schools, liveSettings.Settings, testDevicePIN).Device()
+	return testutil.NewDeviceAuthenticators(live.IoT.Fleet(), schools, liveSettings.Settings).Device()
 }
-
-const testDevicePIN = "1234"

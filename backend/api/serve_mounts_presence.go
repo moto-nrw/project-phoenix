@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"log/slog"
-	"os"
 
 	"github.com/go-chi/chi/v5"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
@@ -47,7 +46,6 @@ func newDeviceAuthentication(iot devicefleetCompose.IoTService, organizations or
 		Schools:      deviceSchoolDirectory{schools: organizations},
 		SchoolErrors: devicefleetCompose.NewSchoolReadErrors(),
 		Settings:     settings,
-		FallbackPIN:  os.Getenv("OGS_DEVICE_PIN"),
 	})
 }
 
