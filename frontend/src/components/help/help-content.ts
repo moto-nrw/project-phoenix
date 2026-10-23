@@ -5426,6 +5426,8 @@ function settingsTopic(): HelpTopic {
     notes: [
       "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
+      "Unter `Datenschutz` können Sie die `Nutzungsanalyse` ausschalten. Dann erhält moto keine Nutzungsstatistiken Ihrer Schule mehr.",
+      "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
       "Unter `Datenschutz` sehen Sie die Löschfristen. Sie zeigen, wie lange moto Daten aufbewahrt.",
       "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",

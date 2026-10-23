@@ -40,7 +40,7 @@ func newProductionEnvironment(logger *slog.Logger, publicAPIURL string) (owners.
 // root in its fixed order and returns the session runtime it verifies with.
 func mountServeMiddleware(
 	router chi.Router, unit tenant.UnitOfWork, logger *slog.Logger, config ServeConfig, tracer *observability.Tracer,
-	metrics *httpMetrics, tracker analytics.Tracker, settings settingsCompose.SettingsService,
+	metrics *httpMetrics, tracker analytics.Tracker, settings settingsCompose.SettingsService, policy analytics.CollectionPolicy,
 ) (*sessiontoken.TokenAuth, error) {
 	router.Use(requestIDs(tracer))
 	router.Use(apiCommon.ProblemResponseMiddleware)
@@ -84,7 +84,8 @@ func mountServeMiddleware(
 	router.Use(SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
-	router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(settings, logger)))
+	router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(settings, logger), policy))
+	router.Get("/analytics-policy", analytics.PolicyHandler(policy, analyticsRequestActor))
 	return sessionAuth, nil
 }
 
