@@ -903,6 +903,40 @@ func TestRequestService_ConfirmRenewal_IsIdempotent(t *testing.T) {
 	assert.Equal(t, 0, second, "second confirm is a no-op")
 }
 
+// A staff decision that commits between the token lookup and the write
+// must survive the parent's renewal confirmation (#4600).
+func TestRequestService_ConfirmRenewal_KeepsConcurrentDecision(t *testing.T) {
+	t.Parallel()
+
+	env := setupRolloverTest(t)
+	ctx := testpkg.Ctx(t)
+
+	one := int16(1)
+	_ = seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Race", "race@example.com", "Lina", "Race", one)
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, capability.PhaseRolloverModeOptIn, true))
+	require.NoError(t, err)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{capability.ChildStatusPendingRenewal})
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	parentReq, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), children[0].RequestID)
+	require.NoError(t, err)
+
+	var confirmed int
+	err = decideWhileParentWrites(t, ctx, env.db, children[0].RequestID, children[0].ID, capability.ChildStatusApproved,
+		func(parentCtx context.Context) error {
+			var confirmErr error
+			confirmed, confirmErr = env.requestSvc.ConfirmRenewal(parentCtx, parentReq.StatusToken)
+			return confirmErr
+		})
+	require.NoError(t, err)
+	assert.Equal(t, 0, confirmed, "a decided child is no longer pending_renewal")
+
+	decided, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), children[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, capability.ChildStatusApproved, decided.Status, "the confirmation must not overwrite the decision")
+}
+
 func TestRolloverService_RunDeadlineWorker_LeavesAdminReviewAlone(t *testing.T) {
 	t.Parallel()
 
