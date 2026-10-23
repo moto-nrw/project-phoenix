@@ -139,7 +139,8 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rs.runtime.Success(w, r, http.StatusCreated, newDeviceCreationResponse(r.Context(), rs.IoTService, createdDevice), "Device created successfully")
+	w.Header().Set("Cache-Control", "no-store")
+	rs.runtime.Success(w, r, http.StatusCreated, newDeviceCreationResponse(r.Context(), rs.IoTService, createdDevice, device.APIKey), "Device created successfully")
 }
 
 // updateDevice handles updating an existing device
