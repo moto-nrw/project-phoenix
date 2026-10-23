@@ -22,6 +22,11 @@ var (
 	// ErrCatererAddressTaken refuses an invitation for an address that holds
 	// an account of another kind; one address is one account.
 	ErrCatererAddressTaken = errors.New("address belongs to an account that is not a caterer")
+	// ErrCatererAccountJoinsNoSchool refuses every mapping of a caterer
+	// account to a school: a caterer account signs in to no other portal
+	// (ADR 0077), and a school's admin must not manage an account that
+	// reaches the schools of other Träger.
+	ErrCatererAccountJoinsNoSchool = errors.New("a caterer account joins no school")
 	// ErrInvitationRevoked: the school took the invitation back.
 	ErrInvitationRevoked = errors.New("invitation has been revoked")
 	// ErrCatererAlreadySupplies refuses a new invitation while the school's

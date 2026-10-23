@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -86,10 +84,9 @@ func (s *Store) FindLoginAccountByUsername(ctx context.Context, username string)
 // DO NOTHING rather than the invitation's DO UPDATE: a registration and a
 // link must not resurrect a membership an offboarding deactivated.
 func (s *Store) InsertTenantMappingIfAbsent(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
-	_, stats, err := s.exec(ctx, "insert tenant mapping", func(db bun.IDB) executor {
-		return db.NewRaw(`INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
-			VALUES (?, ?, 'active', NOW(), NOW(), NOW())
-			ON CONFLICT (account_id, tenant_id) DO NOTHING`, accountID, tenantID)
-	})
-	return stats, err
+	return s.bindAccountToSchool(ctx, "insert tenant mapping", accountID,
+		`INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
+			SELECT ?, ?, 'active', NOW(), NOW(), NOW() FROM caterer WHERE NOT caterer.refused
+			ON CONFLICT (account_id, tenant_id) DO NOTHING
+			RETURNING 1`, accountID, tenantID)
 }

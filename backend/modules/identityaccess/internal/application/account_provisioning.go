@@ -376,6 +376,8 @@ var provisioningSentinels = []struct {
 	public   error
 }{
 	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
+	// A caterer account answers like an address that is taken (ADR 0077).
+	{domain.ErrCatererAccountJoinsNoSchool, identityaccess.ErrEmailAlreadyExists},
 	{identityaccess.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
 	{domain.ErrTenantRequiredForRoleAssignment, identityaccess.ErrTenantRequiredForRoleAssignment},
 }
