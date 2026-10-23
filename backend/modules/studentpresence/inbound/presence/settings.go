@@ -2,7 +2,6 @@ package presence
 
 import (
 	"context"
-	"log/slog"
 )
 
 // Settings is the read-only settings contract used by active HTTP handlers.
@@ -16,6 +15,6 @@ type Settings interface {
 type DisplaySettings interface {
 	WebAttendanceEnabledReader() func(context.Context) (bool, error)
 	PrefetchStudentDisplaySettings(context.Context) context.Context
-	StudentPhotosEnabled(context.Context, *slog.Logger) bool
+	StudentPhotosEnabled(context.Context) (bool, error)
 	TrackingIndicatorLabels(context.Context) (context.Context, []string, error)
 }

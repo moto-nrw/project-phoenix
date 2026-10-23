@@ -11,22 +11,18 @@ import (
 // and what the queued mail says when Delivery renders it. The root stores a
 // GuardianMail in the outbox payload and reads it back.
 
-// GuardianInvitationExpiryFallback applies when neither the school setting
-// nor the deployment name a guardian token lifetime. 48 hours matches the
-// staff invitation default and the registry default.
+// GuardianInvitationExpiryFallback is retained for legacy mail payloads without
+// a recorded lifetime and for read-only fixture compositions. New links use
+// the resolved tenant setting exclusively.
 const GuardianInvitationExpiryFallback = 48 * time.Hour
 
-// GuardianInvitationExpiry is the lifetime of a guardian link: the school's
-// setting in hours, then the lifetime the deployment configured, then the
-// fallback.
-func GuardianInvitationExpiry(settingHours int, deployment time.Duration) time.Duration {
-	if settingHours > 0 {
-		return time.Duration(settingHours) * time.Hour
+// GuardianInvitationExpiry converts the resolved school setting to a lifetime.
+// Invalid configuration must not silently create a link with another lifetime.
+func GuardianInvitationExpiry(settingHours int) (time.Duration, error) {
+	if settingHours <= 0 {
+		return 0, errors.New("guardian invitation lifetime must be positive")
 	}
-	if deployment > 0 {
-		return deployment
-	}
-	return GuardianInvitationExpiryFallback
+	return time.Duration(settingHours) * time.Hour, nil
 }
 
 // GuardianMailRecipient is the guardian a guardian mail addresses.

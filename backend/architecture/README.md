@@ -35,6 +35,11 @@ small-projection inventory for #4547. It changes no boundary or policy rule.
 keeps the examined small projections and large domains and gives the criteria
 for future owner-granularity decisions (#4547). Read it before proposing a
 projection merger or domain split.
+[ADR 0067's #4538 addendum](../../docs/adr/0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-10-23-command-participation-and-coordination-4538)
+distinguishes transaction-participating commands from workflow coordination.
+Its [edge inventory](../../docs/architecture/4538-cross-owner-write-inventory.md)
+records the retained exceptions and enforcement limits; an allowed import is
+not proof of a safe cross-owner command.
 
 ## Canonical module map
 
@@ -4962,7 +4967,7 @@ numbered decision of the principle ADR.
 | `public` and `contract` expose no ORM, repository, internal model or generic CRUD | this README, ADR 0046 | 0067 point 1 |
 | A foreign owner is reached through its contract or a consumer-owned port the root binds | ADR 0053 point 4 | 0067 point 2 |
 | Owners change data through commands that own their guards | ADR 0023 | 0067 point 3 |
-| A write across owners is a workflow with one outer unit of work, reversible or not | ADR 0013, ADR 0016, ADR 0017, ADR 0018, ADR 0022, ADR 0023 amendment | 0067 point 4 |
+| A cross-owner coordinator is a workflow with one outer unit; participating leaf commands and the finite #4538 exceptions follow its addendum, regardless of reversibility | ADR 0013, ADR 0016, ADR 0017, ADR 0018, ADR 0022, ADR 0023 amendment, #4538 inventory | 0067 point 4 and #4538 addendum |
 | A workflow re-reads under its locks; the tenant-wide gate order | ADR 0016, ADR 0017, ADR 0023 | 0067 point 5 |
 | A durable side effect commits with its write; callbacks are losable hints in an exact register | ADR 0013, ADR 0016, #4087 | 0067 point 6 |
 | A cross-owner database function needs its own decision and narrow runtime authorization | ADR 0062 | 0067 point 7 |

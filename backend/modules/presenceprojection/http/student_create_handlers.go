@@ -18,7 +18,11 @@ func (rs *Resource) RespondCreatedStudent(w http.ResponseWriter, r *http.Request
 	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	hasFullAccess := securityruntime.HasAdminWildcard(userPermissions)
 
-	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingStudentPhotosEnabled)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to build student response", err))
+		return
+	}
 	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       student,
 		Person:        person,
@@ -29,7 +33,7 @@ func (rs *Resource) RespondCreatedStudent(w http.ResponseWriter, r *http.Request
 		ActiveService: rs.ActiveService,
 	})
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to build student response", err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, response, "Student created successfully")

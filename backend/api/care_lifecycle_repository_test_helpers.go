@@ -97,6 +97,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	deps.LockCareBookingWrites = lock
 	deps.BookingsAuthoritative = config.BookingsAuthoritative
 	deps.Today = config.Today
+	deps.Resumption = owners.NewCareResumption(deps.Owners.Students, deps.Records, deps.Owners.ChangeTrail, deps.Today, deps.Logger)
 	return carePlanCompose.NewCareLifecycle(deps)
 }
 

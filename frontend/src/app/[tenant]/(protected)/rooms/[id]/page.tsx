@@ -16,6 +16,7 @@ import {
 } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Trash2 } from "lucide-react";
+import { ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -32,8 +33,9 @@ import { RoomStammdatenTab } from "~/components/rooms/room-stammdaten-tab";
 import { roomsConfig } from "~/components/database/configs/rooms.config";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { roomService } from "~/lib/api";
-import { hasPermission } from "~/lib/auth-utils";
+import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 import { createCrudService } from "~/lib/database/service-factory";
 import { createLogger } from "~/lib/logger";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -44,7 +46,7 @@ import {
   ROOM_LIST_CACHE_KEYS,
 } from "~/lib/swr/room-derived-caches";
 import { usePresenceMode } from "~/lib/tenant-context";
-import { resolveDetailReferrer } from "~/lib/tenant-path";
+import { resolveDetailReferrer, useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoomDetailLoadingPage } from "./page-skeleton";
 
@@ -85,6 +87,7 @@ function RoomDetailPageContent() {
   const navRouter = useRouter();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const roomId = params.id as string;
   const referrer = resolveDetailReferrer(searchParams.get("from"), "/rooms", [
     "/rooms",
@@ -115,6 +118,11 @@ function RoomDetailPageContent() {
   // Im binären Modus führt die Schule keine Belegung; die Raumseite ist dann
   // der reine Datensatz.
   const hasOccupancy = presenceMode !== "binary";
+  // Ein offener Raum (#3065) hat seine gemeinsame Aufsichtsansicht. Sie ist
+  // seit #4372 nur noch über „Räume“ erreichbar, also über diese Seite.
+  // Dieselbe Regel wie der Zugang zur Aufsichtsseite.
+  const { overviewEnabled } = useOptionalSupervision();
+  const canOpenSupervision = canReadSupervisionData(session) || overviewEnabled;
 
   const tabItems: TenantPageTab[] = [
     ...(hasOccupancy ? [{ value: "uebersicht", label: "Übersicht" }] : []),
@@ -294,6 +302,15 @@ function RoomDetailPageContent() {
         <>
           {hasOccupancy ? (
             <RoomStatusBadge isOccupied={room.isOccupied} />
+          ) : null}
+          {hasOccupancy && room.isOpenRoom && canOpenSupervision ? (
+            <ButtonLink
+              variant="outline"
+              size="md"
+              href={tenantPath(`/active-supervisions?room=${room.id}`)}
+            >
+              Zur Aufsicht
+            </ButtonLink>
           ) : null}
           {menuItems.length > 0 ? (
             <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />

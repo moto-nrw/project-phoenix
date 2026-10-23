@@ -374,7 +374,11 @@ func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool
 		if dryRun {
 			return true, nil
 		}
-		invitation.ExpiresAt = time.Now().Add(l.delivery.InvitationExpiry(ctx))
+		expiry, err := l.delivery.InvitationExpiry(ctx)
+		if err != nil {
+			return false, failed(opGuardianBulkInvite, err)
+		}
+		invitation.ExpiresAt = time.Now().Add(expiry)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
 		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 
@@ -16,8 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
-
-const tenantResolveSettingFailureMessage = "tenant resolve setting failed"
 
 // Bounds of enrollment.grade_level_max, the same range the settings registry
 // validates on write. The read side re-checks them so a corrupt override
@@ -146,23 +143,6 @@ func analyticsSamplePercent(resolved tenantShellSettings) int {
 	return resolved.analyticsSamplePercent
 }
 
-func defaultTenantShellSettings() tenantShellSettings {
-	return tenantShellSettings{
-		presenceMode:           settings.PresenceModeDetailed,
-		parentMessagingEnabled: true,
-		careOfferingsEnabled:   true,
-		groupMode:              settings.GroupModeFixedGroups,
-		overviewScope:          settings.OverviewScopeOwn,
-		attendanceEditScope:    settings.AttendanceEditScopeOwn,
-		reasonPolicy:           settings.ReasonPolicyBoth,
-		showTimetableCounts:    true,
-		timetableEnabled:       true,
-		waitlistEnabled:        true,
-		earlyCheckoutNote:      true,
-		earlyCheckoutTolerance: 15,
-	}
-}
-
 // tenantShellSettingKeys lists every setting the tenant shell reads, for the
 // one batched resolve.
 func tenantShellSettingKeys() []string {
@@ -200,201 +180,108 @@ func tenantShellSettingKeys() []string {
 }
 
 func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) (tenantShellSettings, error) {
-	resolved := defaultTenantShellSettings()
-	if rs.SettingsService == nil {
-		return resolved, nil
-	}
-
 	if batch, ok := rs.SettingsService.(interface {
 		ResolveManyForTenant(context.Context, int64, []string) (*settings.Snapshot, error)
 	}); ok {
 		snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, tenantShellSettingKeys())
 		if err != nil {
-			logTenantResolveSettingFailure(ctx, tenantID, "tenant_shell", err, slog.LevelError)
-			return resolved, fmt.Errorf("resolve tenant shell settings: %w", err)
+			return tenantShellSettings{}, fmt.Errorf("resolve tenant shell settings: %w", err)
 		}
-		if snapshot != nil {
-			return resolveTenantShellSnapshot(ctx, tenantID, snapshot, resolved)
+		if snapshot == nil {
+			return tenantShellSettings{}, errors.New("tenant shell settings snapshot is missing")
 		}
+		return resolveTenantShellValues(snapshot.Bool, snapshot.String, snapshot.Int)
 	}
-	return rs.resolveTenantShellSettingsOneByOne(ctx, tenantID, resolved)
+	return resolveTenantShellValues(
+		func(key string) (bool, error) { return rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, key) },
+		func(key string) (string, error) { return rs.SettingsService.ResolveStringForTenant(ctx, tenantID, key) },
+		func(key string) (int, error) { return rs.SettingsService.ResolveIntForTenant(ctx, tenantID, key) },
+	)
 }
 
-// resolveTenantShellSettingsOneByOne is the fallback for a settings service
-// without a batched resolve: each key is resolved on its own.
-func (rs *Resource) resolveTenantShellSettingsOneByOne(ctx context.Context, tenantID int64, resolved tenantShellSettings) (tenantShellSettings, error) {
-	resolved.presenceMode = settings.ResolvePresenceModeForTenant(ctx, rs.SettingsService, tenantID)
-	if value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, settings.KeyStudentPhotosEnabled); err == nil {
-		resolved.studentPhotosEnabled = value == "true"
+// Both read paths use the same contract: an unreadable setting fails the shell,
+// never a successful response assembled from local policy defaults.
+func resolveTenantShellValues(readBool func(string) (bool, error), readString func(string) (string, error), readInt func(string) (int, error)) (tenantShellSettings, error) {
+	var resolved tenantShellSettings
+	if err := resolved.resolveFeatureFlags(readBool); err != nil {
+		return tenantShellSettings{}, err
 	}
-	if value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, settings.KeyAttendanceNFCEnabled); err == nil {
-		resolved.nfcEnabled = value
+	stringFields := []struct {
+		key    string
+		target *string
+	}{
+		{settings.KeyPresenceMode, &resolved.presenceMode},
+		{settings.KeyGroupMode, &resolved.groupMode},
+		{settings.KeyOperationalOverviewScope, &resolved.overviewScope},
+		{settings.KeyAttendanceEditScope, &resolved.attendanceEditScope},
+		{settings.KeyParentRequestReasonPolicy, &resolved.reasonPolicy},
 	}
-	if value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, settings.KeyDisplayEnabled); err == nil {
-		resolved.displayEnabled = value
+	for _, field := range stringFields {
+		value, err := readString(field.key)
+		if err != nil {
+			return tenantShellSettings{}, fmt.Errorf("resolve %s: %w", field.key, err)
+		}
+		*field.target = value
 	}
-	resolved.calDAVEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyCalendarCalDAVEnabled, false, slog.LevelError)
-	resolved.careOfferingsEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
-	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyAttendanceWebEnabled, false, slog.LevelError)
-	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyAttendanceLogEnabled, false, slog.LevelError)
-	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
-	resolved.timetableEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyTimetableEnabled, true, slog.LevelWarn)
-	resolved.mealPlanEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyMealPlanEnabled, false, slog.LevelWarn)
-	resolved.mealRegistrationEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyMealRegistrationEnabled, false, slog.LevelWarn)
-	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
-	resolved.weekendFollowsFriday = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyWeekendFollowsFriday, false, slog.LevelError)
-	resolved.childSearchOnlyNavigation = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyChildSearchOnlyNavigation, false, slog.LevelError)
-	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
-	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
-	resolved.attendanceEditScope = rs.resolveTenantAttendanceEditScope(ctx, tenantID)
-	resolved.reasonPolicy = rs.resolveTenantReasonPolicy(ctx, tenantID)
-	resolved.analyticsFreigabe = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyAnalyticsFreigabe, false, slog.LevelError)
-	// The sample has no effect without the Freigabe; it is read only with it.
+	resolved.overviewScope = normalizeOverviewScope(resolved.overviewScope)
+	resolved.attendanceEditScope = normalizeAttendanceEditScope(resolved.attendanceEditScope)
+	resolved.reasonPolicy = normalizeReasonPolicy(resolved.reasonPolicy)
+	if resolved.groupMode != settings.GroupModeOpenCare {
+		resolved.groupMode = settings.GroupModeFixedGroups
+	}
+	if resolved.presenceMode == "" {
+		resolved.presenceMode = settings.PresenceModeDetailed
+	}
 	if resolved.analyticsFreigabe {
-		if value, err := rs.SettingsService.ResolveIntForTenant(ctx, tenantID, settings.KeyAnalyticsRecordingSamplePercent); err == nil {
-			resolved.analyticsSamplePercent = value
-		} else {
-			logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAnalyticsRecordingSamplePercent, err, slog.LevelError)
+		value, err := readInt(settings.KeyAnalyticsRecordingSamplePercent)
+		if err != nil {
+			return tenantShellSettings{}, fmt.Errorf("resolve %s: %w", settings.KeyAnalyticsRecordingSamplePercent, err)
 		}
+		resolved.analyticsSamplePercent = value
 	}
-
-	// Messaging compose visibility intentionally fails open so it stays in
-	// lockstep with the unread badge, inbox row pills, and reply path.
-	resolved.parentMessagingEnabled = rs.resolveTenantShellBool(ctx, tenantID, settings.KeyParentNotesEnabled, true, slog.LevelWarn)
-	// The internal Team-Chat (#2598) must resolve cleanly: false is a real
-	// switch-off, while resolver errors must not masquerade as policy.
-	staffMessagingEnabled, err := rs.resolveRequiredTenantShellBool(ctx, tenantID, settings.KeyStaffMessagingEnabled)
-	if err != nil {
-		return resolved, err
-	}
-	resolved.staffMessagingEnabled = staffMessagingEnabled
-	// The tolerance only matters while the prompt is on; it is read only then.
-	resolved.earlyCheckoutNote, resolved.earlyCheckoutTolerance = false, 0
-	if rs.resolveTenantShellBool(ctx, tenantID, settings.KeyEarlyCheckoutNoteEnabled, false, slog.LevelWarn) {
-		if value, err := rs.SettingsService.ResolveIntForTenant(ctx, tenantID, settings.KeyEarlyCheckoutNoteToleranceMinutes); err == nil {
-			resolved.earlyCheckoutNote, resolved.earlyCheckoutTolerance = true, value
-		} else {
-			logTenantResolveSettingFailure(ctx, tenantID, settings.KeyEarlyCheckoutNoteToleranceMinutes, err, slog.LevelWarn)
+	{
+		value, err := readInt(settings.KeyEarlyCheckoutNoteToleranceMinutes)
+		if err != nil {
+			return tenantShellSettings{}, fmt.Errorf("resolve %s: %w", settings.KeyEarlyCheckoutNoteToleranceMinutes, err)
 		}
+		resolved.earlyCheckoutTolerance = value
 	}
 	return resolved, nil
 }
 
-func resolveTenantShellSnapshot(
-	ctx context.Context,
-	tenantID int64,
-	snapshot *settings.Snapshot,
-	resolved tenantShellSettings,
-) (tenantShellSettings, error) {
-	resolveBool := func(key string, fallback bool, level slog.Level) bool {
-		value, err := snapshot.Bool(key)
-		if err != nil {
-			logTenantResolveSettingFailure(ctx, tenantID, key, err, level)
-			return fallback
-		}
-		return value
-	}
-	resolveString := func(key, fallback string, level slog.Level) string {
-		value, err := snapshot.String(key)
-		if err != nil {
-			logTenantResolveSettingFailure(ctx, tenantID, key, err, level)
-			return fallback
-		}
-		return value
-	}
-
-	resolved.studentPhotosEnabled = resolveString(settings.KeyStudentPhotosEnabled, "false", slog.LevelError) == "true"
-	resolved.nfcEnabled = resolveBool(settings.KeyAttendanceNFCEnabled, false, slog.LevelError)
-	resolved.displayEnabled = resolveBool(settings.KeyDisplayEnabled, false, slog.LevelError)
-	resolved.calDAVEnabled = resolveBool(settings.KeyCalendarCalDAVEnabled, false, slog.LevelError)
-	resolved.careOfferingsEnabled = resolveBool(settings.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
-	resolved.attendanceWebEnabled = resolveBool(settings.KeyAttendanceWebEnabled, false, slog.LevelError)
-	resolved.attendanceLogEnabled = resolveBool(settings.KeyAttendanceLogEnabled, false, slog.LevelError)
-	resolved.showTimetableCounts = resolveBool(settings.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
-	resolved.timetableEnabled = resolveBool(settings.KeyTimetableEnabled, true, slog.LevelWarn)
-	resolved.mealPlanEnabled, resolved.mealRegistrationEnabled = resolveTenantMealSnapshot(ctx, tenantID, snapshot)
-	resolved.waitlistEnabled = resolveBool(settings.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
-	resolved.weekendFollowsFriday = resolveBool(settings.KeyWeekendFollowsFriday, false, slog.LevelError)
-	resolved.childSearchOnlyNavigation = resolveBool(settings.KeyChildSearchOnlyNavigation, false, slog.LevelError)
-	resolved.parentMessagingEnabled = resolveBool(settings.KeyParentNotesEnabled, true, slog.LevelWarn)
-	resolved.analyticsFreigabe, resolved.analyticsSamplePercent = resolveTenantAnalyticsSnapshot(ctx, tenantID, snapshot)
-	resolved.earlyCheckoutNote, resolved.earlyCheckoutTolerance = resolveTenantEarlyCheckoutNoteSnapshot(ctx, tenantID, snapshot)
-	staffMessagingEnabled, err := snapshot.Bool(settings.KeyStaffMessagingEnabled)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyStaffMessagingEnabled, err, slog.LevelError)
-		return resolved, fmt.Errorf("resolve %s: %w", settings.KeyStaffMessagingEnabled, err)
-	}
-	resolved.staffMessagingEnabled = staffMessagingEnabled
-
-	mode := resolveString(settings.KeyPresenceMode, settings.PresenceModeDetailed, slog.LevelWarn)
-	if mode != "" {
-		resolved.presenceMode = mode
-	}
-	groupMode := resolveString(settings.KeyGroupMode, settings.GroupModeFixedGroups, slog.LevelError)
-	if groupMode == settings.GroupModeOpenCare {
-		resolved.groupMode = groupMode
-	}
-	resolved.overviewScope = normalizeOverviewScope(
-		resolveString(settings.KeyOperationalOverviewScope, settings.OverviewScopeOwn, slog.LevelError),
-	)
-	resolved.attendanceEditScope = normalizeAttendanceEditScope(
-		resolveString(settings.KeyAttendanceEditScope, settings.AttendanceEditScopeOwn, slog.LevelError),
-	)
-	resolved.reasonPolicy = normalizeReasonPolicy(
-		resolveString(settings.KeyParentRequestReasonPolicy, settings.ReasonPolicyBoth, slog.LevelError),
-	)
-	return resolved, nil
-}
-
-// resolveTenantAnalyticsSnapshot reads the Analyse-Freigabe and its recording
-// share (#3603). Both fail closed: a value nobody can read never turns
-// recording or pseudonymous IDs on, and an unreadable share records nothing.
-func resolveTenantAnalyticsSnapshot(ctx context.Context, tenantID int64, snapshot *settings.Snapshot) (bool, int) {
-	freigabe, err := snapshot.Bool(settings.KeyAnalyticsFreigabe)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAnalyticsFreigabe, err, slog.LevelError)
-		return false, 0
-	}
-	percent, err := snapshot.Int(settings.KeyAnalyticsRecordingSamplePercent)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAnalyticsRecordingSamplePercent, err, slog.LevelError)
-		return freigabe, 0
-	}
-	return freigabe, percent
-}
-
-// resolveTenantEarlyCheckoutNoteSnapshot reads the early-checkout note pair
-// (#3324). Both fail closed: without a readable switch and tolerance the web
-// dialogs simply offer no note field.
-func resolveTenantEarlyCheckoutNoteSnapshot(ctx context.Context, tenantID int64, snapshot *settings.Snapshot) (bool, int) {
-	enabled, err := snapshot.Bool(settings.KeyEarlyCheckoutNoteEnabled)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyEarlyCheckoutNoteEnabled, err, slog.LevelWarn)
-		return false, 0
-	}
-	tolerance, err := snapshot.Int(settings.KeyEarlyCheckoutNoteToleranceMinutes)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyEarlyCheckoutNoteToleranceMinutes, err, slog.LevelWarn)
-		return false, 0
-	}
-	return enabled, tolerance
-}
-
-// resolveTenantMealSnapshot reads the meal switches (#3873). Both fail
-// closed: without them the meal pages stay hidden.
-func resolveTenantMealSnapshot(ctx context.Context, tenantID int64, snapshot *settings.Snapshot) (plan, registration bool) {
-	for _, value := range []struct {
+// resolveFeatureFlags loads shell capabilities without substituting toggle values.
+func (resolved *tenantShellSettings) resolveFeatureFlags(readBool func(string) (bool, error)) error {
+	boolFields := []struct {
 		key    string
 		target *bool
-	}{{settings.KeyMealPlanEnabled, &plan}, {settings.KeyMealRegistrationEnabled, &registration}} {
-		enabled, err := snapshot.Bool(value.key)
-		if err != nil {
-			logTenantResolveSettingFailure(ctx, tenantID, value.key, err, slog.LevelWarn)
-			continue
-		}
-		*value.target = enabled
+	}{
+		{settings.KeyStudentPhotosEnabled, &resolved.studentPhotosEnabled},
+		{settings.KeyAttendanceNFCEnabled, &resolved.nfcEnabled},
+		{settings.KeyDisplayEnabled, &resolved.displayEnabled},
+		{settings.KeyCalendarCalDAVEnabled, &resolved.calDAVEnabled},
+		{settings.KeyEnrollmentCareOfferingsEnabled, &resolved.careOfferingsEnabled},
+		{settings.KeyAttendanceWebEnabled, &resolved.attendanceWebEnabled},
+		{settings.KeyAttendanceLogEnabled, &resolved.attendanceLogEnabled},
+		{settings.KeyTimetableShowExpectedChildrenCount, &resolved.showTimetableCounts},
+		{settings.KeyTimetableEnabled, &resolved.timetableEnabled},
+		{settings.KeyMealPlanEnabled, &resolved.mealPlanEnabled},
+		{settings.KeyMealRegistrationEnabled, &resolved.mealRegistrationEnabled},
+		{settings.KeyEnrollmentWaitlistEnabled, &resolved.waitlistEnabled},
+		{settings.KeyWeekendFollowsFriday, &resolved.weekendFollowsFriday},
+		{settings.KeyChildSearchOnlyNavigation, &resolved.childSearchOnlyNavigation},
+		{settings.KeyParentNotesEnabled, &resolved.parentMessagingEnabled},
+		{settings.KeyStaffMessagingEnabled, &resolved.staffMessagingEnabled},
+		{settings.KeyAnalyticsFreigabe, &resolved.analyticsFreigabe},
+		{settings.KeyEarlyCheckoutNoteEnabled, &resolved.earlyCheckoutNote},
 	}
-	return plan, registration
+	for _, field := range boolFields {
+		value, err := readBool(field.key)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", field.key, err)
+		}
+		*field.target = value
+	}
+	return nil
 }
 
 // normalizeOverviewScope keeps an unknown wire value from reaching the client
@@ -420,54 +307,6 @@ func normalizeReasonPolicy(value string) string {
 	}
 }
 
-func (rs *Resource) resolveTenantShellBool(ctx context.Context, tenantID int64, key string, fallback bool, level slog.Level) bool {
-	value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, key)
-	if err == nil {
-		return value
-	}
-	logTenantResolveSettingFailure(ctx, tenantID, key, err, level)
-	return fallback
-}
-
-func (rs *Resource) resolveRequiredTenantShellBool(ctx context.Context, tenantID int64, key string) (bool, error) {
-	value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, key)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, key, err, slog.LevelError)
-		return false, fmt.Errorf("resolve %s: %w", key, err)
-	}
-	return value, nil
-}
-
-func (rs *Resource) resolveTenantGroupMode(ctx context.Context, tenantID int64) string {
-	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, settings.KeyGroupMode)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyGroupMode, err, slog.LevelError)
-		return settings.GroupModeFixedGroups
-	}
-	if value == settings.GroupModeOpenCare {
-		return value
-	}
-	return settings.GroupModeFixedGroups
-}
-
-func (rs *Resource) resolveTenantOverviewScope(ctx context.Context, tenantID int64) string {
-	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, settings.KeyOperationalOverviewScope)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyOperationalOverviewScope, err, slog.LevelError)
-		return settings.OverviewScopeOwn
-	}
-	return normalizeOverviewScope(value)
-}
-
-func (rs *Resource) resolveTenantAttendanceEditScope(ctx context.Context, tenantID int64) string {
-	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, settings.KeyAttendanceEditScope)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyAttendanceEditScope, err, slog.LevelError)
-		return settings.AttendanceEditScopeOwn
-	}
-	return normalizeAttendanceEditScope(value)
-}
-
 // normalizeAttendanceEditScope keeps an unknown wire value from widening the
 // client: anything unrecognised is "own".
 func normalizeAttendanceEditScope(value string) string {
@@ -475,22 +314,6 @@ func normalizeAttendanceEditScope(value string) string {
 		return value
 	}
 	return settings.AttendanceEditScopeOwn
-}
-
-func (rs *Resource) resolveTenantReasonPolicy(ctx context.Context, tenantID int64) string {
-	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, settings.KeyParentRequestReasonPolicy)
-	if err != nil {
-		logTenantResolveSettingFailure(ctx, tenantID, settings.KeyParentRequestReasonPolicy, err, slog.LevelError)
-		return settings.ReasonPolicyBoth
-	}
-	return normalizeReasonPolicy(value)
-}
-
-func logTenantResolveSettingFailure(ctx context.Context, tenantID int64, key string, err error, level slog.Level) {
-	slog.Default().LogAttrs(ctx, level, tenantResolveSettingFailureMessage,
-		slog.Int64("tenant_id", tenantID),
-		slog.String("key", key),
-		slog.String("error", err.Error()))
 }
 
 // switchTenant handles POST /auth/switch-tenant

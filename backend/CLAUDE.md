@@ -35,8 +35,9 @@ Before backend design, implementation, or review:
    and inspect affected owners, packages, data objects, projections, and rules
    in `backend/architecture/policy.json`.
 2. Put new behavior behind an existing target owner's public capability.
-   Dependencies use consumer-owned ports; cross-module writes use application
-   workflows; cross-module reads use named tenant-safe projections.
+   Dependencies use consumer-owned ports. For cross-owner writes, apply
+   [ADR 0067's command/workflow distinction and named exceptions](../docs/adr/0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-10-23-command-participation-and-coordination-4538).
+   Cross-owner reads use capabilities or named tenant-safe projections.
 3. Owners compose themselves, and the roots only wire (ADR 0068). A `compose`
    package constructs and binds its owner. The root holds no service graph
    (ADR 0059): build what a mount or job needs as local values from owner

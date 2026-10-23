@@ -3448,3 +3448,54 @@ func TestRequestService_NoticeAttachmentEvidenceSurvivesLaterPublication(t *test
 	require.NoError(t, err)
 	require.Equal(t, documents, pinned.Fields[0].Attachments)
 }
+
+func TestRequestServiceRejectsUnreadableStatusTokenLifetime(t *testing.T) {
+	t.Parallel()
+	env := setupRequestTest(t)
+	failure := errors.New("status token lifetime unavailable")
+	env.settings.intErrors[settingKeyStatusTokenTTLDays] = failure
+	result, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
+	require.ErrorIs(t, err, failure)
+	assert.Nil(t, result)
+}
+
+func TestRequestServiceRejectsUnreadableSubmissionEditPolicy(t *testing.T) {
+	t.Parallel()
+	env := setupRequestTest(t)
+	ctx := testpkg.Ctx(t)
+	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+	require.NoError(t, err)
+	failure := errors.New("submission edit policy unavailable")
+	env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
+	name := "Unchanged"
+	err = testpkg.TenantCommand2(t, ctx, env.db, env.svc.Edit, submitted.Request.StatusToken, enrollmentAPI.EditPatch{GuardianFirstName: &name})
+	require.ErrorIs(t, err, failure)
+}
+
+func TestRequestServiceEditModePreservesSubmissionEditErrors(t *testing.T) {
+	t.Parallel()
+	for _, status := range []string{enrollmentNative.ChildStatusSubmitted, enrollmentNative.ChildStatusWaitlisted} {
+		t.Run(status, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupRequestTest(t)
+			ctx := testpkg.Ctx(t)
+			submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
+			require.NoError(t, err)
+			for _, child := range submitted.Children {
+				child.Status = status
+			}
+			failure := errors.New("submission edit policy unavailable")
+			env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
+
+			mode, err := env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			require.ErrorIs(t, err, failure)
+			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+
+			delete(env.settings.boolErrors, settingKeyAllowSubmissionEdit)
+			env.settings.boolValues[settingKeyAllowSubmissionEdit] = false
+			mode, err = env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			require.NoError(t, err)
+			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+		})
+	}
+}

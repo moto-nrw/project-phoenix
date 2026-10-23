@@ -39,7 +39,7 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Conf-Room-%d", suffix))
 
 	data := testTimetableData(db)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		Templates:         data,
 		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),

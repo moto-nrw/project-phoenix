@@ -151,7 +151,7 @@ func TestMaterialize_NoBody_DefaultsToNextWeek(t *testing.T) {
 			InstanceStaffCreated:    2,
 		},
 	}
-	rs := NewResource(Dependencies{MaterializationService: mock})
+	rs := newResourceForTest(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -173,7 +173,7 @@ func TestMaterialize_ValidBody_ParsesAndForwards(t *testing.T) {
 	mock := &mockMaterializer{
 		result: &timetableModule.MaterializationResult{InstancesCreated: 1},
 	}
-	rs := NewResource(Dependencies{MaterializationService: mock})
+	rs := newResourceForTest(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	body, _ := json.Marshal(map[string]string{
@@ -201,7 +201,7 @@ func TestMaterialize_InvalidWindow_Returns400(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockMaterializer{}
-	rs := NewResource(Dependencies{MaterializationService: mock})
+	rs := newResourceForTest(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	body, _ := json.Marshal(map[string]string{
@@ -220,7 +220,7 @@ func TestMaterialize_InvalidWindow_Returns400(t *testing.T) {
 func TestMaterialize_NilService_Returns500(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(Dependencies{})
+	rs := newResourceForTest(Dependencies{})
 	router := setupMaterializeRouter(rs)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -234,7 +234,7 @@ func TestMaterialize_ServiceError_Returns500(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockMaterializer{err: errors.New("boom")}
-	rs := NewResource(Dependencies{MaterializationService: mock})
+	rs := newResourceForTest(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)

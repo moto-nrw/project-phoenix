@@ -176,6 +176,12 @@ func (m *MFAServiceMock) DisableMFA(ctx context.Context, accountID int64) error 
 	return nil
 }
 
+func (m *MFAServiceMock) PrepareTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	return func(ctx context.Context) (string, time.Time, error) {
+		return m.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+	}, nil
+}
+
 func (m *MFAServiceMock) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
 	if m.IssueTrustedDeviceFn != nil {
 		return m.IssueTrustedDeviceFn(ctx, accountID, tenantID, userAgent, ip)

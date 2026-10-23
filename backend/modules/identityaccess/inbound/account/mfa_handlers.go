@@ -305,6 +305,14 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session issuance unavailable")))
 		return
 	}
+	// Resolve policy before session creation can evict an existing session.
+	// Device persistence and notification still wait for successful issuance.
+	issueTrustedDevice, err := rs.prepareTrustedDevice(r, accountID, tenantID, rememberDevice)
+	if err != nil {
+		mapMFAError(w, r, identityaccess.ErrMFAStatusUnavailable)
+		return
+	}
+
 	accessToken, refreshToken, err := rs.Sessions.IssueTokensForAuthenticatedAccount(
 		r.Context(), accountID, tenantID, ipAddress, userAgent,
 	)
@@ -328,9 +336,10 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	if rememberDevice {
-		if err := rs.issueTrustedDeviceCookie(w, r, accountID, tenantID); err != nil {
-			// Don't fail the whole login — log and proceed.
+	if issueTrustedDevice != nil {
+		if err := rs.issueTrustedDeviceCookie(w, r, issueTrustedDevice); err != nil {
+			// Policy was resolved before session issuance. Storage failures
+			// issue no cookie but must not break the verified login.
 			slog.Default().Warn("failed to issue trusted-device cookie",
 				slog.Int64("account_id", accountID),
 				slog.String("error", err.Error()),
@@ -344,15 +353,17 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-// issueTrustedDeviceCookie hooks into MFAService.IssueTrustedDevice and
-// writes the resulting Set-Cookie header. When the tenant has disabled
-// trusted devices, the service returns an empty cookie value — we skip
-// the Set-Cookie write entirely so the browser doesn't store a useless
-// cookie.
-func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, accountID, tenantID int64) error {
-	cookieValue, expiresAt, err := rs.MFAService.IssueTrustedDevice(
-		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), parseClientIP(r),
-	)
+func (rs *Resource) prepareTrustedDevice(r *http.Request, accountID, tenantID int64, rememberDevice bool) (identityaccess.TrustedDeviceIssue, error) {
+	if !rememberDevice {
+		return nil, nil
+	}
+	return rs.MFAService.PrepareTrustedDevice(r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), parseClientIP(r))
+}
+
+// issueTrustedDeviceCookie persists the prepared device and sets its cookie.
+// A disabled feature has no prepared operation and never reaches this helper.
+func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, issue identityaccess.TrustedDeviceIssue) error {
+	cookieValue, expiresAt, err := issue(r.Context())
 	if err != nil {
 		return err
 	}

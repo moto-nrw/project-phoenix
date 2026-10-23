@@ -53,6 +53,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 }
 
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
+	if rs.SettingsService == nil {
+		panic("presenceprojection HTTP: tenant settings are required")
+	}
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/care-offerings", rs.listCareOfferingOptions)

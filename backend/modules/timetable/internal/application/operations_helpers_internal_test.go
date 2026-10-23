@@ -116,9 +116,15 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	// A settings fault must fail closed for every caller shape (#2380).
 	deps.settings.stringErr = errors.New("settings down")
-	assert.False(t, deps.service.operationalOverview(context.Background(), true, true))
-	assert.False(t, deps.service.operationalOverview(context.Background(), false, true))
-	assert.False(t, deps.service.operationalOverview(context.Background(), false, false))
+	allowed, scopeErr := deps.service.operationalOverview(context.Background(), true, true)
+	require.ErrorIs(t, scopeErr, timetable.ErrLifecycleSettings)
+	assert.False(t, allowed)
+	allowed, scopeErr = deps.service.operationalOverview(context.Background(), false, true)
+	require.ErrorIs(t, scopeErr, timetable.ErrLifecycleSettings)
+	assert.False(t, allowed)
+	allowed, scopeErr = deps.service.operationalOverview(context.Background(), false, false)
+	require.ErrorIs(t, scopeErr, timetable.ErrLifecycleSettings)
+	assert.False(t, allowed)
 
 	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = 505

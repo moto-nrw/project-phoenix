@@ -115,16 +115,16 @@ func (s *Intake) editModeForStatus(ctx context.Context, req *Request, children [
 	mode := editModeForChildren(children)
 	switch mode {
 	case enrollmentNative.EditModeDirectEdit:
-		if s.ensureRequestEditable(ctx, req, children) != nil {
-			return enrollmentNative.EditModeNone, nil
+		if err := s.ensureRequestEditable(ctx, req, children); err != nil {
+			return editModeGateResult(err)
 		}
 		if _, err := s.loadPhaseForEditableRequest(ctx, req.PhaseID); err != nil {
 			return editModeGateResult(err)
 		}
 		return enrollmentNative.EditModeDirectEdit, nil
 	case enrollmentNative.EditModeChangeRequest:
-		if s.ensureChangeRequestDraftAvailable(ctx, req, children) != nil {
-			return enrollmentNative.EditModeNone, nil
+		if err := s.ensureChangeRequestDraftAvailable(ctx, req, children); err != nil {
+			return editModeGateResult(err)
 		}
 		phase, err := s.loadPhaseForEditableRequest(ctx, req.PhaseID)
 		if err != nil {
@@ -139,10 +139,10 @@ func (s *Intake) editModeForStatus(ctx context.Context, req *Request, children [
 	}
 }
 
-// editModeGateResult turns a closed phase gate into "no edit" and reports
+// editModeGateResult turns a denied edit or closed phase gate into "no edit" and reports
 // every other failure.
 func editModeGateResult(err error) (string, error) {
-	if errors.Is(err, enrollmentNative.ErrEnrollmentDisabled) || errors.Is(err, enrollmentNative.ErrInvalidSubmission) {
+	if errors.Is(err, enrollmentNative.ErrEditNotAllowed) || errors.Is(err, enrollmentNative.ErrEnrollmentDisabled) || errors.Is(err, enrollmentNative.ErrInvalidSubmission) {
 		return enrollmentNative.EditModeNone, nil
 	}
 	return enrollmentNative.EditModeNone, err
@@ -163,8 +163,11 @@ func editModeForChildren(children []*RequestChild) string {
 // ensureRequestEditable allows a direct edit while the request is not
 // withdrawn, edits are allowed and every child is still submitted.
 func (s *Intake) ensureRequestEditable(ctx context.Context, req *Request, children []*RequestChild) error {
-	if req == nil || req.WithdrawnAt != nil || !s.allowSubmissionEdit(ctx) || len(children) == 0 {
+	if req == nil || req.WithdrawnAt != nil || len(children) == 0 {
 		return enrollmentNative.ErrEditNotAllowed
+	}
+	if err := s.requireSubmissionEdit(ctx); err != nil {
+		return err
 	}
 	for _, c := range children {
 		if c.Status != enrollmentNative.ChildStatusSubmitted {
@@ -178,8 +181,11 @@ func (s *Intake) ensureRequestEditable(ctx context.Context, req *Request, childr
 // request is decided in part, nothing is withdrawn and at least one child is
 // not yet taken over into care.
 func (s *Intake) ensureChangeRequestDraftAvailable(ctx context.Context, req *Request, children []*RequestChild) error {
-	if req == nil || req.WithdrawnAt != nil || !s.allowSubmissionEdit(ctx) || len(children) == 0 {
+	if req == nil || req.WithdrawnAt != nil || len(children) == 0 {
 		return enrollmentNative.ErrEditNotAllowed
+	}
+	if err := s.requireSubmissionEdit(ctx); err != nil {
+		return err
 	}
 	if editModeForChildren(children) != enrollmentNative.EditModeChangeRequest {
 		return enrollmentNative.ErrEditNotAllowed
@@ -224,8 +230,8 @@ func (s *Intake) Edit(ctx context.Context, token string, patch enrollmentNative.
 	if err != nil {
 		return err
 	}
-	if !s.allowSubmissionEdit(ctx) {
-		return enrollmentNative.ErrEditNotAllowed
+	if err := s.requireSubmissionEdit(s.deps.Runtime.WithTenant(ctx, req.TenantID)); err != nil {
+		return err
 	}
 	if s.deps.Runtime.IsAdminTx(ctx) {
 		// The token lookup runs in an administrative transaction; the write

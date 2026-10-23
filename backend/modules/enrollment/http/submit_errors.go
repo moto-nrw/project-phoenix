@@ -31,7 +31,7 @@ var submitErrorRenderer = common.RulesRenderer(append(append(
 ), func(err error) render.Renderer {
 	// A captcha the server cannot check (missing secret, provider down)
 	// lands here as a server error, not as the parent's mistake.
-	return common.ErrorInternalServer(err)
+	return common.ErrorInternalServerWrap("enrollment operation failed", err)
 })
 
 // submitEligibilityErrorRules covers the phase gate and the child

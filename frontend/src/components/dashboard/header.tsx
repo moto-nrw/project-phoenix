@@ -125,6 +125,7 @@ export function Header() {
     announcementTitle,
     referrerPage,
     activeSupervisionName,
+    activeSupervisionIsSharedRoom,
     ogsGroupName,
     pageTitle: customPageTitle,
     helpTopic,
@@ -389,6 +390,7 @@ export function Header() {
                 historyType={historyType}
                 ogsGroupName={ogsGroupName}
                 activeSupervisionName={activeSupervisionName}
+                activeSupervisionIsSharedRoom={activeSupervisionIsSharedRoom}
               />
             </div>
           </div>
@@ -528,6 +530,7 @@ interface HeaderBreadcrumbProps {
   readonly historyType: string;
   readonly ogsGroupName?: string;
   readonly activeSupervisionName?: string;
+  readonly activeSupervisionIsSharedRoom?: boolean;
 }
 
 function HeaderBreadcrumb({
@@ -544,6 +547,7 @@ function HeaderBreadcrumb({
   historyType,
   ogsGroupName,
   activeSupervisionName,
+  activeSupervisionIsSharedRoom,
 }: HeaderBreadcrumbProps) {
   // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
   if (sectionBreadcrumb) {
@@ -558,7 +562,10 @@ function HeaderBreadcrumb({
   // Active Supervisions page
   if (pathname === "/active-supervisions") {
     return (
-      <ActiveSupervisionsBreadcrumb supervisionName={activeSupervisionName} />
+      <ActiveSupervisionsBreadcrumb
+        supervisionName={activeSupervisionName}
+        isSharedRoom={activeSupervisionIsSharedRoom}
+      />
     );
   }
 

@@ -39,6 +39,7 @@ type CareExitSourceBookings interface {
 // CareLifecycleDependencies wires the lifecycle. Records and SourceBookings
 // are Care Plan's own; Directory is the named student directory projection.
 type CareLifecycleDependencies struct {
+	Resumption     careplan.CareResumption
 	Owners         CareLifecycleOwners
 	Records        careplan.Capability
 	SourceBookings CareExitSourceBookings
@@ -59,6 +60,7 @@ type CareLifecycleDependencies struct {
 
 // CareLifecycle is the native care-lifecycle application (#3427).
 type CareLifecycle struct {
+	careplan.CareResumption
 	owners                CareLifecycleOwners
 	records               careplan.Capability
 	sourceBookings        CareExitSourceBookings
@@ -80,16 +82,17 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (*CareLifecycle, error) {
 		owners.Presence == nil || owners.Calendar == nil || owners.Tags == nil || owners.ChangeTrail == nil {
 		return nil, errors.New("care lifecycle: every owner port is required")
 	}
-	if deps.Records == nil || deps.SourceBookings == nil || deps.Directory == nil || deps.Unit == nil ||
+	if deps.Resumption == nil || deps.Records == nil || deps.SourceBookings == nil || deps.Directory == nil || deps.Unit == nil ||
 		deps.LockCareBookingWrites == nil || deps.BookingsAuthoritative == nil || deps.Fingerprint == nil || deps.Today == nil {
-		return nil, errors.New("care lifecycle: records, source bookings, directory, unit of work, booking lock, booking setting, fingerprint and clock are required")
+		return nil, errors.New("care lifecycle: resumption, records, source bookings, directory, unit of work, booking lock, booking setting, fingerprint and clock are required")
 	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &CareLifecycle{
-		owners: owners, records: deps.Records, sourceBookings: deps.SourceBookings, directory: deps.Directory, unit: deps.Unit,
+		CareResumption: deps.Resumption,
+		owners:         owners, records: deps.Records, sourceBookings: deps.SourceBookings, directory: deps.Directory, unit: deps.Unit,
 		lockCareBookingWrites: deps.LockCareBookingWrites, bookingsAuthoritative: deps.BookingsAuthoritative,
 		fingerprint: deps.Fingerprint, logger: logger, today: deps.Today,
 	}, nil
@@ -173,9 +176,21 @@ func (s *CareLifecycle) applyCareExitConfirmation(ctx context.Context, state *ca
 	return nil
 }
 
+// lockCareExitWrites establishes class (shared) -> recurrence -> child/plan
+// rows, before any locked preview or mutation. Grade transition takes class
+// exclusively before recurrence; taking recurrence first here would deadlock
+// against it. Locked student reads may safely reacquire the shared class gate.
+// ADR 0067's E2 exception retains this coordinator, not a different lock order.
+func (s *CareLifecycle) lockCareExitWrites(ctx context.Context) error {
+	if err := s.owners.Students.LockCareStudentWrites(ctx); err != nil {
+		return err
+	}
+	return s.lockCareBookingWrites(ctx)
+}
+
 func (s *CareLifecycle) prepareLockedCareExitPreview(ctx context.Context, state *careExitConfirmation) error {
-	if err := s.lockCareBookingWrites(ctx); err != nil {
-		return fmt.Errorf("care lifecycle: lock care booking writes: %w", err)
+	if err := s.lockCareExitWrites(ctx); err != nil {
+		return fmt.Errorf("care lifecycle: lock care exit writes: %w", err)
 	}
 	preview, err := s.buildPreview(ctx, state.input, true, withdrawalOfferings(state.completion))
 	if err != nil {
@@ -313,8 +328,8 @@ func (s *CareLifecycle) Cancel(ctx context.Context, studentIDs []int64, actorAcc
 }
 
 func (s *CareLifecycle) cancelCareExits(ctx context.Context, ids []int64, actorAccountID int64) error {
-	if err := s.lockCareBookingWrites(ctx); err != nil {
-		return fmt.Errorf("care lifecycle: lock care booking writes for cancellation: %w", err)
+	if err := s.lockCareExitWrites(ctx); err != nil {
+		return fmt.Errorf("care lifecycle: lock care exit writes for cancellation: %w", err)
 	}
 	exits, before, err := s.plannedCareExits(ctx, ids)
 	if err != nil {
@@ -376,79 +391,6 @@ func (s *CareLifecycle) reopenCancelledExit(ctx context.Context, id int64, exit 
 		}
 	}
 	return s.recordCareEnds(ctx, before, []int64{id}, calendarDate(exit.PreviousEnrolledUntil), actorAccountID)
-}
-
-// Resume reopens one child's care from a new start day. Master data
-// survives; group, offerings, weekly plan and arrival/pickup times are NOT
-// switched back on: the caller confirms having reviewed them and sets them
-// up again in the ordinary screens.
-func (s *CareLifecycle) Resume(ctx context.Context, input careplan.CareResumeInput) error {
-	if input.StudentID <= 0 {
-		return careplan.ErrCareExitNoStudents
-	}
-	if !input.Checked {
-		return careplan.ErrCareResumeNotChecked
-	}
-	today := s.today()
-	if input.NewStart.Before(today) {
-		return careplan.ErrCareResumeStartInPast
-	}
-	if err := s.unit(ctx, func(txCtx context.Context) error {
-		return s.resumeCare(txCtx, input, today)
-	}); err != nil {
-		return err
-	}
-	s.logger.Info("care resumed",
-		slog.Int64("student_id", input.StudentID),
-		slog.String("new_start", input.NewStart.String()),
-		slog.Int64("actor_account_id", input.ActorAccountID),
-	)
-	return nil
-}
-
-func (s *CareLifecycle) resumeCare(ctx context.Context, input careplan.CareResumeInput, today calendar.Date) error {
-	locked, err := s.owners.Students.FindCareStudents(ctx, []int64{input.StudentID}, true)
-	if err != nil {
-		return err
-	}
-	student, found := locked[input.StudentID]
-	if !found {
-		return careplan.ErrCareResumeUnknownStudent
-	}
-	if student.IsAlumnus() {
-		return careplan.ErrCareResumeAlumnus
-	}
-	if !student.CareEndedOn(today) {
-		return careplan.ErrCareResumeNotEnded
-	}
-	exits, err := s.records.FindCareExits(ctx, []int64{input.StudentID})
-	if err != nil {
-		return fmt.Errorf("care lifecycle: find care exits: %w", err)
-	}
-	if _, recorded := exits[input.StudentID]; !recorded {
-		return careplan.ErrCareResumeMissing
-	}
-	// Future starts wait for the activation tick; today's starts are active.
-	status := careplan.StudentStatusPending
-	if !input.NewStart.After(today) {
-		status = careplan.StudentStatusActive
-	}
-	resumed, err := s.owners.Students.ResumeCare(ctx, input.StudentID, input.NewStart, status, today)
-	if err != nil {
-		return err
-	}
-	if !resumed {
-		return careplan.ErrCareResumeNotEnded
-	}
-	if err := s.records.DeleteCareExits(ctx, []int64{input.StudentID}); err != nil {
-		return fmt.Errorf("care lifecycle: delete care exits: %w", err)
-	}
-	// Resume never restores planning automatically; discard the old ledger (#2487).
-	if err := s.discardRemovals(ctx, []int64{input.StudentID}); err != nil {
-		return err
-	}
-	return s.recordCareEnds(ctx, map[int64]*calendar.Date{input.StudentID: student.EnrolledUntil},
-		[]int64{input.StudentID}, nil, input.ActorAccountID)
 }
 
 func (s *CareLifecycle) inUnitRecordedExitStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {

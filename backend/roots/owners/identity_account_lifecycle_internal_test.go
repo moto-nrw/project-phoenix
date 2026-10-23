@@ -27,12 +27,12 @@ func TestLifecycleDependenciesRequireEveryDependency(t *testing.T) {
 func TestGuardianInvitationDependenciesRequireEveryDependency(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := GuardianInvitationDependencies(nil, nil, nil, nil, "http://localhost:3000", time.Hour, slog.Default())
+	_, _, err := GuardianInvitationDependencies(nil, nil, nil, nil, "http://localhost:3000", slog.Default())
 	require.EqualError(t, err, "identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 
 	_, _, err = GuardianInvitationDependencies(nil, struct{ organizationtenancy.Query }{}, struct{ MailResultOutbox }{}, struct {
 		GuardianEnrollmentClaims
-	}{}, "http://localhost:3000", time.Hour, nil)
+	}{}, "http://localhost:3000", nil)
 	require.EqualError(t, err, "identity access composition: the guardian invitation seams need a logger")
 }
 
@@ -215,4 +215,44 @@ func (s *lifecycleMembershipStub) ListTeachers(context.Context, schoolmembership
 func (s *lifecycleMembershipStub) CreateTeacher(context.Context, schoolmembership.CreateTeacher) (schoolmembership.Teacher, error) {
 	s.createdTeachers++
 	return schoolmembership.Teacher{ID: 98}, nil
+}
+
+type guardianExpirySettings struct {
+	fakeWelcomeSettings
+	hours int
+	err   error
+}
+
+func (s guardianExpirySettings) ResolveInt(context.Context, string) (int, error) {
+	return s.hours, s.err
+}
+
+func TestGuardianInvitationExpiryPropagatesSettingsFailures(t *testing.T) {
+	t.Parallel()
+	lookupErr := errors.New("settings lookup failed")
+	for _, tc := range []struct {
+		name  string
+		hours int
+		err   error
+	}{
+		{name: "resolved registry default", hours: 48},
+		{name: "school override", hours: 12},
+		{name: "read failure", err: lookupErr},
+		{name: "invalid lifetime"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			delivery := guardianInvitationDelivery{settings: guardianExpirySettings{hours: tc.hours, err: tc.err}}
+			expiry, err := delivery.InvitationExpiry(context.Background())
+			if tc.err != nil {
+				require.ErrorIs(t, err, lookupErr)
+				require.Zero(t, expiry)
+			} else if tc.hours == 0 {
+				require.Error(t, err)
+				require.Zero(t, expiry)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, time.Duration(tc.hours)*time.Hour, expiry)
+			}
+		})
+	}
 }

@@ -25,9 +25,8 @@
 //     the deletes inside the caller's transaction. If either the audit
 //     write or the delete fails, everything rolls back.
 //
-//   - Retention resolution: tenant DB override, registry default,
-//     last-resort constant. The constant is only reached in tests where
-//     the settings service isn't wired.
+//   - Retention resolves tenant override → registry default; lookup failures
+//     abort the run before any reads, audit writes or deletes.
 package timetracking
 
 import (
@@ -47,12 +46,6 @@ const (
 	workSessionDateColumn  = "date"
 	staffAbsenceDateColumn = "date_end"
 )
-
-// timeTrackingRetentionDefaultDays is a last-resort fallback. In production
-// this is unreachable because services/config/defaults/gdpr.go registers
-// 730 at init time. Kept so the service is callable in tests without
-// settings wiring.
-const timeTrackingRetentionDefaultDays = 730
 
 // auditStaffIDSampleCap bounds the number of session/absence IDs sampled
 // into each per-staff audit row's metadata. Keeps the metadata JSONB
@@ -104,9 +97,6 @@ type TimeTrackingCleanupService interface {
 }
 
 type retentionSettingsResolver interface {
-	// TimeTrackingRetentionOverridden probes whether the tenant set its own
-	// retention window; TimeTrackingRetentionDays is the effective value.
-	TimeTrackingRetentionOverridden(context.Context) (bool, error)
 	TimeTrackingRetentionDays(context.Context) (int, error)
 }
 
@@ -119,8 +109,7 @@ type timeTrackingCleanupService struct {
 }
 
 // NewTimeTrackingCleanupService constructs the cleanup service. auditRepo
-// receives a per-staff data_deletions row per cleanup run; settings may be
-// nil in tests, in which case retention resolves to the last-resort default.
+// receives a per-staff data_deletions row per cleanup run; settings are required.
 func NewTimeTrackingCleanupService(
 	workSessionRepo WorkSessionRecords,
 	staffAbsenceRepo AbsenceRecords,
@@ -128,6 +117,9 @@ func NewTimeTrackingCleanupService(
 	settings retentionSettingsResolver,
 	logger *slog.Logger,
 ) TimeTrackingCleanupService {
+	if settings == nil {
+		panic("time tracking cleanup: settings are required")
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -152,7 +144,10 @@ func (s *timeTrackingCleanupService) CleanupExpiredTimeTrackingData(ctx context.
 	}
 
 	start := time.Now()
-	retentionDays := s.resolveRetentionDays(ctx)
+	retentionDays, err := resolveTimeTrackingRetentionDays(ctx, s.settings)
+	if err != nil {
+		return nil, err
+	}
 	cutoff := cutoffForDays(retentionDays)
 
 	// 1. Collect per-staff impact for the audit log. We need this before
@@ -191,17 +186,22 @@ func (s *timeTrackingCleanupService) CleanupExpiredTimeTrackingData(ctx context.
 		DurationMS:      time.Since(start).Milliseconds(),
 	}
 
+	s.logCleanupCompleted(tenantID, result)
+
+	return result, nil
+}
+
+func (s *timeTrackingCleanupService) logCleanupCompleted(tenantID int64, result *TimeTrackingCleanupResult) {
 	s.logger.Info("time-tracking cleanup completed",
 		slog.Int64("tenant_id", tenantID),
 		slog.Int("sessions_deleted", result.SessionsDeleted),
 		slog.Int("absences_deleted", result.AbsencesDeleted),
 		slog.Int("staff_affected", result.StaffAffected),
-		slog.Int("retention_days", retentionDays),
-		slog.String("cutoff", cutoff.String()),
+		slog.Int("retention_days", result.RetentionDays),
+		slog.String("cutoff", result.CutoffDate.String()),
 		slog.Int64("duration_ms", result.DurationMS),
 	)
 
-	return result, nil
 }
 
 // PreviewExpiredTimeTrackingData runs the same queries CleanupExpired would,
@@ -212,7 +212,10 @@ func (s *timeTrackingCleanupService) PreviewExpiredTimeTrackingData(ctx context.
 		return nil, fmt.Errorf("time-tracking cleanup preview: no tenant in context")
 	}
 
-	retentionDays := s.resolveRetentionDays(ctx)
+	retentionDays, err := resolveTimeTrackingRetentionDays(ctx, s.settings)
+	if err != nil {
+		return nil, err
+	}
 	cutoff := cutoffForDays(retentionDays)
 
 	sessionsToDelete, err := s.workSessionRepo.CountWorkSessions(ctx, sessionsBefore(cutoff))
@@ -266,7 +269,10 @@ func (s *timeTrackingCleanupService) GetStats(ctx context.Context) (*TimeTrackin
 		return nil, fmt.Errorf("time-tracking cleanup stats: no tenant in context")
 	}
 
-	retentionDays := s.resolveRetentionDays(ctx)
+	retentionDays, err := resolveTimeTrackingRetentionDays(ctx, s.settings)
+	if err != nil {
+		return nil, err
+	}
 	cutoff := cutoffForDays(retentionDays)
 
 	totalSessions, err := s.workSessionRepo.CountWorkSessions(ctx, workforce.WorkSessionFilter{})
@@ -306,23 +312,16 @@ func (s *timeTrackingCleanupService) GetStats(ctx context.Context) (*TimeTrackin
 
 // --- Internal helpers ---
 
-// resolveRetentionDays picks the tenant's retention days: tenant DB override
-// or registry default. The literal fallback is only reached when the
-// settings service is not wired (tests).
-func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) int {
-	if s.settings == nil {
-		return timeTrackingRetentionDefaultDays
+// resolveTimeTrackingRetentionDays is shared by the cleanup and audit feed.
+func resolveTimeTrackingRetentionDays(ctx context.Context, settings retentionSettingsResolver) (int, error) {
+	days, err := settings.TimeTrackingRetentionDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve gdpr.time_tracking_retention_days: %w", err)
 	}
-	if _, err := s.settings.TimeTrackingRetentionOverridden(ctx); err != nil {
-		s.logger.Warn("settings override check failed, falling back to registry default",
-			slog.String("setting", "time_tracking_retention_days"),
-			slog.String("error", err.Error()),
-		)
+	if days <= 0 {
+		return 0, fmt.Errorf("gdpr.time_tracking_retention_days must be positive, got %d", days)
 	}
-	if v, err := s.settings.TimeTrackingRetentionDays(ctx); err == nil && v > 0 {
-		return v
-	}
-	return timeTrackingRetentionDefaultDays
+	return days, nil
 }
 
 // cutoffForDays returns the calendar-day cutoff: anything older than

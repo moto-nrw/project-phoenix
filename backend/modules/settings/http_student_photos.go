@@ -2,7 +2,6 @@ package settings
 
 import (
 	"context"
-	"log/slog"
 )
 
 // PrefetchStudentDisplaySettings shares the overview and photo visibility reads.
@@ -10,10 +9,9 @@ func PrefetchStudentDisplaySettings(ctx context.Context, settings any) context.C
 	return PrefetchSettings(ctx, settings, KeyOperationalOverviewScope, KeyStudentPhotosEnabled)
 }
 
-// StudentPhotosEnabled preserves the HTTP photo-visibility default and logging.
+// StudentPhotosEnabled propagates lookup failures instead of inventing photo policy.
 func StudentPhotosEnabled(ctx context.Context, settings interface {
 	ResolveBool(context.Context, string) (bool, error)
-	HasTenantOverride(context.Context, string) (bool, error)
-}, logger *slog.Logger) bool {
-	return ResolveBoolOrDefault(ctx, settings, KeyStudentPhotosEnabled, false, logger)
+}) (bool, error) {
+	return settings.ResolveBool(ctx, KeyStudentPhotosEnabled)
 }

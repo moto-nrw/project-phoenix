@@ -96,7 +96,7 @@ func BuildIdentityAccess(
 	// The accept and login links go to the parents portal, never to the
 	// staff frontend.
 	guardianMail, enrollmentClaims, err := GuardianInvitationDependencies(settings, organizations, outbox, guardianEnrollments,
-		links.ParentsURL, links.InvitationTokenExpiry, authLogger.With("flow", "guardian_invitation"))
+		links.ParentsURL, authLogger.With("flow", "guardian_invitation"))
 	if err != nil {
 		return nil, nil, err
 	}

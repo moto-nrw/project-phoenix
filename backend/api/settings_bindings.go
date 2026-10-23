@@ -212,12 +212,18 @@ type roomHistorySettingsReader interface {
 
 // NewRoomHistorySettings resolves whether the room history is shown and how
 // many days it spans, prefetching both settings in one read.
-func NewRoomHistorySettings(settings roomHistorySettingsReader, logger *slog.Logger, prefetch func(context.Context, any, ...string) context.Context) func(context.Context) (context.Context, bool, int) {
-	return func(ctx context.Context) (context.Context, bool, int) {
+func NewRoomHistorySettings(settings roomHistorySettingsReader, logger *slog.Logger, prefetch func(context.Context, any, ...string) context.Context) func(context.Context) (context.Context, bool, int, error) {
+	if settings == nil {
+		panic("room history: tenant settings are required")
+	}
+	return func(ctx context.Context) (context.Context, bool, int, error) {
 		ctx = prefetch(ctx, settings, configModels.KeyAttendanceLogEnabled, configModels.KeyRoomDetailVisibleDays)
-		enabled := settingsCompose.ResolveBoolOrDefault(ctx, settings, configModels.KeyAttendanceLogEnabled, configModels.AttendanceLogEnabledFallback, logger)
-		days := settingsCompose.ResolveIntOrDefault(ctx, settings, configModels.KeyRoomDetailVisibleDays, configModels.RoomDetailVisibleDaysFallback, logger)
-		return ctx, enabled, days
+		enabled, err := settings.ResolveBool(ctx, configModels.KeyAttendanceLogEnabled)
+		if err != nil {
+			return ctx, false, 0, err
+		}
+		days, err := settings.ResolveInt(ctx, configModels.KeyRoomDetailVisibleDays)
+		return ctx, enabled, days, err
 	}
 }
 

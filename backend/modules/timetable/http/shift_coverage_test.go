@@ -28,7 +28,7 @@ import (
 func setupShiftCoverageRoute(t *testing.T) chi.Router {
 	t.Helper()
 	_, services := RootCompositions.Module(t)
-	resource := NewResource(Dependencies{Templates: services.Templates, TimetableData: services.Data, ConflictDetection: services.ConflictDetection})
+	resource := newResourceForTest(Dependencies{Templates: services.Templates, TimetableData: services.Data, ConflictDetection: services.ConflictDetection})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	return router
@@ -217,7 +217,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	}
 
 	t.Run("internal cause is hidden", func(t *testing.T) {
-		resource := NewResource(Dependencies{ConflictDetection: failingShiftCoverage{err: errors.New("dependencies are not wired")}})
+		resource := newResourceForTest(Dependencies{ConflictDetection: failingShiftCoverage{err: errors.New("dependencies are not wired")}})
 		failureRouter := shiftCoverageRouter(s.ctx, resource)
 		recorder := postShiftCoverage(t, failureRouter, ShiftCoverageRequest{
 			Dates: []string{validDate.String()}, StartTime: "09:00", EndTime: "10:00", StaffIDs: []int64{99},

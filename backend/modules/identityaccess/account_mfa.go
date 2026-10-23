@@ -85,36 +85,6 @@ const (
 	AdminRoleName = "admin"
 )
 
-// MFASettingsWithoutService answers the gate's parameters for a root
-// composed without a settings service: the second factor is off, trusted
-// devices are allowed, and the remember-device lifetime and the lockout
-// answer zero, so the flows apply the module fallbacks.
-type MFASettingsWithoutService struct{}
-
-func (MFASettingsWithoutService) MFAMode(context.Context, int64) (string, error) {
-	return MFAModeOff, nil
-}
-
-func (MFASettingsWithoutService) MFAModeInTx(context.Context, int64) (string, error) {
-	return MFAModeOff, nil
-}
-
-func (MFASettingsWithoutService) TrustedDeviceEnabled(context.Context, int64) (bool, error) {
-	return true, nil
-}
-
-func (MFASettingsWithoutService) TrustedDeviceDays(context.Context, int64) (int, error) {
-	return 0, nil
-}
-
-func (MFASettingsWithoutService) LockoutThreshold(context.Context, int64) (int, error) {
-	return 0, nil
-}
-
-func (MFASettingsWithoutService) LockoutDuration(context.Context, int64) (time.Duration, error) {
-	return 0, nil
-}
-
 // The admin-override values. There is no "none" row: its absence is the
 // none outcome.
 const (
@@ -203,8 +173,15 @@ type AccountMFAEnrollment interface {
 	DisableMFA(ctx context.Context, accountID int64) error
 }
 
+// TrustedDeviceIssue persists a device using the policy resolved at preparation.
+// Call it only after session issuance succeeds.
+type TrustedDeviceIssue = func(context.Context) (cookieValue string, expiresAt time.Time, err error)
+
 // AccountTrustedDevices is the remember-device cookie.
 type AccountTrustedDevices interface {
+	// PrepareTrustedDevice resolves policy without writes. A nil operation
+	// means the feature is disabled. The operation does not re-read settings.
+	PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
 	// IssueTrustedDevice answers an empty cookie value without persisting a
 	// row when the school turned the feature off; the caller then writes no
 	// Set-Cookie header.

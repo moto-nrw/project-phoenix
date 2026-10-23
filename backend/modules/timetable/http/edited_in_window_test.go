@@ -49,7 +49,7 @@ func TestEditedInWindow_Success(t *testing.T) {
 			}, nil
 		},
 	}
-	rs := NewResource(Dependencies{MaterializationService: mat})
+	rs := newResourceForTest(Dependencies{MaterializationService: mat})
 	router := setupEditedInWindowRouter(rs)
 
 	w := doGet(t, router, "/instances/edited-in-window?activity_group_id=77&from=2026-04-20&to=2026-05-03")
@@ -91,7 +91,7 @@ func TestEditedInWindow_IncludeDeletionsForwarded(t *testing.T) {
 			return nil, nil
 		},
 	}
-	rs := NewResource(Dependencies{MaterializationService: mat})
+	rs := newResourceForTest(Dependencies{MaterializationService: mat})
 	router := setupEditedInWindowRouter(rs)
 
 	w := doGet(t, router, "/instances/edited-in-window?activity_group_id=7&from=2026-04-20&to=2026-04-26&include_deletions=true")
@@ -107,7 +107,7 @@ func TestEditedInWindow_EmptyResultIsArray(t *testing.T) {
 			return nil, nil
 		},
 	}
-	rs := NewResource(Dependencies{MaterializationService: mat})
+	rs := newResourceForTest(Dependencies{MaterializationService: mat})
 	router := setupEditedInWindowRouter(rs)
 
 	w := doGet(t, router, "/instances/edited-in-window?activity_group_id=7&from=2026-04-20&to=2026-04-26")
@@ -125,7 +125,7 @@ func TestEditedInWindow_EmptyResultIsArray(t *testing.T) {
 func TestEditedInWindow_MissingParams(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(Dependencies{MaterializationService: &mockMaterializationService{}})
+	rs := newResourceForTest(Dependencies{MaterializationService: &mockMaterializationService{}})
 	router := setupEditedInWindowRouter(rs)
 
 	for _, path := range []string{
@@ -142,7 +142,7 @@ func TestEditedInWindow_MissingParams(t *testing.T) {
 func TestEditedInWindow_InvalidActivityGroupID(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(Dependencies{MaterializationService: &mockMaterializationService{}})
+	rs := newResourceForTest(Dependencies{MaterializationService: &mockMaterializationService{}})
 	router := setupEditedInWindowRouter(rs)
 
 	for _, id := range []string{"abc", "0", "-3"} {
@@ -154,7 +154,7 @@ func TestEditedInWindow_InvalidActivityGroupID(t *testing.T) {
 func TestEditedInWindow_InvalidDates(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(Dependencies{MaterializationService: &mockMaterializationService{}})
+	rs := newResourceForTest(Dependencies{MaterializationService: &mockMaterializationService{}})
 	router := setupEditedInWindowRouter(rs)
 
 	cases := []string{
@@ -180,7 +180,7 @@ func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
 			return nil, nil
 		},
 	}
-	rs := NewResource(Dependencies{MaterializationService: mat})
+	rs := newResourceForTest(Dependencies{MaterializationService: mat})
 	router := setupEditedInWindowRouter(rs)
 
 	// ~3 years — well beyond any previous cap.
@@ -196,7 +196,7 @@ func TestEditedInWindow_ServiceError(t *testing.T) {
 			return nil, errors.New("boom")
 		},
 	}
-	rs := NewResource(Dependencies{MaterializationService: mat})
+	rs := newResourceForTest(Dependencies{MaterializationService: mat})
 	router := setupEditedInWindowRouter(rs)
 
 	w := doGet(t, router, "/instances/edited-in-window?activity_group_id=7&from=2026-04-20&to=2026-04-26")
