@@ -18,10 +18,12 @@ function check(input) {
 }
 
 const originalFetch = globalThis.fetch;
-globalThis.fetch = (input, options) => {
+/** @type {typeof globalThis.fetch} */
+const localFetch = (input, options) => {
   check(input);
   return originalFetch(input, options);
 };
+globalThis.fetch = localFetch;
 for (const transport of [http, https]) {
   for (const method of /** @type {const} */ (["request", "get"])) {
     const original = transport[method];
