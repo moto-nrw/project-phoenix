@@ -79,14 +79,14 @@ func (s *Store) DeleteTeachersByStaff(ctx context.Context, staffID int64) (domai
 	return execDelete(ctx, query, "delete teachers by staff")
 }
 
-// DeleteGuestsByStaff deletes the guest profile of a staff member.
-func (s *Store) DeleteGuestsByStaff(ctx context.Context, staffID int64) (domain.OperationStats, error) {
+// DeleteExternalCaregiverRecordsByStaff deletes the external caregiver record of a staff member.
+func (s *Store) DeleteExternalCaregiverRecordsByStaff(ctx context.Context, staffID int64) (domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
-	query := withTenant(db.NewDelete().Model((*guestRow)(nil)).
-		ModelTableExpr(`users.guests AS "guest"`).
-		Where(`"guest".staff_id = ?`, staffID), "guest", scope)
-	return execDelete(ctx, query, "delete guests by staff")
+	query := withTenant(db.NewDelete().Model((*externalCaregiverRecordRow)(nil)).
+		ModelTableExpr(`users.external_caregivers AS "external_caregiver"`).
+		Where(`"external_caregiver".staff_id = ?`, staffID), "external_caregiver", scope)
+	return execDelete(ctx, query, "delete external caregiver records by staff")
 }

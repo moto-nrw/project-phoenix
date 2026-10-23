@@ -217,7 +217,9 @@
     "week": "Week",
     "participationTitle": "When will {name} have lunch?",
     "participationCutoff": "You can change the registration on the same day until {time}.",
+    "participationCutoffLead": "You can change the registration until {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}}.",
     "participationSickness": "A confirmed sick note by {time} cancels lunch. After that, the registration remains unchanged.",
+    "participationSicknessLead": "A confirmed sick note by {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}} cancels lunch. After that, the registration remains unchanged.",
     "participationLoading": "Lunch registration is loading",
     "regularDays": "Regular days",
     "noRegularDays": "No regular days",
@@ -254,6 +256,7 @@
     "title": "Daily list for the kitchen",
     "description": "The list shows all children registered for lunch on this day.",
     "cutoff": "Changes for this day are possible until {time}.",
+    "cutoffLead": "Changes for this day are possible until {time} {days, plural, one {on the working day before} other {# working days before}}.",
     "child": "Child",
     "class": "Class",
     "dateAria": "Date: {date}",
@@ -268,7 +271,25 @@
     "errorObject": "the daily list",
     "caption": "Lunch on {date}",
     "emptyTitle": "No registrations for this day",
-    "emptyDescription": "No child is on the kitchen list for this day."
+    "emptyDescription": "No child is on the kitchen list for this day.",
+    "viewAria": "Kitchen list view",
+    "viewDay": "Day",
+    "viewWeek": "Week",
+    "weekTitle": "Weekly list for the kitchen",
+    "weekDescription": "The list shows all children registered for lunch in this week.",
+    "weekCutoff": "Changes are possible until {time} {days, plural, =0 {on the day of the meal} one {on the working day before} other {# working days before}}.",
+    "weekDateAria": "Week from {from}",
+    "weekDownloadGroup": "Download weekly list",
+    "weekDownloadPdf": "Download weekly list as PDF",
+    "weekDownloadExcel": "Download weekly list as an Excel file",
+    "weekErrorObject": "the weekly list",
+    "weekCaption": "Lunch from {from} to {to}",
+    "weekEmptyTitle": "No registrations this week",
+    "weekEmptyDescription": "No child is on the kitchen list for this week.",
+    "weekRegistered": "registered",
+    "weekNotRegistered": "not registered",
+    "weekCountsLabel": "Number of meals per day",
+    "weekCount": "{count, plural, one {# child} other {# children}}"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",
@@ -2824,6 +2845,14 @@
       },
       "feedback": {
         "disabled": "You cannot access {object}. Please contact the school."
+      },
+      "staff": {
+        "external_access_invalid": "Please choose which access this person gets.",
+        "external_email_invalid": "This email address is not valid. Please check it.",
+        "external_email_invited": "This email address already has an open invitation for someone else. Please use another address.",
+        "external_email_required": "Please enter an email address.",
+        "external_has_account": "This person already has an account. No invitation is needed.",
+        "not_external": "This person is not listed as external. Please invite them like other staff members."
       }
     },
     "actions": {

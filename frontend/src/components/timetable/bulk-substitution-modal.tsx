@@ -68,6 +68,8 @@ const MAX_RANGE_DAYS = 56;
 interface StaffOption {
   id: string;
   name: string;
+  /** Externe Kräfte (#4573) sind nie Vertretung, nur abwesend. */
+  isExternal?: boolean;
 }
 
 interface BulkSubstitutionModalProps {
@@ -238,7 +240,7 @@ export function BulkSubstitutionModal({
     () => [
       { value: "", label: "Keine — nur abwesend melden" },
       ...staffOptions
-        .filter((s) => s.id !== absentStaffId)
+        .filter((s) => s.id !== absentStaffId && !s.isExternal)
         .map((s) => ({ value: s.id, label: s.name })),
     ],
     [staffOptions, absentStaffId],

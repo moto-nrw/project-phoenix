@@ -87,7 +87,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add supervisor contacts for users without full access
-	if !response.HasFullAccess && group != nil {
+	if !response.HasFullAccess && group != nil && canReadSensitiveStudentData(r.Context()) {
 		response.GroupSupervisors = rs.buildSupervisorContacts(r.Context(), group.ID)
 	}
 
@@ -114,11 +114,12 @@ func (rs *Resource) buildStudentDetail(r *http.Request, student *peopleModule.St
 	}
 
 	studentResponse, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
-		Student:       student,
-		Person:        person,
-		Group:         group,
-		HasFullAccess: hasFullAccess,
-		PhotosEnabled: photosEnabled,
+		Student:        student,
+		Person:         person,
+		Group:          group,
+		HasFullAccess:  hasFullAccess,
+		HasPhotoAccess: rs.checkStudentPhotoReadAccess(r, student),
+		PhotosEnabled:  photosEnabled,
 	}, StudentResponseServices{
 		ActiveService: rs.ActiveService,
 	})

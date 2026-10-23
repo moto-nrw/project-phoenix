@@ -132,6 +132,59 @@ func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t 
 	assert.Contains(t, displayNames, "Inactive Teacher")
 }
 
+// TestGetAvailableTeachers_OffersOnlyAssignableExternals pins #4573: the
+// kiosk offers an external caregiver as supervisor only with an account or
+// an open invitation, as every other picker does. The wire shape is the
+// PyrePortal contract and stays unchanged.
+func TestGetAvailableTeachers_OffersOnlyAssignableExternals(t *testing.T) {
+	t.Parallel()
+	ctx := setupDataRoute(t)
+	db := ctx.db
+
+	testDevice := testpkg.CreateTestDevice(t, db, "data-test-device-externals")
+	_, creator := testpkg.CreateTestTeacherWithAccount(t, db, "Robin", "Regular")
+	withAccount, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Anna", "Konto")
+	invited := testpkg.CreateTestTeacher(t, db, "Ina", "Eingeladen")
+	uninvited := testpkg.CreateTestTeacher(t, db, "Uwe", "Ohneeinladung")
+	for _, staffID := range []int64{withAccount.StaffID, invited.StaffID, uninvited.StaffID} {
+		_, err := db.ExecContext(context.Background(),
+			`INSERT INTO users.external_caregivers (tenant_id, staff_id, activity_expertise) VALUES (?, ?, 'AG')`, testpkg.Tenant(t), staffID)
+		require.NoError(t, err)
+	}
+	role := testpkg.GetOrCreateTestRole(t, db, "user")
+	invitation := testpkg.CreateTestInvitationToken(t, db, "ina", role.ID, creator.ID, time.Now().Add(48*time.Hour))
+	_, err := db.ExecContext(context.Background(),
+		`UPDATE auth.invitation_tokens SET person_id = ? WHERE id = ?`, invited.Staff.PersonID, invitation.ID)
+	require.NoError(t, err)
+
+	router := dataTenantRoot(db, ctx.resource.TeachersRouter())
+	rr := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "GET", "/", nil, testutil.WithDeviceContext(testDevice)))
+	testutil.AssertSuccessResponse(t, rr, 200)
+
+	data, ok := testutil.ParseJSONResponse(t, rr.Body.Bytes())["data"].([]interface{})
+	require.True(t, ok)
+	displayNames := make([]string, 0, len(data))
+	for _, item := range data {
+		teacher, ok := item.(map[string]interface{})
+		require.True(t, ok)
+		assert.ElementsMatch(t, []string{"staff_id", "person_id", "first_name", "last_name", "display_name"}, mapKeys(teacher),
+			"the PyrePortal teacher shape")
+		displayNames = append(displayNames, teacher["display_name"].(string))
+	}
+	assert.Contains(t, displayNames, "Robin Regular")
+	assert.Contains(t, displayNames, "Anna Konto", "an external with an account supervises")
+	assert.Contains(t, displayNames, "Ina Eingeladen", "an invited external may be assigned")
+	assert.NotContains(t, displayNames, "Uwe Ohneeinladung", "nobody vouched for an external without account and invitation")
+}
+
+func mapKeys(values map[string]interface{}) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 // =============================================================================
 // GET TEACHER STUDENTS TESTS
 // =============================================================================

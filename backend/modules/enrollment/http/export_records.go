@@ -3,7 +3,6 @@ package enrollmenthttp
 import (
 	"sort"
 	"strings"
-	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -179,33 +178,7 @@ func buildPhaseExportRecords(data *PhaseExport, title, childStatus string) lists
 			groups = append(groups, lists.RecordGroup{Title: group.title, Records: groupRecords})
 		}
 	}
-	return lists.RecordDocument{
-		Title:       title,
-		Subtitle:    phaseExportSubtitle(data),
-		GeneratedAt: time.Now(),
-		Footer:      exportConfidentialityNote,
-		Filters:     enrollmentExportFilterLabels(childStatus),
-		Records:     records,
-		Groups:      groups,
-	}
-}
-
-func guardianBlockFields(req *Request, guardianCustoms []capability.FormField) []lists.Field {
-	fields := []lists.Field{
-		{Label: "E-Mail", Value: req.GuardianEmail},
-		{Label: "Telefon", Value: deref(req.GuardianPhone)},
-		{Label: "Eingereicht am", Value: req.SubmittedAt.Format("02.01.2006 15:04")},
-	}
-	if req.WithdrawnAt != nil {
-		fields = append(fields, lists.Field{Label: "Zurückgezogen am", Value: timeOrEmpty(req.WithdrawnAt)})
-	}
-	fields = append(fields, lists.Field{Label: "Zustimmungen", Value: consentSummary(req.ConsentFlags)})
-	for _, cf := range guardianCustoms {
-		if v, ok := req.CustomData[cf.Key]; ok {
-			fields = append(fields, lists.Field{Label: cf.Label, Value: formatCustomValue(cf, v)})
-		}
-	}
-	return fields
+	return phaseExportHead(data, title, childStatus).blocks(records, groups)
 }
 
 // childRecord renders one child as a standalone block: the child's own
@@ -213,26 +186,26 @@ func guardianBlockFields(req *Request, guardianCustoms []capability.FormField) [
 // details led by the parent name, repeated on every child so a single
 // block holds everything a supervisor needs offline.
 func childRecord(req *Request, ch ExportChildRow, guardians []*capability.RequestGuardian, guardianCustoms, childCustoms []capability.FormField) lists.Record {
-	rec := lists.Record{
-		Title:  childFullName(ch.Child),
-		Fields: childFields(ch, childCustoms),
-	}
-	rec.Fields = append(rec.Fields, lists.Field{Label: "Eltern", Value: guardianFullName(req)})
-	rec.Fields = append(rec.Fields, guardianBlockFields(req, guardianCustoms)...)
-	rec.Fields = append(rec.Fields, additionalGuardianFields(guardians)...)
-	return rec
+	return enrollmentChildBlock{
+		Name:        childFullName(ch.Child),
+		Child:       childFields(ch, childCustoms),
+		Guardian:    guardianContactFields(guardianFullName(req), req.GuardianEmail, deref(req.GuardianPhone)),
+		Submission:  submissionFields(req, guardianCustoms),
+		CoGuardians: guardians,
+	}.record()
 }
 
 // guardianOnlyRecord is the fallback block for a registration with no
 // child rows — keeps the guardian (and their answers) in the export
-// rather than dropping the submission entirely.
+// rather than dropping the submission entirely. The guardian's name is the
+// heading, so the block carries no "Eltern" line.
 func guardianOnlyRecord(req *Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) lists.Record {
-	rec := lists.Record{
-		Title:  guardianFullName(req),
-		Fields: guardianBlockFields(req, guardianCustoms),
-	}
-	rec.Fields = append(rec.Fields, additionalGuardianFields(guardians)...)
-	return rec
+	return enrollmentChildBlock{
+		Name:        guardianFullName(req),
+		Guardian:    guardianReachFields(req.GuardianEmail, deref(req.GuardianPhone)),
+		Submission:  submissionFields(req, guardianCustoms),
+		CoGuardians: guardians,
+	}.record()
 }
 
 // additionalGuardianFields renders one label/value line per co-guardian for

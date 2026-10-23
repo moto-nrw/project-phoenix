@@ -37,10 +37,11 @@ type MealParticipationDay struct {
 }
 
 type MealParticipationPlan struct {
-	Weekdays      []MealWeekday
-	EffectiveFrom string
-	CutoffTime    string
-	Days          []MealParticipationDay
+	Weekdays       []MealWeekday
+	EffectiveFrom  string
+	CutoffTime     string
+	CutoffLeadDays int
+	Days           []MealParticipationDay
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature

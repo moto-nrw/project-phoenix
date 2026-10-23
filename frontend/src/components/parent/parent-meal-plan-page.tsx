@@ -729,7 +729,12 @@ function ParticipationWeek({
 
         {participation ? (
           <p className="mt-3 text-sm text-gray-600">
-            {t("participationCutoff", { time: participation.cutoff_time })}
+            {participation.cutoff_lead_days
+              ? t("participationCutoffLead", {
+                  time: participation.cutoff_time,
+                  days: participation.cutoff_lead_days,
+                })
+              : t("participationCutoff", { time: participation.cutoff_time })}
           </p>
         ) : null}
       </div>
@@ -950,7 +955,12 @@ function ParticipationWeek({
 
       {participation ? (
         <p className="border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 sm:px-5">
-          {t("participationSickness", { time: participation.cutoff_time })}
+          {participation.cutoff_lead_days
+            ? t("participationSicknessLead", {
+                time: participation.cutoff_time,
+                days: participation.cutoff_lead_days,
+              })
+            : t("participationSickness", { time: participation.cutoff_time })}
         </p>
       ) : null}
     </section>

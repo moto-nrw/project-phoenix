@@ -220,15 +220,16 @@ type Row struct {
 }
 
 // ClassGroupTitle labels a per-class section in grouped class-list
-// exports. Class names that already carry the word "Klasse" (e.g.
-// "Klasse 1a") are used as-is to avoid "Klasse Klasse 1a"; students
-// without a class collect under "Ohne Klasse".
+// exports. Class names that already start or end with the word "Klasse"
+// (e.g. "Klasse 1a", or the grade-only "1. Klasse" of an enrollment) are
+// used as-is to avoid "Klasse Klasse 1a"; students without a class collect
+// under "Ohne Klasse".
 func ClassGroupTitle(schoolClass string) string {
 	schoolClass = strings.TrimSpace(schoolClass)
 	if schoolClass == "" {
 		return "Ohne Klasse"
 	}
-	if strings.HasPrefix(strings.ToLower(schoolClass), "klasse") {
+	if lower := strings.ToLower(schoolClass); strings.HasPrefix(lower, "klasse") || strings.HasSuffix(lower, " klasse") {
 		return schoolClass
 	}
 	return "Klasse " + schoolClass

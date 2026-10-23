@@ -217,7 +217,9 @@
     "week": "Woche",
     "participationTitle": "Wann isst {name} mit?",
     "participationCutoff": "Sie können die Anmeldung am selben Tag bis {time} Uhr ändern.",
+    "participationCutoffLead": "Sie können die Anmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} ändern.",
     "participationSickness": "Eine bestätigte Krankmeldung bis {time} Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+    "participationSicknessLead": "Eine bestätigte Krankmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
     "participationLoading": "Anmeldung zum Mittagessen wird geladen",
     "regularDays": "Feste Tage",
     "noRegularDays": "Keine festen Tage",
@@ -254,6 +256,7 @@
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
     "cutoff": "Änderungen für diesen Tag sind bis {time} Uhr möglich.",
+    "cutoffLead": "Änderungen für diesen Tag sind bis {time} Uhr {days, plural, one {am Werktag davor} other {# Werktage vorher}} möglich.",
     "child": "Kind",
     "class": "Klasse",
     "dateAria": "Datum: {date}",
@@ -268,7 +271,25 @@
     "errorObject": "die Tagesliste",
     "caption": "Mittagessen am {date}",
     "emptyTitle": "Keine Anmeldungen für diesen Tag",
-    "emptyDescription": "Für diesen Tag steht kein Kind auf der Küchenliste."
+    "emptyDescription": "Für diesen Tag steht kein Kind auf der Küchenliste.",
+    "viewAria": "Ansicht der Küchenliste",
+    "viewDay": "Tag",
+    "viewWeek": "Woche",
+    "weekTitle": "Wochenliste für die Küche",
+    "weekDescription": "Die Liste zeigt alle Kinder, die in dieser Woche zum Mittagessen angemeldet sind.",
+    "weekCutoff": "Änderungen sind bis {time} Uhr {days, plural, =0 {am Essenstag} one {am Werktag davor} other {# Werktage vorher}} möglich.",
+    "weekDateAria": "Woche ab {from}",
+    "weekDownloadGroup": "Wochenliste herunterladen",
+    "weekDownloadPdf": "Wochenliste als PDF herunterladen",
+    "weekDownloadExcel": "Wochenliste als Excel-Datei herunterladen",
+    "weekErrorObject": "die Wochenliste",
+    "weekCaption": "Mittagessen vom {from} bis {to}",
+    "weekEmptyTitle": "Keine Anmeldungen in dieser Woche",
+    "weekEmptyDescription": "Für diese Woche steht kein Kind auf der Küchenliste.",
+    "weekRegistered": "angemeldet",
+    "weekNotRegistered": "nicht angemeldet",
+    "weekCountsLabel": "Essen pro Tag",
+    "weekCount": "{count, plural, one {# Kind} other {# Kinder}}"
   },
   "parentDashboard": {
     "eyebrow": "Elternportal",
@@ -2824,6 +2845,14 @@
       },
       "feedback": {
         "disabled": "Rückmeldungen sind an dieser Schule ausgeschaltet."
+      },
+      "staff": {
+        "external_access_invalid": "Bitte wählen Sie, welchen Zugang die Person bekommt.",
+        "external_email_invalid": "Diese E-Mail-Adresse ist nicht gültig. Bitte prüfen Sie sie.",
+        "external_email_invited": "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
+        "external_email_required": "Bitte geben Sie eine E-Mail-Adresse ein.",
+        "external_has_account": "Diese Person hat schon ein Konto. Eine Einladung ist nicht nötig.",
+        "not_external": "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein."
       }
     },
     "actions": {

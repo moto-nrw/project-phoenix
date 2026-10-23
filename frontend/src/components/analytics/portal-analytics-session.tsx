@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { setAnalyticsContext } from "~/lib/posthog-client";
 import { clearPortalSession, registerPortalSession } from "~/lib/analytics";
 
 const PORTALS = {
@@ -22,23 +23,52 @@ export function PortalAnalyticsSession({
   const { data: session, status } = useSession();
   const { scope, role } = PORTALS[surface];
   const inScope = session?.user?.scope === scope;
+  const accountId = session?.user?.id;
   // Parent tokens carry no school: a guardian can have children in several.
   const schoolId = session?.user?.tenantId?.toString() ?? null;
   const registeredRef = useRef<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setAnalyticsContext({ surface, enabled: false });
     if (status === "authenticated" && inScope) {
-      const key = schoolId ?? "";
-      registerPortalSession(
-        { surface, schoolId, role },
-        registeredRef.current !== null && registeredRef.current !== key,
-      );
-      registeredRef.current = key;
+      // Resolve on each account/school change. A failed read leaves collection off.
+      void fetch(
+        `/api/${scope === "parent" ? "parent" : "school"}/analytics-policy`,
+        { cache: "no-store" },
+      )
+        .then(async (response) =>
+          response.ok
+            ? (response.json() as Promise<{ data?: { enabled?: boolean } }>)
+            : null,
+        )
+        .then((result) => {
+          if (cancelled) return;
+          // Account IDs stay local; a different account starts a fresh SDK session.
+          const key = JSON.stringify([accountId, schoolId]);
+          registerPortalSession(
+            {
+              surface,
+              schoolId,
+              role,
+              enabled: result?.data?.enabled === true,
+            },
+            registeredRef.current !== null && registeredRef.current !== key,
+          );
+          registeredRef.current = key;
+        })
+        .catch(() => {
+          /* Privacy lookup failures intentionally keep collection off. */
+        });
     } else if (status === "unauthenticated" || status === "authenticated") {
       clearPortalSession();
       registeredRef.current = null;
     }
-  }, [status, inScope, schoolId, surface, role]);
+    return () => {
+      cancelled = true;
+      setAnalyticsContext({ surface, enabled: false });
+    };
+  }, [status, inScope, accountId, schoolId, surface, scope, role]);
 
   return null;
 }

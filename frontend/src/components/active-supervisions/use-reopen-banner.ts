@@ -62,6 +62,17 @@ function readStoredReopenBanner(): StoredReopenable | null {
 }
 
 /**
+ * Text des Banners nach dem Beenden. Er nennt die beendete Aktivität, weil er
+ * über jeder Aufsicht steht, die danach offen ist (#3887).
+ */
+export function reopenBannerMessage(title: string | null): string {
+  const ended = title
+    ? `„${title}“ wurde beendet.`
+    : "Die Aktivität wurde beendet.";
+  return `${ended} Sie können das fünf Minuten lang rückgängig machen.`;
+}
+
+/**
  * Tracks the recently completed timetable instance that can still be
  * reopened. The window survives a page reload via sessionStorage and expires
  * itself: after `reopenUntil` (fallback: five minutes) the banner disappears

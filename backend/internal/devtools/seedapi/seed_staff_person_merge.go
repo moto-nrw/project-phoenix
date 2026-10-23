@@ -27,8 +27,11 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	if alreadySeeded {
 		return nil
 	}
+	// A placeholder without access (ADR 0091): the retired duplicate gets
+	// no invitation and so no way into the school.
 	raw, err := rt.Client.Post("/api/staff/externals", map[string]any{
 		"first_name": staff.FirstName, "last_name": staff.LastName, "organization": "Demo: frühere Beschäftigung für die Dublettenprüfung",
+		"access": "none",
 	})
 	if err != nil {
 		return fmt.Errorf("create staff duplicate example: %w", err)

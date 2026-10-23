@@ -91,7 +91,7 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 		require.Equal(t, map[int64]int{account.ID: 1}, counts, "role counts retain the ambient RLS restriction")
 		foreignActive, queryErr := identity.ListActiveAccountIDsForTenant(txCtx, other, ids)
 		require.NoError(t, queryErr)
-		require.Equal(t, []int64{account.ID}, foreignActive, "the global account mapping uses its explicit school predicate")
+		require.Empty(t, foreignActive, "school-scoped membership reads must also respect RLS, even with an explicit foreign school predicate")
 		foreignRoles, queryErr := identity.ListAccountIDsWithSystemRoleNames(txCtx, ids, []string{"user"}, other)
 		require.NoError(t, queryErr)
 		require.Empty(t, foreignRoles)

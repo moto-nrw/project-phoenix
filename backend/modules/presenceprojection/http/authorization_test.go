@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -77,6 +78,65 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		assert.NotContains(t, rr.Body.String(), "Geheimstrasse 9",
 			"the address block must stay out of a redacted response")
 	})
+}
+
+func TestGuestStudentResponsesHideSensitiveData(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	student := testpkg.CreateTestStudent(t, tc.db, "Mila", "Gastansicht", "GS1")
+	testpkg.FillWideStudentFields(t, tc.db, student.ID, student.PersonID)
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Gast", "Konto")
+	teacher, _ := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGS", "Kontakt")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Gastgruppe")
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestPickupScheduleWithNote(t, tc.db, student.ID, 1, staff.ID, "15:30", "Abholplan vertraulich")
+	testpkg.CreateTestArrivalException(t, tc.db, student.ID, studentsTestToday, staff.ID, "13:00", "Ankunftsplan vertraulich")
+	_, err := tc.db.NewRaw(`UPDATE users.student_care_profiles SET departure_companion_note = ?, pickup_status = ?
+		WHERE membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)`,
+		"Abholperson vertraulich", "Rücksprache vertraulich", student.ID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	for _, granted := range [][]string{{"students:read"}, {"users:read"}, {"admin:*"}} {
+		for _, path := range []string{
+			fmt.Sprintf("/%d", student.ID),
+			"/?include_pickup_times=true&include_arrival_times=true",
+			"/?view=slim&include_pickup_times=true&include_arrival_times=true",
+		} {
+			rr := authExec(t, tc, testutil.NewRequest("GET", path, nil), testutil.TeacherTestClaims(int(account.ID)), granted)
+			require.Equal(t, http.StatusOK, rr.Code, "GET %s: %s", path, rr.Body.String())
+			var envelope struct {
+				Data json.RawMessage `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &envelope))
+			var row map[string]any
+			if strings.HasPrefix(path, "/?") {
+				var rows []map[string]any
+				require.NoError(t, json.Unmarshal(envelope.Data, &rows))
+				require.Len(t, rows, 1)
+				row = rows[0]
+			} else {
+				require.NoError(t, json.Unmarshal(envelope.Data, &row))
+			}
+			require.Equal(t, "Mila", row["first_name"])
+			full := granted[0] != "students:read"
+			require.Equal(t, full, row["has_full_access"])
+			if !full {
+				for _, field := range []string{"extra_info", "health_info", "departure_companion_note", "address_street", "address_city", "address_postal_code", "pickup_notes", "arrival_notes", "group_supervisors"} {
+					require.NotContains(t, row, field, "GET %s", path)
+				}
+				require.NotContains(t, rr.Body.String(), "vertraulich")
+			} else if path != "/?view=slim&include_pickup_times=true&include_arrival_times=true" {
+				for _, field := range []string{"extra_info", "health_info", "departure_companion_note", "address_street"} {
+					require.NotEmpty(t, row[field], "GET %s", path)
+				}
+				if strings.HasPrefix(path, "/?") {
+					require.Contains(t, row["pickup_notes"], "Abholplan vertraulich")
+					require.Contains(t, row["arrival_notes"], "Ankunftsplan vertraulich")
+				}
+			}
+		}
+	}
 }
 
 func TestGetStudentDetail_WithGroup(t *testing.T) {

@@ -36,10 +36,14 @@ const logger = createLogger({ component: "PendingInvitationsList" });
 
 interface PendingInvitationsListProps {
   readonly refreshKey: number;
+  /** Nach dem Widerrufen: eine externe Person steht wieder auf „Kein
+   * Konto“ (#4573), die Personalliste lädt ihren Stand neu. */
+  readonly onRevoked?: () => void;
 }
 
 export function PendingInvitationsList({
   refreshKey,
+  onRevoked,
 }: PendingInvitationsListProps) {
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -117,6 +121,7 @@ export function PendingInvitationsList({
       await revokeInvitation(revokeTarget.id);
       toastSuccess("Die Einladung ist widerrufen.");
       setRevokeTarget(null);
+      onRevoked?.();
       await loadInvitations();
     } catch (err) {
       logger.error("invitation_revoke_failed", {

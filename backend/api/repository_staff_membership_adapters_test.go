@@ -1,6 +1,6 @@
 package api
 
-// The staff, teacher and guest repositories are compositions over the School
+// The staff, teacher and external caregiver record repositories are compositions over the School
 // Membership owner (#2667). The tests below pin what the composition adds on
 // top of the owner: the legacy not-found error shape callers classify on,
 // tenant isolation, and the person/account/role compositions that used to be
@@ -82,12 +82,12 @@ func TestStaffMembershipAdapter_NotFoundKeepsTheLegacyErrorShape(t *testing.T) {
 		assert.True(t, testpkg.IsNotFoundError(err))
 	})
 
-	t.Run("teacher and guest", func(t *testing.T) {
+	t.Run("teacher and external caregiver record", func(t *testing.T) {
 		_, err := factory.Teacher.FindByID(ctx, absent)
 		require.Error(t, err)
 		assert.True(t, testpkg.IsNotFoundError(err))
 
-		_, err = factory.Guest.FindByID(ctx, absent)
+		_, err = factory.ExternalCaregiverRecords.FindByID(ctx, absent)
 		require.Error(t, err)
 		assert.True(t, testpkg.IsNotFoundError(err))
 
@@ -395,43 +395,43 @@ func TestTeacherMembershipAdapter_ActiveCaregiversResolveInAdminContext(t *testi
 	require.NoError(t, err)
 }
 
-func TestGuestMembershipAdapter_FindsByStaffAndActiveWindow(t *testing.T) {
+func TestExternalCaregiverRecordMembershipAdapter_FindsByStaffAndActiveWindow(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
 
-	guest := testpkg.CreateTestGuest(t, db, "Zirkus")
+	record := testpkg.CreateTestExternalCaregiverRecord(t, db, "Zirkus")
 
-	found, err := factory.Guest.FindByStaffID(ctx, guest.StaffID)
+	found, err := factory.ExternalCaregiverRecords.FindByStaffID(ctx, record.StaffID)
 	require.NoError(t, err)
-	assert.Equal(t, guest.ID, found.ID)
+	assert.Equal(t, record.ID, found.ID)
 
-	_, err = factory.Guest.FindByStaffID(ctx, missingID(guest.StaffID))
+	_, err = factory.ExternalCaregiverRecords.FindByStaffID(ctx, missingID(record.StaffID))
 	require.Error(t, err)
 	assert.True(t, testpkg.IsNotFoundError(err))
 }
 
-func TestStaffMembershipAdapter_ExpiredGuestIsNotExternal(t *testing.T) {
+func TestStaffMembershipAdapter_ExpiredExternalCaregiverRecordIsNotExternal(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 	factory := NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	ctx := testpkg.Ctx(t)
-	guest := testpkg.CreateTestGuest(t, db, "Tanz")
+	record := testpkg.CreateTestExternalCaregiverRecord(t, db, "Tanz")
 
 	_, err := db.NewUpdate().
-		TableExpr("users.guests").
+		TableExpr("users.external_caregivers").
 		Set("end_date = ?", testpkg.TodayDate().AddDays(-1)).
-		Where("id = ?", guest.ID).
+		Where("id = ?", record.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
-	staff, err := factory.Staff.FindByIDs(ctx, []int64{guest.StaffID})
+	staff, err := factory.Staff.FindByIDs(ctx, []int64{record.StaffID})
 	require.NoError(t, err)
-	require.Contains(t, staff, guest.StaffID)
-	assert.False(t, staff[guest.StaffID].IsGuest)
+	require.Contains(t, staff, record.StaffID)
+	assert.False(t, staff[record.StaffID].HasExternalCaregiverRecord)
 }
 
 func TestStaffMembershipAdapter_ListRejectsUnknownFilters(t *testing.T) {

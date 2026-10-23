@@ -90,6 +90,39 @@ type CreateStaffResult struct {
 	TeacherCreationFailed bool
 }
 
+// ExternalCaregiverInput records an external caregiver with an access
+// level (#4573, ADR 0091): the bound body plus the acting account. Access is
+// passed on as sent; the workflow validates it.
+type ExternalCaregiverInput struct {
+	FirstName        string
+	LastName         string
+	Email            string
+	Organization     string
+	Access           string
+	ActorAccountID   int64
+	ActorPermissions []string
+}
+
+// ExternalInvitationInput invites an existing external caregiver
+// („Konto einladen“).
+type ExternalInvitationInput struct {
+	StaffID          int64
+	Email            string
+	Access           string
+	ActorAccountID   int64
+	ActorPermissions []string
+}
+
+// ExternalCaregiverResult names the staff member the flow recorded or
+// invited. Invited is false for a placeholder without access. InvitationToken
+// redeems the invitation; the adapter exposes it only when
+// ExposeSeedInvitationToken allows it.
+type ExternalCaregiverResult struct {
+	StaffID         int64
+	Invited         bool
+	InvitationToken string
+}
+
 // UpdateStaffInput is the parsed update body already merged with the stored
 // record (PersonID is the target person, reassignment included).
 type UpdateStaffInput struct {
@@ -153,9 +186,23 @@ type Runtime struct {
 	Person         func(context.Context, int64) (Person, error)
 	PersonNotFound func(error) bool
 	Persons        func(context.Context, []int64) ([]Person, error)
-	// CreatePerson adds a People Directory entry without an account and
-	// returns it; the external caregiver flow (#3823) builds on it.
-	CreatePerson func(ctx context.Context, firstName, lastName string) (Person, error)
+
+	// CreateExternalCaregiver and InviteExternalCaregiver run the
+	// external-caregiver workflow (#4573), which writes across the People
+	// Directory, School Membership and Identity & Access. ExternalFailure
+	// renders (and observes) its refusals: invalid access -> 400 on field
+	// access, missing or invalid address -> 400 on field email, unknown
+	// staff -> 404, role grant denied -> 403, no external caregiver record,
+	// account exists, address already at the school -> 409, else 500.
+	CreateExternalCaregiver func(context.Context, ExternalCaregiverInput) (ExternalCaregiverResult, error)
+	InviteExternalCaregiver func(context.Context, ExternalInvitationInput) (ExternalCaregiverResult, error)
+	ExternalFailure         func(http.ResponseWriter, *http.Request, error)
+	// ExposeSeedInvitationToken allows the invitation token in the response,
+	// for the local demo seeder only.
+	ExposeSeedInvitationToken func(*http.Request) bool
+	// PendingInvitationPersons returns the person IDs an open invitation of
+	// the school names; non-critical like the enrichments below.
+	PendingInvitationPersons func(context.Context) (map[int64]bool, error)
 
 	// The presence and account enrichments below are non-critical: an error
 	// is logged and the field stays empty.
@@ -203,7 +250,9 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.ServeAvatar == nil || runtime.WriteFailure == nil || runtime.SchoolClassFailure == nil ||
 		runtime.Permissions == nil || runtime.HasPermission == nil ||
 		runtime.CurrentAccountID == nil || runtime.CurrentUsername == nil ||
-		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil || runtime.CreatePerson == nil ||
+		runtime.Person == nil || runtime.PersonNotFound == nil || runtime.Persons == nil ||
+		runtime.CreateExternalCaregiver == nil || runtime.InviteExternalCaregiver == nil || runtime.ExternalFailure == nil ||
+		runtime.ExposeSeedInvitationToken == nil || runtime.PendingInvitationPersons == nil ||
 		runtime.PresentStaffIDs == nil || runtime.WorkStatusMap == nil || runtime.AbsenceMap == nil ||
 		runtime.AbsenceLabelMap == nil || runtime.AccountRoles == nil || runtime.AccountEmails == nil ||
 		runtime.AccountAvatars == nil || runtime.AccountHasRole == nil || runtime.AccountsHoldingRole == nil ||
@@ -256,8 +305,12 @@ func (rs *Resource) Register(r chi.Router, withTx Middleware) {
 
 	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/", rs.createStaff)
 	// Every caregiver holds users:create, so whoever starts or runs a
-	// supervision can record the external person who helps with it (#3823).
+	// supervision can record the external person who helps with it (#3823)
+	// and invite them to an account (#4573). Whether the caller may hand out
+	// the access level's system role (guest needs users:manage, ag-leitung
+	// schedules:read) is Identity & Access's role-grant check.
 	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/externals", rs.createExternalStaff)
+	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/externals/{id}/invitation", rs.inviteExternalStaff)
 	r.With(rs.runtime.Permission(permissions.StaffManage), withTx).Put("/{id}", rs.updateStaff)
 	r.With(rs.runtime.Permission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
 }

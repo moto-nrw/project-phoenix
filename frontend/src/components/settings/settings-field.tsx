@@ -1685,6 +1685,7 @@ function renderField(
     case "boolean":
       return (
         <BooleanField
+          ariaLabel={setting.label}
           value={Boolean(localValue)}
           onChange={onImmediateSave}
           disabled={disabled}

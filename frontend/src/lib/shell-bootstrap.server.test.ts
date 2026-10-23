@@ -190,8 +190,8 @@ describe("loadShellBootstrap", () => {
     expect(shell.supervision?.overviewOk).toBe(false);
     expect(shell.counts).toEqual({
       staffAbsencesPending: undefined,
-      // The messages badge is gated on the tenant flag only, not on a
-      // permission, so a caregiver's count is loaded too.
+      // The messages badge needs the tenant flag and users:read (the inbox
+      // route's permission); a caregiver holds it, so the count is loaded.
       messagesUnread: 2,
       teamChatUnread: undefined,
       staffNoticesPending: 0,
@@ -203,6 +203,31 @@ describe("loadShellBootstrap", () => {
     expect(endpoints).not.toContain("/api/settings/schema");
     expect(endpoints).not.toContain("/api/active/supervisors/all");
     expect(endpoints).not.toContain("/api/staff/absences/pending");
+  });
+
+  it("leaves the messages badge out for staff without users:read (role Extern, #4573)", async () => {
+    routeBackend({
+      "/api/me/profile": {
+        data: { id: 9, first_name: "Jo", last_name: "B", email: "j@b" },
+      },
+      "/auth/account/tenants": { data: [] },
+      "/api/students/ogs-group-navigation": { data: [] },
+      "/api/me/groups/supervised": { data: [] },
+      "/api/rooms?is_open_room=true": { data: [] },
+      "/api/staff-notices/today": { data: [] },
+      "/api/messages/unread-count": { data: { unread_count: 3 } },
+      "/api/platform/announcements/unread": { data: null },
+    });
+
+    const shell = await loadShellBootstrap(
+      session({ roles: ["extern"], permissions: ["schedules:read"] }),
+      tenant,
+    );
+
+    expect(shell.counts?.messagesUnread).toBeUndefined();
+    const endpoints = calledEndpoints();
+    expect(endpoints).toContain("/api/me/groups/supervised");
+    expect(endpoints).not.toContain("/api/messages/unread-count");
   });
 
   it("falls back to the own-supervision endpoint when the overview is refused", async () => {

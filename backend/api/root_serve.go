@@ -201,7 +201,7 @@ func composeServeRoot(
 		func() (err error) { membership, err = owners.ComposeSchoolMembership(db); return },
 		func() error { bookings = owners.NewEnrollmentBookings(); return nil },
 		func() (err error) {
-			settings, err = owners.BuildSettingsOwner(db, unit, env, organizations, hub, bookings)
+			settings, tracker, err = buildServeAnalyticsSettings(db, unit, env, organizations, hub, bookings, tracker)
 			return
 		},
 		func() (err error) {
@@ -373,7 +373,7 @@ func composeServeRoot(
 		func() (err error) {
 			structureViews.Education = buildGroupManagement(db, hub, structure, people, substitutions, audit)
 			structureViews.Substitution, err = buildSubstitutions(db, env, hub, structure, people, substitutions, workTime,
-				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service)
+				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service, identity)
 			return
 		},
 		func() error {
@@ -509,12 +509,12 @@ func composeServeRoot(
 	}
 	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
-	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service)
+	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations))
 	if err != nil {
 		return nil, nil, err
 	}
 	logger, limiters, tenant := env.Logger, authRateLimitersFromEnv(), chi.NewRouter()
-	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service), owners.NewLoggedStudentPresence(db, env.Logger)
+	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service, env.Logger), owners.NewLoggedStudentPresence(db, env.Logger)
 	careOfferings := requests.CareOfferings
 	err = owners.RunRootSteps(
 		func() error {
@@ -533,7 +533,7 @@ func composeServeRoot(
 			return mountPresenceRoutes(tenant, db, logger, config.SentryPyrePortalDSN, deviceAuth, studentPresence, active, facilities,
 				timetableOwner, timetableRepos, days, persons, services.Users, caller, settings.Service, hub, emitter, groupLive,
 				dashboard, yard, iot, activities, structureViews.Education, schedules.Pickups, workforce.TimeTracking, facilitiesRooms,
-				feedback, organizations)
+				feedback, organizations, identity)
 		},
 		func() error {
 			return mountStaffRoutes(tenant, db, logger, membership, workTime, services.Users, staffAdmin, workforce, shifts,

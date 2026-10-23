@@ -16,3 +16,11 @@ type WorkSessionStaff interface {
 	// staff member.
 	BindSchedule(context.Context, StaffScheduleBinding) error
 }
+
+// ExternalCaregiverStaff tells whether a staff member is an external
+// caregiver (#3823), with or without an account (#4573). Externals record no
+// working time, so starting a supervision opens no work session for them.
+// The root binds it to School Membership's rule.
+type ExternalCaregiverStaff interface {
+	IsExternalCaregiver(ctx context.Context, staffID int64) (bool, error)
+}

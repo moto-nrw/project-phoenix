@@ -54,11 +54,12 @@ func trimmedLogoURL(origin string) string {
 // systemRoleDisplayNames maps the system role names to the German display
 // names the invitation mail shows.
 var systemRoleDisplayNames = map[string]string{
-	"admin":     "Administrator",
-	"user":      "Betreuer",
-	"guest":     "Gast",
-	"guardian":  "Erziehungsberechtigter",
-	"lehrkraft": "Lehrkraft",
+	"admin":      "Administrator",
+	"user":       "Betreuer",
+	"guest":      "Gast",
+	"guardian":   "Erziehungsberechtigter",
+	"lehrkraft":  "Lehrkraft",
+	"ag-leitung": "AG-Leitung",
 }
 
 // RoleDisplayName is the German name the invitation mail shows for a role;

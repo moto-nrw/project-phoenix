@@ -299,6 +299,13 @@ func (rs *Resource) mountAuthenticatedRoutes(r chi.Router, configureSession func
 		r.Delete("/{passkeyId}", rs.passkeyRevoke)
 	})
 
+	// Account management routes
+	r.Route("/accounts", func(r chi.Router) {
+		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
+		r.With(common.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
+		r.Route("/{accountId}", rs.mountAccountRoutes)
+	})
+
 	r.Group(rs.mountAdminRoutes)
 }
 
@@ -322,13 +329,6 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 	r.With(common.RequiresPermission(permUsersManage)).Post("/link-to-tenant", rs.linkToTenant)
 
 	rs.mountRoleAndPermissionRoutes(r)
-
-	// Account management routes
-	r.Route("/accounts", func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
-		r.With(common.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
-		r.Route("/{accountId}", rs.mountAccountRoutes)
-	})
 
 	// Role permission assignments
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
@@ -380,7 +380,14 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 // /accounts/{accountId}.
 func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
+	// This single-command handler lets the capability select its unit before
+	// any transaction starts, including cross-school organization updates.
 	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+	r.Group(rs.mountTransactionalAccountRoutes)
+}
+
+func (rs *Resource) mountTransactionalAccountRoutes(r chi.Router) {
+	r.Use(common.TenantTxMiddleware)
 	r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)

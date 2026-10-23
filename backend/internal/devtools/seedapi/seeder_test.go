@@ -1045,6 +1045,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter) {
+			return
+		}
 		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return
@@ -1727,6 +1730,30 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 		}
 	})
+}
+
+// serveExternalCaregiverSeedAPI answers the external caregiver quick create
+// (#4573, ADR 0091): an access level is required, an address with every
+// access but none, and an invited external gets a seed invitation token.
+func serveExternalCaregiverSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedHTTPRequest, idCounter *int64) bool {
+	if r.Method != seedHTTPMethodPost || r.URL.Path != "/api/staff/externals" {
+		return false
+	}
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+	require.Contains(t, []string{"none", "view", "supervise"}, body["access"])
+	data := map[string]any{"is_external": true}
+	*idCounter++
+	data["id"] = fmt.Sprintf("%d", *idCounter)
+	if body["access"] == "none" {
+		require.NotContains(t, body, "email")
+	} else {
+		require.NotEmpty(t, body["email"])
+		data["invitation_token"] = fmt.Sprintf("external-token-%d", *idCounter)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
+	return true
 }
 
 func TestTruncateSeedSubdomain(t *testing.T) {

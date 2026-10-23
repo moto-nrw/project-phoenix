@@ -1467,13 +1467,18 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ],
       },
       {
-        // #3823: externe Kräfte ohne Konto, live geprüft in beiden Dialogen.
+        // #3823, ADR 0091: externe Kräfte mit einer von drei Zugangsstufen.
         title: "Weitere Betreuer eintragen",
         steps: [
           "Wählen Sie in der laufenden Aufsicht `Betreuer hinzufügen`.",
           "Wählen Sie die Person unter `Betreuer auswählen` und dann `Hinzufügen`.",
-          "Hat die Person kein moto-Konto, zum Beispiel eine AG-Leitung von außen? Wählen Sie `Externe Person eintragen`, geben Sie den Namen ein und wählen Sie `Eintragen`.",
+          "Fehlt die Person, zum Beispiel jemand von der Musikschule? Wählen Sie `Externe Person eintragen`.",
+          "Tragen Sie `Vorname` und `Nachname` ein.",
+          "Wählen Sie den `Zugang`: `Kein Zugang`, `Nur ansehen` oder `Eigene Termine betreuen`.",
+          "Bei `Nur ansehen` und `Eigene Termine betreuen` tragen Sie die `E-Mail-Adresse` ein. Die Person bekommt dann eine Einladung.",
+          "Wählen Sie `Eintragen`. Sie können die Person sofort auswählen.",
           "Beim Start einer spontanen Aktivität geht das genauso unter `Weitere Betreuer`.",
+          "Wurde eine AG-Leitung hinzugefügt? Sie öffnet die Kinderliste unter `Aktuelle Aufsicht`.",
         ],
       },
       {
@@ -1510,7 +1515,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
-      "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`. In Zeiterfassung und Dienstplan erscheint sie nicht.",
+      "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, mit jedem Zugang. In Zeiterfassung und Dienstplan erscheint sie nicht.",
+      "`Nur ansehen` fehlt? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",
       "Fehlt ein Kind unter `Anwesende Kinder`? Ist seine Gehzeit schon erreicht, steht es nur unter `Alle anwesenden`. Ist es noch nicht angemeldet, suchen Sie es über `Kind hinzufügen`.",
       "Fehlt `Nach Angebot`? Dann hat Ihre OGS kein aktives Betreuungsangebot, das als Betreuungstag zählt.",
@@ -4062,6 +4068,10 @@ function mealPlanTopic(): HelpTopic {
       "Pro Tag sind mehrere Gerichte möglich.",
       "Mit `Vorwoche übernehmen` holen Sie die Gerichte der Vorwoche in diese Woche.",
       "Der heutige Tag trägt das Kennzeichen `Heute`.",
+      "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
+      "Die Wochenliste zeigt jedes angemeldete Kind mit einem Haken je Tag. Darüber steht, wie viele Kinder an jedem Tag essen.",
+      "Beide Listen laden Sie als `PDF` oder `Excel` herunter.",
+      "Bis wann Eltern ändern können, legen Sie in den Einstellungen fest: `Änderungsfrist für das Mittagessen` und `Vorlauf für das Mittagessen (Werktage)`.",
     ],
     differences: [
       "Ihre Änderungen zählen erst mit `Speichern`. Vorher steht `Verwerfen` daneben.",
@@ -4490,7 +4500,7 @@ function inviteStaffTopic(): HelpTopic {
         steps: [
           "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
-          "Wählen Sie oben rechts `+ Personal`.",
+          "Wählen Sie oben rechts `+ Personal` und danach `Personal einladen`.",
           "Tragen Sie die `E-Mail-Adresse` ein.",
           "Zeigt moto eine frühere Beschäftigung? Wählen Sie `Wiederaufnahme` oder `Neuaufnahme`.",
           "Bei `Wiederaufnahme`: Prüfen Sie `Diese Daten übernehmen`. Entfernen Sie ein Häkchen, um den Bereich zurückzusetzen.",
@@ -4498,6 +4508,41 @@ function inviteStaffTopic(): HelpTopic {
           "Tragen Sie bei Bedarf `Vorname (optional)` und `Nachname (optional)` ein.",
           "Tragen Sie bei Bedarf eine `Position (optional)` ein, zum Beispiel `Pädagogische Fachkraft`.",
           "Wählen Sie `Einladung senden`.",
+        ],
+      },
+      {
+        // ADR 0091: extern ist ein Merkmal, der Zugang eine eigene Wahl.
+        title: "Eine externe Person anlegen",
+        description:
+          "Zum Beispiel jemand von der Musikschule. Externe Personen führen keine Zeiterfassung. Nehmen Sie dafür nicht `Personal einladen`. Dort zählt die Person als normales Personal.",
+        steps: [
+          "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
+          "Wählen Sie oben rechts `+ Personal` und danach `Externe Person anlegen`.",
+          "Tragen Sie `Vorname` und `Nachname` ein. Tragen Sie bei Bedarf die `Organisation (freiwillig)` ein.",
+          "Wählen Sie den `Zugang`. Was jede Stufe erlaubt, steht unten.",
+          "Bei `Nur ansehen` und `Eigene Termine betreuen` tragen Sie die `E-Mail-Adresse` ein.",
+          "Wählen Sie `Anlegen`.",
+        ],
+      },
+      {
+        title: "Welchen Zugang wählen?",
+        ordered: false,
+        steps: [
+          "`Kein Zugang`: Die Person bekommt kein Konto und keine E-Mail. Sie steht nur im Plan. Den Termin startet eine OGS-Kraft.",
+          "`Nur ansehen`: Die Person bekommt eine Einladung und die Rolle `Gast`. Sie sieht Kinder, Räume und AGs. Elterndaten und Nachrichten sieht sie nicht. Ändern kann sie nichts.",
+          "`Eigene Termine betreuen`: Die Person bekommt eine Einladung und die Rolle `AG-Leitung`. Sie startet ihre eigenen Termine, checkt Kinder ein und aus und beendet die Termine.",
+        ],
+      },
+      {
+        title: "Eine externe Person später einladen",
+        description:
+          "In der Liste steht bei ihr `Kein Konto`. Das gilt auch, wenn eine Einladung abgelaufen ist.",
+        steps: [
+          "Öffnen Sie `Personal` und suchen Sie die Person in der Gruppe `Extern`.",
+          "Öffnen Sie das Menü mit den drei Punkten in ihrer Zeile.",
+          "Wählen Sie `Konto einladen`.",
+          "Wählen Sie den `Zugang`: `Nur ansehen` oder `Eigene Termine betreuen`.",
+          "Tragen Sie die `E-Mail-Adresse` ein und wählen Sie `Einladen`.",
         ],
       },
       {
@@ -4520,6 +4565,8 @@ function inviteStaffTopic(): HelpTopic {
       "Wer eine E-Mail-Adresse hat, bekommt einen Link und legt sein Passwort selbst fest.",
     notes: [
       "Die `Rolle` bestimmt, was die Person später sehen und tun darf.",
+      "Eine externe Person können Sie sofort einplanen, auch mit `Kein Zugang`. Bis sie eine Einladung annimmt, steht bei ihr `Einladung offen`.",
+      "Steht bei einer externen Person `Einladung offen` und die E-Mail kam nicht an? Wählen Sie im Menü `Einladung erneut senden`. Dort können Sie auch die Adresse korrigieren.",
       "Nach der Annahme steht die Person unter `Mitarbeiter` und lässt sich einer Gruppe zuweisen.",
       "Bei `Wiederaufnahme` wird die frühere Beschäftigung fortgeführt. Ausgewählte Bereiche bleiben unverändert. Zurückgesetzte Angaben bleiben als Historie erhalten.",
       "`Arbeitszeit` umfasst Stundenkonto, Urlaub und Arbeitszeitmodell gemeinsam. Nach dem Zurücksetzen startet der Urlaub mit dem vollen Jahresanspruch. Übertrag gibt es dann nicht. Den Jahresanspruch können Sie danach korrigieren.",
@@ -4531,8 +4578,10 @@ function inviteStaffTopic(): HelpTopic {
     ],
     differences: [
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
-      "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter` und `Lehrkraft`.",
+      "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter`, `Lehrkraft`, `AG-Leitung` und die eigenen Rollen Ihrer OGS.",
+      "`Nur ansehen` fehlt bei einer externen Person? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
+      "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
     ],
     troubleshootingDetails: [
       "Die Einladung kam nicht an? Prüfen Sie die E-Mail-Adresse und den Spam-Ordner. Danach laden Sie erneut ein.",
@@ -4772,10 +4821,14 @@ function staffPermissionsTopic(): HelpTopic {
     notes: [
       "Unter `Berechtigungen` sehen Sie alle Rechte, die es in moto gibt. Ändern lässt sich dort nichts.",
       "Die Rolle entscheidet auch darüber, welche Menüpunkte jemand sieht.",
+      // ADR 0091: die zwei Zugangsstufen externer Personen sind feste Rollen.
+      "`AG-Leitung` ist für Personen, die eigene Termine betreuen. Sie sieht unter `Heute` nur ihre eigenen Termine. Dort startet sie den Termin, checkt die Kinder ein und aus und beendet ihn.",
+      "`Gast` ist für Personen, die nur zuschauen. Sie sieht Kinder, Räume und AGs. Elterndaten, Nachrichten und Telefonnummern der Eltern sieht sie nicht. Ändern kann sie nichts.",
+      "Mit `AG-Leitung` oder `Gast` sieht die Person keine Zeiterfassung, keine Einstellungen und kein Personal.",
     ],
     differences: [
-      "Frisch eingerichtet bringt moto alle Rollen selbst mit: `Administrator`, `Betreuer`, `Lehrkraft`, `Erziehungsberechtigter` und `Gast`. moto nennt sie Systemrollen.",
-      "Bei einer Systemrolle fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
+      "Frisch eingerichtet bringt moto feste Rollen mit: `Administrator`, `Betreuer`, `Lehrkraft`, `AG-Leitung`, `Erziehungsberechtigter` und `Gast`.",
+      "Bei den festen Rollen fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
       "Zum Ändern von Rechten legen Sie deshalb zuerst eine eigene Rolle an.",
     ],
     troubleshootingDetails: [
@@ -4805,7 +4858,7 @@ function leadTeacherAccessTopic(): HelpTopic {
     icon: "GraduationCap",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
-      "Wählen Sie oben rechts `+ Personal`.",
+      "Wählen Sie oben rechts `+ Personal` und danach `Personal einladen`.",
       "Tragen Sie die `E-Mail-Adresse` ein.",
       "Wählen Sie bei `Rolle` die Rolle `Lehrkraft`.",
       "Wählen Sie `Einladung senden`.",
@@ -4994,6 +5047,10 @@ function leadCarePlanTopic(): HelpTopic {
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
+      // #4573, ADR 0091: Externe in Regelterminen, auch allein und zuständig.
+      "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
+      "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
+      "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
       "Über das Menü mit den drei Punkten geht `Drucken oder exportieren`.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
@@ -5126,6 +5183,7 @@ function substitutionPlanTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Fehlt der Einsatz? Dann ist er noch nicht im Betreuungsplan angelegt.",
+      "Eine externe Person steht nicht zur Wahl? Externe Personen übernehmen keine Vertretung.",
     ],
     related: [
       HELP_TOPICS.leadCarePlan,
@@ -5422,6 +5480,8 @@ function settingsTopic(): HelpTopic {
     notes: [
       "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
+      "Unter `Datenschutz` können Sie die `Nutzungsanalyse` ausschalten. Dann erhält moto keine Nutzungsstatistiken Ihrer Schule mehr.",
+      "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
       "Unter `Datenschutz` sehen Sie die Löschfristen. Sie zeigen, wie lange moto Daten aufbewahrt.",
       "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",

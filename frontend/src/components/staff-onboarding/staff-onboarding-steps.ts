@@ -71,6 +71,15 @@ export interface StaffOnboardingContext {
   canSeeCalendar: boolean;
   /** Die Schule erfasst Räume (detaillierte Anwesenheit). */
   roomsTracked: boolean;
+  /**
+   * Die Person darf „Alle Kinder“ öffnen (`users:read`). Die AG-Leitung
+   * darf es nicht (#4573); auch das An- und Abmelden führt dorthin.
+   */
+  canSearchChildren: boolean;
+  /** Die Person darf eine Aufsicht starten (`groups:update` oder `schedules:read`). */
+  canSupervise: boolean;
+  /** Die Person erfasst Arbeitszeit (`time_tracking:own`); Externe nicht. */
+  canTrackWorkTime: boolean;
 }
 
 export interface StaffOnboardingStep {
@@ -87,14 +96,15 @@ function applies(
     case "groups":
       return context.hasOwnGroup;
     case "attendance":
-      return context.webAttendance;
+      return context.webAttendance && context.canSearchChildren;
     case "calendar":
       return context.canSeeCalendar;
     case "supervision":
-      return context.roomsTracked;
+      return context.roomsTracked && context.canSupervise;
     case "students":
+      return context.canSearchChildren;
     case "work_time":
-      return true;
+      return context.canTrackWorkTime;
   }
 }
 

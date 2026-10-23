@@ -217,7 +217,9 @@
     "week": "Hafta",
     "participationTitle": "{name} ne zaman yemek yiyor?",
     "participationCutoff": "Kaydı aynı gün saat {time} olana kadar değiştirebilirsiniz.",
+    "participationCutoffLead": "Kaydı {days, plural, one {yemekten bir iş günü önce} other {yemekten # iş günü önce}} saat {time} olana kadar değiştirebilirsiniz.",
     "participationSickness": "Saat {time} olana kadar onaylanan bir hastalık bildirimi, çocuğunuzun öğle yemeği kaydını iptal eder. Sonrasında kayıt geçerli kalır.",
+    "participationSicknessLead": "{days, plural, one {Yemekten bir iş günü önce} other {Yemekten # iş günü önce}} saat {time} olana kadar onaylanan bir hastalık bildirimi, çocuğunuzun öğle yemeği kaydını iptal eder. Sonrasında kayıt geçerli kalır.",
     "participationLoading": "Öğle yemeği kaydı yükleniyor",
     "regularDays": "Sabit günler",
     "noRegularDays": "Sabit gün yok",
@@ -254,6 +256,7 @@
     "title": "Mutfak için günlük liste",
     "description": "Liste, o gün öğle yemeğine kayıtlı tüm çocukları gösterir.",
     "cutoff": "Bu gün için değişiklikler saat {time} olana kadar yapılabilir.",
+    "cutoffLead": "Bu gün için değişiklikler {days, plural, one {bir iş günü önce} other {# iş günü önce}} saat {time} olana kadar yapılabilir.",
     "child": "Çocuk",
     "class": "Sınıf",
     "dateAria": "Tarih: {date}",
@@ -268,7 +271,25 @@
     "errorObject": "günlük liste",
     "caption": "{date} tarihli öğle yemeği",
     "emptyTitle": "Bu gün için kayıt yok",
-    "emptyDescription": "Bu gün için mutfak listesinde çocuk yok."
+    "emptyDescription": "Bu gün için mutfak listesinde çocuk yok.",
+    "viewAria": "Mutfak listesi görünümü",
+    "viewDay": "Gün",
+    "viewWeek": "Hafta",
+    "weekTitle": "Mutfak için haftalık liste",
+    "weekDescription": "Liste, bu hafta öğle yemeğine kayıtlı tüm çocukları gösterir.",
+    "weekCutoff": "Değişiklikler {days, plural, =0 {yemek günü} one {bir iş günü önce} other {# iş günü önce}} saat {time} olana kadar yapılabilir.",
+    "weekDateAria": "{from} tarihinden itibaren hafta",
+    "weekDownloadGroup": "Haftalık listeyi indir",
+    "weekDownloadPdf": "Haftalık listeyi PDF olarak indir",
+    "weekDownloadExcel": "Haftalık listeyi Excel dosyası olarak indir",
+    "weekErrorObject": "haftalık liste",
+    "weekCaption": "{from} - {to} öğle yemeği",
+    "weekEmptyTitle": "Bu hafta kayıt yok",
+    "weekEmptyDescription": "Bu hafta için mutfak listesinde çocuk yok.",
+    "weekRegistered": "kayıtlı",
+    "weekNotRegistered": "kayıtlı değil",
+    "weekCountsLabel": "Günlük yemek sayısı",
+    "weekCount": "{count, plural, one {# çocuk} other {# çocuk}}"
   },
   "parentDashboard": {
     "eyebrow": "Veli portalı",
@@ -2824,6 +2845,14 @@
       },
       "feedback": {
         "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+      },
+      "staff": {
+        "external_access_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_email_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_email_invited": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "external_email_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_has_account": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "not_external": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       }
     },
     "actions": {
