@@ -68,47 +68,67 @@ func visitTenantObjects(ctx context.Context, root *os.Root, prefix string, remov
 		return 0, errors.New("storage: inventory unavailable")
 	}
 	defer func() { _ = dir.Close() }()
+
 	var count int64
 	for {
 		entries, readErr := dir.ReadDir(128)
-		for _, entry := range entries {
-			if !strings.HasPrefix(entry.Name(), prefix) {
-				continue
-			}
-			if err := ctx.Err(); err != nil {
-				return count, err
-			}
-			info, err := root.Lstat(entry.Name())
-			if err != nil {
-				return count, errors.New("storage: inventory failed")
-			}
-			if info.IsDir() && prefix == "" {
-				child, err := root.OpenRoot(entry.Name())
-				if err != nil {
-					return count, errors.New("storage: directory unavailable")
-				}
-				n, err := visitTenantObjects(ctx, child, "", remove)
-				_ = child.Close()
-				count += n
-				if err != nil {
-					return count, err
-				}
-			} else if info.Mode().IsRegular() {
-				count++
-			} else {
-				return count, errors.New("storage: unsafe object")
-			}
-			if remove {
-				if err := root.Remove(entry.Name()); err != nil && !os.IsNotExist(err) {
-					return count, errors.New("storage: removal failed")
-				}
-			}
+		n, err := visitTenantBatch(ctx, root, entries, prefix, remove)
+		count += n
+		if err != nil {
+			return count, err
+		}
+		if errors.Is(readErr, io.EOF) {
+			return count, nil
 		}
 		if readErr != nil {
-			if errors.Is(readErr, io.EOF) {
-				return count, nil
-			}
 			return count, errors.New("storage: inventory failed")
 		}
 	}
+}
+
+func visitTenantBatch(ctx context.Context, root *os.Root, entries []os.DirEntry, prefix string, remove bool) (int64, error) {
+	var count int64
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), prefix) {
+			continue
+		}
+		n, err := visitTenantEntry(ctx, root, entry.Name(), prefix, remove)
+		count += n
+		if err != nil {
+			return count, err
+		}
+	}
+	return count, nil
+}
+
+func visitTenantEntry(ctx context.Context, root *os.Root, name, prefix string, remove bool) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	info, err := root.Lstat(name)
+	if err != nil {
+		return 0, errors.New("storage: inventory failed")
+	}
+	var count int64
+	if info.IsDir() && prefix == "" {
+		child, err := root.OpenRoot(name)
+		if err != nil {
+			return 0, errors.New("storage: directory unavailable")
+		}
+		count, err = visitTenantObjects(ctx, child, "", remove)
+		_ = child.Close()
+		if err != nil {
+			return count, err
+		}
+	} else if info.Mode().IsRegular() {
+		count = 1
+	} else {
+		return 0, errors.New("storage: unsafe object")
+	}
+	if remove {
+		if err := root.Remove(name); err != nil && !os.IsNotExist(err) {
+			return count, errors.New("storage: removal failed")
+		}
+	}
+	return count, nil
 }

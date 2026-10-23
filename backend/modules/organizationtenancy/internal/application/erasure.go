@@ -18,65 +18,90 @@ type Erasure struct {
 	files organizationtenancy.ErasureFiles
 }
 
-func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles) *Erasure {
-	return &Erasure{store: store, files: files}
+func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles) (*Erasure, error) {
+	if store == nil || files == nil {
+		return nil, errors.New("erasure: database and file store required")
+	}
+	return &Erasure{store: store, files: files}, nil
 }
 
 var orderReferencePattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]{2,39}$`)
 
-func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest) ([]json.RawMessage, error) {
+func validateErasureRequest(r organizationtenancy.ErasureRequest) error {
 	if r.ReceiptID != 0 {
 		if r.ReceiptID < 0 || r.SchoolID != 0 || r.OrganizationID != 0 || r.OperatorID != 0 || r.OrderReference != "" {
-			return nil, errors.New("erasure: select a positive receipt ID without an erasure target")
+			return errors.New("erasure: select a positive receipt ID without an erasure target")
 		}
-		proof, err := s.store.Call(ctx, 5*time.Second, 5*time.Minute, "read", r.ReceiptID)
-		if err != nil {
-			return nil, err
-		}
-		return []json.RawMessage{proof}, nil
+		return nil
 	}
-
 	if (r.SchoolID > 0) == (r.OrganizationID > 0) || r.SchoolID < 0 || r.OrganizationID < 0 || r.OperatorID <= 0 || !orderReferencePattern.MatchString(r.OrderReference) {
-		return nil, errors.New("erasure: select one school or organization, active operator ID and non-personal reference (3-40 uppercase letters/digits/hyphens)")
+		return errors.New("erasure: select one school or organization, active operator ID and non-personal reference (3-40 uppercase letters/digits/hyphens)")
 	}
 	if r.LockTimeout < time.Millisecond || r.LockTimeout > time.Minute || r.StatementTimeout <= r.LockTimeout || r.StatementTimeout > time.Hour {
-		return nil, errors.New("erasure: require 1ms <= lock timeout <= 1m and lock timeout < statement timeout <= 1h")
+		return errors.New("erasure: require 1ms <= lock timeout <= 1m and lock timeout < statement timeout <= 1h")
 	}
 	target := fmt.Sprintf("school:%d", r.SchoolID)
 	if r.OrganizationID > 0 {
 		target = fmt.Sprintf("organization:%d", r.OrganizationID)
 	}
 	if !r.DryRun && (!r.PrerequisitesChecked || !r.WritersStopped || r.Confirmation != target) {
-		return nil, errors.New("erasure: check order, authorization, return/retention deadlines, stop writers and confirm exact target")
+		return errors.New("erasure: check order, authorization, return/deadlines, stop writers and confirm exact target")
 	}
-	data, err := organizationtenancy.DataLifecycleCatalogSource.ReadFile("data_lifecycle_catalog.json")
+	return nil
+}
+
+func erasureFileCatalog() ([]organizationtenancy.LifecycleFileKind, error) {
+	raw, err := organizationtenancy.DataLifecycleCatalogSource.ReadFile("data_lifecycle_catalog.json")
 	if err != nil {
 		return nil, errors.New("erasure: catalog unavailable")
 	}
 	var catalog organizationtenancy.DataLifecycleCatalog
-	if err = json.Unmarshal(data, &catalog); err != nil {
+	if err = json.Unmarshal(raw, &catalog); err != nil {
 		return nil, errors.New("erasure: catalog invalid")
 	}
-	if err = validateErasureFiles(catalog.Files); err != nil {
+	return catalog.Files, validateErasureFiles(catalog.Files)
+}
+
+func erasureSchoolIDs(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest) ([]int64, error) {
+	if r.OrganizationID == 0 {
+		return []int64{r.SchoolID}, nil
+	}
+	raw, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "schools", r.OrganizationID, r.OperatorID, r.OrderReference)
+	if err != nil {
 		return nil, err
 	}
-	store := s.store
-	schools := []int64{r.SchoolID}
-	if r.OrganizationID > 0 {
-		data, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "schools", r.OrganizationID, r.OperatorID, r.OrderReference)
+	var ids []int64
+	if err = json.Unmarshal(raw, &ids); err != nil {
+		return nil, errors.New("erasure: invalid school inventory")
+	}
+	return ids, nil
+}
+
+func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest) ([]json.RawMessage, error) {
+	if err := validateErasureRequest(r); err != nil {
+		return nil, err
+	}
+	if r.ReceiptID != 0 {
+		proof, err := s.store.Call(ctx, 5*time.Second, 5*time.Minute, "read", r.ReceiptID)
 		if err != nil {
 			return nil, err
 		}
-		if err = json.Unmarshal(data, &schools); err != nil {
-			return nil, errors.New("erasure: invalid school inventory")
-		}
+		return []json.RawMessage{proof}, nil
+	}
+	kinds, err := erasureFileCatalog()
+	if err != nil {
+		return nil, err
+	}
+	ids, err := erasureSchoolIDs(ctx, s.store, r)
+	if err != nil {
+		return nil, err
 	}
 	var results []json.RawMessage
-	for _, id := range schools {
-		err := store.WithSchoolLock(ctx, id, func() error {
-			result, err := s.eraseSchool(ctx, store, r, id, catalog.Files)
-			if result != nil {
-				results = append(results, result)
+	for _, id := range ids {
+		err = s.store.WithSchoolLock(ctx, id, func() error {
+			proof, err := s.eraseSchool(ctx, s.store, r, id, kinds)
+			if proof != nil {
+				results = append(results, proof)
 			}
 			return err
 		})
@@ -122,89 +147,108 @@ func (s *Erasure) filePhase(ctx context.Context, id int64, kinds []organizationt
 	}
 	return counts, nil
 }
-func (s *Erasure) eraseSchool(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
-	if r.DryRun {
-		rows, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "preview", id, r.OperatorID)
-		if err != nil {
-			return nil, err
-		}
-		counts, err := s.filePhase(ctx, id, kinds, false)
-		if err != nil {
-			return nil, err
-		}
-		result, err := json.Marshal(map[string]any{"school_id": id, "status": "dry_run", "row_counts": rows, "file_counts": counts})
-		return result, err
-	}
-	raw, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "begin", id, r.OperatorID, r.OrderReference)
+func (s *Erasure) previewSchool(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
+	rows, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "preview", id, r.OperatorID)
 	if err != nil {
 		return nil, err
 	}
+	counts, err := s.filePhase(ctx, id, kinds, false)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]any{"school_id": id, "status": "dry_run", "row_counts": rows, "file_counts": counts})
+}
+
+func (s *Erasure) prepareSchoolErasure(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (organizationtenancy.ErasureProof, json.RawMessage, error) {
+	var proof organizationtenancy.ErasureProof
+	raw, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "begin", id, r.OperatorID, r.OrderReference)
+	if err != nil {
+		return proof, nil, err
+	}
 	orderID, err := strconv.ParseInt(string(raw), 10, 64)
 	if err != nil {
-		return nil, errors.New("erasure: invalid order ID")
+		return proof, nil, errors.New("erasure: invalid order ID")
 	}
-	read := func() (json.RawMessage, error) {
-		return store.Call(ctx, r.LockTimeout, r.StatementTimeout, "read", orderID)
+	raw, err = store.Call(ctx, r.LockTimeout, r.StatementTimeout, "read", orderID)
+	if err != nil {
+		return proof, nil, err
 	}
-	raw, err = read()
+	if err = json.Unmarshal(raw, &proof); err != nil {
+		return proof, nil, errors.New("erasure: invalid receipt")
+	}
+	if proof.InventoryAt != nil || proof.Status == "completed" {
+		return proof, raw, nil
+	}
+	counts, err := s.filePhase(ctx, id, kinds, false)
+	if err != nil {
+		return proof, raw, err
+	}
+	data, err := json.Marshal(counts)
+	if err != nil {
+		return proof, raw, err
+	}
+	_, err = store.Call(ctx, r.LockTimeout, r.StatementTimeout, "phase", orderID, "inventory", string(data))
+	return proof, raw, err
+}
+
+func eraseSchoolDatabase(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest, id, orderID int64) (json.RawMessage, error) {
+	if _, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "erase", id, orderID); err != nil {
+		return nil, err
+	}
+	raw, err := store.Call(ctx, r.LockTimeout, r.StatementTimeout, "read", orderID)
 	if err != nil {
 		return nil, err
 	}
 	var proof organizationtenancy.ErasureProof
-	if err = json.Unmarshal(raw, &proof); err != nil {
-		return nil, errors.New("erasure: invalid receipt")
+	if err = json.Unmarshal(raw, &proof); err != nil || proof.DBDoneAt == nil {
+		return raw, errors.New("erasure: database deletion failed; retry same order, see receipt SQLSTATE")
 	}
-	if proof.Status == "completed" {
-		return raw, nil
+	return raw, nil
+}
+
+func (s *Erasure) removeAndVerifyFiles(ctx context.Context, id int64, kinds []organizationtenancy.LifecycleFileKind) error {
+	if _, err := s.filePhase(ctx, id, kinds, true); err != nil {
+		return err
 	}
-	if proof.InventoryAt == nil {
-		counts, err := s.filePhase(ctx, id, kinds, false)
-		if err != nil {
-			return raw, err
+	counts, err := s.filePhase(ctx, id, kinds, false)
+	if err != nil {
+		return err
+	}
+	for _, n := range counts {
+		if n != 0 {
+			return errors.New("erasure: files remain; order is not complete")
 		}
-		data, err := json.Marshal(counts)
-		if err != nil {
-			return raw, err
-		}
-		if _, err = store.Call(ctx, r.LockTimeout, r.StatementTimeout, "phase", orderID, "inventory", string(data)); err != nil {
-			return raw, err
-		}
+	}
+	return nil
+}
+
+func (s *Erasure) eraseSchool(ctx context.Context, store ports.ErasureStore, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
+	if r.DryRun {
+		return s.previewSchool(ctx, store, r, id, kinds)
+	}
+	proof, raw, err := s.prepareSchoolErasure(ctx, store, r, id, kinds)
+	if err != nil || proof.Status == "completed" {
+		return raw, err
 	}
 	if proof.DBDoneAt == nil {
-		if _, err = store.Call(ctx, r.LockTimeout, r.StatementTimeout, "erase", id, orderID); err != nil {
-			return nil, err
-		}
-		raw, err = read()
+		raw, err = eraseSchoolDatabase(ctx, store, r, id, proof.ID)
 		if err != nil {
-			return nil, err
-		}
-		if err = json.Unmarshal(raw, &proof); err != nil || proof.DBDoneAt == nil {
-			return raw, errors.New("erasure: database deletion failed; retry same order, see receipt SQLSTATE")
+			return raw, err
 		}
 	}
-	if _, err = s.filePhase(ctx, id, kinds, true); err != nil {
-		// Cancellation must not turn into success; a best-effort failed marker is
-		// independent of the cancelled caller. db_done still makes retries safe.
+	if err = s.removeAndVerifyFiles(ctx, id, kinds); err != nil {
+		// A cancelled caller cannot report success. Keep the failed marker best-effort
+		// and independent of its context; db_done remains a safe restart point.
 		markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		failed, markErr := store.Call(markCtx, r.LockTimeout, r.StatementTimeout, "phase", orderID, "failed", "{}")
+		failed, markErr := store.Call(markCtx, r.LockTimeout, r.StatementTimeout, "phase", proof.ID, "failed", "{}")
 		if markErr != nil {
 			return raw, errors.New("erasure: file phase and failure marker failed; order is not complete")
 		}
 		return failed, err
 	}
-	// Verify all namespaces again before recording any completion.
-	counts, err := s.filePhase(ctx, id, kinds, false)
-	if err != nil {
+	if _, err = store.Call(ctx, r.LockTimeout, r.StatementTimeout, "phase", proof.ID, "files_done", "{}"); err != nil {
 		return nil, err
 	}
-	for _, n := range counts {
-		if n != 0 {
-			return nil, errors.New("erasure: files remain; order is not complete")
-		}
-	}
-	if _, err = store.Call(ctx, r.LockTimeout, r.StatementTimeout, "phase", orderID, "files_done", "{}"); err != nil {
-		return nil, err
-	}
-	return store.Call(ctx, r.LockTimeout, r.StatementTimeout, "phase", orderID, "completed", "{}")
+	return store.Call(ctx, r.LockTimeout, r.StatementTimeout, "phase", proof.ID, "completed", "{}")
 }

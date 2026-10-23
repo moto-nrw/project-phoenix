@@ -14,6 +14,9 @@ import (
 type ErasureStore struct{ db *bun.DB }
 
 func NewErasureStore(db *bun.DB) (*ErasureStore, error) {
+	if db == nil {
+		return nil, errors.New("erasure: database required")
+	}
 	if db.DB.Stats().MaxOpenConnections == 1 {
 		return nil, errors.New("erasure: at least two database pool connections required")
 	}
