@@ -4141,7 +4141,7 @@ function mealCatererTopic(): HelpTopic {
     ],
     steps: [
       "Öffnen Sie in der Seitenleiste `Essensplan`.",
-      "Gehen Sie unten zur Karte `Caterer`.",
+      "Gehen Sie zur Karte `Caterer`. Sie steht unter `Bestellung`.",
       "Tragen Sie `Name des Caterers` und `E-Mail-Adresse des Caterers` ein. Die Lieferadresse ist freiwillig.",
       "Wählen Sie `Einladung senden`.",
     ],
