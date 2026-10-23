@@ -73,6 +73,9 @@ func TestDiagnosticsReaderDeniesSensitiveColumnsAndWrites(t *testing.T) {
 		`SELECT * FROM users.staff_documents LIMIT 0`,
 		`SELECT * FROM documents.files LIMIT 0`,
 		`SELECT * FROM auth.accounts LIMIT 0`,
+		`SELECT * FROM platform.school_erasures LIMIT 0`,
+		`SELECT * FROM platform.live_billing_key_date_counts LIMIT 0`,
+		`SELECT * FROM platform.billing_key_date_counts LIMIT 0`,
 		`SELECT * FROM facilities.rooms LIMIT 0`,
 		`SELECT name FROM education.groups LIMIT 0`,
 		`SELECT name FROM activities.groups LIMIT 0`,
@@ -162,7 +165,7 @@ FROM pg_roles r WHERE rolname = 'phoenix_diagnostics'`).Scan(ctx, &unsafe))
 func TestDiagnosticsReaderPreservesMFARuntimeAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	for _, role := range []string{"phoenix_auth", "phoenix_tenant", "phoenix_admin"} {
+	for _, role := range []string{"phoenix_auth", "phoenix_tenant", "phoenix_admin", "phoenix_demo"} {
 		var tableAccess, sequenceAccess bool
 		require.NoError(t, db.NewRaw(`SELECT
     has_table_privilege(?, 'auth.mfa_overrides', 'SELECT')
@@ -199,7 +202,7 @@ ALTER TABLE facilities.rooms ADD COLUMN diagnostics_future_health_info text;
 func TestDiagnosticsReaderPersonalLoginCannotSwitchToRuntimeRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	for _, role := range []string{"phoenix_auth", "phoenix_tenant", "phoenix_admin", "pg_read_all_data", "pg_read_server_files"} {
+	for _, role := range []string{"phoenix_auth", "phoenix_tenant", "phoenix_admin", "phoenix_demo", "phoenix_school_erasure", "phoenix_billing_retention", "pg_read_all_data", "pg_read_server_files"} {
 		t.Run(role, func(t *testing.T) {
 			tx, err := db.BeginTx(t.Context(), nil)
 			require.NoError(t, err)
@@ -233,6 +236,23 @@ func TestDiagnosticsReaderMigrationRoundTrip(t *testing.T) {
 	var exists bool
 	require.NoError(t, tx.NewRaw(`SELECT EXISTS (SELECT FROM pg_roles WHERE rolname = ?)`, role).Scan(t.Context(), &exists))
 	require.False(t, exists, "down removes column ACLs and the group without dropping data")
+	for _, restricted := range []string{"phoenix_school_erasure", "phoenix_billing_retention"} {
+		var granted bool
+		require.NoError(t, tx.NewRaw(`SELECT
+    has_table_privilege(?, 'auth.mfa_overrides', 'SELECT,INSERT,UPDATE,DELETE')
+    OR has_sequence_privilege(?, 'auth.mfa_overrides_id_seq', 'USAGE')`, restricted, restricted).Scan(t.Context(), &granted))
+		require.False(t, granted, "down must preserve 1.15.481's MFA isolation for %s", restricted)
+	}
+	for _, runtime := range []string{"phoenix_auth", "phoenix_tenant", "phoenix_admin", "phoenix_demo"} {
+		var granted bool
+		require.NoError(t, tx.NewRaw(`SELECT
+    has_table_privilege(?, 'auth.mfa_overrides', 'SELECT')
+    AND has_table_privilege(?, 'auth.mfa_overrides', 'INSERT')
+    AND has_table_privilege(?, 'auth.mfa_overrides', 'UPDATE')
+    AND has_table_privilege(?, 'auth.mfa_overrides', 'DELETE')
+    AND has_sequence_privilege(?, 'auth.mfa_overrides_id_seq', 'USAGE')`, runtime, runtime, runtime, runtime, runtime).Scan(t.Context(), &granted))
+		require.True(t, granted, "down must preserve 1.15.481's MFA runtime grants for %s", runtime)
+	}
 }
 
 func TestDiagnosticsReaderRejectsPreexistingElevatedRole(t *testing.T) {

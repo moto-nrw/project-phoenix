@@ -13,7 +13,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     diagnosticsReaderVersion,
 		Description: "Add a tenant-scoped diagnostics reader without financial, health or audit access (#3840)",
-		DependsOn:   []string{enableRLSVersion, mfaOverridesRestrictGlobalWriteVersion},
+		DependsOn:   []string{enableRLSVersion, schoolErasureVersion},
 	})
 	Migrations.MustRegister(diagnosticsReaderUp, diagnosticsReaderDown)
 }
@@ -37,13 +37,8 @@ DO $$ BEGIN
         RAISE EXCEPTION 'phoenix_diagnostics must be an unprivileged NOLOGIN group without role memberships';
     END IF;
 END $$;
--- 1.15.92 granted this table/sequence to PUBLIC. A new restricted role
--- would otherwise inherit those rights. Tenant/admin keep their existing
--- default grants; the NOINHERIT pre-auth role needs explicit replacement grants.
-GRANT SELECT, INSERT, UPDATE, DELETE ON auth.mfa_overrides TO phoenix_auth;
-GRANT USAGE ON SEQUENCE auth.mfa_overrides_id_seq TO phoenix_auth;
-REVOKE SELECT, INSERT, UPDATE, DELETE ON auth.mfa_overrides FROM PUBLIC;
-REVOKE USAGE ON SEQUENCE auth.mfa_overrides_id_seq FROM PUBLIC;
+-- 1.15.481 owns the MFA PUBLIC revocations and runtime replacement grants.
+-- Leave them untouched in both directions, including diagnostics rollback.
 GRANT USAGE ON SCHEMA facilities, education, activities TO phoenix_diagnostics;
 GRANT SELECT (id, tenant_id, created_at, updated_at)
     ON facilities.rooms, education.groups, activities.groups TO phoenix_diagnostics;
@@ -57,10 +52,6 @@ REVOKE SELECT (id, tenant_id, created_at, updated_at)
     ON facilities.rooms, education.groups, activities.groups FROM phoenix_diagnostics;
 REVOKE USAGE ON SCHEMA facilities, education, activities FROM phoenix_diagnostics;
 DROP ROLE phoenix_diagnostics;
-GRANT SELECT, INSERT, UPDATE, DELETE ON auth.mfa_overrides TO PUBLIC;
-GRANT USAGE ON SEQUENCE auth.mfa_overrides_id_seq TO PUBLIC;
-REVOKE SELECT, INSERT, UPDATE, DELETE ON auth.mfa_overrides FROM phoenix_auth;
-REVOKE USAGE ON SEQUENCE auth.mfa_overrides_id_seq FROM phoenix_auth;
 `
 
 func diagnosticsReaderUp(ctx context.Context, db *bun.DB) error {

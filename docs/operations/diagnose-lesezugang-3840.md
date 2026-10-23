@@ -6,9 +6,11 @@ Stand: 23.10.2026, Slice 3840-f, Teil von #3840 und #3846.
 `NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`
 an. Die Rolle ist kein Mitglied anderer Rollen und wird nicht an App-Rollen
 vergeben. Die Migration enthält weder LOGIN-Zugänge noch Zugangsdaten.
-Bestehende PUBLIC-GRANTs auf `auth.mfa_overrides` und dessen Sequenz werden
-durch explizite Rechte für `phoenix_auth` ersetzt. Die vorhandenen Rechte für
-`phoenix_tenant` und `phoenix_admin` sowie die RLS-Policies bleiben erhalten.
+Die vorausgesetzte Migration `1.15.481` ersetzt PUBLIC-Rechte auf
+`auth.mfa_overrides` und dessen Sequenz durch ausdrückliche Grants an
+`phoenix_auth`, `phoenix_tenant`, `phoenix_admin` und `phoenix_demo`.
+`1.15.488` verändert diese Rechte weder bei Up noch bei Down; die RLS-Policies
+bleiben erhalten.
 **Produktiv nachzuweisen:** Rollout, persönliche Zugänge, effektive Rechte,
 Ablösung bisheriger Superuser-Diagnose und Entzug alter Zugänge. In diesem
 Slice wurden ausschließlich lokale synthetische Testdaten verwendet.
@@ -31,6 +33,8 @@ insbesondere:
 - `users.student_data_change_requests`, `config.setting_audit`, Anmeldedaten
   unter `enrollment`, Krankheitstage und Personalabwesenheiten unter `active`;
 - Notizen, Nachrichten, Konten, Zugangsdaten, Dateien und Dokumentmetadaten.
+- Löschaufträge und Abrechnungsstatistik unter `platform`, einschließlich
+  `school_erasures`, `billing_key_date_counts` und `live_billing_key_date_counts`.
 
 Die ganze Tabelle auszuschließen schützt auch vor Gesundheitsangaben in
 Freitext und unbekannten Protokollkopien. Der
@@ -49,7 +53,8 @@ Berechtigte können die Schul-ID selbst wählen. RLS verhindert hier vergessene
 Filter, nicht die bewusste Wahl einer anderen Schule. Diagnose nur mit
 dokumentiertem Auftrag und für die dafür freigegebene Schule ausführen.
 Keine Mitgliedschaft in `phoenix_tenant`, `phoenix_admin`, `phoenix_auth`,
-`phoenix_demo` oder privilegierten PostgreSQL-Rollen ergänzen.
+`phoenix_demo`, `phoenix_school_erasure`, `phoenix_billing_retention` oder
+privilegierten PostgreSQL-Rollen ergänzen.
 
 Systemkatalog-Metadaten bleiben nach PostgreSQL-Standard sichtbar. Die Rolle
 hat außerdem die standardmäßige Statistikansicht der Erweiterung
@@ -274,9 +279,10 @@ oder Default-Rechten und nach Restore den Betriebsnachweis erneuern.
 Vor Down persönliche LOGIN-Zugänge sperren und ihre Sitzungen beenden.
 Down entzieht die zwölf Spaltenrechte und die drei Schema-USAGE-Rechte und
 entfernt die Gruppenrolle atomar. Die persönlichen LOGIN-Rollen bleiben
-bestehen und müssen separat verwaltet werden. Down stellt außerdem die zuvor
-bestehenden MFA-PUBLIC-Rechte wieder her und entzieht die Ersatz-GRANTs an
-`phoenix_auth`. Unerwartete Grants, Objektbesitz oder Referenzen in anderen Datenbanken desselben Clusters lassen Down
+bestehen und müssen separat verwaltet werden. Down lässt die MFA-Absicherung
+aus `1.15.481` unverändert: keine neuen PUBLIC-Rechte und kein Entzug der
+ausdrücklichen Laufzeitrechte. Unerwartete Grants, Objektbesitz oder Referenzen
+in anderen Datenbanken desselben Clusters lassen Down
 fehlschlagen, ohne Teilrücknahme. Keine Objekte mit `DROP OWNED` löschen:
 Referenzen zuerst gezielt prüfen. Bei gemeinsam genutzten Testclustern die
 Rolle nicht außerhalb des Test-Lebenszyklus löschen.

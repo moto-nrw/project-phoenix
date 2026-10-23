@@ -48,7 +48,8 @@ Nur `id`, `tenant_id`, `created_at`, `updated_at` in `facilities.rooms`,
 `education.groups` und `activities.groups` sind per Spalten-GRANT lesbar.
 Alle Finanz-/Gesundheitstabellen, Protokollkopien, Freitexte, Konten und
 Dokumentmetadaten bleiben ausgeschlossen, auch neue Tabellen/Spalten.
-Bestehende MFA-PUBLIC-GRANTs werden durch explizite App-Rollenrechte ersetzt.
+Die vorausgesetzte Migration `1.15.481` ersetzt MFA-PUBLIC-GRANTs durch explizite
+App-Rollenrechte. Up und Down von `1.15.488` lassen diese Absicherung unverändert.
 RLS begrenzt jede Transaktion auf die gewählte Schule; die interne Betriebsrolle
 kann die Schul-ID selbst wählen und ist kein schulgebundener Kundenzugang.
 

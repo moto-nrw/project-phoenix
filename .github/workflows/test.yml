@@ -224,6 +224,8 @@ jobs:
           CREATE ROLE phoenix_tenant NOLOGIN;
           CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
           CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
+          CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
           GRANT phoenix_tenant TO phoenix_auth;
           GRANT phoenix_admin TO phoenix_auth;
           ALTER ROLE phoenix_auth SET search_path TO public, platform;
