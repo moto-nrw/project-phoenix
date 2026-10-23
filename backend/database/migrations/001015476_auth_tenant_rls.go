@@ -8,13 +8,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const authTenantRLSVersion = "1.15.475"
+const authTenantRLSVersion = "1.15.476"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     authTenantRLSVersion,
 		Description: "Enforce school isolation on auth tenant tables found by the RLS coverage guard (#3842)",
-		DependsOn:   []string{"1.15.449", "1.15.282", "1.15.133", "1.15.91", "1.14.6"},
+		DependsOn:   []string{"1.15.475", "1.15.449", "1.15.282", "1.15.133", "1.15.91", "1.14.6"},
 	})
 	Migrations.MustRegister(authTenantRLSUp, authTenantRLSDown)
 }

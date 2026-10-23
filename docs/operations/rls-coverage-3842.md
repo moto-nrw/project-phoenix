@@ -4,7 +4,8 @@
 
 `TestEveryTenantTableHasRLS` prüft nach allen Migrationen jede reguläre oder
 partitionierte Tabelle mit einer nicht gelöschten Spalte `tenant_id` in allen
-Nicht-Systemschemata. Partitionsblätter sind ausgenommen. Der Test verlangt
+Nicht-Systemschemata. Partitionsblätter, Views, materialisierte Views und
+Foreign Tables sind nicht abgedeckt. Der Test verlangt
 aktiviertes und erzwungenes RLS, eine Policy und eine für `phoenix_tenant`
 geltende Policy. Er beweist nicht die Semantik beliebiger Policy-Ausdrücke;
 ein Texttreffer auf `tenant_id` und `current_setting` wäre dafür unzureichend.
@@ -16,7 +17,8 @@ tenant-gefilterten SECURITY-DEFINER-Funktionen und den Demo-Steuerzustand mit
 eigener `phoenix_demo`-Policy. Neue Rechte, fehlende Tabellen, leere Begründungen
 oder inzwischen erfüllte RLS-Abdeckung lassen den Test fehlschlagen.
 
-Migration `1.15.475` ergänzt RLS für `auth.account_tenants`,
+Migration `1.15.476` folgt auf `1.15.475` (Bereinigung des
+Gesundheitsänderungsprotokolls) und ergänzt RLS für `auth.account_tenants`,
 `auth.mfa_email_challenges`, `auth.mfa_trusted_devices`, `auth.passkey_sessions`
 und `auth.parent_declaration_permission_grants`. Vorhandene Datensätze bleiben
 unverändert. Die bisher berechtigte Voranmelderolle `phoenix_auth` behält ihren
@@ -62,7 +64,7 @@ Dieser Slice enthält keinen Zugriff auf Produktion oder Staging und bestätigt
 keinen dortigen Zustand. Nach dem regulären Deploy führt ein berechtigter
 Mensch folgende Nachweise mit dem bestehenden beschränkten Diagnosezugang:
 
-1. Ausgerollten Commit und erfolgreichen Lauf von Migration `1.15.475` belegen.
+1. Ausgerollten Commit und erfolgreichen Lauf von Migration `1.15.476` belegen.
 2. Im Datenbankkatalog für die fünf Tabellen `pg_class.relrowsecurity`,
    `relforcerowsecurity` und die zugehörigen `pg_policies` prüfen. Die
    Tenant-Policy muss `tenant_id` gegen `app.current_tenant_id` prüfen;
@@ -79,3 +81,5 @@ Mensch folgende Nachweise mit dem bestehenden beschränkten Diagnosezugang:
 
 Weitere Kriterien von #3842, etwa TLS, CSP, Deploy-Rechte und Betriebsprotokolle,
 sind nicht Teil dieses Slices. Tabellen ohne `tenant_id` sind nicht abgedeckt.
+Eine Liste indirekt schulbezogener Tabellen ohne `tenant_id` für #3837 bleibt
+offen; aus der Spaltenprüfung allein folgt keine vollständige fachliche Zuordnung.
