@@ -17,6 +17,15 @@ type CommandTransactions struct {
 	withinAdmin  func(context.Context, func(context.Context) error) error
 }
 
+type globalCredentialScopeKey struct{}
+
+// withGlobalCredentialScope marks account-wide credential/bootstrap commands,
+// not arbitrary school reads. It affects only a standalone command: an ambient
+// transaction still owns its role, snapshot and rollback.
+func withGlobalCredentialScope(ctx context.Context) context.Context {
+	return context.WithValue(ctx, globalCredentialScopeKey{}, true)
+}
+
 func NewCommandTransactions(attach func(context.Context) context.Context, current func(context.Context) (any, bool), school func(context.Context) int64, withinSchool, withinAdmin func(context.Context, func(context.Context) error) error) CommandTransactions {
 	return CommandTransactions{attach: attach, current: current, school: school, withinSchool: withinSchool, withinAdmin: withinAdmin}
 }
@@ -38,7 +47,8 @@ func (r CommandTransactions) RunPlatform(ctx context.Context, fn func(context.Co
 	if _, ok := r.current(ctx); ok {
 		return fn(ctx)
 	}
-	if r.school(ctx) <= 0 {
+	globalCredential, _ := ctx.Value(globalCredentialScopeKey{}).(bool)
+	if r.school(ctx) <= 0 || globalCredential {
 		return r.withinAdmin(ctx, fn)
 	}
 	return r.withinSchool(ctx, fn)
