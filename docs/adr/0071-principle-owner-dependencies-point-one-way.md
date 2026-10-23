@@ -96,8 +96,9 @@ as a separate mount argument to that HTTP adapter, not as a field of the
 Care Plan schedules or another root service graph (ADR 0059). The handler
 calls the workflow directly;
 no Care Plan domain command calls it. Point 2 applies to runtime calls as
-well as imports: declaring this port in HTTP does not permit a workflow
-callback from a domain application. Only the root names the workflow type.
+well as imports: declaring this port in HTTP grants no new workflow callback
+from a domain application. The existing E2 callbacks are bounded below.
+Only the root names the workflow type.
 Care Plan retains its input value and error identities; neither declares a
 workflow dependency. No policy rule, owner, epoch or cycle is added.
 
@@ -109,7 +110,7 @@ The contract/workflow tests keep their assertions through the separate root
 entry; the HTTP regression removes the domain lifecycle and still resumes
 through the real workflow binding.
 
-### Remaining roster callback: bounded E2 compatibility
+### Remaining roster and booking callbacks: bounded E2 compatibility
 
 `NewCareLifecycleOwners` still binds `careexit.NewRoster` into the lifecycle's
 private roster port. This is the same runtime direction, not evidence that
@@ -119,11 +120,30 @@ Timetable participants and restores/reconnects Presence state inside the
 existing confirm/cancel/due protocol. Moving its constructor or adding a
 forwarder would leave that coordination in the domain.
 
-Retain exactly this roster callback as the runtime part of ADR 0067's E2
-exception: the existing roster-port methods, caller's tenant transaction,
-ledger snapshot/restore and class(shared) → recurrence → child/plan locking
-remain unchanged. No new method, owner, effect or independent transaction is
-covered. Remove this exception when E2's complete end/cancel/due and withdrawal
-protocol moves into an explicit workflow. This larger cut is outside #4740;
-resumption is not covered by this exception. ADR 0083's typed effect successor
-must continue to report the roster binding as workflow-backed, not as a leaf.
+The second callback is `careexit.NewBookings`, constructed in
+`roots/owners/care_exit_enrollment_bookings.go`. Care Plan's
+`internal/application/care_exit_cleanup.go` calls
+`s.owners.Enrollment.CareExitOfferingSnapshots` and
+`RestoreCareExitOfferingLinks` through `careExitEnrollment` →
+`EnrollmentBookingProjection.Bookings`; `NewCareLifecycleOwners` binds that
+Enrollment port in `roots/owners/care_lifecycle_owners.go`.
+[ADR 0075's #4531 amendment](0075-pass-throughs-keep-a-per-owner-floor.md#amendment-of-2026-10-23)
+retains snapshot and restore in the workflow because they read Enrollment
+applications and submitted choice notes and preserve the ledger's
+Enrollment-shaped snapshot. [ADR 0083](0083-ratchets-protect-invariants-and-expose-command-effects.md#findings-the-successor-must-represent)
+keeps that boundary. Locking and ending source bookings stay on Care Plan's
+own `OfferingBookings`; this exception does not restore that removed round trip.
+
+Retain only these two workflow-backed bindings as the runtime part of
+ADR 0067's E2 exception: the existing roster-port methods and the two
+Enrollment-port snapshot/restore methods, caller's tenant transaction, ledger
+snapshot/restore and class(shared) → recurrence → child/plan locking remain
+unchanged. No new method, owner, effect or independent transaction is covered.
+Remove both callbacks from the domain application, and this exception, when
+E2's complete end/cancel/due and withdrawal protocol moves into an explicit
+workflow, keeping both roster and booking snapshot/restore within that protocol.
+This larger cut is outside #4740; resumption is not covered by this exception.
+ADR 0083's typed effect successor must report both bindings as workflow-backed,
+not as leaf calls. The lifecycle's separate `Bookings` port uses the Timetable
+owner through `careExitBookings`, not `careexit.Bookings`, and is not another
+workflow callback.
