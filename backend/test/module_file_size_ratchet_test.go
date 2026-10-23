@@ -10,7 +10,7 @@ import (
 )
 
 // TestModuleFileSizeRatchet caps the size of production files under modules/
-// and workflows/, roots (ADR 0082), and every backend tree (ADR 0085)
+// and workflows/, roots (ADR 0082), and every backend tree (ADR 0086)
 // at 800 lines. No gate measured file
 // size there when migration #2580 moved 228k production lines into modules/: on
 // 2026-09-18, 55 files were over the cap and the largest,
@@ -32,7 +32,7 @@ import (
 //
 // Scope: walkModuleRatchetSources covers all backend trees recursively,
 // including legacy, migrations, tools, generated code, hooks and test support.
-// Only _test.go and hidden directories are excluded. ADR 0085 records the
+// Only _test.go and hidden directories are excluded. ADR 0086 records the
 // category audit and exact additions measured at 8aca1925f7. Keys are slash
 // paths relative to backend/.
 //
@@ -54,29 +54,29 @@ const moduleFileSizeThreshold = 800
 var moduleFileSizeAllowlist = map[string]int{
 	"api/common/error_codes.generated.go": 1348,
 	"cmd/cleanup.go":                      1139,
-	// ADR 0085.
+	// ADR 0086.
 	"database/migrations/request_child_storage_backfill.go": 1186,
-	// ADR 0085.
+	// ADR 0086.
 	"database/migrations/staff_owner_backfill.go": 868,
-	// ADR 0085.
+	// ADR 0086.
 	"database/migrations/student_owner_backfill.go": 850,
-	// ADR 0085.
+	// ADR 0086.
 	"internal/architecture/semantic.go": 1498,
-	// ADR 0085.
+	// ADR 0086.
 	"internal/devtools/seedapi/parent_enrollment.go": 1440,
-	// ADR 0085.
+	// ADR 0086.
 	"internal/devtools/seedapi/seed_extras.go": 815,
-	// ADR 0085.
+	// ADR 0086.
 	"internal/devtools/seedapi/seed_time_tracking.go": 849,
-	// ADR 0085.
+	// ADR 0086.
 	"internal/devtools/seedapi/stammdaten.go": 1477,
-	// ADR 0085.
+	// ADR 0086.
 	"internal/devtools/simulate/demo_day.go": 818,
-	// ADR 0085.
+	// ADR 0086.
 	"internal/devtools/simulate/fullday.go": 921,
-	// ADR 0085.
+	// ADR 0086.
 	"observability/prometheus.go": 1722,
-	// ADR 0085.
+	// ADR 0086.
 	"test/fixtures.go": 3201,
 }
 

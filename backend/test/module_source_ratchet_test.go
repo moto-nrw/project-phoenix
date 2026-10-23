@@ -9,7 +9,7 @@ import (
 )
 
 // walkModuleRatchetSources shares the size, length and complexity surface.
-// ADR 0085: scan every backend tree, not a list of today's policy packages.
+// ADR 0086: scan every backend tree, not a list of today's policy packages.
 // This conservative superset includes migrations, tools, generated sources,
 // test support, hooks and testdata, independent of build tags and platform.
 // New or relocated packages are covered without updating a selector list.
@@ -37,7 +37,7 @@ func walkModuleRatchetSources(backendRoot string, visit func(path, rel string) e
 }
 
 // Every source category must reject an unregistered file, long function and
-// complex function, even in a future tree absent from policy.json (ADR 0085).
+// complex function, even in a future tree absent from policy.json (ADR 0086).
 func TestModuleRootSourceRatchetsRejectNewViolations(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
