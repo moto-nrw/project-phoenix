@@ -25,14 +25,16 @@ func (s *Service) requireChangeOpen(ctx context.Context, rules domain.Rules, stu
 	for _, override := range data.Overrides {
 		overrides[override.Date] = override.Participating
 	}
-	sickDays := effectiveSickDays(data.SickDays, rules)
-	current, _ := dayParticipation(data.Schedules, overrides, sickDays, date, rules)
+	// Sickness only masks the displayed kitchen-list state. The cutoff for a
+	// participation change must use the underlying plan and override, otherwise
+	// a sick child could be registered after the registration cutoff.
+	current, _ := dayParticipation(data.Schedules, overrides, nil, date, rules)
 	if target == nil {
 		delete(overrides, date)
 	} else {
 		overrides[date] = *target
 	}
-	next, _ := dayParticipation(data.Schedules, overrides, sickDays, date, rules)
+	next, _ := dayParticipation(data.Schedules, overrides, nil, date, rules)
 	now := s.now()
 	open := rules.CanCancel(now, date)
 	if next && !current {

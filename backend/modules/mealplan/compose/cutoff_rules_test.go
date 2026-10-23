@@ -6,6 +6,7 @@ import (
 	"time"
 
 	mealInputs "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,6 +129,68 @@ func TestWeekdayCutoffWithLaterCancellation(t *testing.T) {
 		listed = append(listed, slices.Contains(participantIDs(day.Participants), student.ID))
 	}
 	assert.Equal(t, []bool{true, false, false, true, true}, listed)
+}
+
+// #3164: sickness changes the kitchen list, not the direction of a parent's
+// participation change. A late registration remains closed after sickness
+// has ended.
+func TestSicknessDoesNotMaskLateRegistration(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	settings := testMealPlanSettings{
+		mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "09:00",
+		cancellationCutoff: "12:00",
+	}
+	module := buildRulesModule(t, db, settings, testCalendar{}, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Mara", "Krank", "2a")
+	account := testpkg.CreateTestAccount(t, db, "meal-sickness-late-registration")
+	ctx := testpkg.Ctx(t)
+
+	status := createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-07", time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	err := module.SetParticipationForDay(ctx, mealInputs.SetParticipationDay{StudentID: student.ID, GuardianAccountID: account.ID, Date: "2026-09-07", Participating: true})
+	require.ErrorIs(t, err, mealInputs.ErrParticipationCutoff)
+
+	_, err = db.NewUpdate().Model(status).
+		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+		Set(`cleared_at = ?`, time.Date(2026, 9, 7, 10, 30, 0, 0, testBerlin)).
+		WherePK().Exec(ctx)
+	require.NoError(t, err)
+
+	list, err := module.DailyList(ctx, "2026-09-07")
+	require.NoError(t, err)
+	assert.NotContains(t, participantIDs(list.Participants), student.ID)
+}
+
+func TestParticipationScheduleStartsAfterClosedDay(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildRulesModule(t, db, testMealPlanSettings{mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "09:00"}, testCalendar{closed: map[string]bool{"2026-09-07": true}}, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Nele", "Schließtag", "2b")
+	account := testpkg.CreateTestAccount(t, db, "meal-schedule-after-closed-day")
+
+	effectiveFrom, err := module.ReplaceParticipationSchedule(testpkg.Ctx(t), mealInputs.ReplaceParticipationSchedule{
+		StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealInputs.Weekday{mealInputs.Monday},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, mealInputs.Date("2026-09-08"), effectiveFrom)
+}
+
+func TestParticipationScheduleSkipsLongClosingPeriod(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	closed := make(map[string]bool)
+	for date := calendar.Date("2026-09-07"); !date.After(calendar.Date("2026-10-16")); date = date.AddDays(1) {
+		closed[date.String()] = true
+	}
+	module := buildRulesModule(t, db, testMealPlanSettings{mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "09:00"}, testCalendar{closed: closed}, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	student := testpkg.CreateTestStudent(t, db, "Iris", "Lange Schließung", "2c")
+	account := testpkg.CreateTestAccount(t, db, "meal-schedule-after-long-closure")
+
+	effectiveFrom, err := module.ReplaceParticipationSchedule(testpkg.Ctx(t), mealInputs.ReplaceParticipationSchedule{
+		StudentID: student.ID, GuardianAccountID: account.ID, Weekdays: []mealInputs.Weekday{mealInputs.Monday},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, mealInputs.Date("2026-10-19"), effectiveFrom)
 }
 
 // #3164: the team can change a child's day after the cutoff, for example

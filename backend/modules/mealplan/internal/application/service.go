@@ -67,9 +67,9 @@ func (s *Service) requireEnabled(ctx context.Context) error {
 	return nil
 }
 
-// closedDayMargin widens the calendar window around the requested dates
-// so the lead of a day, a weekday cutoff of the week before and the next
-// effective date all see their closed days.
+// closedDayMargin is the first calendar window around the requested dates.
+// Windows touching a closed day grow in this increment until both edges are
+// open, so a long closing period remains fully visible to deadline rules.
 const closedDayMargin = 31
 
 // requireRegistration resolves the cutoffs and the closed days the dates
@@ -93,7 +93,7 @@ func (s *Service) requireRegistration(ctx context.Context, from, to domain.Date)
 		return domain.Rules{}, mealplan.Cutoffs{}, mealplan.ErrInvalidParticipation
 	}
 	today := calendar.DateFromTime(s.now())
-	days, err := s.calendar.NonWorkingDayDates(ctx, minDate(from, today).AddDays(-closedDayMargin).String(), maxDate(to, today).AddDays(closedDayMargin).String())
+	days, err := s.nonWorkingDays(ctx, minDate(from, today).AddDays(-closedDayMargin), maxDate(to, today).AddDays(closedDayMargin))
 	if err != nil {
 		return domain.Rules{}, mealplan.Cutoffs{}, fmt.Errorf("meal plan: resolve closed days: %w", err)
 	}
@@ -108,6 +108,36 @@ func (s *Service) requireRegistration(ctx context.Context, from, to domain.Date)
 		Cancellation: domain.Deadline{Time: cutoffs.CancellationCutoffTime, LeadDays: cutoffs.CancellationCutoffLeadDays, Closed: closed},
 	}
 	return rules, cutoffs, nil
+}
+
+// nonWorkingDays reads the requested window and continues in either direction
+// while its edge is closed. An open edge proves that no contiguous closure
+// affecting a deadline or the next effective date continues beyond it.
+func (s *Service) nonWorkingDays(ctx context.Context, from, to domain.Date) (map[string]bool, error) {
+	days := make(map[string]bool)
+	for {
+		window, err := s.calendar.NonWorkingDayDates(ctx, from.String(), to.String())
+		if err != nil {
+			return nil, err
+		}
+		for day, closed := range window {
+			if closed {
+				days[day] = true
+			}
+		}
+
+		expandBefore := days[from.String()]
+		expandAfter := days[to.String()]
+		if !expandBefore && !expandAfter {
+			return days, nil
+		}
+		if expandBefore {
+			from = from.AddDays(-closedDayMargin)
+		}
+		if expandAfter {
+			to = to.AddDays(closedDayMargin)
+		}
+	}
 }
 
 func validCutoffs(cutoffs mealplan.Cutoffs) bool {
