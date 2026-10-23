@@ -94,7 +94,26 @@ type testMealPlanSettings struct {
 	mealRegistrationEnabled bool
 	cutoff                  string
 	leadDays                int
+	weekday                 int
+	cancellationCutoff      string
+	cancellationLeadDays    int
 	err                     error
+}
+
+// testCalendar answers the closed days of the school calendar.
+type testCalendar struct {
+	closed map[string]bool
+	err    error
+}
+
+func (c testCalendar) NonWorkingDayDates(_ context.Context, from, to string) (map[string]bool, error) {
+	days := make(map[string]bool)
+	for day := range c.closed {
+		if day >= from && day <= to {
+			days[day] = true
+		}
+	}
+	return days, c.err
 }
 
 func (s testMealPlanSettings) MealPlanEnabled(context.Context) (bool, error) {
@@ -105,8 +124,8 @@ func (s testMealPlanSettings) MealRegistrationEnabled(context.Context) (bool, er
 	return s.mealRegistrationEnabled, s.err
 }
 
-func (s testMealPlanSettings) MealRegistrationCutoff(context.Context) (string, int, error) {
-	return s.cutoff, s.leadDays, s.err
+func (s testMealPlanSettings) MealParticipationCutoffs(context.Context) (mealInputs.Cutoffs, error) {
+	return mealInputs.Cutoffs{CutoffTime: s.cutoff, CutoffLeadDays: s.leadDays, CutoffWeekday: mealInputs.Weekday(s.weekday), CancellationCutoffTime: s.cancellationCutoff, CancellationCutoffLeadDays: s.cancellationLeadDays}, s.err
 }
 
 func enabledTestSettings(settingErr error) testMealPlanSettings {
@@ -123,6 +142,7 @@ func buildModuleAt(t *testing.T, db *bun.DB, enabled bool, settingErr error, now
 	module, err := New(Dependencies{
 		DB:           db,
 		Settings:     testMealPlanSettings{mealPlanEnabled: enabled, mealRegistrationEnabled: enabled, cutoff: "09:00", err: settingErr},
+		Calendar:     testCalendar{},
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return now },
 		Participants: testParticipantFinder,
@@ -242,6 +262,7 @@ func TestModuleReportsPersistenceQueryAndRowCounts(t *testing.T) {
 	module, err := New(Dependencies{
 		DB:           db,
 		Settings:     enabledTestSettings(nil),
+		Calendar:     testCalendar{},
 		Observe:      func(observation Observation) { observations = append(observations, observation) },
 		Now:          func() time.Time { return time.Date(2026, 9, 28, 8, 0, 0, 0, testBerlin) },
 		Participants: testParticipantFinder,
@@ -289,7 +310,7 @@ func TestParticipationRejectsSameDayChangeAfterKitchenCutoff(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module, err := New(Dependencies{
-		DB: db, Settings: enabledTestSettings(nil),
+		DB: db, Settings: enabledTestSettings(nil), Calendar: testCalendar{},
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return time.Date(2026, 9, 7, 9, 1, 0, 0, testBerlin) },
 		Participants: testParticipantFinder,
@@ -311,7 +332,8 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "meal-custom-cutoff")
 
 	disabledModule, err := New(Dependencies{
-		DB: db,
+		DB:       db,
+		Calendar: testCalendar{},
 		Settings: testMealPlanSettings{
 			mealPlanEnabled: true, mealRegistrationEnabled: false, cutoff: "10:30",
 		},
@@ -329,7 +351,8 @@ func TestRegistrationUsesSeparateToggleAndTenantCutoff(t *testing.T) {
 	require.ErrorIs(t, err, mealInputs.ErrRegistrationDisabled)
 
 	enabledModule, err := New(Dependencies{
-		DB: db,
+		DB:       db,
+		Calendar: testCalendar{},
 		Settings: testMealPlanSettings{
 			mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "10:30",
 		},
@@ -519,6 +542,7 @@ func TestWeeklyListAppliesTheLeadDeadlineToEveryDay(t *testing.T) {
 	module, err := New(Dependencies{
 		DB:           db,
 		Settings:     testMealPlanSettings{mealPlanEnabled: true, mealRegistrationEnabled: true, cutoff: "09:00", leadDays: 1},
+		Calendar:     testCalendar{},
 		Observe:      func(Observation) {},
 		Now:          func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin) },
 		Participants: testParticipantFinder,

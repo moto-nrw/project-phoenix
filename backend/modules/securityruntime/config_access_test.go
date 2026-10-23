@@ -28,6 +28,7 @@ func TestConfigAccessPermissionsKeepTheComposedGuards(t *testing.T) {
 
 	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigRead, permissions.UsersRead}, RequireAll: true}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessParticipants))
 	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigRead}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessRead))
+	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigUpdate, permissions.UsersRead}, RequireAll: true}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessParticipantsWrite), "changing a child's day needs both")
 	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigUpdate}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccessWrite))
 	assert.Equal(t, securityruntime.AccessRule{Permissions: []string{permissions.ConfigUpdate}}, securityruntime.MealPlanAccessPermissions(securityruntime.MealPlanAccess(200)), "an unknown level is a write")
 	assert.Equal(t, []string{permissions.ConfigRead, permissions.UsersRead}, securityruntime.MealParticipantsPermissions())

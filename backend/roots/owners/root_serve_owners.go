@@ -157,12 +157,13 @@ func ObservePeopleDirectory(observation peopleCompose.Observation) {
 	observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopledirectory.ErrorCode(observation.Err), observation.Err)
 }
 
-// BuildServeMealPlan composes the Meal Plan over its settings and the
-// participants of the day.
-func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, students StudentRootReads) (mealplanModule.Capability, error) {
+// BuildServeMealPlan composes the Meal Plan over its settings, the school
+// calendar's closed days and the participants of the day.
+func BuildServeMealPlan(db transactionruntime.Database, settings *mealplanCompose.Settings, calendar schoolcalendar.NonWorkingDayQuery, students StudentRootReads) (mealplanModule.Capability, error) {
 	return mealplanCompose.New(mealplanCompose.Dependencies{
 		DB:       db.Pool(),
 		Settings: settings,
+		Calendar: calendar,
 		Observe: func(observation mealplanCompose.Observation) {
 			observability.ObserveMealPlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, observation.Err)
 		},

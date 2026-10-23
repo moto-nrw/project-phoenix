@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, utimesSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,7 @@ function fixture(t, target = 'staging') {
     writeFileSync(join(cwd, file), content);
   }
   const log = join(root, 'docker.log');
-  const env = { ...process.env, DEPLOY_DIR: target, DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2',
+  const env = { ...process.env, DEPLOY_DIR: target, DEPLOY_SHA: 'bbbbbbb', BACKUP_RETENTION: '2', RELEASE_SNAPSHOT_MAX_AGE_DAYS: '30',
     PATH: `${join(root, 'bin')}:${process.env.PATH}`, RELEASE_TEST_LOG: log };
   const bundle = join(root, 'backups', target, 'release-20260914T010000Z-bbbbbbb');
   const run = (file, args = [], extra = {}) => spawnSync('bash', [join(scripts, file),
@@ -315,21 +315,127 @@ test('failed new and restored healthchecks leave the application stopped', t => 
   assert.equal(result.status, 11, result.stdout + result.stderr);
   assert.match(f.calls().trim().split('\n').at(-1), /stop server frontend/);
 });
-test('retention removes whole completed sets and preserves incomplete backups', t => {
+test('age retention expires complete and interrupted snapshots below the count limit', t => {
   const f = fixture(t);
   const base = join(f.root, 'backups/staging');
-  for (const name of ['release-20200101', 'release-20200102', 'release-20200103']) {
-    mkdirSync(join(base, name), { recursive: true });
-    writeFileSync(join(base, name, 'complete'), 'old');
-    writeFileSync(join(base, name, 'roles.sql'), 'private');
+  for (const [id, complete] of [['release-20200101T000000Z-aaaaaaa', true],
+    ['release-20200102T000000Z-aaaaaaa', false]]) {
+    const path = join(base, id);
+    mkdirSync(path, { recursive: true });
+    if (complete) writeFileSync(join(path, 'complete'), 'moto-release-backup-v1\n');
+    writeFileSync(join(path, 'roles.sql'), 'private');
+    // Touching a directory must not extend the lifetime of its contents.
+    utimesSync(path, new Date(), new Date());
   }
-  mkdirSync(join(base, 'release-incomplete'));
+  const result = f.run('deploy-remote.sh', [], { BACKUP_RETENTION: '7' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(existsSync(join(base, 'release-20200101T000000Z-aaaaaaa')), false);
+  assert.equal(existsSync(join(base, 'release-20200102T000000Z-aaaaaaa')), false);
+});
+test('count retention removes whole completed sets but preserves recent interrupted snapshots', t => {
+  const f = fixture(t);
+  const base = join(f.root, 'backups/staging');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const ids = ['aaaaaaa', 'aaaaaab', 'aaaaaac'].map(sha => `release-${stamp}-${sha}`);
+  for (const id of ids) {
+    mkdirSync(join(base, id), { recursive: true });
+    writeFileSync(join(base, id, 'complete'), 'moto-release-backup-v1\n');
+    writeFileSync(join(base, id, 'roles.sql'), 'private');
+  }
+  const interrupted = `release-${stamp}-aaaaaad`;
+  mkdirSync(join(base, interrupted));
   const result = f.run('deploy-remote.sh');
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(existsSync(join(base, 'release-20200101')), false);
-  assert.equal(existsSync(join(base, 'release-20200102')), false);
-  assert.equal(existsSync(join(base, 'release-20200103/roles.sql')), true);
-  assert.equal(existsSync(join(base, 'release-incomplete')), true);
+  assert.equal(existsSync(join(base, ids[0])), false);
+  assert.equal(existsSync(join(base, ids[1])), false);
+  assert.equal(existsSync(join(base, ids[2], 'roles.sql')), true);
+  assert.equal(existsSync(join(base, interrupted)), true);
+});
+test('count retention preserves the just-created rollback point after a backward clock adjustment', t => {
+  const f = fixture(t);
+  const future = join(f.root, 'backups/staging/release-20990101T000000Z-aaaaaaa');
+  mkdirSync(future, { recursive: true });
+  writeFileSync(join(future, 'complete'), 'moto-release-backup-v1\n');
+  const result = f.run('deploy-remote.sh', [], { BACKUP_RETENTION: '1' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const state = readFileSync(join(f.cwd, '.deploy-state'), 'utf8');
+  const id = state.match(/BACKUP_ID=(.+)/)[1];
+  assert.ok(existsSync(join(f.root, 'backups/staging', id, 'complete')));
+  assert.equal(existsSync(future), false);
+});
+test('independent cleanup expires snapshots without Docker and respects environment locks', t => {
+  const f = fixture(t);
+  const base = join(f.root, 'backups/staging');
+  const expired = join(base, 'release-20200101T000000Z-aaaaaaa');
+  mkdirSync(expired, { recursive: true });
+  mkdirSync(join(f.cwd, '.release-operation.lock'));
+  let result = f.run('release-backup-cleanup.sh', [f.cwd]);
+  assert.notEqual(result.status, 0);
+  assert.ok(existsSync(expired));
+  rmSync(join(f.cwd, '.release-operation.lock'), { recursive: true });
+  result = f.run('release-backup-cleanup.sh', [f.cwd]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(existsSync(expired), false);
+  assert.equal(existsSync(join(f.cwd, '.release-operation.lock')), false);
+  assert.equal(existsSync(f.log), false, 'cleanup must not access Docker');
+});
+test('retention rejects invalid ages before deleting snapshots or changing a deployment', t => {
+  const f = fixture(t);
+  const expired = join(f.root, 'backups/staging/release-20200101T000000Z-aaaaaaa');
+  mkdirSync(expired, { recursive: true });
+  for (const days of ['', '0', '91', '-1', '01', '1.5', '999999999999999999999']) {
+    const env = { RELEASE_SNAPSHOT_MAX_AGE_DAYS: days };
+    assert.notEqual(f.run('release-backup-cleanup.sh', [f.cwd], env).status, 0, days);
+    assert.notEqual(f.run('deploy-remote.sh', [], env).status, 0, days);
+    assert.ok(existsSync(expired), days);
+    assert.equal(existsSync(join(f.cwd, '.release-operation.lock')), false, days);
+  }
+  assert.equal(existsSync(f.log), false, 'invalid configuration must fail before Docker');
+});
+test('configured age changes expiry and cleanup never follows snapshot symlinks', t => {
+  const f = fixture(t);
+  const base = join(f.root, 'backups/staging');
+  const stamp = new Date(Date.now() - 60 * 86400000).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const snapshot = join(base, `release-${stamp}-aaaaaaa`);
+  mkdirSync(snapshot, { recursive: true });
+  writeFileSync(join(snapshot, 'complete'), 'moto-release-backup-v1\n');
+  const outside = join(f.root, 'outside');
+  mkdirSync(outside);
+  writeFileSync(join(outside, 'roles.sql'), 'private');
+  symlinkSync(outside, join(base, 'release-20200101T000000Z-bbbbbbb'));
+  let result = f.run('release-backup-cleanup.sh', [f.cwd], { RELEASE_SNAPSHOT_MAX_AGE_DAYS: '90' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.ok(existsSync(snapshot));
+  result = f.run('release-backup-cleanup.sh', [f.cwd]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(existsSync(snapshot), false);
+  assert.ok(existsSync(join(outside, 'roles.sql')));
+});
+test('failed deletion fails cleanup and releases the operation lock without reporting success', t => {
+  const f = fixture(t);
+  const expired = join(f.root, 'backups/staging/release-20200101T000000Z-aaaaaaa');
+  mkdirSync(expired, { recursive: true });
+  writeFileSync(join(f.root, 'bin/rm'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const result = f.run('release-backup-cleanup.sh', [f.cwd]);
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(result.stdout, /retention complete/);
+  assert.ok(existsSync(expired));
+  assert.equal(existsSync(join(f.cwd, '.release-operation.lock')), false);
+});
+test('expiry includes the exact UTC cutoff and retains a newer snapshot', t => {
+  const f = fixture(t);
+  const base = join(f.root, 'backups/staging');
+  writeFileSync(join(f.root, 'bin/date'), '#!/bin/sh\nprintf "%s\\n" 20261001T120000Z\n', { mode: 0o755 });
+  for (const stamp of ['20261001T115959Z', '20261001T120000Z', '20261001T120001Z']) {
+    const path = join(base, `release-${stamp}-aaaaaaa`);
+    mkdirSync(path, { recursive: true });
+    writeFileSync(join(path, 'complete'), 'moto-release-backup-v1\n');
+  }
+  const result = f.run('release-backup-cleanup.sh', [f.cwd], { RELEASE_SNAPSHOT_MAX_AGE_DAYS: '1', BACKUP_RETENTION: '7' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(existsSync(join(base, 'release-20261001T115959Z-aaaaaaa')), false);
+  assert.equal(existsSync(join(base, 'release-20261001T120000Z-aaaaaaa')), false);
+  assert.ok(existsSync(join(base, 'release-20261001T120001Z-aaaaaaa')));
 });
 // Only a healthy, recorded release frees the disk: the prune must neither run
 // before the snapshot nor on any rollback path, and its failure is not a failed
