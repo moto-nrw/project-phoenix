@@ -203,6 +203,58 @@ func migrationSQLBodyDataObjects(query string, inBody bool) (map[string]struct{}
 	return objects, nil
 }
 
+// migrationSQLRenamedDataObjects returns the tables a statement renames,
+// keyed by the new schema-qualified name and valued by the old one:
+// ALTER TABLE [IF EXISTS] [ONLY] schema.old RENAME TO new. PostgreSQL keeps
+// the schema on a rename, so the new name takes the old one's. Renames of
+// columns, constraints and other objects do not match. Only top-level
+// statements count: a rename inside a procedural body is not recognized, and
+// the policy change it needs stays a loosening.
+func migrationSQLRenamedDataObjects(query string) (map[string]string, error) {
+	tokens, err := migrationSQLTokens(query)
+	if err != nil {
+		return nil, err
+	}
+	renamed := make(map[string]string)
+	for i := 0; i+1 < len(tokens); i++ {
+		if !tokens[i].keyword("ALTER") || !tokens[i+1].keyword("TABLE") {
+			continue
+		}
+		next := i + 2
+		if next+1 < len(tokens) && tokens[next].keyword("IF") && tokens[next+1].keyword("EXISTS") {
+			next += 2
+		}
+		if next < len(tokens) && tokens[next].keyword("ONLY") {
+			next++
+		}
+		if next+1 < len(tokens) && tokens[next+1].keyword("RENAME") {
+			if next+2 < len(tokens) && tokens[next+2].keyword("TO") {
+				return nil, fmt.Errorf("renamed data object must be schema-qualified")
+			}
+			continue
+		}
+		if next+5 >= len(tokens) || !tokens[next+3].keyword("RENAME") || !tokens[next+4].keyword("TO") {
+			continue
+		}
+		old, err := migrationObjectName(tokens, next)
+		if err != nil {
+			return nil, err
+		}
+		target := tokens[next+5]
+		if target.literal {
+			return nil, fmt.Errorf("renamed data object %s has no valid new name", old)
+		}
+		schema, _, _ := strings.Cut(old, ".")
+		name := schema + "." + migrationIdentifier(target)
+		if !isDataObjectName(name) {
+			return nil, fmt.Errorf("renamed data object %q cannot be represented by the ownership policy", name)
+		}
+		renamed[name] = old
+		i = next + 5
+	}
+	return renamed, nil
+}
+
 func migrationObjectName(tokens []migrationSQLToken, next int) (string, error) {
 	if next+2 >= len(tokens) || !tokens[next+1].keyword(".") || tokens[next].literal || tokens[next+2].literal {
 		return "", fmt.Errorf("new writable data object must be schema-qualified")

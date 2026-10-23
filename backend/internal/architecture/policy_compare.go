@@ -15,7 +15,7 @@ import (
 // loosening. The CLI passes the candidate graph it already loaded; a nil graph
 // is loaded here.
 func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, graph *Graph) error {
-	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
+	createdDataObjects, renamedDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
 		return err
 	}
@@ -40,13 +40,19 @@ func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
-	return comparePolicyStrictness(base, candidate, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
+	return comparePolicyStrictnessWithRenames(base, candidate, createdDataObjects, renamedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
 }
 
 func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
+	return comparePolicyStrictnessWithRenames(base, candidate, createdDataObjects, nil, createdPackages, candidateOnlyExternal, deletedLegacySymbols, verifiedRelocations)
+}
+
+// comparePolicyStrictnessWithRenames is comparePolicyStrictness with the
+// tables a candidate migration renames (new name -> old name).
+func comparePolicyStrictnessWithRenames(base, candidate *Policy, createdDataObjects map[string]struct{}, renamedDataObjects map[string]string, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
 	problems := modulePathLoosenings(base, candidate)
 	problems = append(problems, epochLoosenings(base, candidate)...)
-	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, createdPackages)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, renamedDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages, verifiedRelocations)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
@@ -75,7 +81,7 @@ func epochLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("policy_epoch decreased from %d to %d", base.PolicyEpoch, candidate.PolicyEpoch)}
 }
 
-func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPackages map[string]struct{}) []string {
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects map[string]struct{}, renamedDataObjects map[string]string, createdPackages map[string]struct{}) []string {
 	var problems []string
 	candidateObjects := dataObjectsByName(candidate)
 	for name := range createdDataObjects {
@@ -111,7 +117,12 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 		baseObject, exists := baseObjects[name]
 		_, createdByCandidateMigration := createdDataObjects[name]
 		if !exists {
-			if !createdByCandidateMigration {
+			previous, renamedByCandidateMigration := renamedDataObjects[name]
+			switch {
+			case createdByCandidateMigration:
+			case renamedByCandidateMigration:
+				problems = append(problems, renamedDataObjectLoosenings(baseObjects, candidateObjects, name, previous)...)
+			default:
 				problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
 			}
 			continue
@@ -121,6 +132,26 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 		}
 	}
 	return problems
+}
+
+// renamedDataObjectLoosenings judges a data object a new candidate migration
+// renames (ALTER TABLE ... RENAME TO). The rename keeps the rows, so it keeps
+// the owner: the old name must be owned at the base, must leave the policy,
+// and the new name must carry the same write owner. Anything else is the
+// ordinary new assignment it would be without the rename (ADR 0080).
+func renamedDataObjectLoosenings(baseObjects, candidateObjects map[string]DataObject, name, previous string) []string {
+	current := candidateObjects[name]
+	before, owned := baseObjects[previous]
+	switch {
+	case !owned:
+		return []string{fmt.Sprintf("data object %s was newly assigned to owner %s (renamed from %s, which the base policy does not own)", name, current.WriteOwner, previous)}
+	case current.WriteOwner != before.WriteOwner:
+		return []string{fmt.Sprintf("data object %s renamed from %s changed write owner from %s to %s", name, previous, before.WriteOwner, current.WriteOwner)}
+	}
+	if _, kept := candidateObjects[previous]; kept {
+		return []string{fmt.Sprintf("data object %s renamed from %s keeps the old name in the policy", name, previous)}
+	}
+	return nil
 }
 
 func classificationLoosenings(base, candidate *Policy, createdPackages, candidateOnlyExternal map[string]struct{}) []string {
