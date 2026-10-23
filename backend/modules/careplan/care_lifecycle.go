@@ -44,6 +44,8 @@ var (
 	ErrCareResumeMissing             = errors.New("für dieses Kind ist keine beendete Betreuung hinterlegt")
 	ErrCareResumeStartInPast         = errors.New("der neue Beginn darf nicht in der Vergangenheit liegen")
 	ErrCareResumeNotChecked          = errors.New("bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft")
+	ErrCareResumeUnknownStudent      = errors.New("dieses Kind gibt es in Ihrer Schule nicht (mehr)")
+	ErrCareResumeAlumnus             = errors.New("dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge")
 	ErrCareWithdrawalNotFound        = errors.New("diese Abmeldung gibt es nicht oder nicht mehr")
 	ErrCareWithdrawalAfterGap        = errors.New("der letzte Betreuungstag muss vor dem ersten Tag ohne Buchung liegen")
 	ErrCareWithdrawalAlreadyResolved = errors.New("die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell")
