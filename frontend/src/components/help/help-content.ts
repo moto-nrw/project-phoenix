@@ -4084,11 +4084,16 @@ function mealPlanTopic(): HelpTopic {
       "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
       "Die Wochenliste zeigt jedes angemeldete Kind mit einem Haken je Tag. Darüber steht, wie viele Kinder an jedem Tag essen.",
       "Öffnen Sie `Tagesliste herunterladen` oder `Wochenliste herunterladen`. Wählen Sie `PDF` oder `Excel`.",
-      "Bis wann Eltern ändern können, legen Sie in den Einstellungen fest: `Änderungsfrist für das Mittagessen` und `Vorlauf für das Mittagessen (Werktage)`.",
+      "Bis wann Eltern ändern können, legen Sie in den Einstellungen fest: `Änderungsfrist für das Mittagessen` und `Vorlauf für das Mittagessen (Werktage)`. Wochenende, Feiertage und Schließtage zählen beim Vorlauf nicht mit.",
+      "Bestellt Ihre Küche für eine ganze Woche? Dann wählen Sie `Wochenfrist für das Mittagessen`, zum Beispiel `Mittwoch der Vorwoche`.",
+      "Mit `Späteres Abmelden vom Mittagessen` können Eltern ihr Kind später abmelden als anmelden. Die Frist dafür stellen Sie unter `Abmeldefrist für das Mittagessen` und `Vorlauf für das Abmelden vom Mittagessen (Werktage)` ein.",
+      "Ruft eine Familie nach der Frist an? Mit `Kind anmelden` über der Tagesliste melden Sie ein Kind an. Über das Menü `⋮` in seiner Zeile melden Sie es ab. Das geht für heute und spätere Tage.",
+      "An Feiertagen und Schließtagen steht `Kein Essen an diesem Tag`. Die Wochenliste zeigt dort `kein Essen`.",
     ],
     differences: [
       "Ihre Änderungen zählen erst mit `Speichern`. Vorher steht `Verwerfen` daneben.",
       "Beim Wechseln der Woche mit offenen Änderungen fragt moto nach.",
+      "Fehlt `Kind anmelden`? Dafür brauchen Sie das Recht, Einstellungen zu ändern und Kinder zu sehen. Für vergangene Tage gibt es den Knopf nicht.",
     ],
     troubleshootingDetails: [
       "Fehlt `Essensplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet.",
@@ -6847,9 +6852,12 @@ function parentMealPlanTopic(): HelpTopic {
     result: "Sie sehen je Tag das Gericht und ob Ihr Kind mitisst.",
     notes: [
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
+      "Mit `Ganze Woche anmelden` oder `Ganze Woche abmelden` ändern Sie alle Tage der Woche auf einmal. Das gilt nur für Tage, die Sie noch ändern können.",
+      "Unter `Wann isst … mit?` steht, bis wann Sie ändern können. Manche Schulen erlauben das Abmelden länger als das Anmelden.",
     ],
     differences: [
       "Steht an einem Tag `Kein Essen eingetragen`, hat die OGS dafür nichts hinterlegt.",
+      "Steht an einem Tag `Kein Essen: Feiertag oder Schließtag`, gibt es an dem Tag kein Essen. Sie können ihn nicht ändern.",
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
     ],
     troubleshootingDetails: [

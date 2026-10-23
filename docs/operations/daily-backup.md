@@ -31,8 +31,9 @@ Wiederherstellung und AVV/TOM-Abgleich. Alarmzustellung und Bearbeitung fehlen
 als produktiver Nachweis; `OnFailure` schreibt ein zur neuen Regel passendes
 Journal-Ereignis. Alloy-Anbindung und Zustellung muss ein Mensch einrichten
 und Ende-zu-Ende prüfen (siehe unten).
-Release-Snapshot-Altersgrenzen (3836-c) und die Wiederholungsliste für
-Löschungen (3837-d) sind nicht Teil dieses Slices.
+Release-Snapshots haben eine eigene [Altersbereinigung](release-backup-rollback.md#snapshot-retention-slice-3836-c)
+(3836-c); deren Timer muss separat eingerichtet und nachgewiesen werden.
+Die Wiederholungsliste für Löschungen (3837-d) ist nicht Teil dieses Slices.
 
 Die Skripte sind ein **Gesamtsystem-Restore**, kein Mandantenexport und keine
 selektive Löschung. Ein geteilter PostgreSQL-Cluster, zusätzliche Datenbanken
@@ -188,6 +189,9 @@ Empfänger oder Notification Policies werden provisioniert.
    ```
 
    Der Dienst und der Failure-Hook verwenden `SYSLOG_IDENTIFIER=moto-daily-backup`.
+   Zusätzlich muss `_UID=0` übereinstimmen: Dieses vertrauenswürdige Journalfeld
+   beschränkt die Quelle auf Root-Prozesse. Der Bezeichner allein ist fälschbar;
+   ein lokaler Nicht-Root-Prozess könnte sonst einen Sicherungserfolg vortäuschen.
    Der explizite `logger --tag` ist nötig, weil der Failure-Hook unter einer
    instanziierten anderen Unit läuft. Nicht nur `_SYSTEMD_UNIT` des Hauptdiensts
    filtern. Nach Installation der geänderten Units `systemd-analyze verify`
@@ -198,7 +202,7 @@ Empfänger oder Notification Policies werden provisioniert.
 
    ```alloy
    loki.source.journal "moto_daily_backup" {
-     matches = "SYSLOG_IDENTIFIER=moto-daily-backup"
+     matches = "SYSLOG_IDENTIFIER=moto-daily-backup _UID=0"
      max_age = "27h"
      labels = { env = "prod", service = "daily-backup" }
      forward_to = [loki.process.moto_daily_backup.receiver]
@@ -212,6 +216,11 @@ Empfänger oder Notification Policies werden provisioniert.
      forward_to = [loki.write.default.receiver]
    }
    ```
+
+   Leerzeichen verknüpfen die beiden Journalbedingungen mit UND, siehe
+   [Alloy: Journal matches](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.journal/#journal-matches).
+   Root-Prozesse bleiben eine Vertrauensgrenze; der Filter beweist keinen
+   erfolgreichen Restore und schützt nicht vor einem kompromittierten Root-Zugang.
 
    Den Ausschnitt lokal mit Alloy 1.21.2 validiert (nur Syntax/Komponenten,
    ohne Journal). Die vollständige Konfiguration mit der installierten Version
