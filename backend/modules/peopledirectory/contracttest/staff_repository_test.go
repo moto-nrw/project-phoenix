@@ -428,6 +428,3 @@ func TestStaffRepository_ListAllWithPerson(t *testing.T) {
 		assert.NotZero(t, found.Person.CreatedAt, "person created_at should be loaded")
 	})
 }
-
-// NOTE: AddNotes exists in the implementation but is not exposed in the StaffRepository
-// interface, so it cannot be tested through the interface.

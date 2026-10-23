@@ -399,9 +399,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
@@ -441,9 +439,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
@@ -461,7 +457,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     fireEvent.click(
       screen.getByRole("menuitem", {
-        name: "Als Word-Dokument exportieren (ausführlich)",
+        name: "Word, ausführlich",
       }),
     );
 
@@ -481,12 +477,12 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     expect(
       screen.getByRole("menuitem", {
-        name: "Als Word-Dokument exportieren (kompakte Tabelle)",
+        name: "Word, kompakte Tabelle",
       }),
     ).toBeVisible();
     fireEvent.click(
       screen.getByRole("menuitem", {
-        name: "Als PDF exportieren (kompakte Tabelle)",
+        name: "PDF, kompakte Tabelle",
       }),
     );
 
@@ -514,7 +510,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     });
     fireEvent.click(
       within(rosterMenu).getByRole("menuitem", {
-        name: "Als PDF exportieren",
+        name: "PDF",
       }),
     );
 
@@ -590,9 +586,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
@@ -673,9 +667,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.showActionError).toHaveBeenCalledWith(failed, {
