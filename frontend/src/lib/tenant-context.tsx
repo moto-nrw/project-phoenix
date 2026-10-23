@@ -74,6 +74,7 @@ export function TenantProvider({
   // any A-resolve still in flight, even if no B-refetch fires before
   // A's response lands.
   const requestSeqRef = useRef(0);
+  const needsInitialResolve = serverTenant === null;
 
   useEffect(() => {
     if (!tenantSlug) return undefined;
@@ -106,6 +107,9 @@ export function TenantProvider({
         setTenant(fresh);
       });
     };
+
+    // Token edit/adjust pages initially know only the target slug.
+    if (needsInitialResolve) refetch();
 
     const unsubscribeBroadcast = subscribeSettingsChanged(refetch);
 
@@ -152,7 +156,7 @@ export function TenantProvider({
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
     };
-  }, [tenantSlug, analyticsSource]);
+  }, [tenantSlug, analyticsSource, needsInitialResolve]);
 
   const value = useMemo(
     () => ({ tenantSlug, tenant, routingMode }),

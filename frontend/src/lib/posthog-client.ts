@@ -178,7 +178,14 @@ export function setAnalyticsContext(
     )
   )
     return;
-  if (registration) pendingRegistration = registration;
+  if (registration) {
+    pendingRegistration = {
+      ...registration,
+      // Policy refreshes must not cancel a deferred account/school reset.
+      resetFirst:
+        registration.resetFirst || pendingRegistration?.resetFirst === true,
+    };
+  }
   context = { ...current, ...update };
   const next = currentContext()!;
   if (!analyticsCollectionAllowed(next)) {

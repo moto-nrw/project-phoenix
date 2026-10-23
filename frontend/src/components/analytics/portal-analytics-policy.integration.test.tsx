@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   init: vi.fn(),
   optIn: vi.fn(),
   capture: vi.fn(),
+  register: vi.fn(),
+  reset: vi.fn(),
   fetchBootstrap: vi.fn(),
   fetchEditBootstrap: vi.fn(),
 }));
@@ -38,9 +40,9 @@ vi.mock("posthog-js", () => ({
     stopSessionRecording: vi.fn(),
     set_config: vi.fn(),
     get_distinct_id: () => "anonymous-test-visit",
-    register: vi.fn(),
+    register: mocks.register,
     unregister: vi.fn(),
-    reset: vi.fn(),
+    reset: mocks.reset,
   },
 }));
 
@@ -157,6 +159,67 @@ describe("embedded enrollment analytics policy", () => {
       } else {
         expect(mocks.capture).not.toHaveBeenCalled();
       }
+    },
+  );
+
+  it.each([
+    { surface: "parents", scope: "parent", host: "parents.localhost" },
+    { surface: "school", scope: "school", host: "schule.localhost" },
+  ] as const)(
+    "preserves a blocked $surface account switch reset across five-minute refreshes",
+    async ({ surface, scope, host }) => {
+      vi.stubGlobal("location", { host: `${host}:3000`, hostname: host });
+      vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "7", scope, tenantId: 42 } },
+      });
+      vi.mocked(fetch).mockResolvedValueOnce(
+        Response.json({ data: { enabled: true } }),
+      );
+      const { PortalAnalyticsSession } =
+        await import("./portal-analytics-session");
+      const { initializePostHog, capturePostHog } =
+        await import("~/lib/posthog-client");
+      vi.useFakeTimers();
+      const view = render(<PortalAnalyticsSession surface={surface} />);
+      await act(async () => {});
+      await initializePostHog();
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+      mocks.capture.mockClear();
+      mocks.register.mockClear();
+
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "8", scope, tenantId: 43 } },
+      });
+      await act(async () =>
+        view.rerender(<PortalAnalyticsSession surface={surface} />),
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(5 * 60 * 1_000));
+      expect(fetch).toHaveBeenCalledTimes(3);
+      capturePostHog("login_failed");
+      expect(mocks.capture).not.toHaveBeenCalled();
+      expect(mocks.reset).not.toHaveBeenCalled();
+      expect(mocks.register).not.toHaveBeenCalled();
+
+      vi.mocked(fetch).mockResolvedValueOnce(
+        Response.json({ data: { enabled: true } }),
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(5 * 60 * 1_000));
+      expect(mocks.reset).toHaveBeenCalledOnce();
+      expect(mocks.register).toHaveBeenCalledExactlyOnceWith({
+        school_id: "43",
+        role: surface === "parents" ? "guardian" : "lehrkraft",
+      });
+      expect(mocks.reset.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.register.mock.invocationCallOrder[0]!,
+      );
+      capturePostHog("login_failed");
+      expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+      await act(async () => vi.advanceTimersByTimeAsync(5 * 60 * 1_000));
+      expect(mocks.reset).toHaveBeenCalledOnce();
     },
   );
 
@@ -448,9 +511,8 @@ describe("embedded enrollment analytics policy", () => {
       );
       // Anker: the token edit loaded its actual foreign-school form.
       expect(screen.getByText("Loaded enrollment form")).toBeInTheDocument();
-      await act(async () =>
-        document.dispatchEvent(new Event("visibilitychange")),
-      );
+      // Initial resolution must not depend on a settings or visibility event.
+      expect(fetch).toHaveBeenCalledWith("/api/tenant/resolve?slug=school-b");
       capturePostHog("login_failed");
       expect(mocks.capture).toHaveBeenCalledTimes(enabled ? 1 : 0);
     },
