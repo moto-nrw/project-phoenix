@@ -2,6 +2,7 @@ import type { CaptureResult, Properties } from "posthog-js";
 import { describe, expect, it } from "vitest";
 import {
   ANALYTICS_BLOCK_ATTRIBUTE,
+  analyticsContextUpdateAllowed,
   analyticsIdentity,
   analyticsInitOptions,
   analyticsRuntimeOptions,
@@ -34,6 +35,46 @@ function capture(event: string, properties: Properties): CaptureResult {
 const PERSON = "pseudo_4b9630678fc1afce76ce690721aaf949";
 const OTHER_PERSON = "pseudo_0123456789abcdef0123456789abcdef";
 
+describe("school analytics switch", () => {
+  it.each([
+    { host: "ogs", source: "ogs", allowed: true },
+    { host: "parents", source: "parents", allowed: true },
+    { host: "school", source: "school", allowed: true },
+    { host: "parents", source: "ogs", allowed: false },
+    { host: "school", source: "ogs", allowed: false },
+    { host: "public", source: "ogs", allowed: false },
+    { host: null, source: "ogs", allowed: false },
+    { host: "parents", source: "school", allowed: false },
+    { host: "ogs", source: "parents", allowed: false },
+  ] as const)(
+    "accepts $source policy on $host only when it owns the host ($allowed)",
+    ({ host, source, allowed }) => {
+      expect(analyticsContextUpdateAllowed(host, source)).toBe(allowed);
+    },
+  );
+
+  it.each(["ogs", "school", "parents", "public", "unknown"])(
+    "drops every event when analytics is off on %s",
+    (surface) => {
+      const context = {
+        deployment: "localhost",
+        surface,
+        enabled: false,
+        analyseFreigabe: true,
+        recordingSamplePercent: 100,
+        person: PERSON,
+      };
+      expect(
+        filterAnalyticsEvent(context, capture("$pageview", {})),
+      ).toBeNull();
+      expect(analyticsIdentity(context)).toBeNull();
+      expect(analyticsRuntimeOptions(context).disable_session_recording).toBe(
+        true,
+      );
+    },
+  );
+});
+
 const CONTEXTS: ReadonlyArray<{
   readonly name: string;
   readonly context: AnalyticsContext;
@@ -48,7 +89,12 @@ const CONTEXTS: ReadonlyArray<{
 }> = [
   {
     name: "demo",
-    context: { deployment: "demo", surface: "ogs", analyseFreigabe: false },
+    context: {
+      deployment: "demo",
+      surface: "ogs",
+      enabled: true,
+      analyseFreigabe: false,
+    },
     elementText: true,
     recording: "demo",
     person: false,
@@ -63,6 +109,7 @@ const CONTEXTS: ReadonlyArray<{
     context: {
       deployment: "moto-app.de",
       surface: "ogs",
+      enabled: true,
       analyseFreigabe: false,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -81,6 +128,7 @@ const CONTEXTS: ReadonlyArray<{
     context: {
       deployment: "moto-app.de",
       surface: "ogs",
+      enabled: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -100,6 +148,7 @@ const CONTEXTS: ReadonlyArray<{
     context: {
       deployment: "moto-app.de",
       surface: "parents",
+      enabled: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -118,6 +167,7 @@ const CONTEXTS: ReadonlyArray<{
     context: {
       deployment: "moto-app.de",
       surface: "school",
+      enabled: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -136,6 +186,7 @@ const CONTEXTS: ReadonlyArray<{
     context: {
       deployment: "demo",
       surface: "kiosk",
+      enabled: true,
       analyseFreigabe: true,
       recordingSamplePercent: 100,
       person: PERSON,
@@ -452,6 +503,7 @@ describe("filterAnalyticsEvent", () => {
   const ogs: AnalyticsContext = {
     deployment: "moto-app.de",
     surface: "ogs",
+    enabled: true,
     analyseFreigabe: false,
   };
 
@@ -529,6 +581,7 @@ describe("filterAnalyticsEvent", () => {
     const demo: AnalyticsContext = {
       deployment: "demo",
       surface: "public",
+      enabled: true,
       analyseFreigabe: false,
     };
     for (const event of [
@@ -566,7 +619,12 @@ describe("filterAnalyticsEvent", () => {
 
   it("drops a demo source or role that is not a plain label", () => {
     const result = filterAnalyticsEvent(
-      { deployment: "demo", surface: "public", analyseFreigabe: false },
+      {
+        deployment: "demo",
+        surface: "public",
+        enabled: true,
+        analyseFreigabe: false,
+      },
       capture("demo_entered", {
         src: "kim@ogs-beispiel.de",
         demo_role: "operator",
@@ -612,6 +670,7 @@ describe("session recording", () => {
   const freigabe: AnalyticsContext = {
     deployment: "moto-app.de",
     surface: "ogs",
+    enabled: true,
     analyseFreigabe: true,
     recordingSamplePercent: 30,
     person: PERSON,
@@ -619,6 +678,7 @@ describe("session recording", () => {
   const demo: AnalyticsContext = {
     deployment: "demo",
     surface: "public",
+    enabled: true,
     analyseFreigabe: false,
   };
   const recordingOf = (context: AnalyticsContext) =>
@@ -708,7 +768,7 @@ describe("session recording", () => {
     expect(analyticsIdentity({ ...freigabe, person: "4711" })).toBeNull();
     expect(analyticsIdentity({ ...freigabe, person: null })).toBeNull();
     expect(
-      analyticsIdentity({ ...freigabe, analyseFreigabe: false }),
+      analyticsIdentity({ ...freigabe, enabled: true, analyseFreigabe: false }),
     ).toBeNull();
     expect(analyticsIdentity({ ...freigabe, deployment: "demo" })).toBeNull();
   });

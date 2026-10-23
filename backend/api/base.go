@@ -114,13 +114,16 @@ func newMealPlanResource(module mealplanModule.Capability, renderer SimpleListRe
 			renderMealPlanFailure(w, r, err, internalMessage)
 		},
 		ExportDailyList: func(list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-			return renderMealParticipationExport(renderer, list, format)
+			return renderMealParticipationExport(renderer, list.Export, format)
+		},
+		ExportWeeklyList: func(week mealplanModule.WeeklyList, format string) (mealplanAPI.ExportFile, error) {
+			return renderMealParticipationExport(renderer, week.Export, format)
 		},
 	})
 }
 
-func renderMealParticipationExport(renderer SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
-	export, err := list.Export()
+func renderMealParticipationExport(renderer SimpleListRenderer, layout func() (mealplanModule.DailyListExport, error), format string) (mealplanAPI.ExportFile, error) {
+	export, err := layout()
 	if err != nil {
 		return mealplanAPI.ExportFile{}, err
 	}

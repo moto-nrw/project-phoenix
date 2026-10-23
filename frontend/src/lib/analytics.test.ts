@@ -83,16 +83,16 @@ describe("portal sessions", () => {
     );
 
     // Outside the OGS portal no Freigabe and no person reach the context.
-    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith({
-      surface: "school",
-      role: "lehrkraft",
-      analyseFreigabe: false,
-      recordingSamplePercent: 0,
-      person: null,
-    });
-    expect(mocks.setContext).toHaveBeenCalledWith(
-      { school_id: "42", role: "lehrkraft" },
-      false,
+    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith(
+      {
+        surface: "school",
+        role: "lehrkraft",
+        enabled: false,
+        analyseFreigabe: false,
+        recordingSamplePercent: 0,
+        person: null,
+      },
+      { properties: { school_id: "42", role: "lehrkraft" }, resetFirst: false },
     );
   });
 
@@ -102,6 +102,7 @@ describe("portal sessions", () => {
         surface: "ogs",
         schoolId: "42",
         role: "staff",
+        enabled: true,
         analyseFreigabe: true,
         recordingSamplePercent: 50,
         person: "pseudo_4b9630678fc1afce76ce690721aaf949",
@@ -109,18 +110,16 @@ describe("portal sessions", () => {
       false,
     );
 
-    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith({
-      surface: "ogs",
-      role: "staff",
-      analyseFreigabe: true,
-      recordingSamplePercent: 50,
-      person: "pseudo_4b9630678fc1afce76ce690721aaf949",
-    });
-    // The registered properties stay school and role; the person is the
-    // distinct ID, never a property.
-    expect(mocks.setContext).toHaveBeenCalledWith(
-      { school_id: "42", role: "staff" },
-      false,
+    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith(
+      {
+        surface: "ogs",
+        role: "staff",
+        enabled: true,
+        analyseFreigabe: true,
+        recordingSamplePercent: 50,
+        person: "pseudo_4b9630678fc1afce76ce690721aaf949",
+      },
+      { properties: { school_id: "42", role: "staff" }, resetFirst: false },
     );
   });
 
@@ -130,7 +129,10 @@ describe("portal sessions", () => {
       true,
     );
 
-    expect(mocks.setContext).toHaveBeenCalledWith({ role: "guardian" }, true);
+    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith(
+      expect.objectContaining({ surface: "parents", enabled: false }),
+      { properties: { role: "guardian" }, resetFirst: true },
+    );
   });
 
   it("clears the context at logout", () => {

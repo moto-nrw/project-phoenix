@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalAnalyticsSession } from "./portal-analytics-session";
 
@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
   registerPortalSession: vi.fn(),
   clearPortalSession: vi.fn(),
+  setAnalyticsContext: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: mocks.useSession }));
@@ -14,12 +15,22 @@ vi.mock("~/lib/analytics", () => ({
   clearPortalSession: mocks.clearPortalSession,
 }));
 
+vi.mock("~/lib/posthog-client", () => ({
+  setAnalyticsContext: mocks.setAnalyticsContext,
+}));
+
 describe("PortalAnalyticsSession", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () => new Response(JSON.stringify({ data: { enabled: true } })),
+      ),
+    );
   });
 
-  it("registers a parent at login without a school", () => {
+  it("registers a parent at login without a school", async () => {
     mocks.useSession.mockReturnValue({
       status: "authenticated",
       data: { user: { id: "7", scope: "parent", roles: ["guardian"] } },
@@ -27,13 +38,15 @@ describe("PortalAnalyticsSession", () => {
 
     render(<PortalAnalyticsSession surface="parents" />);
 
-    expect(mocks.registerPortalSession).toHaveBeenCalledWith(
-      { surface: "parents", schoolId: null, role: "guardian" },
-      false,
+    await waitFor(() =>
+      expect(mocks.registerPortalSession).toHaveBeenCalledWith(
+        { surface: "parents", schoolId: null, role: "guardian", enabled: true },
+        false,
+      ),
     );
   });
 
-  it("registers a teacher of the school portal with the school", () => {
+  it("registers a teacher of the school portal with the school", async () => {
     mocks.useSession.mockReturnValue({
       status: "authenticated",
       data: { user: { id: "9", scope: "school", tenantId: 42 } },
@@ -41,11 +54,38 @@ describe("PortalAnalyticsSession", () => {
 
     render(<PortalAnalyticsSession surface="school" />);
 
-    expect(mocks.registerPortalSession).toHaveBeenCalledWith(
-      { surface: "school", schoolId: "42", role: "lehrkraft" },
-      false,
+    await waitFor(() =>
+      expect(mocks.registerPortalSession).toHaveBeenCalledWith(
+        { surface: "school", schoolId: "42", role: "lehrkraft", enabled: true },
+        false,
+      ),
     );
   });
+
+  it.each([false, undefined])(
+    "keeps collection off for a restrictive or failed policy (%s)",
+    async (enabled) => {
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "7", scope: "parent" } },
+      });
+      vi.mocked(global.fetch).mockResolvedValue(
+        new Response(JSON.stringify({ data: { enabled } })),
+      );
+      render(<PortalAnalyticsSession surface="parents" />);
+      await waitFor(() =>
+        expect(mocks.registerPortalSession).toHaveBeenCalledWith(
+          {
+            surface: "parents",
+            schoolId: null,
+            role: "guardian",
+            enabled: false,
+          },
+          false,
+        ),
+      );
+    },
+  );
 
   it("clears the context at logout", () => {
     mocks.useSession.mockReturnValue({
@@ -60,12 +100,15 @@ describe("PortalAnalyticsSession", () => {
     expect(mocks.clearPortalSession).toHaveBeenCalledOnce();
   });
 
-  it("resets the identity when the school changes", () => {
+  it("resets the identity when the school changes", async () => {
     mocks.useSession.mockReturnValue({
       status: "authenticated",
       data: { user: { id: "9", scope: "school", tenantId: 42 } },
     });
     const view = render(<PortalAnalyticsSession surface="school" />);
+    await waitFor(() =>
+      expect(mocks.registerPortalSession).toHaveBeenCalledOnce(),
+    );
 
     mocks.useSession.mockReturnValue({
       status: "authenticated",
@@ -73,11 +116,49 @@ describe("PortalAnalyticsSession", () => {
     });
     view.rerender(<PortalAnalyticsSession surface="school" />);
 
-    expect(mocks.registerPortalSession).toHaveBeenLastCalledWith(
-      { surface: "school", schoolId: "43", role: "lehrkraft" },
-      true,
+    await waitFor(() =>
+      expect(mocks.registerPortalSession).toHaveBeenLastCalledWith(
+        { surface: "school", schoolId: "43", role: "lehrkraft", enabled: true },
+        true,
+      ),
     );
   });
+
+  it.each([
+    { surface: "parents", scope: "parent", schoolId: null },
+    { surface: "school", scope: "school", schoolId: "42" },
+  ] as const)(
+    "resets the $surface session when only the account changes",
+    async ({ surface, scope, schoolId }) => {
+      const user = { id: "7", scope, tenantId: schoolId };
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user },
+      });
+      const view = render(<PortalAnalyticsSession surface={surface} />);
+      await waitFor(() =>
+        expect(mocks.registerPortalSession).toHaveBeenCalledOnce(),
+      );
+
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { ...user, id: "8" } },
+      });
+      view.rerender(<PortalAnalyticsSession surface={surface} />);
+
+      await waitFor(() =>
+        expect(mocks.registerPortalSession).toHaveBeenLastCalledWith(
+          {
+            surface,
+            schoolId,
+            role: surface === "parents" ? "guardian" : "lehrkraft",
+            enabled: true,
+          },
+          true,
+        ),
+      );
+    },
+  );
 
   it("registers nothing for a session of another portal", () => {
     mocks.useSession.mockReturnValue({

@@ -297,6 +297,19 @@ func TestMealRegistrationSettings(t *testing.T) {
 	assert.Equal(t, config.KeyMealRegistrationEnabled, cutoff.DependsOn.Key)
 	assert.Equal(t, "eq", cutoff.DependsOn.Condition)
 	assert.Equal(t, true, cutoff.DependsOn.Value)
+
+	// #3164: 0 keeps the same-day cutoff; schools ordering ahead add days.
+	lead := config.GetDefinition(config.KeyMealRegistrationCutoffLeadDays)
+	require.NotNil(t, lead)
+	assert.Equal(t, config.FieldNumber, lead.Type)
+	assert.Equal(t, 0, lead.Default)
+	require.NotNil(t, lead.Validation)
+	require.NotNil(t, lead.Validation.Min)
+	require.NotNil(t, lead.Validation.Max)
+	assert.Equal(t, float64(0), *lead.Validation.Min)
+	assert.Equal(t, float64(10), *lead.Validation.Max)
+	require.NotNil(t, lead.DependsOn)
+	assert.Equal(t, config.KeyMealRegistrationEnabled, lead.DependsOn.Key)
 }
 
 // #3163: the same-day pickup cutoff is off unless a school sets a time, and it
@@ -2354,4 +2367,18 @@ func TestEarlyCheckoutNoteSettings(t *testing.T) {
 	assert.Equal(t, config.KeyEarlyCheckoutNoteEnabled, tolerance.DependsOn.Key)
 	assert.Equal(t, "eq", tolerance.DependsOn.Condition)
 	assert.Equal(t, true, tolerance.DependsOn.Value)
+}
+
+func TestAnalyticsCollectionSwitch(t *testing.T) {
+	t.Parallel()
+	enabled := config.GetDefinition(config.KeyAnalyticsEnabled)
+	require.NotNil(t, enabled)
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, true, enabled.Default)
+	assert.Equal(t, config.AccessShared, enabled.AccessPolicy)
+	assert.Equal(t, "config:manage", enabled.WritePermission)
+	freigabe := config.GetDefinition(config.KeyAnalyticsFreigabe)
+	require.NotNil(t, freigabe.DependsOn)
+	assert.Equal(t, config.KeyAnalyticsEnabled, freigabe.DependsOn.Key)
+	assert.Equal(t, true, freigabe.DependsOn.Value)
 }

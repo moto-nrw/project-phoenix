@@ -2,6 +2,8 @@ import type { Properties } from "posthog-js";
 import { clientEnv } from "~/env.client";
 import { analyticsDeployment } from "~/lib/analytics-deployment";
 import {
+  analyticsCollectionAllowed,
+  analyticsContextUpdateAllowed,
   analyticsIdentity,
   analyticsInitOptions,
   analyticsRuntimeOptions,
@@ -62,7 +64,8 @@ function analyticsEnabled(): boolean {
     Boolean(clientEnv.NEXT_PUBLIC_POSTHOG_KEY) &&
     !initializationFailed &&
     typeof window !== "undefined" &&
-    currentContext() !== null
+    currentContext() !== null &&
+    analyticsCollectionAllowed(currentContext()!)
   );
 }
 
@@ -74,6 +77,11 @@ function execute(name: string, run: Operation): void {
     return;
   }
 
+  runOperation(name, run);
+}
+
+function runOperation(name: string, run: Operation): void {
+  if (!instance) return;
   try {
     run(instance);
   } catch (error) {
@@ -125,12 +133,41 @@ function applyContext(posthog: PostHog, active: AnalyticsContext): void {
  */
 export function setAnalyticsContext(
   update: Partial<Omit<AnalyticsContext, "deployment">>,
+  registration?: {
+    readonly properties: Properties;
+    readonly resetFirst: boolean;
+  },
 ): void {
   const current = currentContext();
   if (!current) return;
+  if (
+    !analyticsContextUpdateAllowed(
+      startSurface(),
+      update.surface ?? current.surface,
+    )
+  )
+    return;
   const next: AnalyticsContext = { ...current, ...update };
   context = next;
-  execute("apply_context", (posthog) => applyContext(posthog, next));
+  if (!analyticsCollectionAllowed(next)) {
+    pendingOperations.length = 0;
+    runOperation("opt_out", (posthog) => posthog.opt_out_capturing());
+    runOperation("stop_recording", (posthog) => posthog.stopSessionRecording());
+    return;
+  }
+  runOperation("opt_in", (posthog) =>
+    posthog.opt_in_capturing({ captureEventName: false }),
+  );
+  execute("apply_context", (posthog) => {
+    // A school switch resets and registers before identifying, atomically
+    // with the new policy, so no event can inherit the previous school.
+    if (registration) {
+      if (registration.resetFirst) posthog.reset();
+      posthog.register(registration.properties);
+    }
+    applyContext(posthog, next);
+  });
+  schedulePostHogInitialization();
 }
 
 export function setPostHogContext(
@@ -144,9 +181,17 @@ export function setPostHogContext(
 }
 
 export function clearPostHogContext(): void {
-  if (currentContext()) context = startContext();
+  const previous = currentContext();
+  if (previous)
+    context = {
+      ...startContext()!,
+      enabled: previous.surface === "ogs" && previous.enabled === true,
+    };
   const cleared = context;
-  execute("clear_context", (posthog) => {
+  // Never replay a previous session's buffered identity or registration.
+  pendingOperations.length = 0;
+  // Privacy cleanup must run even when collection is blocked.
+  runOperation("clear_context", (posthog) => {
     posthog.unregister("school_id");
     posthog.unregister("role");
     posthog.reset();
@@ -159,13 +204,17 @@ export function initializePostHog(): Promise<void> {
   const key = clientEnv.NEXT_PUBLIC_POSTHOG_KEY;
   const startingContext =
     typeof window === "undefined" ? null : currentContext();
-  if (!key || !startingContext) return Promise.resolve();
+  if (!key || !startingContext || !analyticsCollectionAllowed(startingContext))
+    return Promise.resolve();
   if (initialization) return initialization;
 
   initialization = import("posthog-js")
     .then(({ default: posthog }) => {
+      const activeBeforeInit = currentContext();
+      if (!activeBeforeInit || !analyticsCollectionAllowed(activeBeforeInit))
+        return;
       posthog.init(key, {
-        ...analyticsInitOptions(startingContext, window.location.hostname),
+        ...analyticsInitOptions(activeBeforeInit, window.location.hostname),
         before_send: (captureResult) => {
           const active = currentContext();
           return active ? filterAnalyticsEvent(active, captureResult) : null;
@@ -175,7 +224,11 @@ export function initializePostHog(): Promise<void> {
       // The context may have moved on while the SDK loaded (login with
       // Analyse-Freigabe); the buffered operations below apply it as well.
       const active = currentContext();
-      if (active) {
+      if (active && analyticsCollectionAllowed(active)) {
+        // The SDK can retain an opt-out independently of event persistence.
+        runOperation("opt_in", (loaded) =>
+          loaded.opt_in_capturing({ captureEventName: false }),
+        );
         execute("apply_context", (loaded) => applyContext(loaded, active));
       }
 
@@ -189,13 +242,16 @@ export function initializePostHog(): Promise<void> {
       logger.warn("posthog_initialization_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
+    })
+    .finally(() => {
+      if (!instance) initialization = null;
     });
 
   return initialization;
 }
 
 export function schedulePostHogInitialization(): void {
-  if (!analyticsEnabled()) return;
+  if (!analyticsEnabled() || instance || initialization) return;
 
   const initialize = () => void initializePostHog();
   if (typeof window.requestIdleCallback === "function") {

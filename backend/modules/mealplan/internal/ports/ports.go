@@ -27,7 +27,9 @@ type Directory interface {
 type Settings interface {
 	MealPlanEnabled(context.Context) (bool, error)
 	MealRegistrationEnabled(context.Context) (bool, error)
-	MealRegistrationCutoff(context.Context) (string, error)
+	// MealRegistrationCutoff is the cutoff time and how many school days
+	// before the meal day it applies.
+	MealRegistrationCutoff(context.Context) (string, int, error)
 }
 
 type Transaction interface {
