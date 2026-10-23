@@ -44,7 +44,10 @@ import {
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
-import { useMealRegistrationEnabled } from "~/lib/tenant-context";
+import {
+  useMealPlanEnabled,
+  useMealRegistrationEnabled,
+} from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
 import { MealCaterer } from "~/components/meal-plan/meal-caterer";
@@ -149,6 +152,7 @@ export default function MealPlanPage() {
   // gate.
   const canReadPlan = isAdmin(session) || hasPermission(session, "meals:read");
   const canEdit = isAdmin(session) || hasPermission(session, "meals:manage");
+  const mealPlanEnabled = useMealPlanEnabled();
   const mealRegistrationEnabled = useMealRegistrationEnabled();
   // Die Bestellung der Woche braucht nur die Zahlen (#3873).
   const canReadOrders =
@@ -262,9 +266,9 @@ export default function MealPlanPage() {
   });
 
   useEffect(() => {
-    if (status !== "authenticated" || !canReadPlan) return;
+    if (status !== "authenticated" || !canReadPlan || !mealPlanEnabled) return;
     void load();
-  }, [load, status, canReadPlan]);
+  }, [load, status, canReadPlan, mealPlanEnabled]);
 
   const changedDays = useMemo(
     () =>

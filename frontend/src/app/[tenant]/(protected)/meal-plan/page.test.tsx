@@ -7,7 +7,8 @@ import { catalogText } from "~/test/error-catalog-text";
 
 import MealPlanPage from "./page";
 
-const { getMealPlanWeek, rights } = vi.hoisted(() => ({
+const { getMealPlanWeek, rights, features } = vi.hoisted(() => ({
+  features: { mealPlanEnabled: true },
   rights: { admin: true, permissions: [] as string[] },
   getMealPlanWeek: vi.fn(),
 }));
@@ -55,6 +56,7 @@ vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
 
 vi.mock("~/lib/tenant-context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useMealPlanEnabled: () => features.mealPlanEnabled,
   useMealRegistrationEnabled: () => true,
 }));
 vi.mock("~/components/meal-plan/meal-participant-list", () => ({
@@ -132,4 +134,35 @@ describe("meal registration permissions", () => {
       expect(list).toHaveAttribute("data-export", exporting);
     },
   );
+});
+
+describe("meal plan feature gate", () => {
+  beforeEach(() => {
+    getMealPlanWeek.mockReset();
+    getMealPlanWeek.mockResolvedValue([]);
+    rights.admin = true;
+    rights.permissions = [];
+    features.mealPlanEnabled = true;
+  });
+
+  it("waits for meal planning to be enabled before loading the week", async () => {
+    features.mealPlanEnabled = false;
+    const { rerender } = renderPage();
+
+    expect(screen.getByText("Essensplan")).toBeInTheDocument();
+    expect(getMealPlanWeek).not.toHaveBeenCalled();
+
+    features.mealPlanEnabled = true;
+    rerender(
+      <ToastProvider>
+        <MealPlanPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(/0 von 5 Tagen geplant/),
+    ).toBeInTheDocument();
+    expect(getMealPlanWeek).toHaveBeenCalledOnce();
+    expect(getMealPlanWeek).toHaveBeenCalledWith("2026-10-05");
+  });
 });
