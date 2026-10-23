@@ -15,6 +15,7 @@ import (
 )
 
 type commandEffectSite struct {
+	SourceOwner   string `json:"source_owner,omitempty"`
 	Port          string `json:"port"`
 	Binding       string `json:"binding"`
 	Target        string `json:"target"`
@@ -23,7 +24,15 @@ type commandEffectSite struct {
 }
 
 func (s commandEffectSite) key() string {
-	return s.Port + "|" + s.Binding + "|" + s.Target + "|" + s.TargetOwner
+	return s.sourceOwner() + "|" + s.Port + "|" + s.Binding + "|" + s.Target + "|" + s.TargetOwner
+}
+
+// Older Enrollment-only registers did not carry a source owner.
+func (s commandEffectSite) sourceOwner() string {
+	if s.SourceOwner == "" {
+		return "enrollment"
+	}
+	return s.SourceOwner
 }
 
 type effectBody struct {
@@ -31,32 +40,35 @@ type effectBody struct {
 	declaration *ast.FuncDecl
 }
 type effectScanner struct {
-	ownerKinds map[string]string
-	policy     map[string]Package
-	bindings   effectBindings
-	bodies     map[*types.Func]effectBody
-	sites      map[string]commandEffectSite
-	evidence   map[string]map[string]bool
+	sourceOwner string
+	ownerKinds  map[string]string
+	policy      map[string]Package
+	bindings    effectBindings
+	bodies      map[*types.Func]effectBody
+	sites       map[string]commandEffectSite
+	evidence    map[string]map[string]bool
 }
 
 func effectTypeID(t types.Type) string {
 	return types.TypeString(types.Unalias(t), func(p *types.Package) string { return p.Path() })
 }
 
-// This first cut inventories Enrollment's named interface binding surface,
-// not call-site liveness. Every policy-classified package can supply a binding.
+// Every domain's named input interfaces are inventoried, including aliases and
+// native foreign contract fields. All typed production packages supply bindings.
 func discoverCommandEffects(policy *Policy, loaded []*packages.Package) []commandEffectSite {
 	s := newEffectScanner(policy, loaded)
-	scoped := enrollmentEffectInterfaces(policy, loaded)
-	for destination, sources := range s.bindings {
-		if !scoped[destination] {
-			continue
-		}
-		for _, source := range sources {
-			if types.Identical(destination, source) && s.receiverOwner(source) == "enrollment" {
+	for owner, scoped := range domainEffectInterfaces(policy, loaded) {
+		s.sourceOwner = owner
+		for destination, sources := range s.bindings {
+			if !scoped[destination] {
 				continue
 			}
-			s.resolvePort(destination, source)
+			for _, source := range sources {
+				if types.Identical(destination, source) && s.receiverOwner(source) == owner {
+					continue
+				}
+				s.resolvePort(destination, source)
+			}
 		}
 	}
 	return s.sortedSites()
@@ -111,7 +123,7 @@ func (s *effectScanner) sortedSites() []commandEffectSite {
 }
 
 func (s *effectScanner) record(port, binding, target, owner string, trail []string) {
-	site := commandEffectSite{Port: port, Binding: binding, Target: target, TargetOwner: owner}
+	site := commandEffectSite{SourceOwner: s.sourceOwner, Port: port, Binding: binding, Target: target, TargetOwner: owner}
 	s.sites[site.key()] = site
 	if s.evidence[site.key()] == nil {
 		s.evidence[site.key()] = map[string]bool{}
@@ -124,13 +136,24 @@ func (s *effectScanner) record(port, binding, target, owner string, trail []stri
 func (s *effectScanner) resolve(port, binding string, receiver types.Type, name string, seen map[string]bool, trail []string) {
 	identity := effectTypeID(receiver) + "." + name
 	if seen[identity] {
+		if s.receiverOwner(receiver) == s.sourceOwner {
+			return
+		}
 		s.record(port, binding, "unresolved:cycle:"+identity, "", trail)
 		return
 	}
 	seen[identity] = true
 	defer delete(seen, identity)
+	// External/builtin contracts (notably error.Error) are outside the policy
+	// binding surface. Unioning every error return invents unrelated owner edges.
+	if named := namedEffectType(receiver); named != nil {
+		pkg := named.Obj().Pkg()
+		if pkg == nil || s.policy[pkg.Path()].Owner == "" {
+			return
+		}
+	}
 	owner := s.receiverOwner(receiver)
-	if owner == "enrollment" {
+	if owner == s.sourceOwner {
 		if effectInterface(receiver) != nil {
 			s.resolveInterface(port, binding, receiver, name, seen, trail)
 		}
@@ -138,6 +161,9 @@ func (s *effectScanner) resolve(port, binding string, receiver types.Type, name 
 	}
 	if owner != "" && owner != "root-composition" {
 		s.recordTerminal(port, binding, receiver, name, owner, trail)
+		if effectInterface(receiver) != nil {
+			s.resolveForeignProviders(port, binding, receiver, name, seen, trail)
+		}
 		return
 	}
 	if effectInterface(receiver) != nil {
@@ -174,11 +200,34 @@ func (s *effectScanner) resolveInterface(port, binding string, receiver types.Ty
 		}
 	}
 	if len(sources) == 0 {
+		if s.receiverOwner(receiver) == s.sourceOwner {
+			return
+		}
 		s.record(port, binding, "unresolved:"+effectTypeID(receiver)+"."+name, "", trail)
 		return
 	}
 	for _, source := range sources {
 		s.resolve(port, binding, source, name, seen, trail)
+	}
+}
+
+// A foreign contract remains a first-hop terminal. Its root-bound provider can
+// nevertheless belong to another owner (notably a workflow); expose that fact
+// without walking the foreign owner's command implementation.
+func (s *effectScanner) resolveForeignProviders(port, binding string, receiver types.Type, name string, seen map[string]bool, trail []string) {
+	owner := s.receiverOwner(receiver)
+	for destination, candidates := range s.bindings {
+		if !types.Identical(destination, receiver) {
+			continue
+		}
+		for _, source := range distinctEffectSources(receiver, candidates) {
+			if s.receiverOwner(source) == owner {
+				if effectInterface(source) == nil || seen[effectTypeID(source)+"."+name] {
+					continue
+				}
+			}
+			s.resolve(port, binding, source, name, seen, trail)
+		}
 	}
 }
 
@@ -272,7 +321,7 @@ func (s *effectScanner) resolveFunction(port, binding string, fn *types.Func, se
 	}
 	classification := s.policy[fn.Pkg().Path()]
 	identity := fn.Pkg().Path() + "." + fn.Name()
-	if classification.Owner == "" || classification.Owner == "enrollment" {
+	if classification.Owner == "" || classification.Owner == s.sourceOwner {
 		return
 	}
 	if classification.Owner != "root-composition" {
@@ -302,8 +351,8 @@ func (s *effectScanner) resolveFunction(port, binding string, fn *types.Func, se
 }
 
 func commandEffectsEnabled(policy *Policy) bool {
-	for _, pkg := range policy.Packages {
-		if pkg.Owner == "enrollment" {
+	for _, owner := range policy.Owners {
+		if owner.Kind == "domain" {
 			return true
 		}
 	}
@@ -317,27 +366,23 @@ func effectFingerprint(evidence string) string {
 }
 
 func commandEffectViolation(rule string, site commandEffectSite, detail string) Violation {
-	return Violation{Scope: ScopeProduction, Rule: "effects." + rule, Source: site.Port, Target: site.Binding + " → " + site.Target, Detail: detail}
+	return Violation{Scope: ScopeProduction, Rule: "effects." + rule, Source: site.sourceOwner() + ": " + site.Port, Target: site.Binding + " → " + site.Target, Detail: detail}
 }
 
 func validateEffectEntry(entry commandEffectEntry) error {
 	if strings.TrimSpace(entry.Reason) == "" {
 		return fmt.Errorf("effect entry %s needs exact review evidence", entry.key())
 	}
+	if strings.HasPrefix(entry.Target, "unresolved:") && entry.Effect != "unresolved" {
+		return fmt.Errorf("unresolved binding %s cannot be treated as a query or command", entry.key())
+	}
 	switch entry.Effect {
 	case "query":
 		if entry.Classification != "query" {
 			return fmt.Errorf("query %s must be classified query", entry.key())
 		}
-	case "mutation", "lock", "scope", "durable":
-		switch entry.Classification {
-		case "leaf", "workflow", "E1", "E2", "E3", "E4", "E5":
-		default:
-			return fmt.Errorf("command %s needs leaf, workflow or named E1–E5 classification", entry.key())
-		}
-		if entry.ADR != "0067" {
-			return fmt.Errorf("command %s must cite ADR 0067", entry.key())
-		}
+	case "mutation", "lock", "scope", "durable", "notice":
+		return validateCommandEffectEntry(entry)
 	case "unresolved":
 		if !strings.HasPrefix(entry.Target, "unresolved:") || entry.Classification != "unresolved" || entry.ADR != "0083" {
 			return fmt.Errorf("unresolved %s needs exact ADR 0083 addendum #4739 explanation", entry.key())
@@ -345,23 +390,43 @@ func validateEffectEntry(entry commandEffectEntry) error {
 	default:
 		return fmt.Errorf("unclassified effect %q for %s", entry.Effect, entry.key())
 	}
-	if strings.HasPrefix(entry.Target, "unresolved:") && entry.Effect != "unresolved" {
-		return fmt.Errorf("unresolved binding %s cannot be treated as a query or command", entry.key())
+	return nil
+}
+
+func validateCommandEffectEntry(entry commandEffectEntry) error {
+	switch entry.Classification {
+	case "debt":
+		if entry.ADR != "0083" {
+			return fmt.Errorf("known debt %s must cite ADR 0083 without granting an exception", entry.key())
+		}
+	case "leaf", "workflow", "E1", "E2", "E3", "E4", "E5":
+		if entry.ADR != "0067" {
+			return fmt.Errorf("command %s must cite ADR 0067", entry.key())
+		}
+	default:
+		return fmt.Errorf("command %s needs leaf, workflow, known debt or named E1–E5 classification", entry.key())
 	}
 	return nil
 }
 
-// Consumer aliases and native foreign contracts in Enrollment inputs count too.
-func enrollmentEffectInterfaces(policy *Policy, loaded []*packages.Package) map[types.Type]bool {
-	result := map[types.Type]bool{}
+func domainEffectInterfaces(policy *Policy, loaded []*packages.Package) map[string]map[types.Type]bool {
+	result := map[string]map[types.Type]bool{}
 	classified := policy.packageMap()
+	domains := map[string]bool{}
+	for _, owner := range policy.Owners {
+		domains[owner.ID] = owner.Kind == "domain"
+	}
 	for _, pkg := range loaded {
-		if classified[pkg.PkgPath].Owner != "enrollment" {
+		owner := classified[pkg.PkgPath].Owner
+		if !domains[owner] {
 			continue
+		}
+		if result[owner] == nil {
+			result[owner] = map[types.Type]bool{}
 		}
 		for _, object := range pkg.TypesInfo.Defs {
 			if isEffectInputInterface(object, classified) {
-				result[types.Unalias(object.Type())] = true
+				result[owner][types.Unalias(object.Type())] = true
 			}
 		}
 	}

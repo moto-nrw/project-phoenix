@@ -917,6 +917,7 @@ Run commands from the repository root:
 
 ```bash
 scripts/backend-architecture.sh check
+scripts/backend-architecture.sh effects # regenerate identities; review unknown labels
 scripts/backend-architecture.sh audit-issues \
   --api-url https://api.github.com
 scripts/backend-architecture.sh explain \
@@ -930,6 +931,15 @@ scripts/backend-architecture.sh dependencies \
   --focus package:services/mealplan
 scripts/backend-architecture.sh cycles
 ```
+
+`effects` regenerates `backend/architecture/command-effects.json` for every
+policy domain source owner, preserving only exact reviewed identities. Review
+all new `unknown` labels before running `check`; do not label locking/audited
+reads as queries. `check` enforces canonical generator JSON and one effect per
+target method without rewriting files. E1–E5, workflow-backed bindings, known
+coordination debt and unresolved bindings remain distinct. See the
+[ADR 0083 domain-source addendum](../../docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md#domain-source-expansion-2026-10-23-4739)
+and [all 40 reconciled hand rows](../../docs/architecture/4739-command-effect-reconciliation.md).
 
 `check` loads packages with `GOOS=linux`, `GOARCH=amd64`, and `CGO_ENABLED=0`.
 It checks production imports, same-package test imports, and external-package
