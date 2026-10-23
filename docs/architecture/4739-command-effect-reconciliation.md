@@ -21,9 +21,14 @@ they are not excluded by a hardcoded source list. Fixtures also cover an unknown
 future policy domain. One shared foreign interface retains separate source-owner
 identities for multiple consumers.
 
-Effects: **1 durable, 272 lock, 1611 mutation, 5 notice, 2805 query, 7 scope, 640 unresolved**. Review labels: **46 E1, 18 E2, 48 E3, 58 E4, 32 E5, 73 debt, 1595 leaf, 2805 query, 640 unresolved, 26 workflow**. The 640 unresolved entries represent
+Effects: **1 durable, 298 lock, 1611 mutation, 5 notice, 2779 query, 7 scope, 640 unresolved**. Review labels: **46 E1, 18 E2, 48 E3, 58 E4, 32 E5, 73 debt, 1621 leaf, 2779 query, 640 unresolved, 26 workflow**. The 640 unresolved entries represent
 **253 distinct exact unresolved targets**, often repeated through shared/full
 interfaces. They are visible limitations, not approved leaves.
+
+`ListVisits`, `ListAttendance` and `QueryGroupSupervisions` are conditional
+locking reads: `ForUpdate=true` requires an ambient transaction and executes
+`SELECT FOR UPDATE`. All 26 identities for these complete method surfaces are
+classified as `lock`/`leaf`, including bindings whose current callers only read.
 
 ## All 40 hand-inventory rows
 

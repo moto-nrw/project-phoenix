@@ -5016,9 +5016,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence",
       "binding_digest": "c465831ed6fcd85e7c3fc71d929db42f",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "care-plan",
@@ -13879,9 +13880,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence",
       "binding_digest": "e1986537db3a0ccc7ace2965a0c46e18",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "device-fleet",
@@ -13890,9 +13892,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "device-fleet",
@@ -18884,9 +18887,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "335d10c5af2877837d2c91e5dbdd4128",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -19504,9 +19508,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "335d10c5af2877837d2c91e5dbdd4128",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -19763,9 +19768,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "6e576ab14a10f28a435c9057e4abddfb",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -45987,9 +45993,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListAttendance",
       "target_owner": "student-presence",
       "binding_digest": "e3de8f0d07ef8885c1a22c9bc5b7df7f",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.ListAttendance; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Capability.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -45998,9 +46005,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence",
       "binding_digest": "e1986537db3a0ccc7ace2965a0c46e18",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -46009,9 +46017,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence",
       "binding_digest": "e1986537db3a0ccc7ace2965a0c46e18",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -46647,9 +46656,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "10ea4da727ab5949dbb87a64d3528d52",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.ListVisits; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Capability.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -46658,9 +46668,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -46669,9 +46680,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -47250,9 +47262,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "469db7e193bc8a911272db092b28510d",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.QueryGroupSupervisions; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Capability.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -47261,9 +47274,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "102b7e430debd0b7410fce07d73d79da",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -47272,9 +47286,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "102b7e430debd0b7410fce07d73d79da",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -49789,9 +49804,10 @@
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ListAttendance",
       "target_owner": "student-presence",
       "binding_digest": "cc2533c592632b9aba1fb9ced331f72e",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.ListAttendance; modules/studentpresence/internal/application/attendance.go:82. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence/internal/application.Service.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -49800,9 +49816,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence",
       "binding_digest": "e1986537db3a0ccc7ace2965a0c46e18",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListAttendance; modules/studentpresence/internal/application/attendance.go:82; modules/studentpresence/internal/adapters/postgres/attendance.go:63. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -50229,9 +50246,10 @@
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "bbb8ced4620f9c3b8720472d819861f1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.ListVisits; modules/studentpresence/internal/application/visit.go:57. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence/internal/application.Service.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -50240,9 +50258,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -50631,9 +50650,10 @@
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "1652beeb6b0ae8eb08704cdd478e4417",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence/internal/application.Service.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -50642,9 +50662,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "102b7e430debd0b7410fce07d73d79da",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -55950,9 +55971,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -55961,9 +55983,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "102b7e430debd0b7410fce07d73d79da",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -56652,9 +56675,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -56663,9 +56687,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "target_owner": "student-presence",
       "binding_digest": "102b7e430debd0b7410fce07d73d79da",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.QueryGroupSupervisions; modules/studentpresence/internal/application/live_groups.go:122; modules/studentpresence/internal/adapters/postgres/live_groups.go:209. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
@@ -57816,9 +57841,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
       "target_owner": "student-presence",
       "binding_digest": "9e0685b0200adc2a5876940743a55ab1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",
