@@ -193,7 +193,7 @@ describe("RoomDetailPage", () => {
   // Offene Räume stehen seit #4372 nur noch unter „Räume“: ihre gemeinsame
   // Aufsichtsansicht öffnet die Raumseite.
   it("opens the shared supervision view of an open room", () => {
-    mockSession(["rooms:read"], ["user"]);
+    mockSession(["rooms:read", "groups:read"], ["user"]);
     useRoomDetailMock.mockReturnValue({
       room: { ...room, isOpenRoom: true },
       history: [],
