@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 )
 
-// DeviceOnlineWindow resolves the per-tenant online window. A missing
-// resolver, a missing override, and a non-positive override all fall back to
+// DeviceOnlineWindow applies the resolved tenant override or registry default.
+// A missing resolver or a non-positive resolved window uses
 // domain.DefaultDeviceOnlineWindow.
 func (s *Service) DeviceOnlineWindow(ctx context.Context) time.Duration {
 	if s.deps.Window == nil {
