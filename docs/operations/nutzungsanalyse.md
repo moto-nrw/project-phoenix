@@ -29,7 +29,12 @@ Portalentscheidung zusätzlich erforderlich. Eltern-Anmeldeformulare und
 Token-Bearbeitungsseiten sperren bereits während des Ladens der Zielschule
 und bei Ladefehlern, nicht erst beim Einblenden des Formulars. Bei einer Eltern-Anmeldung muss
 also neben allen aktiven Schulzuordnungen auch die Zielschule erlauben.
-Anonyme Anmelde- und Token-Statusseiten auf dem Elternhost bleiben ohne SDK.
+Anonyme Anmeldeseiten auf dem Elternhost bleiben ohne SDK. Token-Statusseiten
+der Anmeldung erfassen außerhalb der Demo auf Eltern- und OGS-Hosts nie,
+auch bei angemeldeten Eltern und erlaubenden Schulen. Der Statusvertrag liefert keine Zielschulfreigabe;
+die zentrale Policy sperrt deshalb bereits vor dem Laden der Route und bis
+zum Verlassen der Statusseite. Das betrifft auch den Sprung nach dem Absenden
+(`?submitted=1`). Eine spätere Portal- oder Host-Neulesung hebt die Sperre nicht auf.
 Die Oberfläche `public` (Hosts außerhalb Operator-, Eltern-, Schul- und
 OGS-Host) erfasst außerhalb der Demo nie. Diese bereits mit PR #4757
 wirksame Einschränkung wird hier ausdrücklich nachgetragen.
@@ -38,6 +43,8 @@ Schulschalter vor der Erfassung. Öffentliche und Eltern-Anmeldungen lösen die
 Zielschule aus dem Routenparameter auf, nicht aus einer mitgesendeten Sitzung.
 `enrollment_submitted` bleibt bei Zielschule „aus“ auch mit `surface=parents`
 gesperrt; erlaubende Bestandsschulen ersetzen die Zielschulentscheidung nicht.
+Bei erlaubter Eltern-Anmeldung trägt das Ereignis die `school_id` der
+Zielschule, nicht die einer Bestandsschule.
 
 Eltern- und Schulportal lesen die Policy beim Sichtbarwerden eines Tabs und
 alle fünf Minuten bei sichtbarem Tab neu. Vor jedem Neulesen wird die Erfassung
@@ -73,13 +80,18 @@ Die Demo-Umgebung ignoriert den Schalter absichtlich, daher für den Nachweis
    `visibilitychange`; außerdem A an/B aus und positive Kontrollen.
    Eltern- und Schultabs sperren vor der Neulesung; eine verspätete alte
    Freigabe überschreibt keine neuere Sperre. Eltern-Anmeldungen benötigen
-   zusätzlich eine erlaubende Zielschule. Dieser Modultest ersetzt keinen
-   Netzwerknachweis.
+   zusätzlich eine erlaubende Zielschule. Die echten Token-Statusrouten auf
+   Eltern- und OGS-Hosts sperren auch bei erlaubender Portal-/Host-Policy,
+   während Suspense und nach `visibilitychange`. Beim Verlassen der
+   Statusseite ist die erlaubte Erfassung wieder möglich. Dieser Modultest
+   ersetzt keinen Netzwerknachweis.
 6. Für den lokalen und später menschlich auszuführenden Produktivnachweis
    zusätzlich offene Eltern-/Schultabs, Zielschule aus bei erlaubenden
    Bestandsschulen, fremde Token-Bearbeitungsseite auf einem gesperrten
-   OGS-Host und `public` außerhalb der Demo prüfen. Positive Kontrollen je
-   erlaubender Konstellation verwenden; Inhalte und Kennungen nicht als
+   OGS-Host, Token-Statusseiten auf Eltern- und OGS-Hosts (auch direkt nach
+   Absenden) und `public` außerhalb der Demo prüfen. Statusseiten müssen selbst
+   bei erlaubenden Schulen ohne Erfassung bleiben; positive Kontrollen auf den
+   benachbarten Formularseiten verwenden; Inhalte und Kennungen nicht als
    unbereinigte HAR-Datei ablegen. Netzwerknachweis bleibt Slice 3843-c.
 
 **Lokal geprüft am 23.10.2026:** Nativer Entwicklungsstack, vollständig

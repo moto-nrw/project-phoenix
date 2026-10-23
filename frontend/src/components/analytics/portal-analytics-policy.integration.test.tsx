@@ -54,6 +54,9 @@ vi.mock("~/lib/parent-api", () => ({
   fetchParentEnrollmentProfile: async () => null,
   submitParentEnrollment: vi.fn(),
 }));
+vi.mock("~/components/enrollment/enrollment-status-view", () => ({
+  EnrollmentStatusView: () => <div>Loaded enrollment status</div>,
+}));
 vi.mock("~/components/enrollment/enrollment-form", () => ({
   EnrollmentForm: () => <div>Loaded enrollment form</div>,
 }));
@@ -588,6 +591,128 @@ describe("embedded enrollment analytics policy", () => {
       expect(mocks.capture).toHaveBeenCalledTimes(enabled ? 1 : 0);
     },
   );
+
+  it("keeps the actual parent token status page off despite allowed memberships", async () => {
+    vi.stubGlobal("location", {
+      host: "parents.localhost:3000",
+      hostname: "parents.localhost",
+    });
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "7", scope: "parent" } },
+    });
+    vi.mocked(fetch).mockImplementation(async () =>
+      Response.json({ data: { enabled: true } }),
+    );
+    const { PortalAnalyticsSession } =
+      await import("./portal-analytics-session");
+    const { default: ParentEnrollmentStatusPage } =
+      await import("~/app/parents/anmeldung/status/[token]/page");
+    const { initializePostHog, capturePostHog } =
+      await import("~/lib/posthog-client");
+    const view = render(
+      <>
+        <PortalAnalyticsSession surface="parents" />
+      </>,
+    );
+    await act(async () => {});
+    await initializePostHog();
+    capturePostHog("login_failed");
+    expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+    mocks.capture.mockClear();
+
+    let resolveParams!: (value: { tenant: string; token: string }) => void;
+    const params = new Promise<{ tenant: string; token: string }>((resolve) => {
+      resolveParams = resolve;
+    });
+    await act(async () =>
+      view.rerender(
+        <>
+          <PortalAnalyticsSession surface="parents" />
+          <ParentEnrollmentStatusPage params={params} />
+        </>,
+      ),
+    );
+    capturePostHog("login_failed");
+    expect(mocks.capture).not.toHaveBeenCalled();
+    await act(async () =>
+      resolveParams({ tenant: "school-a", token: "example-test-token" }),
+    );
+    // Anker: the actual status route has loaded, not just its fallback.
+    expect(screen.getByText("Loaded enrollment status")).toBeInTheDocument();
+    capturePostHog("login_failed");
+    expect(mocks.capture).not.toHaveBeenCalled();
+    await act(async () =>
+      document.dispatchEvent(new Event("visibilitychange")),
+    );
+    capturePostHog("login_failed");
+    expect(mocks.capture).not.toHaveBeenCalled();
+
+    await act(async () =>
+      view.rerender(
+        <>
+          <PortalAnalyticsSession surface="parents" />
+        </>,
+      ),
+    );
+    capturePostHog("login_failed");
+    expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+  });
+
+  it("keeps the actual OGS token status page off despite an allowed host school", async () => {
+    vi.stubGlobal("location", {
+      host: "school-a.localhost:3000",
+      hostname: "school-a.localhost",
+    });
+    const { TenantProvider } = await import("~/lib/tenant-context");
+    const { default: EnrollmentStatusPage } =
+      await import("~/app/[tenant]/(public)/anmeldung/status/[token]/page");
+    const { initializePostHog, capturePostHog } =
+      await import("~/lib/posthog-client");
+    const view = render(
+      <TenantProvider tenantSlug="school-a" tenant={tenant}>
+        <div>Host school content</div>
+      </TenantProvider>,
+    );
+    await initializePostHog();
+    capturePostHog("login_failed");
+    expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+    mocks.capture.mockClear();
+
+    let resolveParams!: (value: { tenant: string; token: string }) => void;
+    const params = new Promise<{ tenant: string; token: string }>((resolve) => {
+      resolveParams = resolve;
+    });
+    await act(async () =>
+      view.rerender(
+        <TenantProvider tenantSlug="school-a" tenant={tenant}>
+          <EnrollmentStatusPage params={params} />
+        </TenantProvider>,
+      ),
+    );
+    capturePostHog("login_failed");
+    expect(mocks.capture).not.toHaveBeenCalled();
+    await act(async () =>
+      resolveParams({ tenant: "school-a", token: "example-test-token" }),
+    );
+    // Anker: the actual status route has loaded, not just its fallback.
+    expect(screen.getByText("Loaded enrollment status")).toBeInTheDocument();
+    capturePostHog("login_failed");
+    expect(mocks.capture).not.toHaveBeenCalled();
+    await act(async () =>
+      document.dispatchEvent(new Event("visibilitychange")),
+    );
+    capturePostHog("login_failed");
+    expect(mocks.capture).not.toHaveBeenCalled();
+
+    view.rerender(
+      <TenantProvider tenantSlug="school-a" tenant={tenant}>
+        <div>Host school content</div>
+      </TenantProvider>,
+    );
+    capturePostHog("login_failed");
+    expect(mocks.capture).toHaveBeenCalledWith("login_failed", undefined);
+  });
 
   it.each([false, true])(
     "requires the enrollment target in addition to allowed parent memberships (%s)",

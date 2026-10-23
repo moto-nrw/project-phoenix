@@ -56,8 +56,13 @@ Keep enrollment target gates mounted during loading and errors, including
 Suspense fallback on the parent enrollment form, not just around the loaded form.
 Parents and school sessions refresh on `visibilitychange` and every five
 minutes while visible, disabling collection before reading. Errors deny; stale
-responses cannot restore permission. Anonymous parents enrollment/status pages
-stay off. The `public` surface (hosts outside operator/parents/school/tenant)
+responses cannot restore permission. Anonymous parents enrollment pages stay
+off. Outside the demo, token status pages on parents and OGS hosts never
+collect, including for
+authenticated parents, allowed schools and the redirect after submission:
+their contract cannot establish the target school policy. Mount the unresolved
+school gate outside Suspense until the status route unmounts.
+The `public` surface (hosts outside operator/parents/school/tenant)
 never collects outside the demo, an intentional behavior change since #4757.
 Parent `enrollment_submitted` additionally resolves and checks its target school,
 even if every existing membership school permits analytics.
