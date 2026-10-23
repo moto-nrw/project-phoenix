@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf '{}\n' >"$fixture/backend/architecture/policy.json"
 printf 'package architecture\n' >"$fixture/backend/internal/architecture/architecture.go"
@@ -40,26 +40,26 @@ const Value = core.Value
 EOF
 printf 'package corex\n' >"$fixture/backend/corex/corex.go"
 printf 'package corex\n' >"$fixture/backend/corex/corex_test.go"
-printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/localization/locales.go"
-printf 'package listexport\n\nconst Value = 1\n' >"$fixture/backend/services/listexport/export.go"
+printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/modules/delivery/internal/adapters/localization/locales.go"
+printf 'package listrenderer\n\nconst Value = 1\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/service.go"
 printf 'package email\n' >"$fixture/backend/templates/email/template_test.go"
 printf 'package test\n' >"$fixture/backend/test/test.go"
-cat >"$fixture/backend/localeconsumer/consumer.go" <<'EOF'
+cat >"$fixture/backend/modules/delivery/localeconsumer/consumer.go" <<'EOF'
 package localeconsumer
 
-import "example.test/project/localization"
+import "example.test/project/modules/delivery/internal/adapters/localization"
 
 const Value = localization.Value
 EOF
-printf 'package localeconsumer\n' >"$fixture/backend/localeconsumer/consumer_test.go"
-cat >"$fixture/backend/exportconsumer/consumer.go" <<'EOF'
+printf 'package localeconsumer\n' >"$fixture/backend/modules/delivery/localeconsumer/consumer_test.go"
+cat >"$fixture/backend/modules/documentrendering/exportconsumer/consumer.go" <<'EOF'
 package exportconsumer
 
-import "example.test/project/services/listexport"
+import "example.test/project/modules/documentrendering/internal/application/listrenderer"
 
-const Value = listexport.Value
+const Value = listrenderer.Value
 EOF
-printf 'package exportconsumer\n' >"$fixture/backend/exportconsumer/consumer_test.go"
+printf 'package exportconsumer\n' >"$fixture/backend/modules/documentrendering/exportconsumer/consumer_test.go"
 # Depth-2 import chain for the --direct (depth 1) mode, deliberately separate
 # from the core chain so the existing closure assertions stay untouched.
 mkdir -p "$fixture/backend"/{chainbase,chainmid,chainleaf}
@@ -228,13 +228,21 @@ printf 'template\n' >"$fixture/backend/templates/email/probe.html"
 assert_output $'example.test/project/templates/email\nexample.test/project/test'
 rm "$fixture/backend/templates/email/probe.html"
 
-printf '{}\n' >"$fixture/backend/localization/locales.json"
-assert_output $'example.test/project/localeconsumer\nexample.test/project/localization\nexample.test/project/test'
-rm "$fixture/backend/localization/locales.json"
+printf '{}\n' >"$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
+assert_output $'example.test/project/modules/delivery/internal/adapters/localization\nexample.test/project/modules/delivery/localeconsumer\nexample.test/project/test'
+rm "$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
 
-printf 'asset\n' >"$fixture/backend/services/listexport/assets/probe.txt"
-assert_output $'example.test/project/exportconsumer\nexample.test/project/services/listexport\nexample.test/project/test'
-rm "$fixture/backend/services/listexport/assets/probe.txt"
+printf 'asset\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/assets/probe.txt"
+assert_output $'example.test/project/modules/documentrendering/exportconsumer\nexample.test/project/modules/documentrendering/internal/application/listrenderer\nexample.test/project/test'
+rm "$fixture/backend/modules/documentrendering/internal/application/listrenderer/assets/probe.txt"
+
+# Shrink-only registers feed the ratchets in ./test, which no import edge can
+# reveal. A register-only change must still run them.
+for register in transaction_boundaries durable_side_effect_notices module_contract_inventory; do
+  printf '[]\n' >"$fixture/backend/test/$register.json"
+  assert_output 'example.test/project/test'
+  rm "$fixture/backend/test/$register.json"
+done
 
 printf '{"changed":true}\n' >"$fixture/backend/architecture/policy.json"
 assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
@@ -316,9 +324,22 @@ done
 for pattern in \
   'backend/templates/email/**' \
   'backend/modules/delivery/internal/adapters/localization/locales.json' \
-  'backend/services/listexport/assets/**'; do
+  'backend/modules/documentrendering/internal/application/listrenderer/assets/**'; do
   assert_workflow_filter backend-tests "$pattern" present
   assert_workflow_filter backend-production "$pattern" present
+done
+assert_workflow_filter backend-tests 'backend/test/*.json' present
+assert_workflow_filter backend-production 'backend/test/*.json' absent
+# Every literal path the selector maps must still exist in the repository.
+for path in \
+  backend/architecture/policy.json \
+  backend/templates/email \
+  backend/modules/delivery/internal/adapters/localization/locales.json \
+  backend/modules/documentrendering/internal/application/listrenderer/assets \
+  backend/test/transaction_boundaries.json \
+  backend/test/durable_side_effect_notices.json \
+  backend/test/module_contract_inventory.json; do
+  [ -e "$repo_root/$path" ] || { echo "selector path no longer exists: $path" >&2; exit 1; }
 done
 
 assert_workflow_output_contains run-backend '${{ github.event_name == '\''push'\'' ||'
