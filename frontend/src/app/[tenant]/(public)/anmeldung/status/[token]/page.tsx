@@ -10,6 +10,7 @@ import {
   PublicEnrollmentSteps,
 } from "~/components/enrollment/public-enrollment-shell";
 import { useOneTimeQueryFlag } from "~/lib/hooks/use-one-time-query-flag";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { useTenant } from "~/lib/tenant-context";
 
 interface PageProps {
@@ -17,6 +18,8 @@ interface PageProps {
 }
 
 export default function EnrollmentStatusPage({ params }: PageProps) {
+  // The token may belong to another school; host permission is not enough.
+  useAnalyticsSchoolPolicy("", false);
   return (
     <Suspense fallback={null}>
       <EnrollmentStatusPageContent params={params} />
