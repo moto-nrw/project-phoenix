@@ -147,7 +147,7 @@ describe("SpontaneousActivityStart external caregivers", () => {
     expect(screen.getByText("Einladung offen")).toBeInTheDocument();
   });
 
-  // ADR 0088: „Kein Zugang“ ist ein Platzhalter für die Planung. Wer weder
+  // ADR 0089: „Kein Zugang“ ist ein Platzhalter für die Planung. Wer weder
   // Konto noch offene Einladung hat, steht wieder zur Wahl, mit Vermerk.
   it("offers an external person without account, marked as such", async () => {
     render(

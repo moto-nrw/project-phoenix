@@ -15,7 +15,7 @@ function session(permissions: string[]): Session {
   } as Session;
 }
 
-// ADR 0088: the role „Gast“ opens the child views with students:read only.
+// ADR 0089: the role „Gast“ opens the child views with students:read only.
 describe("canReadStudents", () => {
   it.each([
     [["users:read"], true],

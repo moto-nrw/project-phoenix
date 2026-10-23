@@ -92,7 +92,7 @@ describe("POST /api/staff/externals", () => {
     });
   });
 
-  // ADR 0088: Kein Zugang records a placeholder without email.
+  // ADR 0089: Kein Zugang records a placeholder without email.
   it("forwards Kein Zugang without an email address", async () => {
     mockApiPost.mockResolvedValueOnce({
       status: "success",

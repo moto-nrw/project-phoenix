@@ -29,7 +29,7 @@ const logger = createLogger({ component: "AddSupervisorModal" });
 interface AddSupervisorModalProps {
   readonly activeGroupId: string | null;
   readonly canCreateExternalCaregiver?: boolean;
-  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0088). */
+  /** Offer „Nur ansehen“ in the external entry (users:manage, ADR 0089). */
   readonly canGrantExternalView?: boolean;
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -124,7 +124,7 @@ function SupervisionDetails({
 }
 
 // Wie in den anderen Auswahllisten: „Name (Extern · Musikschule, Einladung
-// offen)“ (#4573). Externe mit jedem Zugang kommen hier an (ADR 0088).
+// offen)“ (#4573). Externe mit jedem Zugang kommen hier an (ADR 0089).
 function targetLabel(target: SupervisionTarget): string {
   const note = externalStaffNote(target);
   return note ? `${target.fullName} (${note})` : target.fullName;

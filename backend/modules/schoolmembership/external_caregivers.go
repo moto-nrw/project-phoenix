@@ -26,7 +26,7 @@ func ExternalAccountStatus(hasAccount, invitationPending bool) string {
 
 // ExternalCaregiverCanSignIn reports whether an external caregiver can act in
 // moto themselves: with an account or an open invitation. A placeholder
-// without either („Kein Zugang“, ADR 0088) is planned and supervised by
+// without either („Kein Zugang“, ADR 0089) is planned and supervised by
 // others, so the kiosk does not offer them as a supervisor; every other new
 // assignment may name them.
 func ExternalCaregiverCanSignIn(hasAccount, invitationPending bool) bool {
@@ -51,7 +51,7 @@ type ExternalCaregiverCandidate struct {
 
 // ExternalCaregiverOption is a currently valid external caregiver with the
 // name the picker shows. Every option may be named in a new assignment, with
-// or without an account (ADR 0088).
+// or without an account (ADR 0089).
 type ExternalCaregiverOption struct {
 	StaffID       int64
 	FullName      string

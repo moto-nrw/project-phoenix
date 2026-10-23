@@ -201,7 +201,7 @@ weder Gruppenübergaben noch geplante Termine.
 
 Eine **externe Betreuungskraft** ist Personal mit einem aktiven Datensatz
 „externe Betreuungskraft“, etwa eine AG-Kraft der Musikschule (#3823, #4573,
-ADR 0088). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
+ADR 0089). Der Datensatz trägt die Organisation und einen optionalen Zeitraum.
 Extern ist ein Merkmal, keine Rolle: Nur der Datensatz macht extern, nicht ein
 Konto, eine Rolle oder eine fehlende E-Mail-Adresse. Externe sind in
 Regelterminen, einzelnen und spontanen Terminen und als zusätzliche Aufsicht

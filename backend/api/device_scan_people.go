@@ -110,7 +110,7 @@ func (p DeviceScanPeople) GetTeacherByStaffID(ctx context.Context, staffID int64
 // ListTeachersWithStaffAndPerson lists the caregivers the kiosk offers as
 // supervisors. An external caregiver (#3823) stays on the list only while
 // they can act themselves: with an account or an open invitation (School
-// Membership's rule, ADR 0088); a placeholder is supervised by others. Already running supervisions are not
+// Membership's rule, ADR 0089); a placeholder is supervised by others. Already running supervisions are not
 // read from this list.
 func (p DeviceScanPeople) ListTeachersWithStaffAndPerson(ctx context.Context) ([]*devicescan.ScanTeacher, error) {
 	rows, err := p.Users.TeacherRows().ListAllWithStaffAndPerson(ctx)

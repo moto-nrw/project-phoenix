@@ -13,7 +13,7 @@ import (
 )
 
 // checkGuestRoutePermissions is the per-route permission test of the system
-// role guest („Gast“, access level „Nur ansehen“, ADR 0088). A token with
+// role guest („Gast“, access level „Nur ansehen“, ADR 0089). A token with
 // exactly the role's migrated permissions reads children, rooms, groups and
 // AGs, and is refused on everything that carries parent data, messages,
 // notes, exports and staff.

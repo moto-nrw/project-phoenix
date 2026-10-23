@@ -1356,7 +1356,7 @@ describe("staff-api", () => {
       });
     });
 
-    // ADR 0088: Kein Zugang sends no email, even a typed one.
+    // ADR 0089: Kein Zugang sends no email, even a typed one.
     it("creates Kein Zugang without an email address", async () => {
       const mockFetch = vi.mocked(globalThis.fetch);
       mockFetch.mockResolvedValueOnce({

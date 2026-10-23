@@ -139,7 +139,7 @@ const SYSTEM_ROLE_TRANSLATIONS: Record<
     name: "Lehrkraft",
     description: "Lesezugriff auf die Tagesansicht der zugewiesenen Klassen",
   },
-  // ADR 0088: the access „Eigene Termine betreuen“ of external caregivers.
+  // ADR 0089: the access „Eigene Termine betreuen“ of external caregivers.
   "ag-leitung": {
     name: "AG-Leitung",
     description:
@@ -157,7 +157,7 @@ export function getRoleDisplayName(roleName: string): string {
 
 /**
  * How an external caregiver is marked in lists, badges and select options:
- * „Extern“. An attribute of the person, not a role (ADR 0088).
+ * „Extern“. An attribute of the person, not a role (ADR 0089).
  */
 export const EXTERNAL_CAREGIVER_LABEL = "Extern";
 

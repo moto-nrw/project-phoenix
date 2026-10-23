@@ -129,7 +129,7 @@ function TeachersPageContent() {
   // Externe Person anlegen und einladen (#4573): dasselbe Recht wie
   // POST /api/staff/externals und die Einladungsroute.
   const canCreateExternal = hasPermission(sessionData, "users:create");
-  // „Nur ansehen“ vergibt die Rolle „Gast“ und braucht users:manage (ADR 0088).
+  // „Nur ansehen“ vergibt die Rolle „Gast“ und braucht users:manage (ADR 0089).
   const canGrantView = canGrantExternalViewAccess(sessionData);
   const [showExternalModal, setShowExternalModal] = useState(false);
   const [inviteTarget, setInviteTarget] =
@@ -242,7 +242,7 @@ function TeachersPageContent() {
     () => ({
       role: (teacher) => {
         // Externe Kräfte (#3823) bilden eine eigene Gruppe, mit jedem Zugang
-        // (ADR 0088); sie trennt sie von Personal, dem nur die Rolle fehlt.
+        // (ADR 0089); sie trennt sie von Personal, dem nur die Rolle fehlt.
         if (teacher.is_external) {
           return {
             id: "__external__",
@@ -269,7 +269,7 @@ function TeachersPageContent() {
 
   // Erfolg beim Anlegen oder Einladen einer externen Person (#4573). Eine
   // erneute Einladung ersetzt die alte; der Text sagt „neue Einladung“.
-  // „Kein Zugang“ verschickt keine Einladung (ADR 0088).
+  // „Kein Zugang“ verschickt keine Einladung (ADR 0089).
   const handleExternalSaved = useCallback(
     (staff: Staff, outcome: "created" | "invited" | "reinvited") => {
       const name = staffDisplayName(

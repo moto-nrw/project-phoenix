@@ -102,7 +102,7 @@ describe("ExternalCaregiverEntry", () => {
     ).toBeInTheDocument();
   });
 
-  // ADR 0088: three access levels, „Kein Zugang“ by default.
+  // ADR 0089: three access levels, „Kein Zugang“ by default.
   it("offers the three access levels, each with what the person can do", () => {
     render(<ExternalCaregiverEntry onAdded={vi.fn()} canGrantView />);
 

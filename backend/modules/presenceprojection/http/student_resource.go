@@ -57,7 +57,7 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 		panic("presenceprojection HTTP: tenant settings are required")
 	}
 	// The child list and detail reads also open for students:read, the
-	// view-only child access of the role guest (ADR 0088). Exports, the day
+	// view-only child access of the role guest (ADR 0089). Exports, the day
 	// log, histories and every write stay behind users:read and above.
 	childRead := common.RequiresAnyPermission(permissions.UsersRead, permissions.StudentsRead)
 	r.With(childRead, withTx).Get("/", rs.listStudents)

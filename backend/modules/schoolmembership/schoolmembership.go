@@ -101,7 +101,7 @@ type Teacher struct {
 func (t Teacher) IsDeleted() bool { return t.DeletedAt != nil }
 
 // ExternalCaregiverRecord makes a staff member an external caregiver
-// (#3823, #4573, ADR 0088): the organization the person comes from and an
+// (#3823, #4573, ADR 0089): the organization the person comes from and an
 // optional window. StartDate and EndDate are calendar dates in DateLayout,
 // empty when open-ended.
 type ExternalCaregiverRecord struct {

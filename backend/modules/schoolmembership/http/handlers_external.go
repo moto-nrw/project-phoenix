@@ -16,7 +16,7 @@ type externalStaffResponse struct {
 }
 
 // createExternalStaff records an external caregiver with an access level
-// (#3823, #4573, ADR 0088): a placeholder without an account, or an
+// (#3823, #4573, ADR 0089): a placeholder without an account, or an
 // invitation into the system role guest (view) or ag-leitung (supervise).
 // The workflow writes person, staff member, caregiver profile, external
 // caregiver record and the invitation in one savepoint, so a refused

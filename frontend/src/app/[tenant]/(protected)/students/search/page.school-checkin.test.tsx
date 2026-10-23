@@ -333,7 +333,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
     expect(screen.getByTestId("school-checkin-fab")).toBeInTheDocument();
   });
 
-  // ADR 0088: the role „Gast“ lacks users:checkin, the gate of
+  // ADR 0089: the role „Gast“ lacks users:checkin, the gate of
   // POST /students/{id}/school-checkin; every tap would fail.
   it("offers no check-in mode without users:checkin", async () => {
     vi.mocked(useSession).mockReturnValue({

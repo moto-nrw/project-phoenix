@@ -4,7 +4,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ExternalCaregiverRecord is one users.external_caregivers row (ADR 0088).
+// ExternalCaregiverRecord is one users.external_caregivers row (ADR 0089).
 type ExternalCaregiverRecord struct {
 	Model `bun:"schema:users,table:external_caregivers"`
 	TenantModel
