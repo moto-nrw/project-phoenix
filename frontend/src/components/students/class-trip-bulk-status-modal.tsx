@@ -24,7 +24,7 @@ import {
 const logger = createLogger({ component: "ClassTripBulkStatusModal" });
 
 /** Ein Kind der Klassenfahrt: nur, was die Maske anzeigt und speichert. */
-export type ClassTripStudent = Pick<
+type ClassTripStudent = Pick<
   Student,
   "id" | "name" | "first_name" | "second_name"
 >;
