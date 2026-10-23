@@ -50,7 +50,7 @@ describe("TenantAuthWrapper analytics", () => {
     renderWrapper();
 
     expect(mocks.registerPortalSession).toHaveBeenCalledWith(
-      { surface: "ogs", schoolId: "2", role: "staff" },
+      { surface: "ogs", schoolId: "2", role: "staff", enabled: false },
       false,
     );
   });
@@ -64,7 +64,7 @@ describe("TenantAuthWrapper analytics", () => {
     renderWrapper();
 
     expect(mocks.registerPortalSession).toHaveBeenCalledWith(
-      { surface: "ogs", schoolId: "2", role: "admin" },
+      { surface: "ogs", schoolId: "2", role: "admin", enabled: false },
       false,
     );
   });
@@ -91,7 +91,7 @@ describe("TenantAuthWrapper analytics", () => {
     );
 
     expect(mocks.registerPortalSession).toHaveBeenCalledWith(
-      { surface: "ogs", schoolId: "2", role: "staff" },
+      { surface: "ogs", schoolId: "2", role: "staff", enabled: false },
       false,
     );
   });
@@ -104,6 +104,7 @@ describe("TenantAuthWrapper analytics", () => {
       routingMode: "path",
       tenant: {
         tenantId: 42,
+        analyticsEnabled: true,
         analyticsFreigabe: true,
         analyticsRecordingSamplePercent: 30,
       },
@@ -119,6 +120,7 @@ describe("TenantAuthWrapper analytics", () => {
       expect(mocks.registerPortalSession).toHaveBeenLastCalledWith(
         {
           surface: "ogs",
+          enabled: true,
           schoolId: "42",
           role: "staff",
           analyseFreigabe: true,
@@ -136,6 +138,7 @@ describe("TenantAuthWrapper analytics", () => {
       routingMode: "path",
       tenant: {
         tenantId: 42,
+        analyticsEnabled: true,
         analyticsFreigabe: true,
         analyticsRecordingSamplePercent: 30,
       },
@@ -184,7 +187,7 @@ describe("TenantAuthWrapper analytics", () => {
     const view = renderWrapper();
 
     expect(mocks.registerPortalSession).toHaveBeenCalledWith(
-      { surface: "ogs", schoolId: "1", role: "staff" },
+      { surface: "ogs", schoolId: "1", role: "staff", enabled: false },
       false,
     );
 
@@ -205,7 +208,7 @@ describe("TenantAuthWrapper analytics", () => {
 
     expect(mocks.registerPortalSession).toHaveBeenNthCalledWith(
       2,
-      { surface: "ogs", schoolId: "2", role: "staff" },
+      { surface: "ogs", schoolId: "2", role: "staff", enabled: false },
       true,
     );
   });
