@@ -2,6 +2,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect, type CSSProperties } from "react";
+import { logDisplayedCrash } from "~/lib/error-log";
 
 const PAGE_STYLE: CSSProperties = {
   display: "flex",
@@ -40,6 +41,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     Sentry.captureException(error);
+    logDisplayedCrash(error);
   }, [error]);
 
   return (

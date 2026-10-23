@@ -49,6 +49,7 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: mockLoggerError,
+    warn: vi.fn(),
   }),
 }));
 
