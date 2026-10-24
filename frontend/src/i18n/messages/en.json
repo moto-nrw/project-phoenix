@@ -3000,7 +3000,7 @@
     "missingRequired": "Please answer all required questions first.",
     "missingField": "Please answer this question.",
     "thanksTitle": "Thank you, your answer has been saved.",
-    "thanksText": "You cannot change it anymore.",
+    "thanksText": "Your answer can no longer be changed.",
     "alreadyTitle": "You have already taken part.",
     "loadObject": "the survey",
     "submitObject": "your answer",

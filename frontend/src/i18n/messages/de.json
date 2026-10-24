@@ -3000,7 +3000,7 @@
     "missingRequired": "Bitte beantworten Sie zuerst alle Pflichtfragen.",
     "missingField": "Bitte beantworten Sie diese Frage.",
     "thanksTitle": "Danke, Ihre Antwort ist gespeichert.",
-    "thanksText": "Sie können sie nicht mehr ändern.",
+    "thanksText": "Ihre Antwort lässt sich nicht mehr ändern.",
     "alreadyTitle": "Sie haben schon teilgenommen.",
     "loadObject": "die Umfrage",
     "submitObject": "Ihre Antwort",

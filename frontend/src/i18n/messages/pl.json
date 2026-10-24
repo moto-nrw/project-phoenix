@@ -3000,7 +3000,7 @@
     "missingRequired": "Najpierw odpowiedz na wszystkie pytania obowiązkowe.",
     "missingField": "Odpowiedz na to pytanie.",
     "thanksTitle": "Dziękujemy, Twoja odpowiedź została zapisana.",
-    "thanksText": "Nie możesz jej już zmienić.",
+    "thanksText": "Twojej odpowiedzi nie można już zmienić.",
     "alreadyTitle": "Twoja odpowiedź jest już zapisana.",
     "loadObject": "ankieta",
     "submitObject": "Twoja odpowiedź",

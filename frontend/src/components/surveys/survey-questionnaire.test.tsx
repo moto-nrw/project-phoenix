@@ -136,7 +136,7 @@ describe("SurveyAnswerPanel", () => {
       await screen.findByText("Danke, Ihre Antwort ist gespeichert."),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Sie können sie nicht mehr ändern."),
+      screen.getByText("Ihre Antwort lässt sich nicht mehr ändern."),
     ).toBeInTheDocument();
     expect(submit).toHaveBeenCalledWith({
       answers: [

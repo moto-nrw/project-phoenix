@@ -11,6 +11,7 @@ import {
   isOpenPoll,
 } from "~/components/parent/news/news-components";
 import { isOpenDeclaration } from "~/components/parent/news/declaration-section";
+import { isOpenSurvey } from "~/components/parent/news/survey-section";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
@@ -558,12 +559,13 @@ function buildTodoItems(
       !item.read ||
       isOpenPoll(item) ||
       isOpenDeclaration(item) ||
+      isOpenSurvey(item) ||
       (item.requires_acknowledgement && !item.acknowledged),
   );
-  // An open Einverständnis (#3430) is as urgent as an open poll: the school waits
-  // for an answer per child, often with a deadline.
+  // An open Einverständnis (#3430) or Umfrage mit Fragebogen (#4781) is as
+  // urgent as an open poll: the school waits for an answer until a deadline.
   const isUrgent = (item: ParentAnnouncement) =>
-    isOpenPoll(item) || isOpenDeclaration(item);
+    isOpenPoll(item) || isOpenDeclaration(item) || isOpenSurvey(item);
   const polls = openAnnouncements.filter(isUrgent);
   const notices = openAnnouncements.filter((item) => !isUrgent(item));
 
@@ -607,11 +609,13 @@ function todoFromAnnouncement(
   const needsAcknowledgement =
     item.requires_acknowledgement && !item.acknowledged;
   const declaration = isOpenDeclaration(item);
+  // The carrier of a survey is a Umfrage, also once answered or closed (#4781).
+  const asPoll = poll || item.system_kind === "survey";
   return {
     key: `announcement-${item.id}`,
     concept: declaration
       ? "confirmations"
-      : poll
+      : asPoll
         ? "polls"
         : needsAcknowledgement
           ? "confirmations"
@@ -621,7 +625,7 @@ function todoFromAnnouncement(
     unread: !item.read,
     context: declaration
       ? t("todo.declarationContext", { school: item.school_name })
-      : poll
+      : asPoll
         ? t("todo.pollContext", { school: item.school_name })
         : needsAcknowledgement
           ? t("todo.ackContext", { school: item.school_name })

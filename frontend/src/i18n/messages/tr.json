@@ -3000,7 +3000,7 @@
     "missingRequired": "Lütfen önce tüm zorunlu soruları yanıtlayın.",
     "missingField": "Lütfen bu soruyu yanıtlayın.",
     "thanksTitle": "Teşekkürler, yanıtınız kaydedildi.",
-    "thanksText": "Artık değiştiremezsiniz.",
+    "thanksText": "Yanıtınız artık değiştirilemez.",
     "alreadyTitle": "Bu ankete zaten katıldınız.",
     "loadObject": "anket",
     "submitObject": "yanıtınız",
