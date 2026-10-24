@@ -300,6 +300,19 @@ type ArrivalExceptionWrite struct {
 	CreatedBy int64
 }
 
+// ClassTrips lets a Lehrkraft report a class trip or day outing of an
+// assigned class through moto schule (#4799).
+type ClassTrips interface {
+	// MayReportClassTrips applies operations.school_portal_write_scope to
+	// class trips (#4799).
+	MayReportClassTrips(ctx context.Context) (bool, error)
+	// ReportClassTrip records a class trip or day outing of an assigned
+	// class: the status "Klassenfahrt" for every day through the OGS's
+	// status-day write, or, for one day with a return time, the children's
+	// arrival in the OGS at that time. All or nothing.
+	ReportClassTrip(ctx context.Context, in ClassTripWrite) (*ClassTripResult, error)
+}
+
 // ClassDay is the school-portal capability of the projection: the caller's
 // class assignments, the per-class day view and the class-wide arrival day
 // exceptions (#2970). Caller scoping (which classes the account may see) is
@@ -336,14 +349,8 @@ type ClassDay interface {
 	// EarliestBlockStart returns the "HH:MM" start of the first block of the
 	// date that addresses the class, "" when there is none.
 	EarliestBlockStart(ctx context.Context, schoolClass string, date Date) (string, error)
-	// MayReportClassTrips applies operations.school_portal_write_scope to
-	// class trips (#4799).
-	MayReportClassTrips(ctx context.Context) (bool, error)
-	// ReportClassTrip records a class trip or day outing of an assigned
-	// class: the status "Klassenfahrt" for every day through the OGS's
-	// status-day write, or, for one day with a return time, the children's
-	// arrival in the OGS at that time. All or nothing.
-	ReportClassTrip(ctx context.Context, in ClassTripWrite) (*ClassTripResult, error)
+	// ClassTrips is the class-trip write of moto schule (#4799).
+	ClassTrips
 	// SupervisionStudentSheet is the per-child pickup and emergency sheet a
 	// supervisor opens from a running block (#2527). It carries guardian
 	// names and phone numbers, which the day report deliberately does not,
