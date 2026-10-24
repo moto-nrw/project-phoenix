@@ -30,7 +30,6 @@ import (
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -74,7 +73,7 @@ func buildSubstitutions(
 	}
 	logger := env.Logger.With("service", "substitution")
 	return education.NewSubstitutionModule(education.SubstitutionDependencies{
-		Groups: structure.Groups, Substitutions: NewEducationHandovers(substitutions, shiftplansync.NewGroupHandovers(workTime)),
+		Groups: structure.Groups, Substitutions: NewEducationHandovers(substitutions, workTime),
 		Persons: structure.SubstitutionPersons, Teachers: structure.Caregivers,
 		Staff: structure.StaffChecks, ExternalCaregivers: structure.ExternalCaregivers.WithInvitations(invitations),
 		Actors:       SubstitutionActorResolver{Identity: callerContext},
