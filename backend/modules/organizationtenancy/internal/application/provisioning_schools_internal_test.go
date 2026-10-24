@@ -702,14 +702,14 @@ func TestProvisioningSoftDeleteSchool(t *testing.T) {
 		assert.Empty(t, h.audit.entries)
 	})
 
-	t.Run("audit failure does not fail the deletion", func(t *testing.T) {
+	t.Run("audit failure fails the transaction", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.addSchool(10, 1, "Burbach", "burbach")
 		h.audit.err = errBoom
 
-		require.NoError(t, h.svc.SoftDeleteSchool(context.Background(), 10, testOperatorID, operatorIP))
-		assert.True(t, h.engine.schools[10].IsDeleted())
+		require.ErrorIs(t, h.svc.SoftDeleteSchool(context.Background(), 10, testOperatorID, operatorIP), errBoom)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom)
 	})
 }
 

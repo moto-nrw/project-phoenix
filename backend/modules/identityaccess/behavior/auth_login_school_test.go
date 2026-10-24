@@ -327,7 +327,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	testpkg.MapAccountToTenant(t, db, accountID, tenantB)
 
 	t.Run("mapping without portal role at target is refused", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent, "")
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
 		require.ErrorAs(t, err, &authErr)
@@ -337,7 +337,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	t.Run("portal role at target switches the pinned school", func(t *testing.T) {
 		testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantB)
 
-		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent)
+		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent, "")
 		require.NoError(t, err)
 		require.NotEmpty(t, refreshToken)
 
@@ -645,7 +645,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 	_, accountID := createLehrkraftAccount(t, db, service, "school-switch-gates", tenantID)
 
 	t.Run("unknown account", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, slug, switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, slug, switchIP, switchUserAgent, "")
 
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
@@ -657,7 +657,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 		setAccountActive(t, db, accountID, false)
 		defer setAccountActive(t, db, accountID, true)
 
-		_, _, err := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent, "")
 
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
@@ -666,7 +666,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 	})
 
 	t.Run("unknown slug", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), accountID, "definitely-no-such-school", switchIP, switchUserAgent)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, "definitely-no-such-school", switchIP, switchUserAgent, "")
 
 		require.Error(t, err)
 		var authErr *identityaccess.AuthenticationError
@@ -745,7 +745,7 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 	})
 
 	t.Run("school switch", func(t *testing.T) {
-		_, _, switchErr := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent)
+		_, _, switchErr := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent, "")
 
 		require.Error(t, switchErr)
 		var authErr *identityaccess.AuthenticationError

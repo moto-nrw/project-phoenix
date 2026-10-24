@@ -64,7 +64,7 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Keine eigene Button-Zeile unter oder über dem Kopf, keine Zeile, die nur
    einen Zähler, ein Select oder einen Export-Knopf trägt. Neben dem Titel
    steht die Aktion, die man täglich braucht („Neu", „Drucken",
-   „Schichtarten verwalten"), daneben das Kebab-Menü mit allem Weiteren.
+   „Dienstarten verwalten"), daneben das Kebab-Menü mit allem Weiteren.
    Export gehört ins Menü, unter der Überschrift „Herunterladen" bzw.
    „Exportieren" — nie als Knopfreihe je Format. Kontextbedienelemente
    (Zeitraum, Datum) zählen nicht als Aktion und dürfen daneben stehen.

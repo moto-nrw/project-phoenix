@@ -77,6 +77,7 @@ export const HELP_TOPICS = {
   absences: "abwesenheiten",
   emergency: "notfall",
   parentMessage: "eltern-nachricht-schreiben",
+  parentGroupMessage: "gruppe-eine-nachricht-schreiben",
   parentRequests: "elternanfragen-bearbeiten",
   teamChat: "team-chat-nutzen",
   findStaff: "person-im-team-finden",
@@ -177,6 +178,7 @@ export const HELP_TOPICS = {
   parentCareChange: "aenderung-der-betreuung-anfragen",
   parentDeparture: "weg-nach-hause-aendern",
   parentMessages: "als-elternteil-nachrichten-lesen",
+  parentGroupMessages: "als-elternteil-gruppennachrichten-lesen",
   parentNews: "elternbriefe-lesen",
   parentCalendar: "als-elternteil-den-kalender-ansehen",
   parentMealPlan: "mittagessen-ansehen",
@@ -277,6 +279,7 @@ const PREFIX_HELP_TOPICS: ReadonlyArray<
 > = [
   ["/students", HELP_TOPICS.studentSearch],
   ["/staff", HELP_TOPICS.findStaff],
+  ["/messages/groups", HELP_TOPICS.parentGroupMessage],
   ["/messages", HELP_TOPICS.parentMessage],
   ["/parent-announcements", HELP_TOPICS.leadParentAnnouncement],
   ["/rooms", HELP_TOPICS.rooms],
@@ -315,6 +318,8 @@ const PARENT_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
 const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   readonly [prefix: string, topic: HelpTopicId]
 > = [
+  // Eine Gruppennachricht der OGS (#4784).
+  ["/messages/group", HELP_TOPICS.parentGroupMessages],
   // `/children/123` fuehrt auf dieselbe Seite wie `/children`.
   ["/children", HELP_TOPICS.parentChildOverview],
   // Die Anmeldung laeuft ueber `/anmeldung/<schule>/<phase>`.

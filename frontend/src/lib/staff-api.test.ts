@@ -1143,7 +1143,7 @@ describe("staff-api", () => {
       expect(result[0]?.workStatus).toBe("present");
     });
 
-    it("returns Homeoffice for home_office work status (priority 4)", async () => {
+    it("returns Unterwegs for home_office work status (priority 4)", async () => {
       const staffHomeOffice: BackendStaffResponse = {
         ...sampleBackendStaff,
         work_status: "home_office",
@@ -1170,7 +1170,7 @@ describe("staff-api", () => {
       const result = await staffService.getAllStaff();
 
       expect(result[0]?.isSupervising).toBe(false);
-      expect(result[0]?.currentLocation).toBe("Homeoffice");
+      expect(result[0]?.currentLocation).toBe("Unterwegs");
       expect(result[0]?.workStatus).toBe("home_office");
     });
 

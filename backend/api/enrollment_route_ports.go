@@ -12,11 +12,11 @@ import (
 // parentEnrollmentForms binds the parents portal's form flow to the
 // enrollment routes (#2734); without the intake the port stays unbound and
 // the portal answers its enrollment routes as not configured.
-func parentEnrollmentForms(requests enrollmentAPI.RequestService) parentAPI.EnrollmentForms {
-	if requests == nil {
+func parentEnrollmentForms(requests enrollmentAPI.RequestService, uploads enrollmentAPI.UploadService, files enrollmentAPI.UploadFileStorage) parentAPI.EnrollmentForms {
+	if requests == nil || uploads == nil || files == nil {
 		return nil
 	}
-	return enrollmentAPI.ParentForms{Requests: requests}
+	return enrollmentAPI.ParentForms{Requests: requests, Uploads: uploads, UploadFiles: files}
 }
 
 // parentGuardianProfiles binds the parents portal's enrollment autofill read

@@ -34,6 +34,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 	"github.com/spf13/viper"
@@ -109,7 +110,7 @@ func mountCommunicationRoutes(
 	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
 	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
 ) {
-	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging).Router(ProtectedTenantRoutes))
+	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Visual-only staff reminders (#1457).
 	tenant.Mount("/reminders", remindersHTTP.NewResource(reminders, ReminderHTTPRuntime()).Router())
@@ -126,8 +127,16 @@ func mountCommunicationRoutes(
 // routes under /api and the portal routes at the root. The portal routes sit
 // at the root because /parent is a catch-all mount; ParentMiddleware and
 // SchoolMiddleware authenticate them.
-func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, hub *realtime.Hub, caller *owners.CallerRows, identity identityaccess.Owner) error {
+func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, parent *parentportal.Portal, hub *realtime.Hub, caller *owners.CallerRows, identity identityaccess.Owner) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
+	attachmentReads, err := filestorageModule.TenantReads(fileStore)
+	if err != nil {
+		return err
+	}
+	guardianAttachments, err := owners.NewParentGuardianAttachments(parent, attachmentReads)
+	if err != nil {
+		return err
+	}
 	sse, err := sseAPI.NewResourceWithSchoolAccess(hub, caller, NewSSEHTTPRuntime(), identity, logger.With("handler", "sse"))
 	if err != nil {
 		return err
@@ -142,9 +151,9 @@ func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore
 	// for the tenants of the guardian's children.
 	root.Mount("/parent-sse", newParentSSERouter(sse))
 	// Anhänge, die Eltern zu einer Mitteilung herunterladen (#2890). Der
-	// Empfängerkreis der Mitteilung entscheidet; wer nicht dazugehört,
-	// bekommt 404.
-	root.Mount("/parent-news-attachments", files.ParentAnnouncementAttachmentRouter(ProtectedParentGroup))
+	// Empfängerkreis der Mitteilung entscheidet im Elternportal-Workflow;
+	// wer nicht dazugehört, bekommt 404 (#4825).
+	root.Mount("/parent-news-attachments", files.ParentAnnouncementAttachmentRouter(ProtectedParentGroup, guardianAttachments))
 	// School-portal SSE stream (#2208): account-addressed triggers only
 	// (Team-Chat).
 	root.Mount("/school-sse", newSchoolSSERouter(sse))

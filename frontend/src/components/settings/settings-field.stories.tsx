@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsField } from "~/components/settings/settings-field";
@@ -102,6 +103,63 @@ export const ReadOnlySetting: Story = {
       value: "Fest hinterlegt",
       writable: false,
       is_default: true,
+    }),
+  },
+};
+
+/** Local fixture: both portals share the same irreversible-deletion gate. */
+export const AttendanceHistory: Story = {
+  args: {
+    setting: makeSetting({
+      key: "gdpr.attendance_log_enabled",
+      label: "Anwesenheitsprotokoll",
+      description:
+        "Das Team sieht Anwesenheitszeiten und frühere Räume der Kinder.",
+      type: "boolean",
+      default: false,
+      value: true,
+      is_default: false,
+    }),
+  },
+  render: function AttendanceHistoryFixture(args) {
+    const [value, setValue] = useState(args.setting.value);
+    return (
+      <SettingsField
+        {...args}
+        setting={{
+          ...args.setting,
+          value,
+          is_default: value === args.setting.default,
+        }}
+        onSave={async (_key, next) => {
+          setValue(next);
+        }}
+        onReset={async () => {
+          setValue(args.setting.default);
+        }}
+      />
+    );
+  },
+};
+
+/** Mirrors the school-visible MFA policy description from the settings registry. */
+export const PrivilegedMFAFloor: Story = {
+  args: {
+    setting: makeSetting({
+      key: "security.mfa_mode",
+      label: "Zwei-Faktor-Anmeldung (Code per E-Mail)",
+      description:
+        "Für Verwaltung ist ein zweiter Anmeldenachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente, Personalfinanzen und Gesundheitsdokumente. Auch beim Verwalten fremder Arbeitszeiten und Genehmigen von Urlaub. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus. „Aus“ und „Nur Admins“ ändern daran nichts. „Alle Mitarbeitenden“ schützt zusätzlich das ganze Team.",
+      type: "select",
+      value: "off",
+      default: "off",
+      options: {
+        static: [
+          { label: "Aus", value: "off" },
+          { label: "Nur Admins", value: "required_admins" },
+          { label: "Alle Mitarbeitenden", value: "required_all" },
+        ],
+      },
     }),
   },
 };

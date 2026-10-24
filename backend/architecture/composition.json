@@ -27,6 +27,11 @@
     "phoenix serve",
     "phoenix settings",
     "phoenix settings overrides",
+    "phoenix tenant",
+    "phoenix tenant erase",
+    "phoenix tenant export",
+    "phoenix tenant ledger-init",
+    "phoenix tenant receipt",
     "phoenix worker"
   ],
   "constructor_calls": [
@@ -67,7 +72,7 @@
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        69
+        72
       ],
       "tables": []
     },
@@ -77,7 +82,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        61
+        64
       ],
       "tables": []
     },
@@ -87,8 +92,8 @@
       "declaration": "TestNewWorkerRejectsMissingSettings",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        144,
-        148
+        187,
+        191
       ],
       "tables": []
     },
@@ -98,7 +103,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        93
+        96
       ],
       "tables": []
     },
@@ -108,8 +113,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        109,
-        120
+        112,
+        123
       ],
       "tables": []
     }

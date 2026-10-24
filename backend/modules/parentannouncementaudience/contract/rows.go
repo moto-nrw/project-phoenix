@@ -188,3 +188,31 @@ type DeclarationSignerContext struct {
 	LastName          string
 	GuardianRole      string
 }
+
+// GroupAudienceTarget is the group, class or AG a parent group thread
+// addresses (#4784). A class carries its name, a group and an AG their id.
+type GroupAudienceTarget struct {
+	Type    string
+	RefID   *int64
+	RefText *string
+}
+
+// GroupAudienceChild is one child a group thread target reaches right now,
+// with the guardian accounts that may read it: a linked account with
+// parent_portal.access and an active membership (ADR 0079). An empty list
+// marks a child without reachable parents.
+type GroupAudienceChild struct {
+	StudentID          int64
+	FirstName          string
+	LastName           string
+	SchoolClass        string
+	GuardianAccountIDs []int64
+}
+
+// GroupStudent names one child of a group thread's read list.
+type GroupStudent struct {
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}

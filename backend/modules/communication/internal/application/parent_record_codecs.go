@@ -48,6 +48,8 @@ func ParentMessageToRecord(v *ParentMessage) (*communication.PortalParentMessage
 		AppliedAt:        v.AppliedAt,
 		AppliedBy:        v.AppliedBy,
 		DecisionReason:   v.DecisionReason,
+		GroupThreadID:    v.GroupThreadID,
+		GroupThreadTitle: v.GroupThreadTitle,
 		ReadByStaff:      v.ReadByStaff,
 		ReadByGuardian:   v.ReadByGuardian,
 	}, nil
@@ -83,6 +85,8 @@ func ParentMessageFromRecord(v *communication.PortalParentMessage) (*ParentMessa
 		AppliedAt:        v.AppliedAt,
 		AppliedBy:        v.AppliedBy,
 		DecisionReason:   v.DecisionReason,
+		GroupThreadID:    v.GroupThreadID,
+		GroupThreadTitle: v.GroupThreadTitle,
 		ReadByStaff:      v.ReadByStaff,
 		ReadByGuardian:   v.ReadByGuardian,
 	}, nil

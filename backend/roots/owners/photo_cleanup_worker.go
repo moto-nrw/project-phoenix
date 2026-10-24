@@ -6,6 +6,8 @@ import (
 	"log/slog"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	fileStorage "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -28,6 +30,15 @@ func newFileStoreCleaner(db transactionruntime.Database, files fileStorage.Capab
 		}
 		return filesBackend.RemoveUploadContext(ctx, path)
 	}
+	uploads := NewEnrollmentRequestUploads(enrollmentCompose.New(), nil, nil, logger.With("service", "enrollment-upload-cleanup"))
+	removeUpload := func(ctx context.Context, tenantID int64, storedName string) error {
+		backend, err := nativeUploads.PrivateUploadsBackend()
+		if err != nil {
+			return err
+		}
+		coordinator := fileStorageCompose.NewDocumentCoordinator(enrollmentModule.RequestUploadStorageKind, backend, enrollmentUploadObjectStore{}, logger)
+		return coordinator.Remove(ctx, tenantID, storedName)
+	}
 	return workerFileCleanup(func(ctx context.Context) (int, error) {
 		var removed int
 		var fileErr error
@@ -36,10 +47,22 @@ func newFileStoreCleaner(db transactionruntime.Database, files fileStorage.Capab
 		}
 		photosRemoved, photoErr := photos.Sweep(ctx, remover.RemoveStored)
 		legalRemoved, legalErr := legal.Sweep(ctx, removeLegal)
-		return removed + photosRemoved + legalRemoved, errors.Join(fileErr, photoErr, legalErr)
+		uploadsRemoved, uploadErr := uploads.SweepUploadObjects(ctx, removeUpload)
+		return removed + photosRemoved + legalRemoved + uploadsRemoved, errors.Join(fileErr, photoErr, legalErr, uploadErr)
 	})
 }
 
 func (cleanup workerFileCleanup) CleanupOrphanedFiles(ctx context.Context) (int, error) {
 	return cleanup(ctx)
 }
+
+// enrollmentUploadObjectStore settles nothing: an upload's cleanup intent is
+// queued by the database when its row is deleted and settled by the sweep,
+// not by the coordinator (#4783).
+type enrollmentUploadObjectStore struct{}
+
+func (enrollmentUploadObjectStore) MarkFileDeleted(context.Context, int64) error { return nil }
+func (enrollmentUploadObjectStore) MarkQueuedCleanupCompleteByFilename(context.Context, string) error {
+	return nil
+}
+func (enrollmentUploadObjectStore) ActivateQueuedCleanup(context.Context, string) error { return nil }

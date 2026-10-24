@@ -27,6 +27,9 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 	if err := seedParentConversation(rt, auth, studentID); err != nil {
 		return err
 	}
+	if err := seedParentGroupThreads(rt, auth, studentID); err != nil {
+		return err
+	}
 	if err := seedParentGuardianChanges(rt, auth, studentID); err != nil {
 		return err
 	}
@@ -43,7 +46,7 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	fmt.Println("  1 parent preference, 1 conversation, audited contact/consent changes, 1 master-data request, lunch participation and parent appointments created")
+	fmt.Println("  1 parent preference, 1 conversation, 2 group threads, audited contact/consent changes, 1 master-data request, lunch participation and parent appointments created")
 	return nil
 }
 

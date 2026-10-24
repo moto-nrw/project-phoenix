@@ -68,19 +68,19 @@ func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, erro
 
 // ===== The gate =====
 
-// IsRequired applies the resolved policy to the account's roles. The caller
+// IsRequired applies the resolved policy to the account's effective permissions. The caller
 // passes the school explicitly: login runs outside the tenant middleware, so
 // the context carries no school of its own.
-func (f *AccountMFAFlows) IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error) {
+func (f *AccountMFAFlows) IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error) {
 	policy, err := f.ResolvePolicy(ctx, accountID, tenantID)
 	if err != nil {
 		return false, err
 	}
-	return policy.RequiredFor(roleNames), nil
+	return policy.RequiredFor(permissions), nil
 }
 
 // ResolvePolicy performs every read the gate needs and returns the verdict
-// with the role predicate unapplied.
+// with the permission predicate unapplied.
 //
 // Resolution order: the operator's platform-wide override wins, then the
 // admin's school-scoped override, then the school's security.mfa_mode. A
@@ -319,9 +319,15 @@ func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
 // Disable cascades: the credential goes, every trusted device is revoked and
 // the lockout counter is reset. The three writes share one transaction so a
 // partial failure cannot leave the account half-disabled — a credential gone
-// while devices still verify, say.
-func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64) error {
+// while devices still verify, say. An operator audit participates through record.
+func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record ...func(context.Context) error) error {
 	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		if err := f.records.LockAccountForOverrideWrite(txCtx, accountID); err != nil {
+			return err
+		}
+		if err := f.records.InvalidateSessionMFA(txCtx, accountID); err != nil {
+			return err
+		}
 		if err := f.records.DeleteCredentials(txCtx, accountID); err != nil {
 			return fmt.Errorf("delete credential: %w", err)
 		}
@@ -330,6 +336,9 @@ func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64) error {
 		}
 		if err := f.records.ResetMFAAttempts(txCtx, accountID); err != nil {
 			return fmt.Errorf("reset mfa attempts: %w", err)
+		}
+		if len(record) > 0 && record[0] != nil {
+			return record[0](txCtx)
 		}
 		return nil
 	})

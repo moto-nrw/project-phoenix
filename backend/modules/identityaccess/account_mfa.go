@@ -37,6 +37,8 @@ var (
 	// ErrMFAPermissionDenied refuses an admin action the actor may not take,
 	// and a device or account it may not reach.
 	ErrMFAPermissionDenied = errors.New("permission denied")
+	// ErrOperatorAuditUnavailable refuses an unaudited privileged operation.
+	ErrOperatorAuditUnavailable = errors.New("operator audit unavailable")
 	// ErrMFAInvalidOverride refuses an override value outside the allow
 	// list.
 	ErrMFAInvalidOverride = errors.New("invalid mfa override value")
@@ -121,9 +123,9 @@ type VerifiedMFAChallenge struct {
 
 // AccountMFAGate is the read side every login path consults.
 type AccountMFAGate interface {
-	// IsRequired applies the resolved policy to the account's roles.
-	IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error)
-	// ResolveMFAPolicy performs the reads and leaves the role predicate
+	// IsRequired applies the resolved policy to the account's effective permissions.
+	IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error)
+	// ResolveMFAPolicy performs the reads and leaves the permission predicate
 	// unapplied.
 	ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	// ResolveMFAPolicyInTx re-reads the policy on the caller's transaction,

@@ -18,8 +18,9 @@ import (
 type Observation = internalports.Observation
 
 type Dependencies struct {
-	DB      *bun.DB
-	Observe func(Observation)
+	RemoveErasedAvatarFile func(string) error // Nil uses rooted local avatar storage.
+	DB                     *bun.DB
+	Observe                func(Observation)
 	// Sessions composes the account-authentication flows (#3251): tenant,
 	// parent and school login, refresh, switching, logout, session validation,
 	// cleanup and revocation. Compositions that only read identity facts
@@ -55,9 +56,7 @@ type Dependencies struct {
 	OperatorProvisioning *OperatorProvisioningDependencies
 	// Demo composes public demo access only in the demo environment.
 	Demo *identityBindingPorts.DemoDependencies
-	// TenantRuntime is the unit of work the module opens its session,
-	// lifecycle and operator transactions under. A zero value binds nothing:
-	// the sessions keep their own runtime.
+	// TenantRuntime binds transactions; a zero value keeps the sessions' own runtime.
 	TenantRuntime tenant.UnitOfWork
 }
 
@@ -78,6 +77,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	sessions, attach := application.BindTenantRuntime(dependencies.Sessions, dependencies.TenantRuntime)
 	dependencies.Sessions = sessions
 	store := postgres.NewStore(dependencies.DB)
+	runAdmin := newCommandTransactions(attach).RunAdmin
 	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, application.NewObserver(dependencies.Observe))
 	operatorMFARecords := application.NewOperatorMFA(service, store)
 	// The second factor is composed first: every login path consults its
@@ -124,7 +124,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 		Passkeys: operatorPasskeys, AccountPasskeys: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
-		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunAdmin), AccountRetention: application.NewAccountRetention(store, attach, tenant.RegisterAfterCommit, application.InvitationLogger(dependencies.Invitations)),
+		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
 		DemoAccess:            demoAccess,
 	})

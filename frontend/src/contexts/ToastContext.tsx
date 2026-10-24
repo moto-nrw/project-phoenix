@@ -431,6 +431,8 @@ interface ApiErrorDisplayOptions {
   /** Optional localized sentence with context specific to the current portal. */
   messageSuffix?: string;
   retry?: () => void;
+  /** Concrete next step for a refusal that cannot be retried as-is. */
+  action?: { label: string; onClick: () => void };
 }
 
 export function loginUrl(host: string, path: string): string {
@@ -591,9 +593,10 @@ function useApiErrorCore(
             .filter(Boolean)
             .join(" "),
           retry:
-            presentation.retryable && options.retry
+            options.action ??
+            (presentation.retryable && options.retry
               ? { label: labels.retry, onClick: options.retry }
-              : undefined,
+              : undefined),
           requestId: presentation.requestId,
           requestIdLabel: labels.requestId,
         },

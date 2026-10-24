@@ -315,6 +315,13 @@ func (s *Intake) replaceRequestPayload(ctx context.Context, editReq *SubmitReque
 	req.GuardianPhone = editReq.GuardianPhone
 	req.ConsentFlags = editReq.ConsentFlags
 	req.CustomData = editReq.CustomData
+	claims, err := s.resolveFileAnswers(ctx, plan.phase.ID, plan.schema, req.ID, req.CustomData)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.claimFileUploads(ctx, claims, req.ID); err != nil {
+		return nil, fmt.Errorf("replace: %w", err)
+	}
 	// Append-only evidence: the edit re-confirms the legal blocks in force
 	// now next to the earlier entries, which keep the pre-edit answers.
 	snapshotEntry, err := legalBlocksSnapshotEntry(plan.legalBlocks, editReq.ConsentFlags, time.Now())

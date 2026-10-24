@@ -814,7 +814,7 @@ func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthR
 	}}
 	raw, err := rt.Client.PostWithAuth(auth, "/api/enrollment/schema/", map[string]any{
 		"name": "Demo-Anmeldeformular",
-		"fields": []map[string]any{
+		"fields": append([]map[string]any{
 			{"key": "ogs_information", "type": "information", "label": "Hinweise zur OGS", "content": "Hier finden Sie Informationen zum Schulstart und zum Abholen.", "sort_order": 0, "attachments": attachments},
 			{
 				"key": "allergies", "label": allergies, "type": "textarea", "sort_order": 10,
@@ -828,7 +828,7 @@ func (s parentEnrollmentSeedStep) createEnrollmentSchema(rt *Runtime, auth AuthR
 				"key": "swimming_permission", "label": swimming, "type": "boolean", "sort_order": 20,
 				"translations": swimmingTranslations,
 			},
-		},
+		}, seedIncomeDeclarationFields()...),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("create enrollment form schema: %w", err)

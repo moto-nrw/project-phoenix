@@ -27,12 +27,32 @@ type (
 	MessagingConfig        = messaging.Config
 	ChildResolver          = messaging.ChildResolver
 	RequestShareVisibility = care.RequestShareVisibility
+	// AttachmentAudience is the guardian audience gate of the attachment
+	// entry; the messaging flows serve it.
+	AttachmentAudience = messaging.AttachmentAudience
 )
+
+// AnnouncementAttachments is the guardian's attachment entry; the root binds
+// it to File Storage's parent download routes (#4825). A and C are File
+// Storage's attachment and opened content, handed out unchanged.
+type AnnouncementAttachments[A, C any] = messaging.AnnouncementAttachments[A, C]
+
+// AttachmentFiles is File Storage's tenant-scoped attachment reads.
+type AttachmentFiles[A, C any] = messaging.AttachmentFiles[A, C]
+
+// ErrAttachmentNotFound is every refusal of the guardian attachment entry.
+var ErrAttachmentNotFound = messaging.ErrAttachmentNotFound
 
 // NewChildFlows builds the child flows from the workflow's read and command
 // ports, retaining the required request-sharing collaborator.
 func NewChildFlows(cfg ChildConfig) *ChildFlows {
 	return care.New(cfg)
+}
+
+// NewAnnouncementAttachments binds the portal's attachment audience gate to
+// File Storage's tenant-scoped attachment reads.
+func NewAnnouncementAttachments[A, C any](audience AttachmentAudience, files AttachmentFiles[A, C]) (*AnnouncementAttachments[A, C], error) {
+	return messaging.NewAnnouncementAttachments(audience, files)
 }
 
 // NewMessagingFlows builds the announcement, conversation and request-sharing

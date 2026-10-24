@@ -426,7 +426,7 @@ describe("CalendarPeriodModal", () => {
     );
     expect(
       screen.getByText(
-        "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie unten auf der Seite „Zeiträume“ einen Schließtag an.",
+        "Ferien allein sagen keine Termine ab. Hat die OGS geschlossen? Dann legen Sie auf der Seite „Schuljahr und Kalender“ einen Schließtag an.",
       ),
     ).toBeInTheDocument();
   });

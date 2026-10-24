@@ -22,6 +22,7 @@ var validFormFieldTypes = map[FormFieldType]bool{
 	FormFieldWeekdayMode:      true,
 	FormFieldWeekdayMultiMode: true,
 	FormFieldContactList:      true,
+	FormFieldFile:             true,
 }
 
 // Validate checks a condition's shape in isolation. Cross-field
@@ -187,8 +188,8 @@ func (f *FormField) Validate() error {
 		return invalidInputf(CodeFormFieldKeyInvalid, "key", "form field key %q is reserved for a core field", f.Key)
 	}
 
-	if !validFormFieldTypes[f.Type] {
-		return fmt.Errorf("unknown form field type %q", f.Type)
+	if err := f.validateType(); err != nil {
+		return err
 	}
 
 	f.Label = strings.TrimSpace(f.Label)

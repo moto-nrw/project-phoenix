@@ -858,13 +858,13 @@ describe("staff-session-table.blocks", () => {
       // Jeder Arbeitsort und jede Quelle erscheint genau einmal, nämlich in
       // der Block-Zeile, zu der sie gehören.
       expect(screen.getAllByText("OGS")).toHaveLength(1);
-      expect(screen.getAllByText("Homeoffice")).toHaveLength(1);
+      expect(screen.getAllByText("Unterwegs")).toHaveLength(1);
       expect(screen.getAllByText("NFC")).toHaveLength(1);
       expect(screen.getAllByText("App")).toHaveLength(1);
 
       // Homeoffice-Block kam per App, OGS-Block per NFC: die Badges sitzen in
       // derselben Zeile wie ihr Block.
-      const homeOfficeRow = screen.getByText("Homeoffice").closest("tr");
+      const homeOfficeRow = screen.getByText("Unterwegs").closest("tr");
       const ogsRow = screen.getByText("OGS").closest("tr");
       expect(homeOfficeRow).toContainElement(screen.getByText("App"));
       expect(ogsRow).toContainElement(screen.getByText("NFC"));

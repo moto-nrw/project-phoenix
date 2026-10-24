@@ -100,6 +100,10 @@ mit dem lokalen API-Stub. Die temporäre Prüfseite wurde wieder entfernt.
 
 ## Offen und AVV/TOM-Abgleich
 
+Der wiederholbare, vollständig abgefangene Browserlauf für alle Portale
+steht im [Localhost-Runbook](nutzungsanalyse.md#automatisierter-localhost-nachweis-3843-c).
+Er nutzt synthetische API-Antworten und untersucht keine Payload-Inhalte.
+
 AK5 ist im Code erfüllt; die lokale Prüfung deckt Teile von AK1/AK7 ab.
 Nicht abgedeckt sind Anmeldung mit echten Konten, alle Portale,
 PostHog-/Sentry-Konfiguration und deren transportierte Inhalte (Slice 3843-c),

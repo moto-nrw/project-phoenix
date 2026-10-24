@@ -1,5 +1,156 @@
 # Usage analytics: PostHog project and privacy text
 
+## Automatisierter Localhost-Nachweis (3843-c)
+
+`devbox run -- sh -c 'cd frontend && pnpm run test:network'` startet eine
+getrennte Playwright-Suite mit dem echten Next.js-Frontend und synthetischer
+API auf localhost. Docker, Seed-Daten und echte Konten sind nicht nötig.
+Voraussetzungen: installierte Devbox-Pakete, `pnpm install --frozen-lockfile`
+in `frontend`, installiertes Playwright-Chromium und freie Ports 13843/18443.
+Bei fehlendem Browser einmal `cd frontend && pnpm exec playwright install chromium`
+ausführen. Die Browserinstallation ist Vorbereitung, nicht Teil des Nachweises.
+
+Die Bereitschaftsprüfung läuft in Node über
+`http://127.0.0.1:13843/api/health`, nicht über einen Portalhost. Sie benötigt
+keine systemweite Auflösung von `*.localhost`. Vor den Tests wird zusätzlich
+HTTP 200 ohne Weiterleitung geprüft. Chromium löst die Portalhosts selbst
+als Loopback-Adressen auf.
+
+Der härtere lokale Wiederholungslauf entspricht dem CI-Schritt:
+
+```sh
+cd frontend
+NODE_OPTIONS="--require ./e2e/network/no-subdomain-dns.cjs" pnpm run test:network
+```
+
+Der Node-Resolver weist dabei jede `*.localhost`-Auflösung mit `ENOTFOUND`
+zurück, sowohl über Callback- als auch Promise-API. `/etc/hosts` bleibt
+unverändert. Der Next-Unterprozess behält seine eigene Egress-Sperre;
+die Bereitschaftsprüfung des Playwright-Elternprozesses muss unabhängig
+davon funktionieren.
+
+Die Suite prüft zehn Produktfälle in frischen Browserkontexten und eine
+zusätzliche Kontrolle der Netzwerksperre:
+
+- OGS (`proof-off.localhost`/`proof-on.localhost`), Elternportal
+  (`eltern.localhost`) und Schulportal (`schule.localhost`), jeweils Analyse
+  aus/an, vor Anmeldung und nach dem echten Auth.js-Sitzungsübergang.
+  Geschützte Prüfseiten: OGS-Profil, Eltern-Einstellungen und
+  Schul-Einstellungen. Der API-Stub akzeptiert ausschließlich synthetische
+  Testabläufe; er prüft keine echten Berechtigungen oder Zugangsdaten.
+- Öffentliche Online-Anmeldung (`/anmeldung/1`), alle vier Kombinationen
+  Analyse aus/an und Captcha aus/an. Bei ausgeschaltetem Captcha bleibt der
+  öffentliche Test-Site-Key absichtlich gesetzt. Das prüft den historischen
+  Fehler mit widersprüchlicher Konfiguration.
+- Im OGS-Profil wird ein im Browser erzeugtes PNG über die echte Fotoauswahl,
+  `compressAvatar` und den Multipart-Upload verarbeitet. Ein Upload muss
+  stattfinden, ohne eine jsdelivr-Anfrage auszulösen.
+- Die zusätzliche Kontrolle startet einen Dedicated Worker in einer lokalen
+  HTML-Testantwort ohne CSP. Dessen jsdelivr-Import muss durch Playwright
+  abgebrochen und als Allowlist-Verstoß erkannt werden. Diese bewusst
+  abgefangene Anfrage gehört nicht zu den Produktfällen.
+
+### Was die Aufzeichnung erlaubt und blockiert
+
+Erlaubte Origins sind pro Fall die exakte eigene Localhost-Origin,
+die konfigurierte Sentry-Platzhalter-Origin und, nur bei eingeschaltetem
+Captcha, `https://challenges.cloudflare.com`. Der lokale PostHog-Pfad
+`/ingest` ist nur bei eingeschalteter Analyse zulässig. Jede andere Origin,
+einschließlich weiterer Localhost-Ports, lässt den Test fehlschlagen.
+
+**Kein externer Dienst wird kontaktiert.** Playwright bricht alle fremden
+Origins ab, auch die erlaubten. Ebenso werden `/ingest` und der Sentry-Tunnel
+`/monitoring` vor der Weiterleitung durch Next.js abgebrochen. Der
+Next.js-Prozess blockiert zusätzlich nicht lokale HTTP-/Fetch-Ziele.
+Service Worker sind deaktiviert; WebSockets dürfen nur die eigene Origin
+erreichen. Chromium löst fremde Hosts außerdem nicht auf.
+
+Die Suite überschreibt Dienstkonfigurationen mit nicht funktionsfähigen
+Platzhaltern. Sitzungs- und Metrikgeheimnisse entstehen zufällig pro Lauf und
+werden nicht ausgegeben. Positive Kontrollen erwarten bei Analyse an einen
+abgefangenen `/ingest`-Versuch, bei Captcha an den abgefangenen Skriptabruf
+und für konfigurierte Fehlerdiagnose nach einem synthetischen Browserfehler
+einen abgefangenen `/monitoring`-Versuch. Geladene Formularfelder bzw.
+geschützte Seiten dienen als positive Anker für die Aus-Fälle.
+
+`frontend/test-results/network/**/network*.json` enthält ausschließlich
+Origin, Pfad ohne Query/Fragment und Inhaltsart (MIME-Typ, sonst
+Playwright-Ressourcentyp). Keine Bodies, Headerwerte außer dem MIME-Typ,
+Cookies, Tokens, Namen oder Formulareingaben werden gespeichert.
+Screenshots, Videos, Traces und automatische DOM-Fehlerabbilder sind aus.
+Für die Portale gibt es getrennte Dateien vor der Anmeldung und für den
+Sitzungsübergang samt geschützter Seite sowie eine gemeinsame Aufzeichnung.
+**PR-CI, nicht nur lokal:** Der separate Workflow **Frontend E2E**
+(`.github/workflows/e2e.yml`) führt im Job `e2e` (**Playwright E2E flows**)
+den Schritt **Run portal network evidence** mit `pnpm run test:network` aus.
+Dieser Schritt verwendet den oben beschriebenen gesperrten Node-Resolver.
+Danach folgt **Upload sanitized network evidence**, anschließend
+**Run E2E flows** für die bisherigen geseedeten Tests. Die Netzwerksuite
+gehört nicht zum Job `lint / frontend-build` des Hauptworkflows.
+
+Der E2E-Workflow ist kein Required Check. Er läuft auf PRs gegen
+`development` bei Änderungen an E2E-Dateien, den Playwright-Konfigurationen,
+Frontend-Abhängigkeiten, Seed-Zugang oder dem Workflow selbst; zusätzlich
+werktags geplant und per `workflow_dispatch`. PR #4862 trifft diese Pfadfilter.
+
+Bereits am Head `9876f3baa147b45dab76b16a4b66de9e2e81b2e7` wurde die
+CI-Ausführung bestätigt, nicht nur aus der YAML abgeleitet:
+[Joblog, Run 40019687870](https://github.com/moto-nrw/project-phoenix/actions/runs/40019687870/job/120640704783).
+Der Log zeigt am 23.10.2026 um 20:32:43 UTC `pnpm run test:network`,
+danach `Running 11 tests using 1 worker` und um 20:34:05 UTC
+`11 passed (1.4m)`. Auch Artefakt-Upload und nachfolgender E2E-Schritt waren
+erfolgreich. Dieser historische Lauf bestätigt noch nicht den späteren
+Resolver-Fix; dessen CI-Ergebnis wird nach dem Push separat geprüft.
+
+Happy-DOM-Komponententests laden zusätzlich keine iframe-Seiten,
+Stylesheets, externen Skripte oder Bilder aus gerendertem Markup mehr.
+Native Navigationen im Hauptfenster, in Unterframes und in neuen Fenstern
+öffnen ebenfalls keine HTTP-Verbindungen. Die bisherige reine
+Ressourcensperre deckte neue Fenster nicht ab; ein Link mit `target="_blank"`
+konnte noch Verbindungen zu `localhost:3000` und damit `ECONNREFUSED` auslösen.
+`src/test/resource-isolation.test.ts` schützt diesen Vertrag. Das ersetzt
+keine Mocks für explizite Fetch-Aufrufe in Komponententests.
+Die ergänzende Prüfung fand solche fehlenden Mocks im Test der
+Kind-Detailseite: Familienschutz, Notizen und Notiz-Angebote liefen gegen
+`localhost:3000`, teilweise nach Testende. Die drei Lese-APIs sind dort nun
+gemockt; die Assertions bleiben unverändert. Der gezielte Lauf mit 95 Tests
+zeigte danach keine `ECONNREFUSED`-Diagnosen mehr. Die isolierten 14 Tests
+von `external-caregiver-entry.test.tsx` liefen ebenfalls ohne diesen Fehler.
+
+### Aussagegrenzen und Mensch-Schritte
+
+Dieser Code-Nachweis deckt AK1/AK7 von #3843 nur für die beschriebenen
+Browserpfade auf localhost ab. Die BFF-/Backend-API und die
+Portal-Analysefreigabe sind synthetisch; ihre fachliche Berechnung wird von
+den bestehenden Policy-/Integrationstests geprüft. Die Suite bestätigt weder
+Backend-Egress noch echte Anmeldung, RLS oder die serverseitige
+Turnstile-Verifikation. Abgebrochene Vendor-Aufrufe belegen Ladeversuche,
+nicht erfolgreiche Challenges, PostHog-Projekteinstellungen oder
+Sitzungsaufzeichnungen. Payload-Inhalte werden bewusst nicht untersucht;
+deren Datenminimierung bleibt separat nachzuweisen.
+
+Eine Gegenprobe mit probeweise wieder aktiviertem Kompressions-Worker blieb
+ebenfalls ohne CDN-Abruf. Der Netzwerktest prüft tatsächliche Abrufe, nicht
+den Optionswert `useWebWorker`. Diesen sichert weiterhin
+`frontend/src/lib/image-utils.test.ts`. Die unabhängige Worker-Kontrolle
+prüft zusätzlich, dass ein CDN-Import den Mitschnitt und die Sperre erreicht.
+
+**Produktiv nachzuweisen, offen:** Ein berechtigter Mensch prüft nach
+Auslieferung dieselben Portale, Konfigurationen und tatsächlichen Empfänger
+am ausgelieferten Stand (Slices 3843-f/3843-h2). Dazu gehören Anbieterorte,
+PostHog-Projekteinstellungen und die bereinigten übertragenen Inhalte.
+AK2/AK3/AK4/AK6 werden durch diese Suite nicht abgeschlossen. Kein Anbieter
+entfällt allein aufgrund eines erfolgreichen Localhost-Laufs aus AVV/TOM.
+
+Vorschlag AVV/TOM, keine Änderung im Legal-Repo:
+
+> Der Browser-Code wird auf localhost automatisiert gegen eine explizite
+> Origin-Allowlist geprüft. Optionale Analyse und Captcha lösen bei
+> ausgeschalteter Testkonfiguration keine entsprechenden Browserabrufe aus;
+> die Bildkompression benötigt keinen jsdelivr-Abruf. Der produktive Stand,
+> tatsächliche Inhalte, Empfänger und Anbietergrundlagen bleiben gesondert
+> zu bestätigen. Dieser Test ist kein Nachweis produktiver Abschaltung.
+
 The code rules of the usage analytics live in `.claude/rules/usage-analytics.md`
 and `frontend/src/lib/analytics-policy.ts`. This page lists what lives outside
 the repository: the PostHog project settings the code relies on, and the
@@ -100,7 +251,8 @@ Die Demo-Umgebung ignoriert den Schalter absichtlich, daher für den Nachweis
    Absenden) und `public` außerhalb der Demo prüfen. Statusseiten müssen selbst
    bei erlaubenden Schulen ohne Erfassung bleiben; positive Kontrollen auf den
    benachbarten Formularseiten verwenden; Inhalte und Kennungen nicht als
-   unbereinigte HAR-Datei ablegen. Netzwerknachweis bleibt Slice 3843-c.
+   unbereinigte HAR-Datei ablegen. Automatisierter Localhost-Lauf: siehe oben,
+   Abschnitt 3843-c.
 
 **Lokal geprüft am 23.10.2026:** Nativer Entwicklungsstack, vollständig
 synthetische Seed-Daten, Test-Platzhalter statt Analyse-Schlüssel und
@@ -111,7 +263,7 @@ von `manuell` und aktives öffentliches Anmeldeformular von `vollbetrieb`
 0 `/ingest`-Anfragen. Die öffentliche Gegenprobe verwendete ein frisch
 aufgerufenes Formular. Keine PostHog-Anfrage mit echtem Schlüssel.
 Schulschalter und getrennte Fehlerdiagnose auf Desktop und Mobilgerät angesehen.
-Der Netzwerknachweis aller Portale bleibt Slice 3843-c.
+Die automatisierte Wiederholung für alle Portale steht oben (3843-c).
 
 **Produktiv nachzuweisen, offen:** Auslieferung und tatsächlicher Netzwerknachweis
 je Portal. Ein lokaler Test bestätigt keine produktive Abschaltung.
