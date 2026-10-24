@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetableSubstituteSingleOnly                = "timetable.substitute_single_only"
+	CodeTimetableTemplateCareOfferingConflict        = "timetable.template_care_offering_conflict"
+	CodeTimetableTemplateCategoryUnavailable         = "timetable.template_category_unavailable"
 	CodeTimetableTemplateEducationGroupInvalid       = "timetable.template_education_group_invalid"
 	CodeTimetableTemplateEndBeforeStart              = "timetable.template_end_before_start"
 	CodeTimetableTemplateGradeAboveMax               = "timetable.template_grade_above_max"
@@ -93,6 +96,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.substitute_single_only":                  "input",
+	"timetable.template_care_offering_conflict":         "input",
+	"timetable.template_category_unavailable":           "business_rejection",
 	"timetable.template_education_group_invalid":        "input",
 	"timetable.template_end_before_start":               "input",
 	"timetable.template_grade_above_max":                "input",

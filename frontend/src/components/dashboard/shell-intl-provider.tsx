@@ -11,6 +11,7 @@ import { DEFAULT_LOCALE } from "~/i18n/locales";
 //
 // Besides the shell itself it carries the namespaces of staff-facing shared
 // components: settings cards, the meal participant list and its date picker,
+// the allergen marks of the meal plan,
 // plus the consent summary shown in student master data. Without these subsets
 // every label there renders as its message key.
 const SHELL_MESSAGES = {
@@ -23,6 +24,7 @@ const SHELL_MESSAGES = {
   parentCalendarSubscribe: deMessages.parentCalendarSubscribe,
   staffCalendarSubscribe: deMessages.staffCalendarSubscribe,
   mealParticipantList: deMessages.mealParticipantList,
+  mealAllergens: deMessages.mealAllergens,
   parentChild: {
     consents: deMessages.parentChild.consents,
   },

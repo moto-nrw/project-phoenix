@@ -122,6 +122,7 @@ func SchoolPortalAuth(sessions identityaccess.SchoolAccountLogin) schoolPortal.A
 		},
 		IssueTokens:        sessions.IssueSchoolTokensForAuthenticatedAccount,
 		SwitchSchool:       sessions.SwitchSchool,
+		InvalidSession:     identityIs(identityaccess.ErrInvalidToken),
 		Cause:              identityCause,
 		InvalidCredentials: identityInvalidCredentials,
 		AccountInactive:    identityIs(identityaccess.ErrAccountInactive),

@@ -32,7 +32,7 @@ func (s *Service) Week(ctx context.Context, weekStart mealplan.Date) ([]mealplan
 	}
 	result := make([]mealplan.Entry, 0, len(entries))
 	for _, entry := range entries {
-		result = append(result, mealplan.Entry{Date: mealplan.Date(entry.Date.String()), Position: entry.Position, Dish: entry.Dish, Note: entry.Note})
+		result = append(result, mealplan.Entry{Date: mealplan.Date(entry.Date.String()), Position: entry.Position, Dish: entry.Dish, Note: entry.Note, Allergens: storedAllergens(entry.Allergens)})
 	}
 	return result, nil
 }
@@ -48,11 +48,15 @@ func (s *Service) ReplaceDay(ctx context.Context, command mealplan.ReplaceDay) e
 
 	dishes := make([]mealplan.Dish, 0, len(command.Dishes))
 	for _, input := range command.Dishes {
+		allergens, ok := mealplan.NormalizeAllergens(input.Allergens)
+		if !ok {
+			return mealplan.ErrInvalidAllergens
+		}
 		dish := strings.TrimSpace(input.Dish)
 		if dish == "" {
 			continue
 		}
-		dishes = append(dishes, mealplan.Dish{Dish: dish, Note: trimOptional(input.Note)})
+		dishes = append(dishes, mealplan.Dish{Dish: dish, Note: trimOptional(input.Note), Allergens: allergens})
 	}
 	values := dishes
 
@@ -295,4 +299,14 @@ func publicParticipationPlan(plan domain.ParticipationPlan, cutoffs mealplan.Cut
 		result.Days = append(result.Days, mealplan.ParticipationDay{Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Source: mealplan.ParticipationSource(day.Source), Changeable: day.Changeable})
 	}
 	return result
+}
+
+// storedAllergens returns the stored codes as the public list; an empty
+// marking stays an empty list, never nil.
+func storedAllergens(codes []string) []mealplan.Allergen {
+	allergens := make([]mealplan.Allergen, 0, len(codes))
+	for _, code := range codes {
+		allergens = append(allergens, mealplan.Allergen(code))
+	}
+	return allergens
 }

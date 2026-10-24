@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -204,8 +203,8 @@ func (r mfaRows) findOverride(ctx context.Context, where string, args ...any) (i
 }
 
 // requiredAdminsPolicy is the verdict a school with security.mfa_mode
-// "required_admins" produces: the second factor is required of the admin
-// role and of nobody else. The gate holds the policy as an interface, so a
+// "required_admins" produces: the second factor is required of privileged
+// permissions, independent of the role label. The gate holds the policy as an interface, so a
 // test that drives a branch supplies the predicate directly.
 type mfaPolicyFunc func(roleNames []string) bool
 
@@ -214,7 +213,7 @@ func (f mfaPolicyFunc) RequiredFor(roleNames []string) bool { return f(roleNames
 func requiredAdminsPolicy() identityaccess.MFAPolicy {
 	return mfaPolicyFunc(func(roleNames []string) bool {
 		for _, name := range roleNames {
-			if strings.EqualFold(name, "admin") {
+			if name == "admin:*" || name == "*:*" || name == "users:manage" {
 				return true
 			}
 		}

@@ -181,9 +181,9 @@ type School struct {
 	LogoURL string
 }
 
-// MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
+// MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
 type MFAPolicy interface {
-	RequiredFor(roleNames []string) bool
+	RequiredFor(permissions []string) bool
 }
 
 // Authentication audit event types, as the Audit platform stores them.
@@ -335,7 +335,7 @@ type ParentAccountLogin interface {
 
 // SchoolAccountLogin authenticates accounts and switches their school portal.
 type SchoolAccountLogin interface {
-	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, sourceFamilyID string) (accessToken, refreshToken string, err error)
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
 	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
 	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)

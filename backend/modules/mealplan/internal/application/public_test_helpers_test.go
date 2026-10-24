@@ -18,7 +18,7 @@ type seamStore struct {
 func (s seamStore) ReplaceDay(ctx context.Context, date domain.Date, values []mealplan.Dish) (domain.OperationStats, error) {
 	dishes := make([]mealplan.Dish, 0, len(values))
 	for _, v := range values {
-		dishes = append(dishes, mealplan.Dish{Dish: v.Dish, Note: v.Note})
+		dishes = append(dishes, mealplan.Dish{Dish: v.Dish, Note: v.Note, Allergens: v.Allergens})
 	}
 	return domain.OperationStats{}, s.e.Replace(ctx, date.String(), dishes)
 }

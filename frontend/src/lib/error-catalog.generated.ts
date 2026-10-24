@@ -351,6 +351,8 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.invalid_allergens":
+        "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
       "meals.invalid_dishes":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "meals.invalid_meal_date":
@@ -1099,6 +1101,10 @@ export const ERROR_CATALOG = {
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
       "identity.email_change_link_invalid":
         "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
+      "identity.mfa_status_unavailable":
+        "Die Sicherheitsabfrage ist gerade nicht möglich. Bitte versuchen Sie es erneut.",
+      "identity.mfa_session_required":
+        "Für die Anmeldung bei {object} brauchen Sie einen zweiten Anmeldenachweis. Wählen Sie „Zur Schulanmeldung“. Sie werden abgemeldet. Melden Sie sich danach dort neu an und bestätigen Sie die Anmeldung.",
       "identity.mfa_not_enrolled":
         "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
       "identity.mfa_already_enrolled":
@@ -1416,6 +1422,8 @@ export const ERROR_CATALOG = {
         "This invitation does not exist. Please check the link in the email.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+      "meals.invalid_allergens":
+        "The allergens could not be saved. Please select them again.",
       "meals.invalid_participation":
         "{object} contains invalid details. Please check your entries.",
       "meals.plan_disabled":
@@ -1496,6 +1504,10 @@ export const ERROR_CATALOG = {
         "The status of this change request has changed. Please reload the page.",
       "identity.operator_self_deactivation":
         "You cannot deactivate your own account. Ask another team member to do this.",
+      "identity.mfa_status_unavailable":
+        "Sign-in verification is currently unavailable. Please try again.",
+      "identity.mfa_session_required":
+        "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
       "staff.external_email_required": "Please enter an email address.",
       "staff.external_email_invalid":
         "This email address is not valid. Please check it.",
@@ -1719,6 +1731,8 @@ export const ERROR_CATALOG = {
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+      "meals.invalid_allergens":
+        "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
       "meals.invalid_participation":
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "meals.plan_disabled":
@@ -1794,6 +1808,10 @@ export const ERROR_CATALOG = {
         "Статус этого запроса на изменение изменился. Обновите страницу.",
       "identity.operator_self_deactivation":
         "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
+      "identity.mfa_status_unavailable":
+        "Подтверждение входа сейчас недоступно. Попробуйте ещё раз.",
+      "identity.mfa_session_required":
+        "Для входа в {object} требуется дополнительное подтверждение. Кнопка завершит текущий сеанс и откроет страницу входа этой школы. Войдите там заново и подтвердите вход.",
       "communication.group_thread_closed":
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
@@ -2010,6 +2028,8 @@ export const ERROR_CATALOG = {
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+      "meals.invalid_allergens":
+        "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
       "meals.invalid_participation":
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "meals.plan_disabled":
@@ -2095,6 +2115,10 @@ export const ERROR_CATALOG = {
         "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
       "identity.operator_self_deactivation":
         "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
+      "identity.mfa_status_unavailable":
+        "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
+      "identity.mfa_session_required":
+        "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
       "communication.group_thread_closed":
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
@@ -2308,6 +2332,8 @@ export const ERROR_CATALOG = {
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+      "meals.invalid_allergens":
+        "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
       "meals.invalid_participation":
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "meals.plan_disabled":
@@ -2383,6 +2409,10 @@ export const ERROR_CATALOG = {
         "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
       "identity.operator_self_deactivation":
         "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
+      "identity.mfa_status_unavailable":
+        "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
+      "identity.mfa_session_required":
+        "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
       "communication.group_thread_closed":
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
@@ -2597,6 +2627,8 @@ export const ERROR_CATALOG = {
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+      "meals.invalid_allergens":
+        "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
       "meals.invalid_participation":
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "meals.plan_disabled":
@@ -2678,6 +2710,10 @@ export const ERROR_CATALOG = {
         "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
       "identity.operator_self_deactivation":
         "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
+      "identity.mfa_status_unavailable":
+        "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
+      "identity.mfa_session_required":
+        "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
       "communication.group_thread_closed":
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
@@ -2889,6 +2925,8 @@ export const ERROR_CATALOG = {
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+      "meals.invalid_allergens":
+        "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
       "meals.invalid_participation":
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "meals.plan_disabled":
@@ -2963,6 +3001,10 @@ export const ERROR_CATALOG = {
         "Статус цього запиту на зміну змінився. Оновіть сторінку.",
       "identity.operator_self_deactivation":
         "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
+      "identity.mfa_status_unavailable":
+        "Підтвердження входу зараз недоступне. Спробуйте ще раз.",
+      "identity.mfa_session_required":
+        "Для входу до {object} потрібне додаткове підтвердження. Кнопка завершить поточний сеанс і відкриє сторінку входу цієї школи. Увійдіть там знову й підтвердьте вхід.",
       "communication.group_thread_closed":
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":

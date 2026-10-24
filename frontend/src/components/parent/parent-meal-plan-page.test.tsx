@@ -338,6 +338,45 @@ describe("ParentMealPlanPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("marks each dish with its allergens and explains the letters (#4777)", async () => {
+    mocks.getChildMealPlan.mockResolvedValue([
+      {
+        date: "2026-08-12",
+        position: 0,
+        dish: "Gemüse-Lasagne",
+        note: "mit Salat",
+        allergens: ["gluten", "milk"],
+      },
+      { date: "2026-08-12", position: 1, dish: "Obst", allergens: [] },
+    ]);
+
+    render(<ParentMealPlanPage />);
+
+    // Letters for the eye, full names for screen readers.
+    expect(
+      (await screen.findAllByText("Allergene: A, G")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "Enthält: Glutenhaltiges Getreide, Milch (auch Laktose)",
+      ).length,
+    ).toBeGreaterThan(0);
+    // The unmarked dish carries no marks: only the Lasagne's appear.
+    expect(screen.getAllByText(/^Allergene: /)).toHaveLength(
+      screen.getAllByText("Allergene: A, G").length,
+    );
+    const legend = screen.getByLabelText("Allergene");
+    // Only the letters used this week, each with its name.
+    expect(
+      within(legend)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["A Glutenhaltiges Getreide", "G Milch (auch Laktose)"]);
+    expect(
+      screen.getByText(/Die Angaben kommen von der Schule oder vom Caterer\./),
+    ).toBeInTheDocument();
+  });
+
   it("combines meals and participation while keeping regular days compact", async () => {
     mocks.listMyChildren.mockResolvedValue([
       {

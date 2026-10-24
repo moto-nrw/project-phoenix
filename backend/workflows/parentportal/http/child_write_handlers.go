@@ -346,6 +346,8 @@ type MealPlanEntryResponse struct {
 	Position int     `json:"position"`
 	Dish     string  `json:"dish"`
 	Note     *string `json:"note,omitempty"`
+	// Allergens are the codes of the main allergens; empty when unmarked.
+	Allergens []string `json:"allergens"`
 }
 
 type MealParticipationDayResponse struct {
@@ -411,6 +413,8 @@ func (rs *Resource) getChildMealPlan(w http.ResponseWriter, r *http.Request) {
 			Position: entry.Position,
 			Dish:     entry.Dish,
 			Note:     entry.Note,
+			// Never null on the wire: an unmarked dish has an empty list.
+			Allergens: append([]string{}, entry.Allergens...),
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Meal plan retrieved")

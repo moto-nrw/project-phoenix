@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Ganze Woche abmelden?",
     "unregisterWeekText": "{name} wird an {count, plural, one {# Tag} other {# Tagen}} dieser Woche vom Mittagessen abgemeldet. Wieder anmelden geht nur bis zur Änderungsfrist."
   },
+  "mealAllergens": {
+    "legendTitle": "Allergene",
+    "choose": "Allergene wählen",
+    "marksShort": "Allergene: {letters}",
+    "marksLabel": "Enthält: {names}",
+    "noneThisWeek": "Für diese Woche sind keine Allergene angegeben.",
+    "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die OGS.",
+    "names": {
+      "gluten": "Glutenhaltiges Getreide",
+      "crustaceans": "Krebstiere",
+      "eggs": "Eier",
+      "fish": "Fisch",
+      "peanuts": "Erdnüsse",
+      "soybeans": "Soja",
+      "milk": "Milch (auch Laktose)",
+      "nuts": "Schalenfrüchte (Nüsse)",
+      "celery": "Sellerie",
+      "mustard": "Senf",
+      "sesame": "Sesam",
+      "sulphites": "Schwefeldioxid und Sulfite",
+      "lupin": "Lupinen",
+      "molluscs": "Weichtiere"
+    }
+  },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
@@ -2475,6 +2499,8 @@
         "email_change_rate_limited": "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
         "email_change_same_email": "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
         "email_change_link_invalid": "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
+        "mfa_status_unavailable": "Die Sicherheitsabfrage ist gerade nicht möglich. Bitte versuchen Sie es erneut.",
+        "mfa_session_required": "Für die Anmeldung bei {object} brauchen Sie einen zweiten Anmeldenachweis. Wählen Sie „Zur Schulanmeldung“. Sie werden abgemeldet. Melden Sie sich danach dort neu an und bestätigen Sie die Anmeldung.",
         "mfa_not_enrolled": "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
         "mfa_already_enrolled": "Die Zwei-Faktor-Anmeldung ist schon eingerichtet. Bitte laden Sie die Seite neu.",
         "passkey_not_found": "Diesen Passkey gibt es nicht mehr. Bitte laden Sie die Seite neu.",
@@ -2533,6 +2559,7 @@
         "wc_not_configured": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
       },
       "meals": {
+        "invalid_allergens": "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
         "invalid_dishes": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_meal_date": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_participation": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",

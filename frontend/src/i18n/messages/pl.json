@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Wypisać na cały tydzień?",
     "unregisterWeekText": "{name} zostanie wypisane z obiadu na {count, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}} tego tygodnia. Ponowny zapis jest możliwy tylko do terminu zmian."
   },
+  "mealAllergens": {
+    "legendTitle": "Alergeny",
+    "choose": "Wybierz alergeny",
+    "marksShort": "Alergeny: {letters}",
+    "marksLabel": "Zawiera: {names}",
+    "noneThisWeek": "Na ten tydzień nie podano alergenów.",
+    "source": "Te informacje pochodzą od szkoły lub firmy cateringowej. Danie bez litery nie musi być wolne od alergenów. W razie pytań prosimy zwrócić się do OGS.",
+    "names": {
+      "gluten": "Zboża zawierające gluten",
+      "crustaceans": "Skorupiaki",
+      "eggs": "Jaja",
+      "fish": "Ryby",
+      "peanuts": "Orzeszki ziemne",
+      "soybeans": "Soja i produkty sojowe",
+      "milk": "Mleko (także laktoza)",
+      "nuts": "Orzechy",
+      "celery": "Seler",
+      "mustard": "Gorczyca",
+      "sesame": "Sezam",
+      "sulphites": "Dwutlenek siarki i siarczyny",
+      "lupin": "Łubin",
+      "molluscs": "Mięczaki"
+    }
+  },
   "mealParticipantList": {
     "title": "Lista dzienna dla kuchni",
     "description": "Lista pokazuje wszystkie dzieci zapisane na obiad w tym dniu.",
@@ -2475,6 +2499,8 @@
         "email_change_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_same_email": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "email_change_link_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "mfa_status_unavailable": "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
+        "mfa_session_required": "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
         "mfa_not_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "mfa_already_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "passkey_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2533,6 +2559,7 @@
         "wc_not_configured": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
       },
       "meals": {
+        "invalid_allergens": "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
         "invalid_dishes": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_meal_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_participation": "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",

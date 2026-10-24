@@ -232,12 +232,17 @@ function loginTopic(
     ],
     result: loginResult(presenceMode, groupMode),
     differences: [
+      "Für Verwaltung ist ein zweiter Nachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente und Personalfinanzen. Das gilt auch für Einkommensnachweise der Eltern. Ebenso für Gesundheitsdokumente und das Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub genehmigen dürfen. Diese Pflicht gilt auch bei ausgeschalteter Sicherheitsabfrage der Schule. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus.",
       "Richten Sie die Sicherheitsabfrage erstmals ein? Wählen Sie `Code an meine E-Mail senden`.",
       "Geben Sie danach den sechsstelligen Code ein.",
       "Wenn Sie bereits einen Passkey eingerichtet haben, können Sie `Mit Passkey anmelden` wählen.",
     ],
     notes: [
       "Nutzen mehrere Personen das Gerät? Melden Sie sich bei moto ab, wenn Sie fertig sind.",
+    ],
+    troubleshootingDetails: [
+      "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht.",
+      "Beim Schulwechsel fehlt ein zweiter Anmeldenachweis? Wählen Sie `Zur Schulanmeldung`. Sie werden zuerst abgemeldet. Melden Sie sich danach direkt bei der Zielschule neu an. Bestätigen Sie dort die Anmeldung.",
     ],
     troubleshooting: HELP_TOPICS.loginProblem,
     related: [
@@ -4137,12 +4142,15 @@ function mealPlanTopic(): HelpTopic {
       "Blättern Sie mit den Pfeilen zur gewünschten Woche.",
       "Tragen Sie bei einem Tag unter `Gericht eintragen...` das Gericht ein.",
       "Tragen Sie bei Bedarf einen `Hinweis (optional)` dazu ein.",
+      "Öffnen Sie unter dem Gericht die Auswahl `Allergene` und haken Sie die Allergene an. Danach stehen dort die Buchstaben, zum Beispiel `A, G`.",
       "Mit `+ Gericht` ergänzen Sie ein zweites Gericht für denselben Tag.",
       "Wählen Sie `Speichern`.",
     ],
     result: "Der Plan erscheint sofort im Elternportal.",
     notes: [
       "Pro Tag sind mehrere Gerichte möglich.",
+      "Zur Auswahl stehen die 14 Hauptallergene, jedes mit einem festen Buchstaben. Die Liste ist für alle Schulen gleich.",
+      "Eltern sehen die Buchstaben am Gericht und darunter die Erklärung. Dort steht auch, dass die Angaben von der Schule oder vom Caterer kommen.",
       "Mit `Vorwoche übernehmen` holen Sie die Gerichte der Vorwoche in diese Woche.",
       "Der heutige Tag trägt das Kennzeichen `Heute`.",
       "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
@@ -5338,6 +5346,7 @@ function dayListsTopic(): HelpTopic {
     notes: [
       "Unter `Quelle` stehen `Randstunden`, `Lernzeit`, `AG-Angebote`, `Mensa`, `Ganztag (frühe Abholung)`, `Ganztag (späte Abholung)` und `Freie Angebotsauswahl`.",
       "Als Datenbasis wählen Sie `Plan`, `Ist` oder `Abgleich`.",
+      "Eine Liste mit `Plan` hat eine leere Spalte `Abhaken`. Dort haken Sie die Kinder auf dem Ausdruck ab.",
       "Unter der Datumszeile steht, woher die Daten kommen.",
     ],
     differences: [
@@ -6978,6 +6987,8 @@ function parentMealPlanTopic(): HelpTopic {
     ],
     result: "Sie sehen je Tag das Gericht und ob Ihr Kind mitisst.",
     notes: [
+      "Steht am Gericht zum Beispiel `Allergene: A, G`, enthält es diese Allergene. Unter dem Plan steht, was die Buchstaben bedeuten.",
+      "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Fragen Sie im Zweifel die OGS.",
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
       "Mit `Ganze Woche anmelden` oder `Ganze Woche abmelden` ändern Sie alle Tage der Woche auf einmal. Das gilt nur für Tage, die Sie noch ändern können.",
       "Unter `Wann isst … mit?` steht, bis wann Sie ändern können. Manche Schulen erlauben das Abmelden länger als das Anmelden.",
@@ -7362,6 +7373,8 @@ function teacherLoginTopic(): HelpTopic {
       "Tragen Sie Ihre `E-Mail-Adresse` ein.",
       "Tragen Sie Ihr `Passwort` ein.",
       "Wählen Sie `Anmelden`.",
+      "Fragt moto nach einem Code? Öffnen Sie die E-Mail von moto.",
+      "Geben Sie den sechsstelligen Code ein.",
     ],
     result: "moto öffnet die `Klassenansicht` mit dem heutigen Tag.",
     notes: [
@@ -7370,6 +7383,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     differences: [
       "Oben steht `Willkommen im Schulportal`. So erkennen Sie, dass Sie richtig sind.",
+      "Für Verwaltung ist ein zweiter Nachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente und Personalfinanzen. Das gilt auch für Einkommensnachweise der Eltern. Ebenso für Gesundheitsdokumente und das Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub genehmigen dürfen. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus.",
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
