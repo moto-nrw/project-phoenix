@@ -15,6 +15,8 @@ type PickupChangeTerms struct {
 	PreviousPickupTime     string
 	DepartureMode          string
 	PreviousDepartureModes []string
+	// PickupPersonName is the one-day collector (#4780), "" for none.
+	PickupPersonName string
 }
 
 func StoredPickupTerms(raw json.RawMessage) *PickupChangeTerms {
@@ -27,6 +29,9 @@ func StoredPickupTerms(raw json.RawMessage) *PickupChangeTerms {
 		return nil
 	}
 	terms := &PickupChangeTerms{Date: change.Date, DepartureMode: change.DepartureMode}
+	if change.PickupPerson != nil {
+		terms.PickupPersonName = change.PickupPerson.Name
+	}
 	if change.PickupTime != nil {
 		terms.PickupTime = change.PickupTime.Format("15:04")
 		if raw, ok := payload["previous_pickup_time"].(string); ok {
@@ -76,6 +81,9 @@ func PickupChangeEntries(change PickupChange, oldPickup string, oldModes []strin
 			entry.Old = strings.Join(labels, " / ")
 		}
 		entries = append(entries, entry)
+	}
+	if change.PickupPerson != nil {
+		entries = append(entries, DiffEntry{Label: day + " · Abholperson", New: change.PickupPerson.Name, CareKind: KindPickupPerson})
 	}
 	return entries
 }
@@ -140,6 +148,9 @@ func RequestedSummary(raw json.RawMessage) []DiffEntry {
 	}
 	if change, ok := pickupTerms(payload); ok {
 		return PickupChangeEntries(change, "", nil)
+	}
+	if permission, err := ParsePickupPermission(raw); err == nil {
+		return PickupPermissionEntries(permission, "")
 	}
 	weekly, err := decodePayload[WeeklyChange](raw)
 	if err != nil {

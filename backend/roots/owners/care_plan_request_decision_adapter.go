@@ -45,3 +45,7 @@ func (a requestDecisionAdapter) ApplyWeekly(ctx context.Context, request *carere
 func (a requestDecisionAdapter) ApplyPickup(ctx context.Context, request *carerequests.Request, token *string, required bool) (carerequests.PickupApplied, error) {
 	return a.s.applyPickupChangeRequest(ctx, request, token, required)
 }
+
+func (a requestDecisionAdapter) ApplyPickupPermission(ctx context.Context, request *carerequests.Request) error {
+	return a.s.applyPickupPermissionRequest(ctx, request)
+}

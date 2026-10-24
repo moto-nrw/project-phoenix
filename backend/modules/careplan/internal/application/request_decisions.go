@@ -144,6 +144,9 @@ func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Requ
 		applied, err := s.Plans.ApplyPickup(ctx, request, input.ExpectedImpactToken, input.RequireImpactToken)
 		return false, applied, err
 	}
+	if request.RequestKind == carerequests.KindPickupPermission {
+		return false, none, s.Plans.ApplyPickupPermission(ctx, request)
+	}
 	changed, err := s.Plans.ApplyWeekly(ctx, request, input.ReviewedBy)
 	return changed, none, err
 }

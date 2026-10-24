@@ -25,13 +25,17 @@ type GuardianPickupPermission struct {
 
 // GuardianPickupPermissionChange writes only the supplied columns: a nil CanPickup is
 // left alone, and PickupNotes is written only when SetPickupNotes is true
-// (nil then clears it).
+// (nil then clears it). Weekdays is written only when SetWeekdays is true:
+// the plan weekdays (1 = Monday … 5 = Friday) the permission holds on, nil
+// for every day (#4780).
 type GuardianPickupPermissionChange struct {
 	TenantID       int64
 	RelationshipID int64
 	CanPickup      *bool
 	SetPickupNotes bool
 	PickupNotes    *string
+	SetWeekdays    bool
+	Weekdays       []int
 }
 
 // GuardianPickupPermissions is the command side of the pickup permission.

@@ -21,7 +21,10 @@ type EditInput struct {
 	Date              calendar.Date
 	PickupTime        time.Time
 	DepartureMode     string
-	Reason            string
+	PickupPerson      *PickupPerson
+	// Signature replaces the stored one; nil leaves an edit unsigned.
+	Signature *SignedStatement
+	Reason    string
 }
 
 type Edits interface {

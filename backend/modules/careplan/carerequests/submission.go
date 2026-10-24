@@ -23,8 +23,12 @@ type PickupChangeCreateInput struct {
 	Date              calendar.Date
 	PickupTime        time.Time
 	DepartureMode     string
-	Reason            string
-	ReasonRequired    bool
+	// PickupPerson names the contact who collects the child that day (#4780).
+	PickupPerson *PickupPerson
+	// Signature is the signed wording a collector or a way home alone needs.
+	Signature      *SignedStatement
+	Reason         string
+	ReasonRequired bool
 	// Cutoff is resolved by the tenant-aware caller; its zero value has no
 	// cutoff. A write-boundary caller builds it with NewSameDayCutoffAt, so
 	// Closed reads the clock after the caller's locks are held.
@@ -45,14 +49,19 @@ func MandatoryReasonPickupChange(studentID, guardianAccountID int64, date calend
 type Submissions interface {
 	CreateRequest(context.Context, int64, int64, json.RawMessage) (*Request, error)
 	CreatePickupChange(context.Context, PickupChangeCreateInput) (*Request, error)
+	// CreatePickupPermission asks the OGS for a new or changed pickup
+	// permission of a contact person (#4780).
+	CreatePickupPermission(context.Context, PickupPermissionCreateInput) (*Request, error)
 }
 
 // ValidatePickupChange is shared by submission and guardian edits.
 func ValidatePickupChange(input PickupChangeCreateInput, today calendar.Date) (string, error) {
 	reason := strings.TrimSpace(input.Reason)
 	if input.StudentID <= 0 || input.GuardianAccountID <= 0 || input.Date.IsZero() ||
-		(input.PickupTime.IsZero() && input.DepartureMode == "") ||
+		(input.PickupTime.IsZero() && input.DepartureMode == "" && input.PickupPerson == nil) ||
 		(input.DepartureMode != "" && !RequestableDepartureMode(input.DepartureMode)) ||
+		(input.PickupPerson != nil && (input.PickupPerson.GuardianProfileID <= 0 ||
+			strings.TrimSpace(input.PickupPerson.Name) == "" || !PickupPersonAllowed(input.DepartureMode))) ||
 		(reason == "" && input.ReasonRequired) || utf8.RuneCountInString(reason) > 255 {
 		return "", ErrInvalidPayload
 	}

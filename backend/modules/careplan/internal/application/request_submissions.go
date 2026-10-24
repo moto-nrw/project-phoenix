@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -36,6 +37,17 @@ func (s *RequestSubmissions) CreatePickupChange(ctx context.Context, input carer
 	return s.create(ctx, input.StudentID, input.GuardianAccountID, "pickup_change", "pickup change request", payload)
 }
 
+// CreatePickupPermission stores a signed pickup permission request (#4780).
+// previousLabel names the days the person held before, so the review and the
+// frozen decision compare with the state the family saw.
+func (s *RequestSubmissions) CreatePickupPermission(ctx context.Context, input carerequests.PickupPermissionCreateInput) (*carerequests.Request, error) {
+	payload, err := carerequests.PickupPermissionPayload(input)
+	if err != nil {
+		return nil, err
+	}
+	return s.create(ctx, input.StudentID, input.GuardianAccountID, carerequests.KindPickupPermission, "pickup permission request", payload)
+}
+
 func pickupRequestPayload(ctx context.Context, pickup ports.RequestSubmissionPickup, today calendar.Date, input carerequests.PickupChangeCreateInput) (json.RawMessage, error) {
 	reason, err := carerequests.ValidatePickupChange(input, today)
 	if err != nil {
@@ -47,6 +59,14 @@ func pickupRequestPayload(ctx context.Context, pickup ports.RequestSubmissionPic
 	}
 	if input.DepartureMode != "" {
 		payload["departure_mode"] = input.DepartureMode
+	}
+	if input.PickupPerson != nil {
+		payload["pickup_person"] = map[string]any{
+			"guardian_profile_id": input.PickupPerson.GuardianProfileID, "name": strings.TrimSpace(input.PickupPerson.Name),
+		}
+	}
+	if input.Signature != nil {
+		payload["signature"] = map[string]any{"id": input.Signature.SignatureID, "statement": input.Signature.Statement}
 	}
 	if pickup == nil {
 		return json.Marshal(payload)

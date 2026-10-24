@@ -35,3 +35,7 @@ func (s *RequestReads) GetPendingForStudent(ctx context.Context, studentID int64
 func (s *RequestReads) ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]carerequests.Request, error) {
 	return s.Records.ListCareRequests(ctx, studentID, []string{"pickup_change"}, nil, since)
 }
+
+func (s *RequestReads) ListPickupPermissionRequests(ctx context.Context, studentID int64, since time.Time) ([]carerequests.Request, error) {
+	return s.Records.ListCareRequests(ctx, studentID, []string{carerequests.KindPickupPermission}, nil, since)
+}

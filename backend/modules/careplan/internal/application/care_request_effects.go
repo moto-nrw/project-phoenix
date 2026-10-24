@@ -67,6 +67,9 @@ func (e *CareRequestEffects) NotifySubmission(ctx context.Context, req *carerequ
 		event.Body = withPickupDetail(pickupPillBody(pickupRequestCreatedVerb, req), req)
 		event.Payload = pickupPillPayload(req)
 	}
+	if req.RequestKind == carerequests.KindPickupPermission {
+		event.Body = permissionPillBody(pickupRequestCreatedVerb, req)
+	}
 	return e.emitPill(ctx, req, event)
 }
 
@@ -139,7 +142,7 @@ func (e *CareRequestEffects) ReloadDecision(ctx context.Context, requestID int64
 		return nil, fmt.Errorf("schedule: reload decided care request: %w", err)
 	}
 	item := &carerequests.ReviewItem{Request: &row}
-	if row.RequestKind == "pickup_change" {
+	if row.RequestKind == "pickup_change" || row.RequestKind == carerequests.KindPickupPermission {
 		item.Reason = pickupChangeReason(&row)
 	}
 	if name, nameErr := e.deps.Students.StudentName(ctx, row.StudentID); nameErr == nil {

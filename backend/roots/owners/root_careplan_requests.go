@@ -60,12 +60,16 @@ func BuildCarePlanRequests(
 		return CarePlanRequests{}, err
 	}
 	events := peopleCompose.NewParentRequestEventRepository(db.Pool())
+	pickupPermissions, err := carePlanCompose.NewGuardianPickupPermissions(db.Pool(), env.Observe.CarePlan)
+	if err != nil {
+		return CarePlanRequests{}, fmt.Errorf("compose care plan pickup permissions: %w", err)
+	}
 	requests := CarePlanRequests{
 		CareRequests: NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 			carePlan, persons, schedules.Arrivals, schedules.Pickups, NewLoggedStudentPresence(db, env.Logger),
 			schedules.AutoExcusal, carePlan, caller, emitter, hub,
 			reviews, permissions, events, env.Logger.With("service", "care-requests"), services.StudentAudit,
-			WithRequestShareVisibility(shares), WithCareRequestToday(env.Today),
+			WithRequestShareVisibility(shares), WithCareRequestToday(env.Today), WithPickupPermissions(pickupPermissions),
 		),
 	}
 	if requests.OfferingChanges, err = buildOfferingChanges(db, env, carePlan, people, enrollment, timetableOwner, settings, offerings, reviews, permissions, emitter, shares); err != nil {

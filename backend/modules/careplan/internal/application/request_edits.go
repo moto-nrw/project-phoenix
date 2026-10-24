@@ -52,8 +52,15 @@ func (s *RequestEdits) EditRequest(ctx context.Context, input carerequests.EditI
 }
 
 func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request, input carerequests.EditInput) (json.RawMessage, error) {
+	if request.RequestKind == carerequests.KindPickupPermission {
+		return nil, carerequests.ErrInvalidPayload
+	}
 	if request.RequestKind != "pickup_change" {
-		return carerequests.CanonicalizeWeekly(input.Payload)
+		canonical, err := carerequests.CanonicalizeWeekly(input.Payload)
+		if err != nil {
+			return nil, err
+		}
+		return carerequests.WithSignature(canonical, input.Signature)
 	}
 	var stored map[string]any
 	if err := json.Unmarshal(request.Payload, &stored); err != nil {
@@ -66,6 +73,7 @@ func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request
 	}
 	return pickupRequestPayload(ctx, s.Pickup, s.Today(), carerequests.PickupChangeCreateInput{
 		StudentID: input.StudentID, GuardianAccountID: input.GuardianAccountID, Date: input.Date,
-		PickupTime: input.PickupTime, DepartureMode: input.DepartureMode, Reason: input.Reason, ReasonRequired: input.ReasonRequired, Cutoff: input.Cutoff,
+		PickupTime: input.PickupTime, DepartureMode: input.DepartureMode, PickupPerson: input.PickupPerson, Signature: input.Signature,
+		Reason: input.Reason, ReasonRequired: input.ReasonRequired, Cutoff: input.Cutoff,
 	})
 }

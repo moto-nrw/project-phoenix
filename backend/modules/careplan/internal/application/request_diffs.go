@@ -65,9 +65,12 @@ func requestWeeklyPlan(modes map[string][]string, arrivals []*careplan.ArrivalSc
 func (s *RequestDiffs) Snapshot(ctx context.Context, request *carerequests.Request) *carerequests.DecisionSnapshot {
 	var diff []carerequests.DiffEntry
 	var err error
-	if request.RequestKind == "pickup_change" {
+	switch request.RequestKind {
+	case "pickup_change":
 		diff, err = s.pickup(ctx, request)
-	} else {
+	case carerequests.KindPickupPermission:
+		diff, err = storedPermissionDiff(request)
+	default:
 		diff, err = s.Weekly(ctx, request.StudentID, request.Payload)
 	}
 	if err != nil {
@@ -78,6 +81,20 @@ func (s *RequestDiffs) Snapshot(ctx context.Context, request *carerequests.Reque
 		return nil
 	}
 	return carerequests.FreezeDecision(diff)
+}
+
+// storedPermissionDiff freezes a pickup permission request (#4780) with the
+// days the person held at submission.
+func storedPermissionDiff(request *carerequests.Request) ([]carerequests.DiffEntry, error) {
+	permission, err := carerequests.ParsePickupPermission(request.Payload)
+	if err != nil {
+		return nil, err
+	}
+	var payload struct {
+		Previous string `json:"previous_label"`
+	}
+	_ = json.Unmarshal(request.Payload, &payload)
+	return carerequests.PickupPermissionEntries(permission, payload.Previous), nil
 }
 
 func (s *RequestDiffs) pickup(ctx context.Context, request *carerequests.Request) ([]carerequests.DiffEntry, error) {
