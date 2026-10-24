@@ -8,6 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -76,6 +78,50 @@ func (p ParentDeclarationSignatures) DeclarationSignatures(ctx context.Context, 
 			ID: s.ID, IsDeclaration: s.Purpose == auditlog.SignaturePurposeDeclaration, StudentID: s.StudentID,
 			Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, ImageSHA256: s.ImageSHA256,
 			DocumentSHA256: s.DocumentSHA256, SignedAt: s.SignedAt, IntegrityOK: s.IntegrityOK,
+		}
+	}
+	return out, nil
+}
+
+// EnrollmentSignatures binds the ledger to the enrollment intake (#4786):
+// the request is the signature's subject, a public enrollment has no
+// account, and a refused image becomes the intake's error.
+type EnrollmentSignatures struct{ Ledger auditlog.SignatureLedger }
+
+var _ enrollmentCompose.IntakeSignatures = EnrollmentSignatures{}
+
+func (e EnrollmentSignatures) RecordEnrollmentSignature(ctx context.Context, entry enrollmentCompose.EnrollmentSignatureEntry) (int64, error) {
+	image, err := auditlog.ParseSignatureImage(entry.Signature.Method, entry.Signature.ImagePNG, entry.Signature.TypedName)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", enrollmentOwner.ErrSignatureInvalid, err)
+	}
+	requestID := entry.RequestID
+	stored, err := e.Ledger.RecordSignature(ctx, auditlog.SignatureEntry{
+		Purpose: auditlog.SignaturePurposeEnrollment, EnrollmentRequestID: &requestID, SignerAccountID: entry.SignerAccountID,
+		SignerName: entry.SignerName, DocumentSHA256: entry.DocumentSHA256, SignedAt: entry.SignedAt, Image: image,
+	})
+	if errors.Is(err, auditlog.ErrSignatureInvalid) {
+		return 0, fmt.Errorf("%w: %v", enrollmentOwner.ErrSignatureInvalid, err)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return stored.ID, nil
+}
+
+func (e EnrollmentSignatures) LatestEnrollmentSignatures(ctx context.Context, requestIDs []int64) (map[int64]*enrollmentOwner.RequestSignature, error) {
+	stored, err := e.Ledger.LatestEnrollmentSignatures(ctx, requestIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]*enrollmentOwner.RequestSignature, len(stored))
+	for requestID, s := range stored {
+		if s.EnrollmentRequestID == nil || *s.EnrollmentRequestID != requestID {
+			continue
+		}
+		out[requestID] = &enrollmentOwner.RequestSignature{
+			ID: s.ID, RequestID: requestID, SignerName: s.SignerName, Method: s.Method, TypedName: s.TypedName,
+			PNG: s.PNG, ImageSHA256: s.ImageSHA256, DocumentSHA256: s.DocumentSHA256, SignedAt: s.SignedAt, IntegrityOK: s.IntegrityOK,
 		}
 	}
 	return out, nil
