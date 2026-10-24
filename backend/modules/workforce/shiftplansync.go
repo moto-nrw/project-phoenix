@@ -23,33 +23,54 @@ type SickCascadeInput struct {
 	ActorAccountID *int64
 }
 
-// ShiftPlanSync is the port the absence lifecycle cascades a sick report
-// through (#1843): into the Dienstplan (this owner's schedule.staff_shifts)
-// and the Betreuungsplan staffing (Timetable's schedule.instance_staff) and
-// back out again. Workforce declares the port; the shift-plan-sync
-// application workflow implements it, because the two writes cross an
-// ownership line inside one tenant transaction. The contract is FAIL-CLOSED:
-// the linkage is the feature, so an error must abort the surrounding
-// absence write. Every method runs inside the caller's tenant transaction.
-type ShiftPlanSync interface {
-	// MarkSickForRange cancels the subject's own shifts (ChangeReason
-	// "Krankheit", provenance-stamped) and marks their care-block rows absent
-	// for the range. Idempotent: already-cancelled shifts and already-absent
-	// rows are left untouched.
-	MarkSickForRange(ctx context.Context, in SickCascadeInput) error
-	// ClearSickForRange reverses exactly what MarkSickForRange stamped for
-	// this absence id. Shifts that meanwhile received replacements and blocks
-	// that received substitutes are skipped (never destroy admin work); their
-	// stamps are released so the deleted report stops owning them.
-	ClearSickForRange(ctx context.Context, in SickCascadeInput) error
-	// ReconcileSickRange applies only the calendar-day difference between an
-	// existing full-day sick report and its edited range. Days that remain
-	// sick are not cleared and re-applied, so their provenance and audit
-	// history stay stable. Both inputs refer to the same absence and subject.
-	ReconcileSickRange(ctx context.Context, before, after SickCascadeInput) error
-	// ReassignSickStamps re-points every provenance stamp from one absence id
-	// to another. Needed by the overlap-merge path: merging sick reports
-	// deletes the secondary absence rows, and their stamps must transfer to
-	// the surviving primary or the eventual reversal will miss those rows.
-	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
+// SickCascadeStepKind names one plan change a sick-report write asks for.
+type SickCascadeStepKind string
+
+const (
+	// SickCascadeMark cascades Report into the plans: its shifts are
+	// cancelled and its care-block rows marked absent.
+	SickCascadeMark SickCascadeStepKind = "mark"
+	// SickCascadeClear reverses what Report stamped.
+	SickCascadeClear SickCascadeStepKind = "clear"
+	// SickCascadeReconcile applies the calendar-day difference between the
+	// stored range Before and the edited range Report of one sick report.
+	SickCascadeReconcile SickCascadeStepKind = "reconcile"
+	// SickCascadeReassign re-points the stamps of the merged report
+	// FromAbsenceID to the surviving report ToAbsenceID.
+	SickCascadeReassign SickCascadeStepKind = "reassign"
+)
+
+// SickCascadeStep is one plan change of a sick-report write.
+type SickCascadeStep struct {
+	Kind SickCascadeStepKind
+	// Report is the sick report of Mark and Clear and the edited report of
+	// Reconcile.
+	Report SickCascadeInput
+	// Before is the stored range of Reconcile.
+	Before SickCascadeInput
+	// FromAbsenceID and ToAbsenceID are the merged and the surviving report
+	// of Reassign.
+	FromAbsenceID int64
+	ToAbsenceID   int64
+}
+
+// SickCascadePlan is the ordered plan work of one absence write (#1843): the
+// changes to the Dienstplan (this owner's schedule.staff_shifts) and the
+// Betreuungsplan staffing (Timetable's schedule.instance_staff) the write
+// asks for. Workforce applies none of them. The shift-plan-sync workflow runs
+// the write and its plan in one tenant transaction, because the two writes
+// cross an ownership line, and the plan is FAIL-CLOSED: a failed step aborts
+// the absence write (#4825).
+type SickCascadePlan []SickCascadeStep
+
+// SickReportWrites are the absence writes that may cascade a sick report
+// into the plans. Each runs in the caller's tenant transaction and returns
+// the plan it asks for beside its result; only the shift-plan-sync workflow
+// calls them, and it applies the plan before the transaction commits.
+type SickReportWrites interface {
+	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, SickCascadePlan, error)
+	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, SickCascadePlan, error)
+	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request UpdateAbsenceRequest) (*StaffAbsenceResponse, SickCascadePlan, error)
+	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) (SickCascadePlan, error)
+	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) (SickCascadePlan, error)
 }

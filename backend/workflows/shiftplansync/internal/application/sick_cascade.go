@@ -4,10 +4,10 @@
 // report reverses exactly the rows it stamped, and the schedule substitution
 // moves.
 //
-// The cascade implements workforce.ShiftPlanSync, the port Workforce's absence
-// service declares. Both directions run inside the caller's tenant transaction
-// and are FAIL-CLOSED: the first error aborts the whole absence write, so a
-// half-cascaded sick report never commits.
+// The cascade applies the workforce.SickCascadePlan Workforce's absence
+// writes return; SickReports runs both in one tenant transaction (#4825). Both
+// directions are FAIL-CLOSED: the first error aborts the whole absence write,
+// so a half-cascaded sick report never commits.
 package application
 
 import (
@@ -88,8 +88,8 @@ type sickCascade struct {
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
-// binds the result into Workforce's absence lifecycle.
-func NewSickCascade(deps SickCascadeDependencies) workforce.ShiftPlanSync {
+// binds the result into the sick-report entry.
+func NewSickCascade(deps SickCascadeDependencies) SickCascade {
 	return &sickCascade{
 		shifts:        deps.Shifts,
 		deviations:    deps.Deviations,

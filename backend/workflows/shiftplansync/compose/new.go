@@ -27,6 +27,9 @@ type TimetableRows = application.TimetableRows
 // cascade lists and releases; the composition root binds them.
 type SickStamps = application.SickStamps
 
+// SickCascade is the #1843 cascade the sick-report entry applies.
+type SickCascade = application.SickCascade
+
 // ScheduleInstances and ScheduleInstanceStaff are the appointment and
 // assignment reads of a Terminvertretung, in the Timetable owner's public
 // vocabulary; the composition root binds them.
@@ -55,11 +58,11 @@ type SickCascadeDependencies struct {
 	Today func() calendar.Date
 }
 
-// NewSickCascade binds the cascade Workforce's absence lifecycle calls. Every
+// NewSickCascade binds the cascade the sick-report entry applies. Every
 // dependency but the optional ones below is required: the cascade is
 // fail-closed, so a half-wired composition must fail here instead of letting a
 // sick report commit without its plan effects.
-func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, error) {
+func NewSickCascade(deps SickCascadeDependencies) (SickCascade, error) {
 	if missing := application.MissingNames(map[string]bool{
 		"Planning":        deps.Planning != nil,
 		"Workforce":       deps.Workforce != nil,
@@ -80,6 +83,16 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		Logger:        deps.Logger,
 		Today:         deps.Today,
 	}), nil
+}
+
+// NewSickReports binds the entry of the absence writes that may cascade a
+// sick report: Workforce's sick-report writes and the cascade, run in one
+// tenant transaction (#4825).
+func NewSickReports(absences workforce.SickReportWrites, cascade SickCascade) (shiftplansync.SickReports, error) {
+	if absences == nil || cascade == nil {
+		return nil, fmt.Errorf("shift plan sync compose: sick reports need the absence writes and the cascade")
+	}
+	return application.NewSickReports(absences, cascade), nil
 }
 
 // SubstitutionDependencies are the Betreuungsplan surfaces a Terminvertretung

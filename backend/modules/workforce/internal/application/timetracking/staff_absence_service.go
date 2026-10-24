@@ -433,7 +433,7 @@ func NewStaffAbsenceService(
 		opt(service)
 	}
 	if service.shiftPlanSyncer == nil {
-		panic("staff absence service: the sick cascade is required")
+		service.shiftPlanSyncer = unplannedSickCascade{}
 	}
 	if service.runInTx != nil {
 		return &absenceCommands{service, service}

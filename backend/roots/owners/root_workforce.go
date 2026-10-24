@@ -21,6 +21,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -79,18 +80,20 @@ func absenceEmailDependencies(
 
 // WorkforcePlanning is the Dienstplan side of Workforce (#3418) with the
 // time tracking it completes: the shift planning, the staff-shift
-// capability over the printable weekly plans, the time tracking with the
-// #1843 sick cascade and the time-tracking retention sweep (Tranche 0b).
+// capability over the printable weekly plans, the time tracking, the
+// shift-plan-sync entry of its sick-report writes with the #1843 cascade
+// (#4825) and the time-tracking retention sweep (Tranche 0b).
 type WorkforcePlanning struct {
 	Shifts              *workforceCompose.ShiftPlanning
 	StaffShifts         workforceModule.StaffShiftPlanning
 	TimeTracking        *workforceCompose.TimeTracking
+	SickReports         shiftplansync.SickReports
 	TimeTrackingCleanup workforceCompose.TimeTrackingCleanupService
 }
 
-// BuildWorkforcePlanning completes the time tracking with the sick cascade,
-// which runs over the staff shifts, the deviation writes and the timetable
-// rows.
+// BuildWorkforcePlanning completes the time tracking and binds its
+// sick-report writes to the sick cascade, which runs over the staff shifts,
+// the deviation writes and the timetable rows.
 func BuildWorkforcePlanning(
 	db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, workTime workforceModule.Capability,
 	membership schoolmembership.Capability, persons peopledirectory.Capability, shifts *workforceCompose.ShiftPlanning,
@@ -108,9 +111,13 @@ func BuildWorkforcePlanning(
 	if err != nil {
 		return WorkforcePlanning{}, err
 	}
-	timeTracking, err := side.WithSickCascade(cascade)
+	timeTracking, err := side.TimeTracking()
 	if err != nil {
 		return WorkforcePlanning{}, fmt.Errorf("compose time tracking: %w", err)
+	}
+	sickReports, err := shiftplansyncCompose.NewSickReports(timeTracking.StaffAbsences, cascade)
+	if err != nil {
+		return WorkforcePlanning{}, err
 	}
 	cleanup, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
 		Workforce: workTime, Absences: NewStaffAbsenceRepository(workTime, membership, persons),
@@ -120,5 +127,5 @@ func BuildWorkforcePlanning(
 	if err != nil {
 		return WorkforcePlanning{}, fmt.Errorf("compose time tracking cleanup: %w", err)
 	}
-	return WorkforcePlanning{Shifts: shifts, StaffShifts: staffShifts, TimeTracking: timeTracking, TimeTrackingCleanup: cleanup}, nil
+	return WorkforcePlanning{Shifts: shifts, StaffShifts: staffShifts, TimeTracking: timeTracking, SickReports: sickReports, TimeTrackingCleanup: cleanup}, nil
 }

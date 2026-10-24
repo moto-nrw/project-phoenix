@@ -101,8 +101,9 @@ func WithAbsenceDeletionAudit(audit TimeTrackingDeletionAudit) StaffAbsenceOptio
 	return func(s *staffAbsenceService) { s.deletionRepo = audit }
 }
 
-// WithAbsenceShiftPlanSyncer binds the #1843 sick cascade, which
-// NewStaffAbsenceService requires.
+// WithAbsenceShiftPlanSyncer binds a fixed #1843 syncer. Production leaves it
+// unset: each planned write records its own plan, and an unplanned write
+// refuses a sick cascade.
 func WithAbsenceShiftPlanSyncer(syncer ShiftPlanSyncer) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.shiftPlanSyncer = syncer }
 }
