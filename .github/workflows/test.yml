@@ -191,6 +191,10 @@ jobs:
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
 
+      - name: Verify snapshot roles match migrations
+        if: matrix.shard == 0
+        run: node --test scripts/db-snapshot-roles.test.mjs
+
       - name: Restore migrated DB snapshot
         if: ${{ matrix.shard != 1 }}
         id: db-snapshot
