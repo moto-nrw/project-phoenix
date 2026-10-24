@@ -4192,7 +4192,7 @@ function leadSurveysTopic(): HelpTopic {
     ],
     image: "/help/screens/umfrage-auswertung.webp",
     imageAlt:
-      "Auswertung einer Umfrage mit Stärken, Verbesserungsbedarf und der Verteilung je Frage.",
+      "Auswertung einer beendeten anonymen Umfrage mit Stärken, Verbesserungsbedarf und der Verteilung je Frage.",
     related: [
       HELP_TOPICS.leadParentSurvey,
       HELP_TOPICS.staffSurveys,
