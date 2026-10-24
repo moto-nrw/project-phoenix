@@ -644,12 +644,18 @@ function useApiErrorCore(
 export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
   const toast = useToast();
   const deliver = useCallback(
-    (shown: DisplayedError) =>
-      toast.error(shown.message, {
+    (shown: DisplayedError) => {
+      const options = {
         action: shown.retry,
         requestId: shown.requestId,
         requestIdLabel: shown.requestIdLabel,
-      }),
+      };
+      if (shown.notBookedModule) {
+        toast.info(shown.message, options);
+        return;
+      }
+      toast.error(shown.message, options);
+    },
     [toast],
   );
   const core = useApiErrorCore(formRef, deliver, "toast");

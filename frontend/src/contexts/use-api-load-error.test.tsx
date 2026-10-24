@@ -12,6 +12,10 @@ import { Input } from "~/components/ui/input";
 import { ToastProvider, useApiLoadError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 const presenterImportGate = vi.hoisted(() => {
   let releaseImport: (() => void) | undefined;
   let importStarted = Promise.resolve();
@@ -177,7 +181,7 @@ describe("useApiLoadError mit module.not_booked", () => {
       fireEvent.click(screen.getByRole("button", { name: "Laden" }));
 
       const message = await screen.findByText(
-        "Ihre Schule hat das Modul Zeiterfassung nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
+        "Diese Seite gehört zum Modul Zeiterfassung. Ihre Schule nutzt es nicht. Wenn Sie es brauchen, sprechen Sie mit Ihrer Leitung.",
       );
       // Ein Hinweis (role=status), keine Fehlermeldung, kein Wiederholen.
       expect(message.closest('[role="status"]')).not.toBeNull();

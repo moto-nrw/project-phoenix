@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 
 import { ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { Alert } from "~/components/ui/alert";
 import { seesLockedModules } from "~/lib/module-register";
 import { MODULE_LABELS, type ModuleKey } from "~/lib/modules";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -23,6 +24,22 @@ function moduleNotBookedText(
       ? `Diese Seite gehört zum Modul ${label}. Ihre Schule hat es nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.`
       : `Diese Seite gehört zum Modul ${label}. Ihre Schule nutzt es nicht. Wenn Sie es brauchen, sprechen Sie mit Ihrer Leitung.`,
   };
+}
+
+/** Derselbe Hinweis für einen Fehlerkasten innerhalb einer bestehenden Seite. */
+export function ModuleNotBookedAlert({
+  module,
+  className,
+}: {
+  readonly module: ModuleKey;
+  readonly className?: string;
+}) {
+  const { data: session } = useSession();
+  const { description } = moduleNotBookedText(
+    module,
+    seesLockedModules(session),
+  );
+  return <Alert type="info" message={description} className={className} />;
 }
 
 /**
