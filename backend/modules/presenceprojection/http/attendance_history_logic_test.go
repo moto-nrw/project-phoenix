@@ -74,6 +74,28 @@ func TestClampAttendanceHistoryRange_ClampsFutureEndAndVisibilityCap(t *testing.
 	assert.Equal(t, endOfToday.Add(-30*24*time.Hour).Add(time.Second), gotStart)
 }
 
+// The cap counts calendar days: the default window across the end of summer
+// time (25 October 2026, a 25-hour day) is not clamped, and a longer one is
+// cut at the Berlin midnight of the first allowed day.
+func TestClampAttendanceHistoryRange_CountsCalendarDaysAcrossClockChange(t *testing.T) {
+	t.Parallel()
+
+	endOfToday := calendar.NewDate(2026, time.October, 25).EndOfDay()
+	defaultStart := calendar.NewDate(2026, time.September, 26).BerlinMidnight()
+
+	gotStart, gotEnd, clamped, err := clampAttendanceHistoryRange(defaultStart, endOfToday, endOfToday, 30)
+	require.NoError(t, err)
+	assert.False(t, clamped, "the default 30-day window is not clamped")
+	assert.Equal(t, defaultStart, gotStart)
+	assert.Equal(t, endOfToday, gotEnd)
+
+	tooEarly := calendar.NewDate(2026, time.September, 20).BerlinMidnight()
+	gotStart, _, clamped, err = clampAttendanceHistoryRange(tooEarly, endOfToday, endOfToday, 30)
+	require.NoError(t, err)
+	assert.True(t, clamped)
+	assert.Equal(t, defaultStart, gotStart)
+}
+
 func TestClampAttendanceHistoryRange_RejectsFullyFutureRange(t *testing.T) {
 	t.Parallel()
 
