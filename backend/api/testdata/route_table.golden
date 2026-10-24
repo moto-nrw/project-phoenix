@@ -111,6 +111,7 @@ DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
@@ -1114,6 +1115,7 @@ PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+PUT /school/class-day/handover/{schoolClass}/{date}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 QUERY /.well-known/caldav

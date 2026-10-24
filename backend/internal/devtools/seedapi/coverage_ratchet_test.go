@@ -50,7 +50,11 @@ var seedCoverageExemptions = map[string]string{
 	// Morning attendance (#4790) is written only by a Lehrkraft through moto
 	// schule for today; the seeder signs in no Lehrkraft and assigns no class
 	// (education.class_teachers below), so nothing it does can write a mark.
-	"active.morning_attendance":            "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	"active.morning_attendance": "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	// The class handover (#4794) is written the same way: only a Lehrkraft
+	// through moto schule, for today and an assigned class.
+	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	"active.class_handover_children":       "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",

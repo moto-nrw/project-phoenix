@@ -92,6 +92,33 @@ describe("SearchStudentCard", () => {
     expect(screen.getByText("Notiz: Heute beim Arzt")).toBeInTheDocument();
   });
 
+  it("says whether the Lehrkraft handed the child over da or nicht da (#4794)", () => {
+    const handover = {
+      school_class: "1a",
+      handed_over_at: "2026-09-09T09:45:00Z",
+      handed_over_by: "Petra Lehrkraft",
+    };
+    const { rerender } = render(
+      renderCard({
+        student: { ...student, class_handover: { ...handover, absent: false } },
+      }),
+    );
+    expect(
+      screen.getByText("Nach dem Unterricht da (11:45 Uhr, Petra Lehrkraft)"),
+    ).toBeInTheDocument();
+
+    rerender(
+      renderCard({
+        student: { ...student, class_handover: { ...handover, absent: true } },
+      }),
+    );
+    expect(
+      screen.getByText(
+        "Nach dem Unterricht nicht da (11:45 Uhr, Petra Lehrkraft)",
+      ),
+    ).toBeInTheDocument();
+  });
+
   // #2975: the card is memoised so that a page render — a filter toggle, a
   // check-in tap on ANOTHER child, a minute tick — stops at the card boundary
   // instead of rebuilding all 100 Kinderkarten.

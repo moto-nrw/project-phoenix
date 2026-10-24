@@ -17,7 +17,7 @@ export const categoryLabels: Record<string, string> = {
   "anmeldung-essen": "Anmeldung der Eltern",
   anwesenheit: "Aktivitäten am Computer und Handy",
   "anwesenheit-erfassen": "Anwesenheit erfassen",
-  aufsicht: "Ankunftszeit für ganze Klassen",
+  aufsicht: "Klassen und moto schule",
   benachrichtigung: "E-Mails zur Anmeldung",
   benachrichtigungen: "Benachrichtigungen",
   betreuungsangebote: "Betreuungsangebote",

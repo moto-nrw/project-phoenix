@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealAbsenceHistoryVersion     = "1.15.507"
+	mealAbsenceHistoryVersion     = "1.15.514"
 	mealAbsenceHistoryDescription = "Mittagessen: entschuldigt und Ausflug melden das Essen ab wie eine Krankmeldung (#3873)"
 )
 

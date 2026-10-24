@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeImportModeForbidden                           = "import.mode_forbidden"
+	CodeIotActivityCapacityExceeded                   = "iot.activity_capacity_exceeded"
+	CodeIotDeviationReasonRequired                    = "iot.deviation_reason_required"
+	CodeIotDeviceApiKeyFormatInvalid                  = "iot.device_api_key_format_invalid"
 	CodeIotDeviceApiKeyInvalid                        = "iot.device_api_key_invalid"
 	CodeIotDeviceApiKeyRequired                       = "iot.device_api_key_required"
 	CodeIotDeviceIdTaken                              = "iot.device_id_taken"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableStaffAbsentOnTarget                  = "timetable.staff_absent_on_target"
 	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
 	CodeTimetableStaffNotFound                        = "timetable.staff_not_found"
-	CodeTimetableStaffNotOnSource                     = "timetable.staff_not_on_source"
-	CodeTimetableStaffPresentAndAbsent                = "timetable.staff_present_and_absent"
-	CodeTimetableStartTooEarly                        = "timetable.start_too_early"
-	CodeTimetableStartWindowExpired                   = "timetable.start_window_expired"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"import.mode_forbidden":                               "permission",
+	"iot.activity_capacity_exceeded":                      "business_rejection",
+	"iot.deviation_reason_required":                       "input",
+	"iot.device_api_key_format_invalid":                   "permission",
 	"iot.device_api_key_invalid":                          "permission",
 	"iot.device_api_key_required":                         "permission",
 	"iot.device_id_taken":                                 "business_rejection",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.staff_absent_on_target":                    "business_rejection",
 	"timetable.staff_already_on_target":                   "business_rejection",
 	"timetable.staff_not_found":                           "business_rejection",
-	"timetable.staff_not_on_source":                       "input",
-	"timetable.staff_present_and_absent":                  "input",
-	"timetable.start_too_early":                           "business_rejection",
-	"timetable.start_window_expired":                      "business_rejection",
 }
 
 func init() {
