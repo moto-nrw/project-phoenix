@@ -292,6 +292,9 @@ func classHomeworkDown(ctx context.Context, db *bun.DB) error {
 	if _, err := tx.ExecContext(ctx, classHomeworkDownSQL); err != nil {
 		return fmt.Errorf("drop homework tables: %w", err)
 	}
+	if err := restoreSchoolErasureBeforeHomework(ctx, tx); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}

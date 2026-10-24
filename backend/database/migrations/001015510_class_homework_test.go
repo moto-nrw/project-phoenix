@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -144,5 +145,34 @@ func TestSchoolErasureDeletesHomework(t *testing.T) {
 	var left int
 	require.NoError(t, db.NewRaw(`SELECT (SELECT count(*) FROM education.class_homework WHERE tenant_id = ?)
 		+ (SELECT count(*) FROM education.homework_feedback WHERE tenant_id = ?)`, school, school).Scan(t.Context(), &left))
+	assert.Zero(t, left)
+}
+
+// TestClassHomeworkRollbackPreservesSchoolErasure exercises the installed
+// functions after both homework tables have been removed.
+func TestClassHomeworkRollbackPreservesSchoolErasure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	school := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, school)
+	student := testpkg.CreateTestStudentForTenant(t, db, school, "Haus", "Aufgabe", "3a")
+	operator := testpkg.CreateTestOperator(t, db)
+
+	require.NoError(t, classHomeworkDown(t.Context(), db))
+	var data string
+	require.NoError(t, db.NewRaw(`SELECT platform.school_erasure_preview(?, ?)::text`, school, operator.ID).Scan(t.Context(), &data))
+	var counts map[string]int64
+	require.NoError(t, json.Unmarshal([]byte(data), &counts))
+	assert.NotContains(t, counts, "education.class_homework")
+	assert.NotContains(t, counts, "education.homework_feedback")
+	assert.EqualValues(t, 1, counts["users.student_profiles"])
+	for _, entry := range readErasurePlan(t, db) {
+		assert.NotEqual(t, "education.class_homework", entry.Name)
+		assert.NotEqual(t, "education.homework_feedback", entry.Name)
+	}
+	result := eraseSchoolAsCLI(t, db, school, beginErasure(t, db, school))
+	require.Equal(t, "db_done", result.Status, "preflight, deletion and residual checks must work after rollback: %v", result.ErrorCode)
+	var left int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_profiles WHERE id = ?`, student.ID).Scan(t.Context(), &left))
 	assert.Zero(t, left)
 }

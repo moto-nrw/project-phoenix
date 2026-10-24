@@ -13,7 +13,18 @@ func installSchoolErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)
+const schoolErasurePreflightSQL = schoolErasurePreflightPart1SQL + `    education.class_homework,
+` + schoolErasurePreflightPart2SQL + `    education.homework_feedback,
+` + schoolErasurePreflightPart3SQL + `    ) AS edge) <> 'b2a18de2ab9512b12cb9bc6c57996fe3249aa92a8ad4d5c6df08ecfe04fd5aed' THEN
+` + schoolErasurePreflightPart4SQL + `    UNION ALL
+    SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+` + schoolErasurePreflightPart5SQL
+
+// The pre-1.15.510 definition shares the unchanged SQL sections.
+const schoolErasurePreflightWithoutHomeworkSQL = schoolErasurePreflightPart1SQL + schoolErasurePreflightPart2SQL + schoolErasurePreflightPart3SQL + `    ) AS edge) <> 'cc93958213bac77bfbb56a1a42ffb350e5c305fd1c6738c8f466a92bbfd4147c' THEN
+` + schoolErasurePreflightPart4SQL + schoolErasurePreflightPart5SQL
+
+const schoolErasurePreflightPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
  DECLARE v_plan JSONB := platform.school_erasure_plan();
@@ -120,8 +131,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     documents.folders,
     education.class_arrival_exceptions,
     education.class_arrival_times,
-    education.class_homework,
-    education.class_teachers,
+`
+
+const schoolErasurePreflightPart2SQL = `    education.class_teachers,
     education.grade_transition_class_list_entries,
     education.grade_transition_class_teachers,
     education.grade_transition_history,
@@ -130,8 +142,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     education.group_substitution,
     education.group_teacher,
     education.groups,
-    education.homework_feedback,
-    enrollment.care_offering_auto_triggers,
+`
+
+const schoolErasurePreflightPart3SQL = `    enrollment.care_offering_auto_triggers,
     enrollment.care_offering_bookings,
     enrollment.care_offerings,
     enrollment.change_request_messages,
@@ -282,8 +295,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'b2a18de2ab9512b12cb9bc6c57996fe3249aa92a8ad4d5c6df08ecfe04fd5aed' THEN
-    RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
+`
+
+const schoolErasurePreflightPart4SQL = `    RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
    IF EXISTS (
@@ -370,9 +384,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     SELECT 1 FROM config.work_time_model_entries AS c JOIN config.work_time_models AS p ON c."model_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.model_id IN (SELECT p0.id FROM config.work_time_models AS p0 WHERE p0.tenant_id = p_school_id)), FALSE)
     UNION ALL
     SELECT 1 FROM documents.folder_roles AS c JOIN auth.roles AS p ON c."role_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
+`
+
+const schoolErasurePreflightPart5SQL = `    UNION ALL
     SELECT 1 FROM education.grade_transition_class_list_entries AS c JOIN education.grade_transitions AS p ON c."transition_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM education.grade_transition_class_teachers AS c JOIN education.grade_transitions AS p ON c."transition_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
@@ -518,3 +532,8 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
  END $body$;
  REVOKE ALL ON FUNCTION platform.school_erasure_preflight(BIGINT,BIGINT) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;
 `
+
+func restoreSchoolErasurePreflightBeforeHomework(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePreflightWithoutHomeworkSQL)
+	return err
+}
