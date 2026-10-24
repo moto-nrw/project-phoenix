@@ -46,20 +46,11 @@ func parentGroupThreadsUp(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, parentGroupThreadSequencesSQL); err != nil {
 			return fmt.Errorf("grant parent group thread sequences: %w", err)
 		}
-		if err := installSchoolErasurePlan(ctx, tx); err != nil {
-			return fmt.Errorf("update school erasure plan for parent group threads: %w", err)
+		if err := installSchoolErasureFunctions(ctx, tx); err != nil {
+			return fmt.Errorf("refresh school erasure functions for parent group threads: %w", err)
 		}
-		if err := installSchoolErasurePreflight(ctx, tx); err != nil {
-			return fmt.Errorf("update school erasure preflight for parent group threads: %w", err)
-		}
-		if err := installSchoolErasureResidual(ctx, tx); err != nil {
-			return fmt.Errorf("update school erasure residual check for parent group threads: %w", err)
-		}
-		if err := installSchoolErasureDelete(ctx, tx); err != nil {
-			return fmt.Errorf("update school erasure deletion for parent group threads: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, schoolErasureFunctionsSQL); err != nil {
-			return fmt.Errorf("update school erasure functions for parent group threads: %w", err)
+		if err := installSchoolErasurePreview(ctx, tx); err != nil {
+			return fmt.Errorf("refresh school erasure preview for parent group threads: %w", err)
 		}
 		return nil
 	})

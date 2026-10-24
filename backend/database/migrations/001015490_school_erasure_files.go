@@ -16,6 +16,11 @@ func schoolErasureFilesUp(ctx context.Context, db *bun.DB) error {
 	return err
 }
 
+func installSchoolErasurePreview(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePreviewSQL)
+	return err
+}
+
 func schoolErasureFilesDown(ctx context.Context, db *bun.DB) error {
 	_, err := db.ExecContext(ctx, `
  DO $guard$ BEGIN
@@ -29,11 +34,15 @@ func schoolErasureFilesDown(ctx context.Context, db *bun.DB) error {
 	return err
 }
 
-const schoolErasureFilesSQL = `
+const schoolErasureFilesSQL = schoolErasureFilesSchemaSQL + schoolErasurePreviewSQL + schoolErasureFilesTailSQL
+
+const schoolErasureFilesSchemaSQL = `
  ALTER TABLE platform.school_erasures ADD COLUMN files_inventory_at TIMESTAMPTZ,
  ADD COLUMN file_counts JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(file_counts)='object');
+`
 
- CREATE FUNCTION platform.school_erasure_preview(p_school BIGINT,p_operator BIGINT)
+const schoolErasurePreviewSQL = `
+ CREATE OR REPLACE FUNCTION platform.school_erasure_preview(p_school BIGINT,p_operator BIGINT)
  RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $body$
  DECLARE v_counts JSONB := '{}';
  BEGIN
@@ -223,10 +232,14 @@ const schoolErasureFilesSQL = `
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_responses',(SELECT count(*) FROM users.parent_announcement_responses AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_targets',(SELECT count(*) FROM users.parent_announcement_targets AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcements',(SELECT count(*) FROM users.parent_announcements AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_message_recipients',(SELECT count(*) FROM users.parent_group_message_recipients AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_messages',(SELECT count(*) FROM users.parent_group_messages AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_thread_reads',(SELECT count(*) FROM users.parent_group_thread_reads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_message_count_preferences',(SELECT count(*) FROM users.parent_message_count_preferences AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_message_reads',(SELECT count(*) FROM users.parent_message_reads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_message_threads',(SELECT count(*) FROM users.parent_message_threads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_messages',(SELECT count(*) FROM users.parent_messages AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_threads',(SELECT count(*) FROM users.parent_group_threads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_request_events',(SELECT count(*) FROM users.parent_request_events AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_request_rss_feeds',(SELECT count(*) FROM users.parent_request_rss_feeds AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_request_share_events',(SELECT count(*) FROM users.parent_request_share_events AS r WHERE r.tenant_id = p_school));
@@ -265,7 +278,9 @@ const schoolErasureFilesSQL = `
  v_counts := v_counts || jsonb_build_object('users.teachers',(SELECT count(*) FROM users.teachers AS r WHERE r.tenant_id = p_school));
  RETURN v_counts;
  END $body$;
+`
 
+const schoolErasureFilesTailSQL = `
  CREATE FUNCTION platform.school_erasure_schools(p_org BIGINT,p_operator BIGINT,p_reference TEXT)
  RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $body$
  BEGIN
