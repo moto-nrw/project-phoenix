@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -49,9 +50,9 @@ var moduleRoutesLockedElsewhere = map[string]string{
 	"/api/enrollment/care-offerings/public": "öffentliche Anmeldung: Angebotsliste einer Phase ohne Personendaten",
 	"/api/enrollment/legal":                 "öffentliche Anmeldung: Rechtstexte der Schule",
 	"/api/enrollment/captcha-config":        "öffentliche Anmeldung: Captcha-Schlüssel",
-	// Status links of submitted applications stay usable: the family keeps
-	// access to its own data and can withdraw (decision in #4893).
-	"/api/enrollment/requests": "Statuslink einer abgeschickten Anmeldung, bleibt bewusst erreichbar",
+	// Status links resolve their school from the token; they answer like an
+	// expired link while Online-Anmeldung is cancelled (Intake.requestByStatusToken).
+	"/api/enrollment/requests": "Statuslink einer Anmeldung, Modul über den Token",
 }
 
 // checkModuleRouteMap pins the module of every production route (#4893):
@@ -189,11 +190,12 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 		method string
 		path   string
 	}{
-		{settings.ModuleMittagessen, http.MethodGet, "/api/meal-plan/"},
+		{settings.ModuleMittagessen, http.MethodGet, "/api/meal-plan/?week_start=2026-10-19"},
 		{settings.ModuleElternApp, http.MethodGet, "/api/messages/unread-count"},
 		{settings.ModuleElternApp, http.MethodGet, "/api/guardians/invitations/pending"},
 		{settings.ModuleOnlineAnmeldung, http.MethodGet, "/api/enrollment/phases/"},
 		{settings.ModuleDienstplan, http.MethodGet, "/api/shift-types/"},
+		{settings.ModuleDienstplan, http.MethodGet, "/api/time-tracking/shifts?from=2026-10-19&to=2026-10-25"},
 		{settings.ModuleZeiterfassung, http.MethodGet, "/api/work-time-models/"},
 		{settings.ModuleZeiterfassung, http.MethodGet, "/api/time-tracking/current"},
 		{settings.ModulePersonalakte, http.MethodGet, "/api/staff/documents-directory"},
@@ -216,14 +218,53 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 		require.NotEmptyf(t, details["module_label"], "%s %s names the module for people: %v", tc.method, tc.path, body)
 
 		status, body = request(bookedToken, tc.method, tc.path, "{}")
-		require.NotEqualf(t, common.CodeModuleNotBooked, body["code"], "%s %s for the school that booked %s: %d %v", tc.method, tc.path, tc.module, status, body)
+		require.Equalf(t, http.StatusOK, status, "%s %s for the school that booked %s: %v", tc.method, tc.path, tc.module, body)
 	}
 
+	t.Run("the other school cancels independently", func(t *testing.T) {
+		setBooked(booked, settings.ModuleMittagessen, false)
+		t.Cleanup(func() { setBooked(booked, settings.ModuleMittagessen, true) })
+		setBooked(cancelled, settings.ModuleMittagessen, true)
+		t.Cleanup(func() { setBooked(cancelled, settings.ModuleMittagessen, false) })
+
+		status, body := request(bookedToken, http.MethodGet, "/api/meal-plan/?week_start=2026-10-19", "")
+		require.Equalf(t, http.StatusForbidden, status, "school B cancelled: %v", body)
+		require.Equal(t, common.CodeModuleNotBooked, body["code"])
+		status, body = request(cancelledToken, http.MethodGet, "/api/meal-plan/?week_start=2026-10-19", "")
+		require.Equalf(t, http.StatusOK, status, "school A booked again: %v", body)
+	})
+
 	t.Run("Basis stays reachable", func(t *testing.T) {
-		for _, path := range []string{"/api/students/", fmt.Sprintf("/api/students/%d", child.ID), "/api/staff/", "/api/settings/schema"} {
+		for _, path := range []string{
+			"/api/students/", fmt.Sprintf("/api/students/%d", child.ID), "/api/staff/", "/api/settings/schema",
+			// Basis inside /api/time-tracking while Zeiterfassung is cancelled.
+			"/api/time-tracking/assignments?from=2026-10-19&to=2026-10-25",
+			"/api/time-tracking/closing-days?from=2026-10-01&to=2026-10-31",
+		} {
 			status, body := request(cancelledToken, http.MethodGet, path, "")
 			require.Equalf(t, http.StatusOK, status, "GET %s: %v", path, body)
 		}
+	})
+
+	t.Run("status links close with Online-Anmeldung", func(t *testing.T) {
+		phase := testpkg.CreateTestEnrollmentPhase(t, db)
+		token := fmt.Sprintf("status-4893-%d", phase.ID)
+		_, err := db.NewRaw(`INSERT INTO enrollment.requests (
+			tenant_id, phase_id, guardian_first_name, guardian_last_name,
+			guardian_email, consent_flags, legal_blocks_snapshot, custom_data,
+			source_metadata, status_token, submitted_at
+		) VALUES (?, ?, 'Status', 'Link', 'status-4893@example.test', '{}'::jsonb, '[]'::jsonb,
+			'{}'::jsonb, '{}'::jsonb, ?, NOW())`, cancelled, phase.ID, token).Exec(context.Background())
+		require.NoError(t, err)
+		path := "/api/enrollment/requests/" + token
+		public := func() int {
+			return checkpointRequest(api, checkpointScenario{Method: http.MethodGet, Path: path}, "").Code
+		}
+
+		setBooked(cancelled, settings.ModuleOnlineAnmeldung, true)
+		require.Equal(t, http.StatusOK, public(), "booked: the family reads its application")
+		setBooked(cancelled, settings.ModuleOnlineAnmeldung, false)
+		require.Equal(t, http.StatusNotFound, public(), "cancelled: the link answers like an expired one")
 	})
 
 	t.Run("cancelling keeps the data", func(t *testing.T) {

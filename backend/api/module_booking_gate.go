@@ -28,7 +28,13 @@ type moduleRequirement struct {
 func moduleRoutesMiddleware(booking *settings.ModuleBooking) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			module, ok := moduleForRoute(r.URL.Path)
+			// The same path chi routes on: the escaped form when the request
+			// carries one, so an encoded slash cannot shift the segments.
+			path := r.URL.Path
+			if r.URL.RawPath != "" {
+				path = r.URL.RawPath
+			}
+			module, ok := moduleForRoute(path)
 			if !ok || module == moduleRouteBasis {
 				next.ServeHTTP(w, r)
 				return

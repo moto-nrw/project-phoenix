@@ -2939,7 +2939,7 @@
         "module_required_by": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "module": {
-        "not_booked": "Okulunuz {module_label} modülünü almamış. Bu nedenle bu işlev kullanılamıyor."
+        "not_booked": "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin."
       },
       "devices": {
         "tag_scan_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

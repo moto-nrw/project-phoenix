@@ -2939,7 +2939,7 @@
         "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "module": {
-        "not_booked": "Twoja szkoła nie zamówiła modułu {module_label}. Dlatego ta funkcja jest niedostępna."
+        "not_booked": "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto."
       },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

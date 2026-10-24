@@ -120,6 +120,13 @@ var moduleRouteRules = []moduleRouteRule{
 	// Zeiterfassung: clock, work-time models, staff absences and vacation,
 	// balances and the payroll export.
 	{"/api/time-tracking", settings.ModuleZeiterfassung},
+	// Basis inside /api/time-tracking: the own care-plan blocks on the home
+	// page, and the school's holidays and closing days the planning shows.
+	{"/api/time-tracking/assignments", moduleRouteBasis},
+	{"/api/time-tracking/holidays", moduleRouteBasis},
+	{"/api/time-tracking/closing-days", moduleRouteBasis},
+	// The own shifts behind "Mein Dienstplan".
+	{"/api/time-tracking/shifts", settings.ModuleDienstplan},
 	{"/api/work-time-models", settings.ModuleZeiterfassung},
 	{"/api/absence-types", settings.ModuleZeiterfassung},
 	{"/api/import/opening-balances", settings.ModuleZeiterfassung},

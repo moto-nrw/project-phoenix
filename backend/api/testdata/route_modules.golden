@@ -262,6 +262,9 @@ basis
 	GET /api/students/{id}/status-days
 	GET /api/students/{id}/visit-history
 	GET /api/substitutions/
+	GET /api/time-tracking/assignments
+	GET /api/time-tracking/closing-days
+	GET /api/time-tracking/holidays
 	GET /api/timetable/closing-days/
 	GET /api/timetable/conflict-acks/
 	GET /api/timetable/conflicts
@@ -1009,6 +1012,7 @@ dienstplan
 	GET /api/staff-shifts/
 	GET /api/staff-shifts/overview
 	GET /api/staff-shifts/series/{id}
+	GET /api/time-tracking/shifts
 	POST /api/shift-types/
 	POST /api/shift-types/defaults
 	POST /api/staff-shifts/
@@ -1054,18 +1058,14 @@ zeiterfassung
 	GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 	GET /api/staff/{id}/vacation/quota
 	GET /api/time-tracking/absences
-	GET /api/time-tracking/assignments
 	GET /api/time-tracking/breaks/{sessionId}
-	GET /api/time-tracking/closing-days
 	GET /api/time-tracking/config
 	GET /api/time-tracking/current
 	GET /api/time-tracking/export
 	GET /api/time-tracking/history
-	GET /api/time-tracking/holidays
 	GET /api/time-tracking/month-summary
 	GET /api/time-tracking/presence-map
 	GET /api/time-tracking/schedule-targets
-	GET /api/time-tracking/shifts
 	GET /api/time-tracking/vacation/quota
 	GET /api/time-tracking/{id}/edits
 	GET /api/work-time-models/
