@@ -28,6 +28,7 @@ type appointmentRow struct {
 	CancelledAt        *time.Time  `bun:"cancelled_at"`
 	DeletedAt          *time.Time  `bun:"deleted_at"`
 	NotifyGuardians    bool        `bun:"notify_guardians,notnull"`
+	SchoolEventType    *string     `bun:"school_event_type"`
 	Revision           int         `bun:"revision,notnull"`
 }
 
@@ -114,6 +115,7 @@ func applyAppointmentFields(row *appointmentRow, fields appointments.Appointment
 	row.DeliveryMode = fields.DeliveryMode
 	row.OverviewVisibility = fields.OverviewVisibility
 	row.NotifyGuardians = fields.NotifyGuardians
+	row.SchoolEventType = fields.SchoolEventType
 }
 
 func appointmentToPublic(row appointmentRow) *appointments.Appointment {
@@ -121,7 +123,8 @@ func appointmentToPublic(row appointmentRow) *appointments.Appointment {
 		OrganizerStaffID: row.OrganizerStaffID, Title: row.Title, Description: row.Description, Location: row.Location,
 		StartDate: appointments.Date(row.StartDate), EndDate: appointments.Date(row.EndDate), StartTime: row.StartTime, EndTime: row.EndTime,
 		AllDay: row.AllDay, DeliveryMode: row.DeliveryMode, OverviewVisibility: row.OverviewVisibility,
-		CancelledAt: row.CancelledAt, DeletedAt: row.DeletedAt, NotifyGuardians: row.NotifyGuardians, Revision: row.Revision}
+		CancelledAt: row.CancelledAt, DeletedAt: row.DeletedAt, NotifyGuardians: row.NotifyGuardians,
+		SchoolEventType: row.SchoolEventType, Revision: row.Revision}
 }
 
 func appointmentsToPublic(rows []appointmentRow) []*appointments.Appointment {

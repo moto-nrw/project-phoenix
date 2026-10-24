@@ -60,11 +60,11 @@ describe("SchoolBottomNav", () => {
     );
   });
 
-  it("blendet die Beschriftung auch bei fuenf Zielen mit Team-Chat aus", () => {
+  it("blendet die Beschriftung auch bei sechs Zielen mit Team-Chat aus", () => {
     mockPathname.value = "/aufsichten";
     render(<SchoolBottomNav teamChat={{ unreadCount: 0, available: true }} />);
 
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(5);
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(6);
     expect(screen.getByText("Meine Aufsichten")).toHaveClass(
       "hidden",
       "min-[420px]:inline",

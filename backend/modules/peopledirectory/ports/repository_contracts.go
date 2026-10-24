@@ -247,6 +247,11 @@ type StaffRepository interface {
 	// staff aren't invited as recipients.
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 
+	// FindSchoolPortalStaffIDs returns the staff of the current tenant whose
+	// active account holds a school-portal role there: the Lehrkräfte of
+	// moto schule (#4798).
+	FindSchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error)
+
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*peopledirectory.Staff, error)
 

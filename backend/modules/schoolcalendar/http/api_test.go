@@ -18,6 +18,8 @@ import (
 )
 
 type fakeCalendarService struct {
+	school schoolCalls
+
 	listStaffEvents []calendarSvc.Event
 	listStaffErr    error
 	gotListFrom     calendarSvc.Date
