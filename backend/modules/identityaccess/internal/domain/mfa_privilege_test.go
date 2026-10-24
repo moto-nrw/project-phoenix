@@ -53,6 +53,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"auth:manage":                        true,
 		"calendar:manage":                    false,
 		"calendar:own":                       false,
+		"class_day:all_classes":              false,
 		"class_day:arrival_exception_write":  false,
 		"class_day:morning_attendance_write": false,
 		"class_day:read":                     false,

@@ -22,6 +22,8 @@ var (
 // Caller is the authenticated principal of a request, resolved at the
 // inbound boundary. Authenticated reports that the request carries verified
 // claims at all; AccountID is zero for claims without an account.
+// AllSchoolClasses reports class_day:all_classes (#4789): the caller reaches
+// every class of the school, not only the assigned ones.
 type Caller struct {
 	Authenticated  bool
 	AccountID      int64
@@ -31,6 +33,8 @@ type Caller struct {
 	SchoolScope    bool
 	AdminRole      bool
 	AdminWildcard  bool
+
+	AllSchoolClasses bool
 }
 
 // EffectiveAdmin reports the admin role or a system-wide admin permission.

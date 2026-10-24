@@ -197,3 +197,47 @@ func TestLehrkraftCopy_UsesSchoolPortal(t *testing.T) {
 	assert.Equal(t, schoolScope, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 }
+
+// The system role Schulverwaltung (Sekretariat and Schulleitung, #4789)
+// opens moto schule and keeps its holder out of the OGS portal, exactly like
+// the Lehrkraft role; a refresh after the caregiver role is gone is refused
+// too.
+func TestSchulverwaltung_UsesSchoolPortal(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+
+	email, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "schulverwaltung")
+	assignSchoolSystemRole(t, db, accountID, tenantID, "schulverwaltung")
+
+	_, err := service.LoginWithMFAGate(context.Background(), email, testPassword, "", "", slug, "")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, identityaccess.ErrMustUseSchoolPortal)
+
+	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+	require.NoError(t, err)
+	require.Equal(t, identityaccess.LoginStatusAuthenticated, result.Status)
+	scope, tokenTenantID := decodeTokenClaims(t, result.AccessToken)
+	assert.Equal(t, schoolScope, scope)
+	assert.Equal(t, tenantID, tokenTenantID)
+}
+
+func TestRefreshToken_SchulverwaltungOnlyAccountIsRefused(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+
+	email, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "refresh-schulverwaltung")
+	assignSchoolSystemRole(t, db, accountID, tenantID, "schulverwaltung")
+	assignSchoolSystemRole(t, db, accountID, tenantID, "user")
+
+	_, refreshToken, err := service.LoginWithAudit(context.Background(), email, testPassword, "", "", slug)
+	require.NoError(t, err)
+
+	removeSchoolSystemRole(t, db, accountID, tenantID, "user")
+
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), refreshToken, "", "", "")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, identityaccess.ErrMustUseSchoolPortal)
+}

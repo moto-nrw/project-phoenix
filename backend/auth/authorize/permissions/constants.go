@@ -337,6 +337,11 @@ const (
 	// operations.school_portal_write_scope decides whether it is unlocked,
 	// and the education.class_teachers assignment decides for which class.
 	ClassDayArrivalExceptionWrite = ResourceClassDay + ":arrival_exception_write"
+	// ClassDayAllClasses widens the class reach of moto schule from the
+	// classes assigned through education.class_teachers to every class of
+	// the school, classes created later included. The system role
+	// schulverwaltung (Sekretariat and Schulleitung, #4789) holds it.
+	ClassDayAllClasses = ResourceClassDay + ":all_classes"
 	// ClassDayMorningAttendanceWrite lets a Lehrkraft mark each child of her
 	// assigned classes present or absent for today's school morning (#4790).
 	// The school's setting operations.school_portal_morning_attendance

@@ -96,6 +96,7 @@ type callerTestStructure struct {
 	subs          map[int64]bool
 	subsErr       error
 	classes       []string
+	allClasses    []string
 	teacherCalls  int
 	subsCalls     int
 }
@@ -116,6 +117,10 @@ func (s *callerTestStructure) SubstitutedGroups(context.Context, int64) (map[int
 
 func (s *callerTestStructure) SchoolClasses(context.Context, int64) ([]string, error) {
 	return s.classes, nil
+}
+
+func (s *callerTestStructure) ListSchoolClasses(context.Context) ([]string, error) {
+	return s.allClasses, nil
 }
 
 // groupCalls counts the group reads the old policy stub counted as
