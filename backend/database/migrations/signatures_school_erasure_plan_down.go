@@ -18,6 +18,8 @@ CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
   {"name": "active.activity_session_attendance","predicate": "r.tenant_id = $1"},
   {"name": "active.activity_sessions","predicate": "r.tenant_id = $1"},
   {"name": "active.attendance","predicate": "r.tenant_id = $1"},
+  {"name": "active.class_handover_children","predicate": "r.tenant_id = $1"},
+  {"name": "active.class_handovers","predicate": "r.tenant_id = $1"},
   {"name": "active.combined_groups","predicate": "r.tenant_id = $1"},
   {"name": "active.excused_absence_requests","predicate": "r.tenant_id = $1"},
   {"name": "active.group_mappings","predicate": "r.tenant_id = $1"},

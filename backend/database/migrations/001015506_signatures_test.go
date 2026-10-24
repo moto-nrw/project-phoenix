@@ -64,5 +64,5 @@ func TestSignaturesRollbackRestoresSchoolErasureWithoutSignatures(t *testing.T) 
 	} {
 		assert.NotContains(t, statement, "audit.signatures")
 	}
-	assert.Contains(t, signaturesSchoolErasurePreflightDownSQL, "cc93958213bac77bfbb56a1a42ffb350e5c305fd1c6738c8f466a92bbfd4147c")
+	assert.Contains(t, signaturesSchoolErasurePreflightDownSQL, "4b396b704fd400fca1a02a347ac362b01314ba4ea9fb654aa50cecd2aef28334")
 }

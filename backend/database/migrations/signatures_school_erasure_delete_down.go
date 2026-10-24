@@ -103,6 +103,12 @@ CREATE OR REPLACE FUNCTION platform.school_erasure_delete(p_school_id BIGINT)
    SELECT count(*) INTO v_count FROM active.morning_attendance AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.morning_attendance AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.morning_attendance', v_count);
+   SELECT count(*) INTO v_count FROM active.class_handover_children AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM active.class_handover_children AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('active.class_handover_children', v_count);
+   SELECT count(*) INTO v_count FROM active.class_handovers AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM active.class_handovers AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('active.class_handovers', v_count);
    SELECT count(*) INTO v_count FROM active.work_session_breaks AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.work_session_breaks AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.work_session_breaks', v_count);

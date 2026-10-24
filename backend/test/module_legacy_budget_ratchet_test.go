@@ -150,9 +150,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
 // ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
-// ADR 0102 adds the signature ledger constructor (+6); ADR 0103 keeps the
-// optional Class Day write scope unbound when its dependency is nil (+1).
-const moduleComposeBudgetTotal = 12391
+const moduleComposeBudgetTotal = 12390 // ADR 0102: the signature ledger constructor adds exactly 6 LOC.
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -166,8 +164,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/auditlog/compose":             189,
 	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
-	// ADR 0103: preserve the unconfigured write scope as a nil application port.
-	"modules/classday/compose": 213,
+	"modules/classday/compose":             212,
 	// Raised by ADR 0073: the parent announcement retention.
 	"modules/communication/composition":             351,
 	"modules/dataimport/compose":                    85,
