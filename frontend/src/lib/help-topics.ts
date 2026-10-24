@@ -202,6 +202,7 @@ export const HELP_TOPICS = {
   teacherClassHandover: "klasse-an-die-ogs-uebergeben",
   teacherChildDetails: "als-lehrkraft-angaben-zu-einem-kind-ansehen",
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
+  teacherClassTrip: "ausflug-oder-klassenfahrt-melden",
   teacherSupervision: "meine-aufsichten-ansehen",
   teacherStartSupervision: "eine-aufsicht-starten",
   teacherSupervisionRoster: "kinder-meiner-aufsicht-sehen",
