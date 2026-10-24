@@ -36,6 +36,8 @@ type operatorSettingsTestContext struct {
 	// onValueSet is the side-effect hook the resource runs on each write.
 	// A test replaces it before the request whose hook call it observes.
 	onValueSet operatorSettingsHook
+	// settings reads resolved values the way routes, jobs and portals do.
+	settings settings.ModuleBookingReader
 }
 
 // runValueSetHook is the hook the resource is built with; it runs the
@@ -54,6 +56,7 @@ func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	tc := &operatorSettingsTestContext{
 		db:         db,
 		onValueSet: svc.SettingsSideEffects.Dispatch,
+		settings:   svc.Settings,
 	}
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end

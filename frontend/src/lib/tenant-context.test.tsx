@@ -36,6 +36,8 @@ import {
   useCareOfferingsEnabled,
   useDisplayEnabled,
   useNFCEnabled,
+  useBookedModules,
+  useModuleBooked,
   useOpenCareGroupMode,
   usePresenceMode,
   useSchoolWideAttendanceMoves,
@@ -64,6 +66,7 @@ const mockTenant: TenantInfo = {
   presenceMode: "detailed",
   studentPhotosEnabled: false,
   nfcEnabled: false,
+  bookedModules: [],
   messagingEnabled: false,
   staffMessagingEnabled: false,
   displayEnabled: false,
@@ -694,6 +697,49 @@ describe("useNFCEnabled", () => {
     );
     const { result } = renderHook(() => useNFCEnabled(), { wrapper });
     expect(result.current).toBe(false);
+  });
+});
+
+describe("useBookedModules", () => {
+  const bookedTenant: TenantInfo = {
+    ...mockTenant,
+    bookedModules: ["mittagessen", "zeiterfassung"],
+  };
+
+  it("returns the booked modules of the school", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={bookedTenant}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(
+      () => ({
+        booked: useBookedModules(),
+        zeiterfassung: useModuleBooked("zeiterfassung"),
+        dienstplan: useModuleBooked("dienstplan"),
+      }),
+      { wrapper },
+    );
+    expect(result.current.booked).toEqual(["mittagessen", "zeiterfassung"]);
+    expect(result.current.zeiterfassung).toBe(true);
+    expect(result.current.dienstplan).toBe(false);
+  });
+
+  it("books nothing while the tenant hasn't resolved yet", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={null}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(
+      () => ({
+        booked: useBookedModules(),
+        mittagessen: useModuleBooked("mittagessen"),
+      }),
+      { wrapper },
+    );
+    expect(result.current.booked).toEqual([]);
+    expect(result.current.mittagessen).toBe(false);
   });
 });
 

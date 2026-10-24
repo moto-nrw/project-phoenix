@@ -31,6 +31,7 @@ function makeTenant(
     presenceMode,
     studentPhotosEnabled: false,
     nfcEnabled: false,
+    bookedModules: [],
     messagingEnabled: false,
     staffMessagingEnabled: false,
     displayEnabled: false,

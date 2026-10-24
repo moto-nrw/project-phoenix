@@ -7,12 +7,27 @@
 import { apiErrorFromResponse } from "./api-error";
 import { clearSessionCache, sessionFetch } from "./session-cache";
 import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
+import { parseBookedModules, type ModuleKey } from "./modules";
 
 export interface TenantSettings {
   logoUrl?: string;
   loginImageUrl?: string;
   primaryColor?: string;
   [key: string]: unknown;
+}
+
+/**
+ * The module fields of TenantInfo from the tenant shell's booked_modules.
+ * nfcEnabled is derived so NFC-only areas follow the NFC module.
+ */
+export function bookedModuleFields(
+  raw: unknown,
+): Pick<TenantInfo, "bookedModules" | "nfcEnabled"> {
+  const bookedModules = parseBookedModules(raw);
+  return {
+    bookedModules,
+    nfcEnabled: bookedModules.includes("nfc_anwesenheit"),
+  };
 }
 
 /** Convert a stored login image URL path to the public-serving proxy URL. */
@@ -48,9 +63,14 @@ export interface TenantInfo {
    */
   studentPhotosEnabled: boolean;
   /**
-   * Whether this tenant uses NFC devices for attendance/location capture.
-   * Exposed through tenant resolve so non-admin staff can hide NFC-only
-   * navigation without needing config:read.
+   * The additional modules the school booked (#4892), in module-list order.
+   * Exposed through tenant resolve so every staff member's navigation can
+   * follow them without config:read.
+   */
+  bookedModules: readonly ModuleKey[];
+  /**
+   * Whether the school booked NFC-Anwesenheit, derived from bookedModules.
+   * NFC-only navigation follows it.
    */
   nfcEnabled: boolean;
   /**
@@ -174,7 +194,7 @@ interface TenantResolveResponse {
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
-  nfc_enabled?: boolean;
+  booked_modules?: string[];
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
@@ -319,7 +339,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
-      nfcEnabled: data.nfc_enabled === true,
+      ...bookedModuleFields(data.booked_modules),
       messagingEnabled: data.parent_messaging_enabled === true,
       staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
