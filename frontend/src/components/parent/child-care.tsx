@@ -26,6 +26,7 @@ import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import {
   type CareException,
   type ChildCareSchedule,
+  type ChildGuardian,
   type ChildFeatures,
   type ChildToday,
   type DayDepartureMode,
@@ -35,9 +36,11 @@ import {
   type StatusDay,
   type StudentStatusKind,
   deleteCareException,
+  downloadPickupRequestProofPdf,
   getChildCareSchedule,
   getChildFeatures,
   listCareExceptions,
+  listChildGuardians,
   listPickupChangeRequests,
   listExcusedRequests,
   listSickDays,
@@ -61,6 +64,8 @@ import {
   todayISO,
 } from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import type { SignatureValue } from "~/lib/signature";
+import { PickupSignatureField } from "~/components/parent/pickup-permission-fields";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -290,12 +295,7 @@ export interface ChildCare {
     status: StudentStatusKind,
     recipientGuardianProfileIds?: string[],
   ): Promise<AbsenceSubmissionOutcome | void>;
-  saveCareException(params: {
-    date: string;
-    pickupTime: string;
-    departureMode?: DayDepartureMode | "";
-    reason: string;
-  }): Promise<void | string>;
+  saveCareException(params: PickupChangeSubmitParams): Promise<void | string>;
   removeCareException(date: string): Promise<void>;
   /** Lädt die Daten des Kindes neu, etwa nach einer geänderten Anfrage. */
   refresh(): void;
@@ -607,12 +607,7 @@ export function useChildCare(studentId: string): ChildCare {
   );
 
   const saveCareException = useCallback(
-    async (params: {
-      date: string;
-      pickupTime: string;
-      departureMode?: DayDepartureMode | "";
-      reason: string;
-    }) => {
+    async (params: PickupChangeSubmitParams) => {
       const saved = await submitCareException(studentId, params);
       // Bail if we navigated to another child mid-save — A's override must not
       // land in B's exception list (#1725 review).
@@ -954,6 +949,40 @@ export function SickNoteModal({
 
 // --- pickup-time change modal ---
 
+/** Die Angaben einer Tagesanfrage (#3945, #4780). */
+export type PickupChangeSubmitParams = Parameters<
+  typeof submitCareException
+>[1];
+
+const DAY_SIGNATURE_FIELD = "pickup-day-signature";
+
+/**
+ * Die Kontaktpersonen des Kindes, die an einem Tag abholen können (#4780):
+ * alle eingetragenen Personen außer dem eigenen Konto.
+ */
+function useDayPickupContacts(studentId: string | undefined): ChildGuardian[] {
+  const [contacts, setContacts] = useState<ChildGuardian[]>([]);
+  useEffect(() => {
+    if (!studentId) return;
+    let active = true;
+    listChildGuardians(studentId)
+      .then((rows) => {
+        if (active) setContacts(rows.filter((row) => !row.is_self));
+      })
+      .catch((err: unknown) => {
+        // Ohne die Liste fehlt nur die Auswahl „Wer holt ab?“; Abholzeit und
+        // Abholart bleiben anfragbar.
+        logger.warn("pickup_contacts_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [studentId]);
+  return contacts;
+}
+
 export function PickupTimeModal({
   studentId,
   careExceptions,
@@ -983,13 +1012,7 @@ export function PickupTimeModal({
   childFirstName?: string;
   today?: ChildToday;
   onClose: () => void;
-  onSubmit: (params: {
-    date: string;
-    pickupTime: string;
-    departureMode?: DayDepartureMode | "";
-    reason: string;
-    recipientGuardianProfileIds?: string[];
-  }) => Promise<void | string>;
+  onSubmit: (params: PickupChangeSubmitParams) => Promise<void | string>;
   onRemove: (date: string) => Promise<void>;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
@@ -1035,6 +1058,11 @@ export function PickupTimeModal({
   const [pickupTime, setPickupTime] = useState("");
   // Leer heißt: die Abholart des Tages bleibt, wie sie ist (#3945).
   const [departureMode, setDepartureMode] = useState<DayDepartureMode | "">("");
+  // Eine Kontaktperson, die das Kind an diesem Tag abholt (#4780).
+  const [pickupPersonId, setPickupPersonId] = useState("");
+  const [signature, setSignature] = useState<SignatureValue | null>(null);
+  const contacts = useDayPickupContacts(studentId);
+  const tPermission = useTranslations("parentPickupPermission");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
@@ -1076,6 +1104,22 @@ export function PickupTimeModal({
   const staffMode = existing?.departure_mode;
   const modeField = departureModeEnabled && !staffMode;
   const modeLabel = (mode: string) => tModes(`departureModes.${mode}`);
+  // Eine Abholperson passt nur, wenn das Kind abgeholt wird (#4780).
+  const personField =
+    contacts.length > 0 && (departureMode === "" || departureMode === "pickup");
+  const pickupPerson = contacts.find(
+    (contact) => contact.guardian_profile_id === pickupPersonId,
+  );
+  const dayStatement = pickupPerson
+    ? tPermission("statement.day", {
+        person: `${pickupPerson.first_name} ${pickupPerson.last_name}`.trim(),
+        date: formatLocaleDate(date, locale),
+      })
+    : modeField && departureMode === "alone"
+      ? tPermission("statement.aloneDay", {
+          date: formatLocaleDate(date, locale),
+        })
+      : "";
   const alreadyHome = date === today && childToday?.state === "left";
   // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
   // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
@@ -1157,9 +1201,23 @@ export function PickupTimeModal({
         : "",
     );
     setReason(request?.reason ?? existing?.reason ?? "");
+    setPickupPersonId("");
+    setSignature(null);
     clearForm();
     setInvalidField(null);
   }, [clearForm, existing, request]);
+
+  // Fehlt die Unterschrift für eine Abholperson oder den Heimweg allein,
+  // bleibt der Dialog offen und nennt das Feld (#4780).
+  const signatureMissing = (): boolean => {
+    if (!dayStatement || signature) return false;
+    form.invalid(tPermission("signature.missing"), {
+      [DAY_SIGNATURE_FIELD]: tPermission("signature.missing"),
+    });
+    return true;
+  };
+  const daySignature = dayStatement ? signature : null;
+  const dayPerson = pickupPerson ? pickupPerson.guardian_profile_id : undefined;
 
   const handleSubmit = async () => {
     // Guard: if the existing overrides never loaded we can't trust the
@@ -1169,7 +1227,7 @@ export function PickupTimeModal({
       form.invalid(t("pickup.loadError"));
       return;
     }
-    if (!pickupTime && !(modeField && departureMode)) {
+    if (!pickupTime && !(modeField && departureMode) && !pickupPerson) {
       form.invalid(t(modeField ? "pickup.noTimeOrMode" : "pickup.noTime"));
       setInvalidField("pickupTime");
       pickupTimeRef.current?.focus();
@@ -1183,6 +1241,7 @@ export function PickupTimeModal({
       reasonRef.current?.focus();
       return;
     }
+    if (signatureMissing()) return;
     setSubmitting(true);
     form.clear();
     setInvalidField(null);
@@ -1193,6 +1252,8 @@ export function PickupTimeModal({
         ...(modeField ? { departureMode } : {}),
         reason: reason.trim(),
         recipientGuardianProfileIds: recipientIds,
+        pickupPersonGuardianProfileId: dayPerson,
+        signature: daySignature,
       });
       onClose();
     } catch (err) {
@@ -1206,7 +1267,7 @@ export function PickupTimeModal({
   // beim Senden festgelegt wurden; sie werden über "Anfrage teilen" geändert.
   const handleSaveEdit = async () => {
     if (!studentId || !request) return;
-    if (!pickupTime && !(modeField && departureMode)) {
+    if (!pickupTime && !(modeField && departureMode) && !pickupPerson) {
       form.invalid(t(modeField ? "pickup.noTimeOrMode" : "pickup.noTime"));
       setInvalidField("pickupTime");
       pickupTimeRef.current?.focus();
@@ -1220,6 +1281,7 @@ export function PickupTimeModal({
       reasonRef.current?.focus();
       return;
     }
+    if (signatureMissing()) return;
     setSubmitting(true);
     form.clear();
     setInvalidField(null);
@@ -1230,6 +1292,8 @@ export function PickupTimeModal({
         ...(modeField ? { departureMode } : {}),
         reason: reason.trim(),
         expectedVersion: version,
+        pickupPersonGuardianProfileId: dayPerson,
+        signature: daySignature,
       });
       onClose();
     } catch (err) {
@@ -1435,6 +1499,11 @@ export function PickupTimeModal({
                     })}
               </p>
             )}
+            {request.pickup_person && (
+              <p className="text-base font-semibold">
+                {tPermission("pickupPerson.label")} {request.pickup_person}
+              </p>
+            )}
             <p className="mt-0.5 text-sm">{t("pickup.statusPending")}</p>
             {editedAt && (
               <p className="text-sm">
@@ -1471,7 +1540,19 @@ export function PickupTimeModal({
                 ? "pickup.statusApprovedChange"
                 : "pickup.statusApproved",
             )}
+            {request.pickup_person
+              ? ` ${tPermission("pickupPerson.label")} ${request.pickup_person}`
+              : ""}
           </p>
+        )}
+        {studentId && request?.signed && request.is_self !== false && (
+          <PickupProofButton
+            studentId={studentId}
+            requestId={request.id}
+            onError={(err) =>
+              void form.show(err, { object: tPermission("errorObjectProof") })
+            }
+          />
         )}
         {request?.status === "rejected" && (
           <p className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm">
@@ -1513,6 +1594,7 @@ export function PickupTimeModal({
                   ]}
                   onChange={(next) => {
                     setDepartureMode(next as DayDepartureMode | "");
+                    if (next !== "" && next !== "pickup") setPickupPersonId("");
                     if (invalidField === "pickupTime") {
                       setInvalidField(null);
                       form.clear();
@@ -1526,6 +1608,38 @@ export function PickupTimeModal({
               <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                 {t("pickup.modeStaffSet", { mode: modeLabel(staffMode) })}
               </p>
+            )}
+            {personField && (
+              <div className="block">
+                <span
+                  id={`${errorId}-person`}
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  {tPermission("pickupPerson.label")}
+                </span>
+                <CustomSelect
+                  value={pickupPersonId}
+                  options={[
+                    { value: "", label: tPermission("pickupPerson.none") },
+                    ...contacts.map((contact) => ({
+                      value: contact.guardian_profile_id,
+                      label:
+                        `${contact.first_name} ${contact.last_name}`.trim(),
+                    })),
+                  ]}
+                  onChange={(next) => {
+                    setPickupPersonId(next);
+                    if (invalidField === "pickupTime") {
+                      setInvalidField(null);
+                      form.clear();
+                    }
+                  }}
+                  ariaLabelledBy={`${errorId}-person`}
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  {tPermission("pickupPerson.hint")}
+                </p>
+              </div>
             )}
             <TimeField
               inputRef={pickupTimeRef}
@@ -1574,6 +1688,19 @@ export function PickupTimeModal({
                 className="min-h-20 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
+            {dayStatement && (
+              <PickupSignatureField
+                id={DAY_SIGNATURE_FIELD}
+                statement={dayStatement}
+                value={signature}
+                onChange={(next) => {
+                  setSignature(next);
+                  if (next) form.clear();
+                }}
+                disabled={submitting}
+                error={form.fieldError(DAY_SIGNATURE_FIELD)}
+              />
+            )}
             {studentId && !editing && (
               <RequestSharingSelector
                 studentId={studentId}
@@ -1599,6 +1726,44 @@ export function PickupTimeModal({
         )}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Lädt den Nachweis einer unterschriebenen Tagesanfrage als PDF (#4780).
+ */
+function PickupProofButton({
+  studentId,
+  requestId,
+  onError,
+}: Readonly<{
+  studentId: string;
+  requestId: string;
+  /** Der Fehler steht im offenen Dialog, nicht in einem Toast darunter. */
+  onError: (err: unknown) => void;
+}>) {
+  const tPermission = useTranslations("parentPickupPermission");
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      disabled={busy}
+      onClick={() => {
+        setBusy(true);
+        downloadPickupRequestProofPdf(studentId, requestId)
+          .catch((err: unknown) => {
+            logger.error("pickup_proof_download_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            onError(err);
+          })
+          .finally(() => setBusy(false));
+      }}
+    >
+      {tPermission("proofPdf")}
+    </Button>
   );
 }
 
