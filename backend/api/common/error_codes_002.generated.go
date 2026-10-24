@@ -2,6 +2,18 @@
 package common
 
 const (
+	CodeTimetableStaffPresentAndAbsent               = "timetable.staff_present_and_absent"
+	CodeTimetableStartTooEarly                       = "timetable.start_too_early"
+	CodeTimetableStartWindowExpired                  = "timetable.start_window_expired"
+	CodeTimetableStudentAlreadyActive                = "timetable.student_already_active"
+	CodeTimetableStudentCareEnded                    = "timetable.student_care_ended"
+	CodeTimetableStudentGraduated                    = "timetable.student_graduated"
+	CodeTimetableStudentNotCheckedIn                 = "timetable.student_not_checked_in"
+	CodeTimetableStudentNotFound                     = "timetable.student_not_found"
+	CodeTimetableStudentsNotPresent                  = "timetable.students_not_present"
+	CodeTimetableSubstituteAbsent                    = "timetable.substitute_absent"
+	CodeTimetableSubstituteAbsentOnDate              = "timetable.substitute_absent_on_date"
+	CodeTimetableSubstituteConflict                  = "timetable.substitute_conflict"
 	CodeTimetableSubstituteNotOnInstances            = "timetable.substitute_not_on_instances"
 	CodeTimetableSubstituteSelf                      = "timetable.substitute_self"
 	CodeTimetableSubstituteSingleOnly                = "timetable.substitute_single_only"
@@ -98,6 +110,18 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.staff_present_and_absent":                "input",
+	"timetable.start_too_early":                         "business_rejection",
+	"timetable.start_window_expired":                    "business_rejection",
+	"timetable.student_already_active":                  "business_rejection",
+	"timetable.student_care_ended":                      "business_rejection",
+	"timetable.student_graduated":                       "business_rejection",
+	"timetable.student_not_checked_in":                  "business_rejection",
+	"timetable.student_not_found":                       "business_rejection",
+	"timetable.students_not_present":                    "business_rejection",
+	"timetable.substitute_absent":                       "input",
+	"timetable.substitute_absent_on_date":               "input",
+	"timetable.substitute_conflict":                     "business_rejection",
 	"timetable.substitute_not_on_instances":             "input",
 	"timetable.substitute_self":                         "input",
 	"timetable.substitute_single_only":                  "input",

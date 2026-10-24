@@ -274,7 +274,7 @@ Also run tests for affected consumers and the backend architecture checks.
 
 ## Available Field Types
 
-8 types (`modules/settings/records/registry.go`): `boolean`, `number`, `time` (HH:MM), `date`, `text`, `textarea`, `password`, `select` (requires `Options.Static`). Boolean/select save immediately; text/number/time debounce; password has an explicit save.
+9 types (`modules/settings/records/registry.go`): `boolean`, `number`, `time` (HH:MM), `date`, `text`, `textarea`, `password`, `select` (requires `Options.Static`), `multiselect` (requires `Options.Static`; the value is the list of chosen option values, stored in option order). Boolean/select/multiselect save immediately; text/number/time debounce; password has an explicit save.
 
 ## Conditional Visibility (DependsOn)
 

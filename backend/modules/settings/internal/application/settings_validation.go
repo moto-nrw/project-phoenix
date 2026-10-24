@@ -39,6 +39,39 @@ func validateValue(def *config.Definition, value any) error {
 		if !isValidSelectOption(value, def.Options.Static) {
 			return fmt.Errorf("value is not a valid option")
 		}
+	case config.FieldMultiSelect:
+		return validateMultiSelectValue(def, value)
+	}
+	return nil
+}
+
+// validateMultiSelectValue accepts an array of distinct option values; an
+// empty array selects nothing.
+func validateMultiSelectValue(def *config.Definition, value any) error {
+	if def.Options == nil || len(def.Options.Static) == 0 {
+		return fmt.Errorf("select field has no options defined")
+	}
+	var items []any
+	switch v := value.(type) {
+	case []any:
+		items = v
+	case []string:
+		for _, item := range v {
+			items = append(items, item)
+		}
+	default:
+		return fmt.Errorf("expected a list of options")
+	}
+	seen := make(map[string]bool, len(items))
+	for _, item := range items {
+		if !isValidSelectOption(item, def.Options.Static) {
+			return fmt.Errorf("value is not a valid option")
+		}
+		key := fmt.Sprint(item)
+		if seen[key] {
+			return fmt.Errorf("option %v is selected twice", item)
+		}
+		seen[key] = true
 	}
 	return nil
 }

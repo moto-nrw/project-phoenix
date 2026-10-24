@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -14,7 +16,9 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -31,8 +35,9 @@ import (
 // remaining ports are bound here over the reports, the status days, the
 // student, person and contact rows, the access log, the write-scope and
 // morning attendance settings and the broadcaster. deps also carries
-// Student Presence's morning attendance (#4790). Without a broadcaster no arrival schedule change is
-// announced.
+// Student Presence's morning attendance (#4790) and class handovers with the
+// staff names (#4794). Without a broadcaster no arrival schedule change and
+// no class handover is announced.
 func NewClassDay(
 	deps classdayCompose.ClassDayDependencies, reports enrollmentOwner.Reports, statusDays classDayStatusDayReader,
 	students classDayStudentRows, persons classDayPersonRows, studentGuardians classDayContactRows,
@@ -45,8 +50,17 @@ func NewClassDay(
 		deps.Scope = func(ctx context.Context) (bool, error) {
 			return settings.ResolveBool(ctx, configModels.KeySchoolPortalMorningAttendance)
 		}
+		// operations.school_portal_write_scope (#4794): only a ticked class
+		// handover opens the handover.
+		deps.HandoverScope = func(ctx context.Context) (bool, error) {
+			return schoolPortalWriteScopeIncludes(ctx, settings, configModels.SchoolPortalWriteScopeClassHandover)
+		}
 	}
-	deps.Announcer = classDayArrivalAnnouncer{broadcaster: broadcaster, logger: logger}
+	announcer := classDayArrivalAnnouncer{broadcaster: broadcaster, logger: logger}
+	deps.Announcer = announcer
+	// A handover is the class's arrival in the OGS: the same event makes
+	// Aufsicht, Gruppe and Kindersuche refetch once the write committed.
+	deps.HandoverAnnouncer = announcer.AnnounceArrivalScheduleChange
 	if reports != nil {
 		deps.Rosters = classDayRosters{reports: reports}
 	}
@@ -63,6 +77,60 @@ func NewClassDay(
 		deps.AccessLog = classDayAccessLog{repo: accessLog}
 	}
 	return classdayCompose.NewClassDay(deps)
+}
+
+// classDayTripRecorder is Student Presence's status-day write for a class
+// trip moto schule reports (#4799).
+type classDayTripRecorder interface {
+	RecordClassTrip(ctx context.Context, studentIDs []int64, dates []timezone.Date, reason string, inClass func(schoolClass string) bool) error
+}
+
+// NewClassDayTripStatusDays binds the class-trip status-day write. The class
+// check on the locked child compares the normalized class names, like the
+// caller's class assignment does, and the write's refusals answer the
+// projection's sentinels.
+func NewClassDayTripStatusDays(recorder classDayTripRecorder) classdayCompose.ClassTripStatusDays {
+	if recorder == nil {
+		return nil
+	}
+	return classDayTripStatusDays{recorder: recorder}
+}
+
+type classDayTripStatusDays struct{ recorder classDayTripRecorder }
+
+func (b classDayTripStatusDays) RecordClassTrip(ctx context.Context, schoolClass string, studentIDs []int64, dates []timezone.Date, reason string) error {
+	want := schoolstructure.NormalizeClass(schoolClass)
+	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, func(class string) bool {
+		return schoolstructure.NormalizeClass(class) == want
+	})
+	var conflict *studentpresence.StudentStatusDayConflictError
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &conflict):
+		return classTripStatusConflict(conflict)
+	case errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
+		return fmt.Errorf("%w: %w", classday.ErrClassTripStatusConflict, err)
+	case errors.Is(err, studentpresence.ErrStudentStatusDayReassigned):
+		return fmt.Errorf("%w: %w", classday.ErrClassTripStudentNotInClass, err)
+	}
+	return err
+}
+
+// classTripStatusConflict carries the OGS's conflict sample and count, so
+// moto schule names the blocking children and days like the OGS dialog.
+func classTripStatusConflict(conflict *studentpresence.StudentStatusDayConflictError) error {
+	sample := conflict.SampleConflicts()
+	out := &classday.ClassTripStatusConflictError{
+		Conflicts: make([]classday.ClassTripConflict, 0, len(sample)),
+		Total:     conflict.ConflictTotal(),
+	}
+	for _, day := range sample {
+		out.Conflicts = append(out.Conflicts, classday.ClassTripConflict{
+			StudentID: day.StudentID, Date: classday.Date(day.Date.String()), Status: day.Status,
+		})
+	}
+	return out
 }
 
 // classDayRosters reads Enrollment's class roster of a day.
@@ -232,4 +300,34 @@ func (a classDayArrivalAnnouncer) AnnounceArrivalScheduleChange(ctx context.Cont
 		return
 	}
 	deliveryCompose.QueueArrivalScheduleChanged(ctx, a.broadcaster, a.logger)
+}
+
+// classHandoverStaffRows is the People Directory staff read that names the
+// staff member of a class handover (#4794).
+type classHandoverStaffRows interface {
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
+}
+
+// classHandoverStaffNames maps staff ids to their person's display name in
+// one read; nil rows leave the handovers unnamed.
+func classHandoverStaffNames(staff classHandoverStaffRows) func(context.Context, []int64) (map[int64]string, error) {
+	if staff == nil {
+		return nil
+	}
+	return func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		if len(ids) == 0 {
+			return map[int64]string{}, nil
+		}
+		rows, err := staff.FindWithPersonByIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		names := make(map[int64]string, len(rows))
+		for id, row := range rows {
+			if row != nil && row.Person != nil {
+				names[id] = row.Person.GetFullName()
+			}
+		}
+		return names, nil
+	}
 }

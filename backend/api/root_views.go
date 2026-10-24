@@ -25,6 +25,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -166,6 +167,7 @@ func buildClassDayViews(
 	carePlanRows owners.CarePlanRows, schedules owners.CarePlanSchedules, carePlan careplan.Capability, people owners.PeopleRows, audit owners.AuditOwner,
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence owners.PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
+	emitter presenceStudentsHTTP.GuardianWake,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
@@ -174,8 +176,15 @@ func buildClassDayViews(
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
+		TripStatusDays: NewClassDayTripStatusDays(presenceStudentsHTTP.NewSchoolClassTrips(presenceStudentsHTTP.ResourceConfig{
+			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
+			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+		})),
 		BlockStarts:                   operations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
+			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),
+		},
 	}, reports, carePlanRows.StatusDays, people.Students, people.Persons, people.StudentGuardians,
 		audit.Persistence.DataAccessLog, settings, hub, env.Logger.With("service", "class-day-arrival-exceptions"))
 	slotLists := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
@@ -200,7 +209,8 @@ func buildGroupLive(
 		Settings: settings, Pickups: schedules.Pickups, Arrivals: schedules.Arrivals,
 		PlannedStudentIDs: lifecycle.Instances.GetPlannedStudentIDsByDate, CareDays: schedules.CareDay,
 		CareParticipation: schedules.Lifecycle, ExcusedRequests: requests.Excused, StatusDays: presence.StatusDays,
-		Logger: env.Logger.With("service", "ogs-group-live"), Now: env.Now,
+		Handovers: groupLiveHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
+		Logger:    env.Logger.With("service", "ogs-group-live"), Now: env.Now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose OGS group live projection: %w", err)
@@ -224,6 +234,7 @@ func buildSupervisionDashboard(
 		Presence: newSupervisionPresence(active, active),
 		Planning: newSupervisionPlanning(schedules.Pickups, schedules.Arrivals),
 		Settings: newSupervisionSettings(settings), Staff: NewTimetablePeople(users), Calendar: supervisionCalendar{}, Now: env.Now,
+		Handovers: supervisionHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)

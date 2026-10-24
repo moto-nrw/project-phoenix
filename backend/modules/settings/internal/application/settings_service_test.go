@@ -1502,6 +1502,46 @@ func TestSetValue_SelectAcceptsValidOption(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSetValue_MultiSelectValidatesEveryOption pins the multi-select (#4794):
+// a list of distinct known options, the empty list included; a single value,
+// an unknown option or a duplicate is refused.
+func TestSetValue_MultiSelectValidatesEveryOption(t *testing.T) {
+	t.Parallel()
+	registry := setupTest(t)
+	registry.Register(config.Definition{
+		Key:      "test.multi",
+		Type:     config.FieldMultiSelect,
+		Default:  []string{},
+		Tab:      "test",
+		Category: "test",
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "A", Value: "a"},
+				{Label: "B", Value: "b"},
+			},
+		},
+	})
+
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
+
+	for _, value := range []any{[]any{"a", "b"}, []any{"b"}, []any{}, []string{"a"}} {
+		require.NoError(t, svc.SetValue(tenantCtx(1), "test.multi", value, nil, nil), "%v", value)
+	}
+	for value, want := range map[string]struct {
+		value any
+		err   string
+	}{
+		"single value":   {"a", "expected a list of options"},
+		"unknown option": {[]any{"a", "c"}, "not a valid option"},
+		"duplicate":      {[]any{"a", "a"}, "selected twice"},
+		"no list":        {nil, "expected a list of options"},
+	} {
+		err := svc.SetValue(tenantCtx(1), "test.multi", want.value, nil, nil)
+		require.Error(t, err, value)
+		assert.Contains(t, err.Error(), want.err, value)
+	}
+}
+
 func TestSetValue_TextRejectsNonString(t *testing.T) {
 	t.Parallel()
 	registry := setupTest(t)

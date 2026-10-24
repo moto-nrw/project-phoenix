@@ -106,7 +106,7 @@ func setupArrivalExceptionFixture(t *testing.T) *arrivalExceptionFixture {
 			_, err := db.ExecContext(testpkg.Ctx(t),
 				`INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, ?, ?::jsonb)
 				 ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`,
-				tenantID, schoolPortalWriteScopeKey, `"`+schoolPortalWriteScopeExceptions+`"`)
+				tenantID, schoolPortalWriteScopeKey, `["`+schoolPortalWriteScopeExceptions+`"]`)
 			require.NoError(t, err)
 		},
 		retainedMondayReport: func(t *testing.T) []byte {
