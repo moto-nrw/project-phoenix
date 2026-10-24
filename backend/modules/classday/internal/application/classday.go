@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ClassDayDependencies wires the school-portal capability of the projection.
@@ -37,6 +38,13 @@ type ClassDayDependencies struct {
 	TripScope       ClassTripWriteScope
 	TripStatusDays  ClassTripStatusDays
 	StudentArrivals studentArrivals
+	// DayHints is the day-hint seam of moto schule (#4795); without it the
+	// day-hint capabilities answer classday.ErrDayHintsNotConfigured and the
+	// day report carries no hints. HintScope opens it. Today defaults to the
+	// Berlin calendar day.
+	DayHints  DayHints
+	HintScope DayHintWriteScope
+	Today     func() calendar.Date
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
 }
@@ -51,6 +59,7 @@ type classDayService struct {
 	*dayReports
 	arrivalExceptions
 	classTrips
+	dayHints
 	morningAttendance
 }
 
@@ -60,10 +69,13 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	if deps.Caller == nil || deps.Rosters == nil {
 		panic("classday application.NewClassDay: Caller and Rosters dependencies are required")
 	}
+	hints := dayHints{store: deps.DayHints, scope: deps.HintScope, rosters: deps.Rosters, today: deps.Today, announcer: deps.Announcer}
+	reports := newDayReports(deps)
+	reports.hints = hints
 	return &classDayService{
 		Caller:     deps.Caller,
 		caller:     deps.Caller,
-		dayReports: newDayReports(deps),
+		dayReports: reports,
 		arrivalExceptions: arrivalExceptions{
 			schedule: deps.ClassArrivalExceptions, writeScope: deps.WriteScope,
 			blockStarts: deps.BlockStarts, announcer: deps.Announcer,
@@ -72,6 +84,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 			rosters: deps.Rosters, writeScope: deps.TripScope, statusDays: deps.TripStatusDays,
 			arrivals: deps.StudentArrivals, announcer: deps.Announcer,
 		},
+		dayHints:          hints,
 		morningAttendance: newMorningAttendance(deps),
 	}
 }

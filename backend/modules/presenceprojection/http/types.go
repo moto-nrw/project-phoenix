@@ -6,6 +6,16 @@ import (
 	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
+// TeacherHint is a Lehrkraft's hint for the OGS for today (#4795), written in
+// moto schule for the child or for its whole class.
+type TeacherHint struct {
+	Body string `json:"body"`
+	// AuthorName is the Lehrkraft's name, empty when the person is gone.
+	AuthorName string `json:"author_name,omitempty"`
+	// SchoolClass is set when the hint is for the whole class.
+	SchoolClass string `json:"school_class,omitempty"`
+}
+
 // StudentResponse represents a student response
 type StudentResponse struct {
 	ID                 int64                `json:"id"`
@@ -35,6 +45,10 @@ type StudentResponse struct {
 	ArrivalNotes       string               `json:"arrival_notes,omitempty"`        // Exception reason or schedule notes
 	ActualArrivalTime  *string              `json:"actual_arrival_time,omitempty"`  // Today's actual arrival time from attendance (HH:MM)
 	ActualPickupTime   *string              `json:"actual_pickup_time,omitempty"`   // Today's actual pickup time from attendance (HH:MM)
+	// TeacherHints are today's hints of the Lehrkraft for this child or its
+	// class (#4795), oldest first. Only the list fills them, for today and
+	// with users:read.
+	TeacherHints []TeacherHint `json:"teacher_hints,omitempty"`
 	// ActualPickupNote is why the child went home earlier than planned today
 	// (#3324). Only the detail view shows it; the list projection drops it.
 	ActualPickupNote *string `json:"actual_pickup_note,omitempty"`

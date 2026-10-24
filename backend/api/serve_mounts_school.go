@@ -100,7 +100,7 @@ func mountSchoolPortalRoutes(
 		return err
 	}
 	timetableResource := newTimetableResource(calendar, timetableOwner, materialization, lifecycle, planning, planningTracks, users, schedules,
-		caller, settings, careOfferings, classDay, planExport, pickupExtensions, logger)
+		caller, settings, careOfferings, classDay, planExport, pickupExtensions, persons, logger)
 	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 	// separate surface from /messages (which is parent-facing).
 	staffMessaging := staffMessagingAPI.NewResource(chat.StaffMessaging)
@@ -135,7 +135,7 @@ func newTimetableResource(
 	lifecycle owners.TimetableLifecycle, planning TimetablePlanning, planningTracks timetableModule.PlanningTrackAdministration,
 	users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules, caller *owners.CallerRows, settings settingsCompose.SettingsService,
 	careOfferings carePlanModule.CareOfferingCapability, classDay ClassDayViews, planExport planexport.Service,
-	pickupExtensions timetableAPI.PickupExtensionDecisions, logger *slog.Logger,
+	pickupExtensions timetableAPI.PickupExtensionDecisions, hints peopledirectory.SchoolDayHintQuery, logger *slog.Logger,
 ) *timetableAPI.Resource {
 	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         calendar,
@@ -146,6 +146,7 @@ func newTimetableResource(
 		InstanceSeriesConverter: planning.SeriesConverter,
 		OperationsService:       lifecycle.Operations,
 		People:                  NewTimetablePeople(users),
+		TeacherHints:            newTimetableTeacherHints(hints),
 		Templates:               planning.Planning.Templates,
 		RecurrenceLock:          planning.Planning.RecurrenceLock,
 		AttendanceCorrections:   planning.Planning.AttendanceCorrections,

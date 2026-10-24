@@ -29,6 +29,7 @@ type dayReports struct {
 	students          SheetStudents
 	emergencyContacts EmergencyContacts
 	accessLog         AccessLog
+	hints             dayHints
 	morning           morningAttendance
 }
 
@@ -140,6 +141,9 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 		if report.ClassArrivalException, err = s.classDayArrivalException(ctx, schoolClass, date); err != nil {
 			return nil, err
 		}
+	}
+	if err := s.hints.attachDayHints(ctx, report, date, actor.AccountID); err != nil {
+		return nil, err
 	}
 	if err := s.morning.applyMorningAttendance(ctx, report, date); err != nil {
 		return nil, err

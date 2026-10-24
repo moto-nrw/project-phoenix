@@ -33,6 +33,8 @@ export interface ClassDayRow {
   // Zeilen mit Abweichung gesetzt: Status-Meldezeit, sonst der Eintrag der
   // Tages-Ausnahme.
   reported_at?: string;
+  // Hinweise der Lehrkraft für heute an die OGS, nur für dieses Kind (#4795).
+  day_hints?: ClassDayHint[];
   // Anwesenheit am Vormittag (#4790): was die Lehrkraft eingetragen hat
   // (source "teacher"), sonst "absent" aus einer Meldung krank, entschuldigt
   // oder Klassenfahrt (source "report"). Fehlt, solange nichts davon vorliegt.
@@ -44,6 +46,16 @@ export type MorningAttendanceStatus = "present" | "absent";
 interface ClassDayMorningAttendance {
   status: MorningAttendanceStatus;
   source: "teacher" | "report";
+}
+
+/** Ein Hinweis der Lehrkraft für einen Tag an die OGS (#4795). */
+export interface ClassDayHint {
+  body: string;
+  author_name?: string;
+  // true: der Hinweis ist von der angemeldeten Lehrkraft und darf geändert
+  // oder gelöscht werden.
+  own: boolean;
+  updated_at: string;
 }
 
 interface ClassDayTotals {
@@ -70,6 +82,11 @@ export interface ClassDayReport {
   // Tagesausnahme der ganzen Klasse an diesem Tag (#2962/#2970), egal ob
   // OGS oder Schule sie eingetragen hat. Fehlt, wenn es keine gibt.
   class_arrival_exception?: ClassDayArrivalException;
+  // Hinweise der Lehrkraft für heute an die OGS für die ganze Klasse (#4795).
+  class_day_hints?: ClassDayHint[];
+  // true: die Lehrkraft darf heute einen Hinweis schreiben (Recht und
+  // Freigabe der OGS). Fehlt bei älteren Antworten.
+  can_write_day_hints?: boolean;
   // Die Lehrkraft darf die Anwesenheit am Vormittag eintragen (#4790): der
   // Tag ist heute und ein Schultag, die OGS hat es nicht ausgeschaltet und
   // die Berechtigung liegt vor.

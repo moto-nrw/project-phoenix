@@ -358,6 +358,7 @@ var operations_init_aufsicht_6Definitions = []config.Definition{
 			Static: []config.SelectOption{
 				{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
 				{Label: "Ausflug oder Klassenfahrt der Klasse melden", Value: config.SchoolPortalWriteScopeClassTrips},
+				{Label: "Hinweis für heute an die OGS, für die Klasse oder ein Kind", Value: config.SchoolPortalWriteScopeDayHints},
 			},
 		},
 	},

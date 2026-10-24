@@ -11,6 +11,8 @@
 // building JSX (badges, rows, indicators) in the page and handing it down as
 // props would defeat the memo again, because JSX is a new object every render.
 
+import { teacherHintText } from "~/lib/student-helpers";
+import { StickyNote } from "lucide-react";
 import React from "react";
 
 import { DataTableStatusBadge } from "~/components/ui/data-table";
@@ -252,6 +254,20 @@ function SearchStudentCardImpl({
             student.pending_excused_note !== undefined && (
               <StudentPendingExcusedRow note={student.pending_excused_note} />
             )}
+          {(student.teacher_hints ?? []).map((hint) => (
+            <StudentInfoRow
+              key={`${hint.school_class ?? ""}-${hint.body}`}
+              icon={
+                <StickyNote
+                  className="h-3.5 w-3.5 text-gray-400"
+                  aria-hidden="true"
+                />
+              }
+              wrap
+            >
+              {teacherHintText(hint)}
+            </StudentInfoRow>
+          ))}
           {student.has_full_access !== false &&
             (() => {
               const absence = getStudentAbsence({

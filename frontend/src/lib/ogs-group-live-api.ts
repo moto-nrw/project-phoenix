@@ -5,7 +5,7 @@
 // contract — it must never grow personal fields the page does not display.
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
 
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
 
@@ -36,6 +36,7 @@ export interface OgsLiveWireStudent {
   day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
+  teacher_hints?: TeacherHint[];
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;

@@ -4,7 +4,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Ports the composition root binds for the school-portal capability.
@@ -26,11 +26,12 @@ type (
 	BlockStarts                   = application.BlockStarts
 	ArrivalScheduleAnnouncer      = application.ArrivalScheduleAnnouncer
 	MorningAttendanceDependencies = application.MorningAttendanceDependencies
+	DayHints                      = application.DayHints
 )
 
 // ClassDayDependencies wire the day report, the supervision sheet and the
-// write seams of moto schule (#2970, #4790, #4799); a nil seam answers "not
-// configured".
+// write seams of moto schule (#2970, #4790, #4795, #4799); a nil seam answers
+// "not configured".
 type ClassDayDependencies struct {
 	Caller                 CallerReader
 	Rosters                DayRosters
@@ -47,20 +48,19 @@ type ClassDayDependencies struct {
 	BlockStarts            BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
 	TripStatusDays         ClassTripStatusDays
+	DayHints               DayHints
+	Today                  func() calendar.Date
 	MorningAttendanceDependencies
 }
 
 // NewClassDay composes the school-portal capability.
 func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
-	var caller ports.Caller
-	if deps.Caller != nil {
-		caller = application.CallerBinding{CallerReader: deps.Caller}
-	}
 	app := application.ClassDayDependencies{
-		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
+		Caller: application.NewCallerBinding(deps.Caller), Rosters: deps.Rosters, StatusDays: deps.StatusDays,
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
 		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, TripScope: deps.WriteScope, Announcer: deps.Announcer,
 		TripStatusDays: deps.TripStatusDays, MorningAttendanceDependencies: deps.MorningAttendanceDependencies,
+		DayHints: deps.DayHints, HintScope: deps.WriteScope, Today: deps.Today,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}

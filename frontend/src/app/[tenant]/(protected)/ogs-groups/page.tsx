@@ -29,6 +29,7 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import type { Student } from "~/lib/api";
+import { teacherHintText } from "~/lib/student-helpers";
 import { isNotCheckedInLocation } from "~/lib/location-helper";
 import {
   countCheckedInStudents,
@@ -56,8 +57,10 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
+  StudentInfoRow,
   StudentPendingExcusedRow,
 } from "~/components/students/student-card";
+import { StickyNote } from "lucide-react";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
@@ -253,6 +256,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     day_planning_reason: student.day_planning_reason,
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
+    teacher_hints: student.teacher_hints,
     actual_arrival_time: student.actual_arrival_time,
     actual_pickup_time: student.actual_pickup_time,
     // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -1186,6 +1190,20 @@ function OGSGroupPageContent() {
                           note={student.pending_excused_note}
                         />
                       )}
+                      {(student.teacher_hints ?? []).map((hint) => (
+                        <StudentInfoRow
+                          key={`${hint.school_class ?? ""}-${hint.body}`}
+                          icon={
+                            <StickyNote
+                              className="h-3.5 w-3.5 text-gray-400"
+                              aria-hidden="true"
+                            />
+                          }
+                          wrap
+                        >
+                          {teacherHintText(hint)}
+                        </StudentInfoRow>
+                      ))}
                       {studentAbsence && !student.actual_pickup_time ? (
                         <StudentAbsenceRow
                           label={studentAbsence.label}

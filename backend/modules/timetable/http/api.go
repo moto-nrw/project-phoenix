@@ -94,6 +94,9 @@ type Dependencies struct {
 	// People serves display names and whether a child still attends from
 	// the People Directory (#2732).
 	People People
+	// TeacherHints reads the Lehrkraft's day hints for the roster (#4795);
+	// nil attaches none.
+	TeacherHints TeacherHints
 	// Templates are the Timetable owner's template writes including split
 	// and end (#3424 slice S2); RecurrenceLock is its tenant recurrence gate.
 	// AttendanceCorrections corrects completed blocks and Deviations applies

@@ -1,5 +1,6 @@
 "use client";
 
+import { teacherHintText } from "~/lib/student-helpers";
 import {
   Fragment,
   useEffect,
@@ -517,6 +518,15 @@ function TimetableRosterStudentRow({
             {attendanceDetail}
           </div>
         ) : null}
+        {/* Hinweise der Lehrkraft (#4795): dieselbe Zeile wie auf den Karten. */}
+        {(row.teacherHints ?? []).map((hint) => (
+          <div
+            key={`${hint.school_class ?? ""}-${hint.body}`}
+            className="mt-0.5 text-sm break-words text-gray-700"
+          >
+            {teacherHintText(hint)}
+          </div>
+        ))}
         {row.parallelPresentIn ? (
           <div className="text-moto-amber-strong mt-0.5 text-sm">
             {`Auch in „${row.parallelPresentIn.title}“ (${row.parallelPresentIn.startTime}–${row.parallelPresentIn.endTime}) als anwesend eingetragen`}

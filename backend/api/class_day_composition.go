@@ -35,7 +35,8 @@ import (
 // remaining ports are bound here over the reports, the status days, the
 // student, person and contact rows, the access log, the write-scope and
 // morning attendance settings and the broadcaster. deps also carries
-// Student Presence's morning attendance (#4790). Without a broadcaster no arrival schedule change is
+// Student Presence's morning attendance (#4790) and People Directory's day
+// hints (#4795). Without a broadcaster no arrival schedule change is
 // announced.
 func NewClassDay(
 	deps classdayCompose.ClassDayDependencies, reports enrollmentOwner.Reports, statusDays classDayStatusDayReader,

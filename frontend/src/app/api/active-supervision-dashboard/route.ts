@@ -11,7 +11,7 @@ import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 import type { CareDayStatus } from "~/lib/timetable-types";
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
 
 // ===== Wire types (Go: backend/modules/supervisiondashboard) =====
 
@@ -203,6 +203,13 @@ interface WirePickupTime {
   day_notes?: WireDayNote[];
 }
 
+interface WireTeacherHint {
+  student_id: string;
+  body: string;
+  author_name?: string;
+  school_class?: string;
+}
+
 interface WireArrivalTime {
   student_id: string;
   date: string;
@@ -233,6 +240,8 @@ interface WireDashboard {
   tracking_indicators: { labels: string[]; results: Record<string, boolean[]> };
   pickup_times: WirePickupTime[];
   arrival_times: WireArrivalTime[];
+  // Hinweise der Lehrkraft für heute (#4795); fehlt bei älteren Antworten.
+  teacher_hints?: WireTeacherHint[];
 }
 
 // ===== Frontend response type (camelCase view the page consumes) =====
@@ -438,6 +447,7 @@ interface ActiveSupervisionDashboardResponse {
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
+  teacherHints: Array<{ studentId: string } & TeacherHint>;
 }
 
 function supervisorNames(
@@ -627,6 +637,12 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
         id: n.id,
         content: n.content,
       })),
+    })),
+    teacherHints: (wire.teacher_hints ?? []).map((hint) => ({
+      studentId: hint.student_id,
+      body: hint.body,
+      author_name: hint.author_name,
+      school_class: hint.school_class,
     })),
     arrivalTimes: (wire.arrival_times ?? []).map((a) => ({
       studentId: a.student_id,

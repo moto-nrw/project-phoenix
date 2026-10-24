@@ -39,6 +39,7 @@ type AtSchoolCounter interface {
 
 // Dependencies are the consumer-owned ports the projection reads through.
 // ExcusedRequests is optional: without it no pending note is attached.
+// TeacherHints is optional: without it no hint of the Lehrkraft is attached.
 // Collate is optional: without it the groups keep the directory order.
 // Logger defaults to slog.Default; every other field is required.
 type Dependencies struct {
@@ -51,6 +52,7 @@ type Dependencies struct {
 	Settings        Settings
 	Calendar        Calendar
 	ExcusedRequests PendingExcusedReader
+	TeacherHints    TeacherHintReader
 	// Collate orders two group names in German dictionary order (DIN 5007-1),
 	// the order the group selection and the response rely on.
 	Collate func(a, b string) int
@@ -105,7 +107,10 @@ type Student struct {
 	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`
 	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`
 	PhotoURL           string     `json:"photo_url,omitempty"`
-	fullAccess         bool       // Planning access: staff/admin eligibility plus users:read.
+	// TeacherHints are today's hints of the Lehrkraft for this child or its
+	// class (#4795), oldest first; only with planning access.
+	TeacherHints []TeacherHint `json:"teacher_hints,omitempty"`
+	fullAccess   bool          // Planning access: staff/admin eligibility plus users:read.
 }
 
 type RoomStatus struct {
@@ -427,6 +432,24 @@ func (s *service) loadPlanning(ctx context.Context, state *buildState) error {
 	state.arrivals, state.pickups, state.timetable = arrivals, pickups, timetable
 	state.careDayEnd = careDayEnd
 	s.applyPlanning(state, pending)
+	return s.applyTeacherHints(ctx, state, ids)
+}
+
+// applyTeacherHints attaches today's hints of the Lehrkraft (#4795). Like the
+// other notes of a child they need planning access (users:read).
+func (s *service) applyTeacherHints(ctx context.Context, state *buildState, ids []int64) error {
+	if s.deps.TeacherHints == nil || len(ids) == 0 {
+		return nil
+	}
+	hints, err := s.deps.TeacherHints.TeacherHints(ctx, ids, state.today)
+	if err != nil {
+		return fmt.Errorf("load teacher hints: %w", err)
+	}
+	for i := range state.projected {
+		if state.projected[i].fullAccess {
+			state.projected[i].TeacherHints = hints[state.projected[i].ID]
+		}
+	}
 	return nil
 }
 

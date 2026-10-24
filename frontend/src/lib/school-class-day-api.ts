@@ -160,6 +160,43 @@ export async function reportClassTripSchool(
 }
 
 /**
+ * Ziel eines Hinweises an die OGS (#4795): die ganze Klasse ohne studentId,
+ * sonst ein Kind der Klasse. Ein Hinweis gilt nur für heute.
+ */
+function dayHintPath(
+  schoolClass: string,
+  date: string,
+  studentId?: number,
+): string {
+  const base = `/api/school/class-day/day-hints/${encodeURIComponent(schoolClass)}/${encodeURIComponent(date)}`;
+  return studentId
+    ? `${base}/students/${encodeURIComponent(String(studentId))}`
+    : base;
+}
+
+export async function saveDayHintSchool(
+  schoolClass: string,
+  date: string,
+  body: string,
+  studentId?: number,
+): Promise<void> {
+  await authFetch<unknown>(dayHintPath(schoolClass, date, studentId), {
+    method: "PUT",
+    body: { body },
+  });
+}
+
+export async function deleteDayHintSchool(
+  schoolClass: string,
+  date: string,
+  studentId?: number,
+): Promise<void> {
+  await authFetch<unknown>(dayHintPath(schoolClass, date, studentId), {
+    method: "DELETE",
+  });
+}
+
+/**
  * Eine Markierung der Anwesenheit am Vormittag (#4790): ein Kind mit
  * OGS-Datensatz über student_id, ein Klassenlisteneintrag über list_entry_id
  * (String, wie in der Tageszeile).

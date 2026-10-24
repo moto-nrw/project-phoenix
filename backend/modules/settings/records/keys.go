@@ -387,6 +387,9 @@ const (
 	// SchoolPortalWriteScopeClassTrips lets a Lehrkraft report a class trip
 	// (Ausflug or Klassenfahrt) for her assigned classes (#4799).
 	SchoolPortalWriteScopeClassTrips = "class_trips"
+	// SchoolPortalWriteScopeDayHints lets a Lehrkraft leave today's hint for
+	// the OGS on one of her assigned classes or on one of its children (#4795).
+	SchoolPortalWriteScopeDayHints = "day_hints"
 )
 
 // SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
@@ -399,6 +402,12 @@ func SchoolPortalWritesClassArrivalExceptions(scope []string) bool {
 // portal report class trips.
 func SchoolPortalWritesClassTrips(scope []string) bool {
 	return slices.Contains(scope, SchoolPortalWriteScopeClassTrips)
+}
+
+// SchoolPortalWritesDayHints reports a write scope that lets the school
+// portal leave today's hints for the OGS (#4795).
+func SchoolPortalWritesDayHints(scope []string) bool {
+	return slices.Contains(scope, SchoolPortalWriteScopeDayHints)
 }
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The

@@ -737,6 +737,7 @@ func TestSchoolPortalWriteScopeSetting(t *testing.T) {
 	require.Equal(t, []config.SelectOption{
 		{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
 		{Label: "Ausflug oder Klassenfahrt der Klasse melden", Value: config.SchoolPortalWriteScopeClassTrips},
+		{Label: "Hinweis für heute an die OGS, für die Klasse oder ein Kind", Value: config.SchoolPortalWriteScopeDayHints},
 	}, def.Options.Static)
 	assert.Equal(t, "class_trips", config.SchoolPortalWriteScopeClassTrips, "the stored value is part of the contract")
 

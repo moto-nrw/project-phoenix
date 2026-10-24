@@ -231,6 +231,23 @@ type Arrival struct {
 }
 
 // Planning reads the effective day plans of students.
+// TeacherHint is a Lehrkraft's hint for the OGS for today (#4795), written in
+// moto schule for the child or for its whole class.
+type TeacherHint struct {
+	StudentID int64  `json:"student_id,string"`
+	Body      string `json:"body"`
+	// AuthorName is the Lehrkraft's name, empty when the person is gone.
+	AuthorName string `json:"author_name,omitempty"`
+	// SchoolClass is set when the hint is for the whole class.
+	SchoolClass string `json:"school_class,omitempty"`
+}
+
+// TeacherHintReader reads the Lehrkraft's day hints of many children, oldest
+// first.
+type TeacherHintReader interface {
+	TeacherHints(ctx context.Context, studentIDs []int64, date Date) ([]TeacherHint, error)
+}
+
 type Planning interface {
 	Pickups(ctx context.Context, studentIDs []int64, date Date) (map[int64]Pickup, error)
 	Arrivals(ctx context.Context, studentIDs []int64, date Date) (map[int64]Arrival, error)
