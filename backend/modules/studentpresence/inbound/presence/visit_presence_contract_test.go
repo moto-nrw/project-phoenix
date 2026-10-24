@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,10 @@ func TestVisitListPresenceCutoverPreservesStatusAndGroupFilters(t *testing.T) {
 	group := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
 	otherGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
 	otherStudent := testpkg.CreateTestStudent(t, tc.db, "Other", "HTTP", "3a")
-	at := time.Now().Add(-time.Hour)
+	// Completed visits remain readable without the attendance log only from the
+	// current Berlin calendar day. Keep this fixture on that day even directly
+	// after midnight.
+	at := calendar.Today().Add(8 * time.Hour)
 	exit := at.Add(10 * time.Minute)
 	closed := testpkg.CreateTestVisit(t, tc.db, student.ID, group.ID, at, &exit)
 	open := testpkg.CreateTestVisit(t, tc.db, student.ID, group.ID, at.Add(20*time.Minute), nil)
