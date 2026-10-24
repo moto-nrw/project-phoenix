@@ -31,4 +31,46 @@ describe("SelectField", () => {
     );
     expect(screen.getByRole("combobox")).toBeDisabled();
   });
+
+  describe("multiple (#4794)", () => {
+    it("ticks the stored values and saves the list in option order", () => {
+      const onChange = vi.fn();
+      render(
+        <SelectField
+          ariaLabel="Sprachen"
+          value={["tr"]}
+          onChange={onChange}
+          options={options}
+          multiple
+        />,
+      );
+      expect(screen.getByRole("group", { name: "Sprachen" })).toBeVisible();
+      expect(screen.getByRole("checkbox", { name: "Türkçe" })).toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: "Deutsch" }),
+      ).not.toBeChecked();
+
+      fireEvent.click(screen.getByRole("checkbox", { name: "Deutsch" }));
+      expect(onChange).toHaveBeenLastCalledWith(["de", "tr"]);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Türkçe" }));
+      expect(onChange).toHaveBeenLastCalledWith([]);
+    });
+
+    it("reads anything but a list as nothing ticked and can be disabled", () => {
+      render(
+        <SelectField
+          value="none"
+          onChange={vi.fn()}
+          options={options}
+          multiple
+          disabled
+        />,
+      );
+      for (const option of options) {
+        const box = screen.getByRole("checkbox", { name: option.label });
+        expect(box).not.toBeChecked();
+        expect(box).toBeDisabled();
+      }
+    });
+  });
 });
