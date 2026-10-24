@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
@@ -19,7 +20,7 @@ func init() { RootCmd.AddCommand(newTenantCommand()) }
 func newTenantCommand() *cobra.Command {
 	parent := tenantCommand(runTenantExport)
 	var request organizationtenancy.ErasureRequest
-	var root string
+	var root, ledgerPath string
 	erase := &cobra.Command{Use: "erase", Short: "Erase one school, or process an organization's schools (root remains open)", Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			db, err := transactionCompose.OpenDatabase()
@@ -27,7 +28,7 @@ func newTenantCommand() *cobra.Command {
 				return errors.New("erasure: database connection unavailable")
 			}
 			defer func() { _ = db.Close() }()
-			service, err := organizationCompose.NewErasure(db.Pool(), objects.NewLocal(root))
+			service, err := organizationCompose.NewErasure(db.Pool(), objects.NewLocal(root), erasureledger.New(ledgerPath, securityruntime.Fingerprint))
 			if err != nil {
 				return err
 			}
@@ -46,6 +47,7 @@ func newTenantCommand() *cobra.Command {
 	f.StringVar(&request.OrderReference, "order", "", "Non-personal ticket reference: 3-40 uppercase letters/digits/hyphens")
 	f.StringVar(&request.Confirmation, "confirm", "", "Exact target: school:<id> or organization:<id>")
 	f.StringVar(&root, "uploads-root", "", "Mounted uploads directory used by this installation (required)")
+	f.StringVar(&ledgerPath, "erasure-ledger", "", "Absolute path to existing independent host ledger; required except for dry-run")
 	f.BoolVar(&request.DryRun, "dry-run", false, "Count rows and files without changing either")
 	f.BoolVar(&request.PrerequisitesChecked, "prerequisites-checked", false, "Order, authorization, return/deadlines and retention reviewed in internal ticket")
 	f.BoolVar(&request.WritersStopped, "writers-stopped", false, "All API, worker, upload, import and scheduled writers stopped for maintenance")
@@ -60,7 +62,7 @@ func newTenantCommand() *cobra.Command {
 				return errors.New("erasure: database connection unavailable")
 			}
 			defer func() { _ = db.Close() }()
-			service, err := organizationCompose.NewErasure(db.Pool(), objects.NewLocal(""))
+			service, err := organizationCompose.NewErasure(db.Pool(), objects.NewLocal(""), erasureledger.New("", securityruntime.Fingerprint))
 			if err != nil {
 				return err
 			}
@@ -71,8 +73,17 @@ func newTenantCommand() *cobra.Command {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(results[0])
 		}}
 	receipt.Flags().Int64Var(&receiptID, "id", 0, "Erasure evidence ID")
-	parent.AddCommand(erase, receipt)
+	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand())
 	return parent
+}
+
+func newErasureLedgerInitCommand() *cobra.Command {
+	var initPath string
+	initialize := &cobra.Command{Use: "ledger-init", Short: "Initialize a NEW installation's independent erasure ledger; never use after restore", Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,
+		RunE: func(_ *cobra.Command, _ []string) error { return erasureledger.Initialize(initPath) }}
+	initialize.Flags().StringVar(&initPath, "erasure-ledger", "", "Absolute ledger path in a protected existing host directory")
+	_ = initialize.MarkFlagRequired("erasure-ledger")
+	return initialize
 }
 
 func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOptions) error) *cobra.Command {

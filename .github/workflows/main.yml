@@ -214,6 +214,7 @@ jobs:
             tooling:
               - 'docs/operations/daily-restore.compose.yml'
               - 'scripts/daily-backup*'
+              - 'scripts/*erasure-ledger*'
               - 'monitoring/grafana/provisioning/alerting/daily-backup.yml'
               - 'scripts/daily_backup.py'
               - 'scripts/restore-daily-backup.sh'
@@ -247,6 +248,7 @@ jobs:
               - 'scripts/check-pr-body*'
               - '**/*.test.{js,cjs,mjs,ts,cts,mts}'
               - '**/*_test.py'
+              - '**/*.test.py'
               - '**/*_test.sh'
               - 'frontend/e2e/**'
               - 'frontend/playwright*.config.ts'
@@ -335,7 +337,7 @@ jobs:
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 
       # Lists test files that no workflow runs (#4436).
@@ -359,6 +361,12 @@ jobs:
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
           systemd-analyze verify scripts/systemd/moto-release-retention@.service scripts/systemd/moto-release-retention@.timer
+
+      - name: Verify external erasure ledger unit and restore suites
+        if: matrix.suite == 'restore'
+        run: |
+          python3 scripts/erasure-ledger.test.py
+          node --test scripts/erasure-ledger.integration.test.mjs
 
       - name: Setup Node.js for error-code generator fixtures
         if: matrix.suite == 'ratchets'

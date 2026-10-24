@@ -30,6 +30,7 @@
     "phoenix tenant",
     "phoenix tenant erase",
     "phoenix tenant export",
+    "phoenix tenant ledger-init",
     "phoenix tenant receipt",
     "phoenix worker"
   ],
