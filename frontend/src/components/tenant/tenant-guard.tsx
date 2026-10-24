@@ -16,6 +16,7 @@ import { Button } from "~/components/ui/button";
 import { credentialError } from "~/components/auth/credential-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { reloginAtTenant } from "./tenant-relogin";
 
 const logger = createLogger({ component: "TenantGuard" });
 
@@ -23,7 +24,10 @@ const MAX_SWITCH_ATTEMPTS = 3;
 
 // Kein Zugang zur Schule kommt als 401. Ohne diesen Abgleich spränge der
 // Fehlerweg wortlos zur Anmeldung, statt den Grund zu nennen (#2517).
-const NO_ACCESS = ["identity.tenant_access_denied"] as const;
+const NO_ACCESS = [
+  "identity.tenant_access_denied",
+  "identity.mfa_session_required",
+] as const;
 
 interface TenantGuardProps {
   readonly children: React.ReactNode;
@@ -77,6 +81,9 @@ function GuardedTenant({
   });
   const switchInFlight = useRef(false);
   const [failedTenantId, setFailedTenantId] = useState<number | null>(null);
+  const [mfaRequiredTenantId, setMfaRequiredTenantId] = useState<number | null>(
+    null,
+  );
   const [recheck, setRecheck] = useState(0);
   // Why the switch failed, from the shared error path (#2517). Empty when
   // the switch went through but the old school kept coming back.
@@ -195,6 +202,7 @@ function GuardedTenant({
     if (sessionTenantId === urlTenantId) {
       switchAttempts.current = { targetTenantId: null, count: 0 };
       setFailedTenantId(null);
+      setMfaRequiredTenantId(null);
       clearSwitchError();
       return;
     }
@@ -204,6 +212,7 @@ function GuardedTenant({
     if (switchAttempts.current.targetTenantId !== urlTenantId) {
       switchAttempts.current = { targetTenantId: urlTenantId, count: 0 };
       setFailedTenantId(null);
+      setMfaRequiredTenantId(null);
       clearSwitchError();
     }
 
@@ -285,10 +294,17 @@ function GuardedTenant({
           if (switchAttempts.current.targetTenantId === switchTargetTenantId) {
             switchAttempts.current.count = MAX_SWITCH_ATTEMPTS;
           }
+          const needsMFA =
+            err instanceof ApiError &&
+            err.code === "identity.mfa_session_required";
+          setFailedTenantId(switchTargetTenantId);
+          setMfaRequiredTenantId(needsMFA ? switchTargetTenantId : null);
           // The reason shows next to "Erneut versuchen" below; that button
           // is the retry, so the alert carries none of its own.
           void showSwitchError(credentialError(err, NO_ACCESS), {
-            object: `das Wechseln zu ${switchTargetName}`,
+            object: needsMFA
+              ? switchTargetName
+              : `das Wechseln zu ${switchTargetName}`,
           });
         }
       } finally {
@@ -369,36 +385,59 @@ function GuardedTenant({
               }
             />
             <span className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="md"
-                onClick={() => {
-                  switchAttempts.current = {
-                    targetTenantId: urlTenantId,
-                    count: 0,
-                  };
-                  setFailedTenantId(null);
-                  clearSwitchError();
-                  setRecheck((n) => n + 1);
-                }}
-              >
-                Erneut versuchen
-              </Button>
-              <Button
-                type="button"
-                size="md"
-                variant="outline"
-                onClick={() => {
-                  void signOut({ callbackUrl: "/" }).catch((err: unknown) => {
-                    logger.warn("tenant_relogin_signout_failed", {
-                      error: err instanceof Error ? err.message : String(err),
-                    });
-                    void showActionError(err, { object: "die Abmeldung" });
-                  });
-                }}
-              >
-                Neu anmelden
-              </Button>
+              {mfaRequiredTenantId === urlTenantId ? (
+                <Button
+                  type="button"
+                  size="md"
+                  onClick={() => {
+                    void reloginAtTenant(urlSubdomain!).catch(
+                      (err: unknown) => {
+                        void showActionError(err, { object: "die Abmeldung" });
+                      },
+                    );
+                  }}
+                >
+                  Zur Schulanmeldung
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    size="md"
+                    onClick={() => {
+                      switchAttempts.current = {
+                        targetTenantId: urlTenantId,
+                        count: 0,
+                      };
+                      setFailedTenantId(null);
+                      clearSwitchError();
+                      setRecheck((n) => n + 1);
+                    }}
+                  >
+                    Erneut versuchen
+                  </Button>
+                  <Button
+                    type="button"
+                    size="md"
+                    variant="outline"
+                    onClick={() => {
+                      void signOut({ callbackUrl: "/" }).catch(
+                        (err: unknown) => {
+                          logger.warn("tenant_relogin_signout_failed", {
+                            error:
+                              err instanceof Error ? err.message : String(err),
+                          });
+                          void showActionError(err, {
+                            object: "die Abmeldung",
+                          });
+                        },
+                      );
+                    }}
+                  >
+                    Neu anmelden
+                  </Button>
+                </>
+              )}
             </span>
           </div>
         </div>

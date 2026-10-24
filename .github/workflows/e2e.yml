@@ -28,6 +28,7 @@ on:
       - "!frontend/e2e/layout/**"
       - "frontend/playwright.config.ts"
       - "frontend/playwright.network.config.ts"
+      - "frontend/playwright.tenant-switch.config.ts"
       - "frontend/scripts/seed-state.ts"
       - "frontend/package.json"
       - "frontend/pnpm-lock.yaml"
@@ -226,6 +227,12 @@ jobs:
           name: portal-network-evidence-${{ github.run_id }}
           path: frontend/test-results/network/*/network*.json
           if-no-files-found: error
+
+      - name: Run shared-cookie tenant-switch regression
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
+        run: pnpm exec playwright test -c playwright.tenant-switch.config.ts
 
       # playwright.config.ts starts `next dev` on port 3000 itself (CI=true
       # disables reuseExistingServer) and runs one worker.

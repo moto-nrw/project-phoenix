@@ -14,8 +14,9 @@ const { mockListAvailableTenants, mockPerformTenantSwitch } = vi.hoisted(
   }),
 );
 
-const { mockSignIn, mockUseSession } = vi.hoisted(() => ({
+const { mockSignIn, mockUseSession, mockSignOut } = vi.hoisted(() => ({
   mockSignIn: vi.fn(),
+  mockSignOut: vi.fn(),
   mockUseSession: vi.fn(),
 }));
 
@@ -56,7 +57,7 @@ vi.mock("next-auth/react", () => ({
   signIn: mockSignIn,
   useSession: mockUseSession,
   getSession: vi.fn(async () => ({ user: { token: "test-session" } })),
-  signOut: vi.fn(),
+  signOut: mockSignOut,
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -185,6 +186,11 @@ describe("BrandTenantSwitcher", () => {
       refresh_token: "new-refresh",
     });
     mockSignIn.mockResolvedValue({ ok: true });
+    mockSignOut.mockImplementation(
+      async ({ callbackUrl }: { callbackUrl: string }) => {
+        window.location.href = callbackUrl;
+      },
+    );
     mockMutate.mockResolvedValue(undefined);
 
     // Mock window.location with realistic values for subdomain-based redirect
@@ -370,7 +376,7 @@ describe("BrandTenantSwitcher", () => {
     expect(window.location.href).toBe("");
   });
 
-  it("shows missing MFA proof and opens the target school's login without expiring the source session", async () => {
+  it("shows missing MFA proof and signs out before opening the target school's login", async () => {
     realErrorDisplay.enabled = true;
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
     const actual =
@@ -378,19 +384,20 @@ describe("BrandTenantSwitcher", () => {
         "~/lib/tenant-api",
       );
     mockPerformTenantSwitch.mockImplementationOnce(actual.performTenantSwitch);
-    vi.spyOn(globalThis, "fetch").mockImplementation(
-      async () =>
-        new Response(
-          JSON.stringify({
-            status: 401,
-            code: "identity.mfa_session_required",
-            detail: "second factor required",
-          }),
-          {
-            status: 401,
-            headers: { "Content-Type": "application/problem+json" },
-          },
-        ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+      ["/api/auth/logout", "/api/auth/session"].includes(String(input))
+        ? new Response("{}", { status: 200 })
+        : new Response(
+            JSON.stringify({
+              status: 401,
+              code: "identity.mfa_session_required",
+              detail: "second factor required",
+            }),
+            {
+              status: 401,
+              headers: { "Content-Type": "application/problem+json" },
+            },
+          ),
     );
     render(
       <ToastProvider>
@@ -408,8 +415,14 @@ describe("BrandTenantSwitcher", () => {
       "Für die Anmeldung bei School B brauchen Sie einen zweiten Anmeldenachweis.",
     );
     expect(window.location.href).toBe("");
+    expect(mockSignOut).not.toHaveBeenCalled();
     fireEvent.click(login);
-    expect(window.location.href).toBe("http://school-b.localhost:3000/");
+    await waitFor(() =>
+      expect(window.location.href).toBe("http://school-b.localhost:3000/"),
+    );
+    expect(mockSignOut).toHaveBeenCalledWith({
+      callbackUrl: "http://school-b.localhost:3000/",
+    });
   });
 
   it("offers moto schule when the selected school only grants Lehrkraft access", async () => {

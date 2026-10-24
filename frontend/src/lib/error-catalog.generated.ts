@@ -1086,7 +1086,7 @@ export const ERROR_CATALOG = {
       "identity.mfa_status_unavailable":
         "Die Sicherheitsabfrage ist gerade nicht möglich. Bitte versuchen Sie es erneut.",
       "identity.mfa_session_required":
-        "Für die Anmeldung bei {object} brauchen Sie einen zweiten Anmeldenachweis. Wählen Sie „Zur Schulanmeldung“. Melden Sie sich dort an und bestätigen Sie die Anmeldung.",
+        "Für die Anmeldung bei {object} brauchen Sie einen zweiten Anmeldenachweis. Wählen Sie „Zur Schulanmeldung“. Sie werden abgemeldet. Melden Sie sich danach dort neu an und bestätigen Sie die Anmeldung.",
       "identity.mfa_not_enrolled":
         "Die Zwei-Faktor-Anmeldung ist noch nicht eingerichtet. Bitte richten Sie sie zuerst ein.",
       "identity.mfa_already_enrolled":
@@ -1467,7 +1467,7 @@ export const ERROR_CATALOG = {
       "identity.mfa_status_unavailable":
         "Sign-in verification is currently unavailable. Please try again.",
       "identity.mfa_session_required":
-        "Signing in to {object} requires a second verification. Use the button to open that school’s sign-in page. Sign in there and complete the verification.",
+        "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
       "staff.external_email_required": "Please enter an email address.",
       "staff.external_email_invalid":
         "This email address is not valid. Please check it.",
@@ -1749,7 +1749,7 @@ export const ERROR_CATALOG = {
       "identity.mfa_status_unavailable":
         "Подтверждение входа сейчас недоступно. Попробуйте ещё раз.",
       "identity.mfa_session_required":
-        "Для входа в {object} требуется дополнительное подтверждение. Нажмите кнопку, чтобы открыть страницу входа этой школы. Войдите там и подтвердите вход.",
+        "Для входа в {object} требуется дополнительное подтверждение. Кнопка завершит текущий сеанс и откроет страницу входа этой школы. Войдите там заново и подтвердите вход.",
     },
   },
   sq: {
@@ -2034,7 +2034,7 @@ export const ERROR_CATALOG = {
       "identity.mfa_status_unavailable":
         "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
       "identity.mfa_session_required":
-        "Hyrja në {object} kërkon një verifikim të dytë. Përdorni butonin për të hapur hyrjen e asaj shkolle. Hyni atje dhe konfirmoni hyrjen.",
+        "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
     },
   },
   pl: {
@@ -2306,7 +2306,7 @@ export const ERROR_CATALOG = {
       "identity.mfa_status_unavailable":
         "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
       "identity.mfa_session_required":
-        "Logowanie do {object} wymaga dodatkowego potwierdzenia. Użyj przycisku, aby otworzyć stronę logowania tej szkoły. Zaloguj się tam i potwierdź logowanie.",
+        "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
     },
   },
   tr: {
@@ -2585,7 +2585,7 @@ export const ERROR_CATALOG = {
       "identity.mfa_status_unavailable":
         "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
       "identity.mfa_session_required":
-        "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğmeyle o okulun giriş sayfasını açın. Orada giriş yapın ve doğrulamayı tamamlayın.",
+        "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
     },
   },
   uk: {
@@ -2854,7 +2854,7 @@ export const ERROR_CATALOG = {
       "identity.mfa_status_unavailable":
         "Підтвердження входу зараз недоступне. Спробуйте ще раз.",
       "identity.mfa_session_required":
-        "Для входу до {object} потрібне додаткове підтвердження. Натисніть кнопку, щоб відкрити сторінку входу цієї школи. Увійдіть там і підтвердьте вхід.",
+        "Для входу до {object} потрібне додаткове підтвердження. Кнопка завершить поточний сеанс і відкриє сторінку входу цієї школи. Увійдіть там знову й підтвердьте вхід.",
     },
   },
 } as const;

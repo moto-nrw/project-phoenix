@@ -26,6 +26,7 @@ import { Alert } from "~/components/ui/alert";
 import { credentialError } from "~/components/auth/credential-error";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { reloginAtTenant } from "./tenant-relogin";
 import {
   BrandLink,
   BrandLogo,
@@ -189,10 +190,14 @@ export function BrandTenantSwitcher({
                   action: {
                     label: "Zur Schulanmeldung",
                     onClick: () => {
-                      const port = window.location.port
-                        ? `:${window.location.port}`
-                        : "";
-                      window.location.href = `${window.location.protocol}//${targetTenant.subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port}/`;
+                      void reloginAtTenant(targetTenant.subdomain).catch(
+                        (error: unknown) => {
+                          void showSwitchError(error, {
+                            object: "die Abmeldung",
+                            retry: () => latestSwitchRef.current(targetTenant),
+                          });
+                        },
+                      );
                     },
                   },
                 }

@@ -242,7 +242,7 @@ function loginTopic(
     ],
     troubleshootingDetails: [
       "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht.",
-      "Beim Schulwechsel fehlt ein zweiter Anmeldenachweis? Wählen Sie `Zur Schulanmeldung`. Melden Sie sich direkt bei der Zielschule an. Bestätigen Sie dort die Anmeldung.",
+      "Beim Schulwechsel fehlt ein zweiter Anmeldenachweis? Wählen Sie `Zur Schulanmeldung`. Sie werden zuerst abgemeldet. Melden Sie sich danach direkt bei der Zielschule neu an. Bestätigen Sie dort die Anmeldung.",
     ],
     troubleshooting: HELP_TOPICS.loginProblem,
     related: [
