@@ -1,4 +1,4 @@
-package application
+package compose_test
 
 import (
 	"context"
@@ -10,7 +10,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
+
+func newSickReports(t *testing.T, calls *sickReportCalls) shiftplansync.SickReports {
+	t.Helper()
+	reports, err := compose.NewSickReports(calls, calls)
+	require.NoError(t, err)
+	return reports
+}
 
 // sickReportCalls records the writes and the cascade steps in order.
 type sickReportCalls struct {
@@ -82,7 +91,7 @@ func TestSickReportsApplyThePlanInOrderAfterTheWrite(t *testing.T) {
 		{Kind: workforce.SickCascadeReassign, FromAbsenceID: 43, ToAbsenceID: 42},
 		{Kind: workforce.SickCascadeMark, Report: workforce.SickCascadeInput{DateStart: "2026-02-10"}},
 	}}
-	reports := NewSickReports(calls, calls)
+	reports := newSickReports(t, calls)
 
 	created, err := reports.CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
 	require.NoError(t, err)
@@ -107,7 +116,7 @@ func TestSickReportsFailClosed(t *testing.T) {
 	t.Parallel()
 	refused := errors.New("absence refused")
 	calls := &sickReportCalls{writeErr: refused, plan: workforce.SickCascadePlan{{Kind: workforce.SickCascadeMark}}}
-	reports := NewSickReports(calls, calls)
+	reports := newSickReports(t, calls)
 	_, err := reports.CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
 	require.ErrorIs(t, err, refused)
 	require.ErrorIs(t, reports.DeleteAbsenceFor(inSickReportTx(), 11, 12, nil, 42), refused)
@@ -124,7 +133,7 @@ func TestSickReportsFailClosed(t *testing.T) {
 		{workforce.SickCascadeReassign, "failed to merge absence — plan stamp reassignment failed: plan write failed"},
 	} {
 		calls := &sickReportCalls{cascadeErr: broken, plan: workforce.SickCascadePlan{{Kind: tc.kind}, {Kind: workforce.SickCascadeMark}}}
-		_, err := NewSickReports(calls, calls).CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
+		_, err := newSickReports(t, calls).CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
 		require.ErrorIs(t, err, broken)
 		assert.EqualError(t, err, tc.message)
 		assert.Len(t, calls.calls, 1+map[workforce.SickCascadeStepKind]int{
@@ -133,6 +142,14 @@ func TestSickReportsFailClosed(t *testing.T) {
 	}
 
 	calls = &sickReportCalls{plan: workforce.SickCascadePlan{{Kind: "unknown"}}}
-	_, err = NewSickReports(calls, calls).CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
+	_, err = newSickReports(t, calls).CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
 	require.EqualError(t, err, `sick cascade: unknown plan step "unknown"`)
+}
+
+func TestNewSickReportsRequiresTheWritesAndTheCascade(t *testing.T) {
+	t.Parallel()
+	_, err := compose.NewSickReports(nil, &sickReportCalls{})
+	require.Error(t, err)
+	_, err = compose.NewSickReports(&sickReportCalls{}, nil)
+	require.Error(t, err)
 }

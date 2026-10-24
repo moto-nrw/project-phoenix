@@ -33,25 +33,31 @@ func (c *attachmentCalls) GuardianDeclarationProofAttachmentTenant(context.Conte
 	return c.tenant(), nil
 }
 
-func (c *attachmentCalls) ListAnnouncementAttachmentsInTenant(context.Context, int64, int64) ([]Attachment, error) {
+func (c *attachmentCalls) ListAnnouncementAttachmentsInTenant(context.Context, int64, int64) ([]attachmentRow, error) {
 	c.calls = append(c.calls, "list")
-	return []Attachment{{ID: 73}}, nil
+	return []attachmentRow{{ID: 73}}, nil
 }
 
-func (c *attachmentCalls) FindAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (Attachment, error) {
+func (c *attachmentCalls) FindAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (attachmentRow, error) {
 	c.calls = append(c.calls, "find")
-	return Attachment{ID: 73}, nil
+	return attachmentRow{ID: 73}, nil
 }
 
-func (c *attachmentCalls) OpenAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (AttachmentContent, error) {
+// attachmentRow and attachmentContent stand in for File Storage's values.
+type (
+	attachmentRow     struct{ ID int64 }
+	attachmentContent struct{ Filename string }
+)
+
+func (c *attachmentCalls) OpenAnnouncementAttachmentInTenant(context.Context, int64, int64, int64) (attachmentContent, error) {
 	c.calls = append(c.calls, "open")
-	return AttachmentContent{Filename: "brief.pdf"}, nil
+	return attachmentContent{Filename: "brief.pdf"}, nil
 }
 
-func newAttachmentEntry(t *testing.T, tenants ...int64) (*AnnouncementAttachments, *attachmentCalls) {
+func newAttachmentEntry(t *testing.T, tenants ...int64) (*AnnouncementAttachments[attachmentRow, attachmentContent], *attachmentCalls) {
 	t.Helper()
 	calls := &attachmentCalls{tenants: tenants}
-	entry, err := NewAnnouncementAttachments(calls, calls)
+	entry, err := NewAnnouncementAttachments[attachmentRow, attachmentContent](calls, calls)
 	require.NoError(t, err)
 	return entry, calls
 }
@@ -61,7 +67,7 @@ func TestAnnouncementAttachmentsAskTheAudienceAgainBeforeHandingOut(t *testing.T
 	entry, calls := newAttachmentEntry(t, 17)
 	attachments, err := entry.ListGuardianAttachments(t.Context(), 29, 41)
 	require.NoError(t, err)
-	assert.Equal(t, []Attachment{{ID: 73}}, attachments)
+	assert.Equal(t, []attachmentRow{{ID: 73}}, attachments)
 	assert.Equal(t, []string{"audience", "list", "audience"}, calls.calls)
 
 	entry, calls = newAttachmentEntry(t, 17)
@@ -117,6 +123,6 @@ func TestAnnouncementAttachmentsRefuseInvalidIDsWithoutAsking(t *testing.T) {
 	require.ErrorIs(t, err, ErrAttachmentNotFound)
 	assert.Empty(t, calls.calls)
 
-	_, err = NewAnnouncementAttachments(nil, calls)
+	_, err = NewAnnouncementAttachments[attachmentRow, attachmentContent](nil, calls)
 	require.Error(t, err)
 }

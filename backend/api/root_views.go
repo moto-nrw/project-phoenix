@@ -30,6 +30,7 @@ import (
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -38,7 +39,7 @@ import (
 // Workforce and Timetable line, #3418).
 type StructureServices struct {
 	Education    schoolstructure.GroupManagement
-	Substitution education.SubstitutionModule
+	Substitution SubstitutionOperations
 }
 
 // buildGroupManagement binds School Structure's group management over the
@@ -61,7 +62,7 @@ func buildSubstitutions(
 	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, active studentpresence.Presence,
 	deviations timetable.StaffDeviations, owner owners.TimetableOwner, audit owners.AuditOwner, settings settingsCompose.SettingsService,
 	invitations identityaccess.SchoolInvitations,
-) (education.SubstitutionModule, error) {
+) (SubstitutionOperations, error) {
 	repos := owner.Repositories
 	runtime := education.NewLegacyRepositoryRuntime(db.Pool())
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
@@ -89,6 +90,15 @@ func buildSubstitutions(
 	return SubstitutionEntries{Groups: groups, Schedule: schedule}, nil
 }
 
+// SubstitutionOperations are the /api/substitutions operations in School
+// Structure's substitution vocabulary, as the root composes them from their
+// two entries.
+type SubstitutionOperations interface {
+	Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error)
+	Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error)
+	End(ctx context.Context, caller education.Caller, request education.EndRequest) error
+}
+
 // SubstitutionEntries serves /api/substitutions over its two entries: School
 // Structure's substitution module for the group targets and the
 // shift-plan-sync workflow's Terminvertretung entry for the schedule target
@@ -96,7 +106,7 @@ func buildSubstitutions(
 // entry keeps its own authorization, transaction and refusals.
 type SubstitutionEntries struct {
 	Groups   education.SubstitutionModule
-	Schedule education.SubstitutionModule
+	Schedule shiftplansync.ScheduleSubstitution
 }
 
 func (e SubstitutionEntries) Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error) {

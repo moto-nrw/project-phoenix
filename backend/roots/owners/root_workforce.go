@@ -21,7 +21,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -87,7 +87,7 @@ type WorkforcePlanning struct {
 	Shifts              *workforceCompose.ShiftPlanning
 	StaffShifts         workforceModule.StaffShiftPlanning
 	TimeTracking        *workforceCompose.TimeTracking
-	SickReports         shiftplansync.SickReports
+	SickReports         timeTrackingHTTP.AbsenceWrites
 	TimeTrackingCleanup workforceCompose.TimeTrackingCleanupService
 }
 

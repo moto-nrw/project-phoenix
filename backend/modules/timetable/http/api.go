@@ -124,12 +124,22 @@ type Dependencies struct {
 	PlanningTracks    timetable.PlanningTrackAdministration
 	// PickupExtensions serves the open block decisions for later pickup
 	// times (#3261).
-	PickupExtensions timetable.PickupExtensionCapability
+	PickupExtensions PickupExtensionDecisions
 	// Staffing wakes the tenant's open staff pages after a staffing save
 	// commits (#1844); nil sends nothing.
 	Staffing StaffingAnnouncer
 	Logger   *slog.Logger
 	Now      func() time.Time
+}
+
+// PickupExtensionDecisions are the later-pickup decisions these routes serve:
+// the open tasks, the child of one task, and the resolution. The root binds
+// the Care Exit workflow, which also re-applies the reported attendance
+// (#3261, #4825).
+type PickupExtensionDecisions interface {
+	FindPickupExtensionStudent(ctx context.Context, taskID int64) (int64, error)
+	ListOpenPickupExtensions(ctx context.Context, studentID int64) ([]timetable.PickupExtensionTask, error)
+	ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (timetable.PickupExtensionResolution, error)
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.

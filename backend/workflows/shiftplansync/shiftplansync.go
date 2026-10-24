@@ -38,4 +38,8 @@ type SickReports interface {
 // ScheduleSubstitution is the Terminvertretung entry of /api/substitutions in
 // School Structure's substitution vocabulary: the root routes the schedule
 // target to it (#4825).
-type ScheduleSubstitution = education.SubstitutionModule
+type ScheduleSubstitution interface {
+	Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error)
+	Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error)
+	End(ctx context.Context, caller education.Caller, request education.EndRequest) error
+}

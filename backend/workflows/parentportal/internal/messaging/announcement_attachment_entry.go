@@ -3,8 +3,6 @@ package messaging
 import (
 	"context"
 	"errors"
-	"io"
-	"time"
 )
 
 // ErrAttachmentNotFound is every refusal of the attachment entry: outside the
@@ -12,39 +10,15 @@ import (
 // root maps it onto File Storage's not-found answer.
 var ErrAttachmentNotFound = errors.New("parent: announcement attachment not found")
 
-// Attachment is one announcement attachment as the guardian side lists it.
-type Attachment struct {
-	ID             int64
-	AnnouncementID int64
-	Filename       string
-	SizeBytes      int64
-	ContentType    string
-	UploadedAt     time.Time
-}
-
-// AttachmentObject is an opened stored attachment.
-type AttachmentObject interface {
-	io.ReaderAt
-	Size() int64
-	Close() error
-}
-
-// AttachmentContent is an opened attachment ready to be served. The caller
-// closes it.
-type AttachmentContent struct {
-	Object      AttachmentObject
-	ModTime     time.Time
-	Filename    string
-	ContentType string
-}
-
 // AttachmentFiles is File Storage's tenant-scoped attachment reads. They check
 // nothing but the school they are named; the entry below decides the audience
-// before each read and again before any bytes are opened (#2890, #4825).
-type AttachmentFiles interface {
-	ListAnnouncementAttachmentsInTenant(ctx context.Context, tenantID, announcementID int64) ([]Attachment, error)
-	FindAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (Attachment, error)
-	OpenAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (AttachmentContent, error)
+// before each read and again before any bytes are opened (#2890, #4825). The
+// attachment A and the opened content C are File Storage's values; the entry
+// hands them out unchanged.
+type AttachmentFiles[A, C any] interface {
+	ListAnnouncementAttachmentsInTenant(ctx context.Context, tenantID, announcementID int64) ([]A, error)
+	FindAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (A, error)
+	OpenAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (C, error)
 }
 
 // AttachmentAudience is the guardian-side gate: the school of a live
@@ -63,21 +37,21 @@ type AttachmentAudience interface {
 // out, and a different school counts as "not visible". Every refusal is
 // ErrAttachmentNotFound, so "outside the audience" and "no such
 // announcement" stay indistinguishable.
-type AnnouncementAttachments struct {
+type AnnouncementAttachments[A, C any] struct {
 	audience AttachmentAudience
-	files    AttachmentFiles
+	files    AttachmentFiles[A, C]
 }
 
 // NewAnnouncementAttachments binds the audience gate to File Storage's reads.
-func NewAnnouncementAttachments(audience AttachmentAudience, files AttachmentFiles) (*AnnouncementAttachments, error) {
+func NewAnnouncementAttachments[A, C any](audience AttachmentAudience, files AttachmentFiles[A, C]) (*AnnouncementAttachments[A, C], error) {
 	if audience == nil || files == nil {
 		return nil, errors.New("parent: attachment audience and file storage are required")
 	}
-	return &AnnouncementAttachments{audience: audience, files: files}, nil
+	return &AnnouncementAttachments[A, C]{audience: audience, files: files}, nil
 }
 
 // ListGuardianAttachments returns the attachments a guardian account may see.
-func (a *AnnouncementAttachments) ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]Attachment, error) {
+func (a *AnnouncementAttachments[A, C]) ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]A, error) {
 	gate := func(ctx context.Context) (int64, error) { return a.announcementTenant(ctx, accountID, announcementID) }
 	tenantID, err := gate(ctx)
 	if err != nil {
@@ -95,7 +69,7 @@ func (a *AnnouncementAttachments) ListGuardianAttachments(ctx context.Context, a
 
 // OpenGuardianAttachment opens one attachment of a live announcement for a
 // guardian in its audience, under the announcement's school.
-func (a *AnnouncementAttachments) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (AttachmentContent, error) {
+func (a *AnnouncementAttachments[A, C]) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (C, error) {
 	return a.open(ctx, func(ctx context.Context) (int64, error) {
 		return a.announcementTenant(ctx, accountID, announcementID)
 	}, announcementID, attachmentID)
@@ -105,7 +79,7 @@ func (a *AnnouncementAttachments) OpenGuardianAttachment(ctx context.Context, ac
 // account's own declaration proof for the child. Unlike the live-announcement
 // path, it stays available after expiry or withdrawal; the proof gate checks
 // the relationship, the submission and the frozen attachment together.
-func (a *AnnouncementAttachments) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (AttachmentContent, error) {
+func (a *AnnouncementAttachments[A, C]) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (C, error) {
 	return a.open(ctx, func(ctx context.Context) (int64, error) {
 		if accountID <= 0 || announcementID <= 0 || studentID <= 0 || attachmentID <= 0 {
 			return 0, ErrAttachmentNotFound
@@ -116,21 +90,22 @@ func (a *AnnouncementAttachments) OpenGuardianDeclarationProofAttachment(ctx con
 
 // open reads the attachment row under the gate's school, asks the gate again
 // and only then opens the bytes.
-func (a *AnnouncementAttachments) open(ctx context.Context, gate func(context.Context) (int64, error), announcementID, attachmentID int64) (AttachmentContent, error) {
+func (a *AnnouncementAttachments[A, C]) open(ctx context.Context, gate func(context.Context) (int64, error), announcementID, attachmentID int64) (C, error) {
+	var none C
 	tenantID, err := gate(ctx)
 	if err != nil {
-		return AttachmentContent{}, err
+		return none, err
 	}
 	if _, err := a.files.FindAnnouncementAttachmentInTenant(ctx, tenantID, announcementID, attachmentID); err != nil {
-		return AttachmentContent{}, err
+		return none, err
 	}
 	if err := revalidate(ctx, gate, tenantID); err != nil {
-		return AttachmentContent{}, err
+		return none, err
 	}
 	return a.files.OpenAnnouncementAttachmentInTenant(ctx, tenantID, announcementID, attachmentID)
 }
 
-func (a *AnnouncementAttachments) announcementTenant(ctx context.Context, accountID, announcementID int64) (int64, error) {
+func (a *AnnouncementAttachments[A, C]) announcementTenant(ctx context.Context, accountID, announcementID int64) (int64, error) {
 	if accountID <= 0 || announcementID <= 0 {
 		return 0, ErrAttachmentNotFound
 	}

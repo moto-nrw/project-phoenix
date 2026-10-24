@@ -23,9 +23,9 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -38,7 +38,7 @@ type WorkforceTestModule struct {
 	TimeTracking *workforceCompose.TimeTracking
 	// SickReports is the shift-plan-sync entry of the sick-report writes,
 	// bound to the real cascade the way the service graph binds it (#4825).
-	SickReports shiftplansync.SickReports
+	SickReports timeTrackingHTTP.AbsenceWrites
 }
 
 // NewWorkforceTestModule composes the Workforce owner over db and returns it

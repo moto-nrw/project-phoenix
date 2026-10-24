@@ -25,6 +25,13 @@ type AdminAbsenceWrites interface {
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
 }
 
+// AbsenceWrites are both resources' absence writes; the root binds one
+// shift-plan-sync entry to them.
+type AbsenceWrites interface {
+	OwnAbsenceWrites
+	AdminAbsenceWrites
+}
+
 // StaffAdminResource serves the workforce half of /api/staff.
 type StaffAdminResource struct {
 	uploads              common.UploadStorage

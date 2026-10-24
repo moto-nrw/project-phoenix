@@ -29,13 +29,16 @@ type (
 	RequestShareVisibility = care.RequestShareVisibility
 	// AnnouncementAttachments is the guardian's attachment entry; the root
 	// binds it to File Storage's parent download routes (#4825).
-	AnnouncementAttachments = messaging.AnnouncementAttachments
-	AttachmentAudience      = messaging.AttachmentAudience
-	AttachmentFiles         = messaging.AttachmentFiles
-	Attachment              = messaging.Attachment
-	AttachmentObject        = messaging.AttachmentObject
-	AttachmentContent       = messaging.AttachmentContent
+	AttachmentAudience = messaging.AttachmentAudience
 )
+
+// AnnouncementAttachments is the guardian's attachment entry; the root binds
+// it to File Storage's parent download routes (#4825). A and C are File
+// Storage's attachment and opened content, handed out unchanged.
+type AnnouncementAttachments[A, C any] = messaging.AnnouncementAttachments[A, C]
+
+// AttachmentFiles is File Storage's tenant-scoped attachment reads.
+type AttachmentFiles[A, C any] = messaging.AttachmentFiles[A, C]
 
 // ErrAttachmentNotFound is every refusal of the guardian attachment entry.
 var ErrAttachmentNotFound = messaging.ErrAttachmentNotFound
@@ -48,7 +51,7 @@ func NewChildFlows(cfg ChildConfig) *ChildFlows {
 
 // NewAnnouncementAttachments binds the portal's attachment audience gate to
 // File Storage's tenant-scoped attachment reads.
-func NewAnnouncementAttachments(audience AttachmentAudience, files AttachmentFiles) (*AnnouncementAttachments, error) {
+func NewAnnouncementAttachments[A, C any](audience AttachmentAudience, files AttachmentFiles[A, C]) (*AnnouncementAttachments[A, C], error) {
 	return messaging.NewAnnouncementAttachments(audience, files)
 }
 
