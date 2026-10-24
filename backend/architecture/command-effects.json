@@ -29564,9 +29564,10 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform",
       "binding_digest": "028145e218ff9e11411044b4dee64355",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.enrollmentUploadAccessLog.RecordUploadAccess. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
@@ -29575,9 +29576,9 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime",
       "binding_digest": "4b96727a1aa402889e0419a628090ce2",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through modules/enrollment/internal/application.Intake.PrepareUpload. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
@@ -29586,9 +29587,10 @@
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.Remove",
       "target_owner": "file-storage",
       "binding_digest": "d4234f9115826635c086c974b184a071",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/filestorage/internal/adapters/documents.Coordinator.Remove; modules/filestorage/internal/adapters/documents/coordinator.go:156."
     },
     {
       "source_owner": "enrollment",
@@ -29597,9 +29599,9 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/objects.PrivateUploadsBackend",
       "target_owner": "delivery-platform",
       "binding_digest": "70853f10c8694e1ceed5341c2e97ceee",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction helper: enrollment reaches modules/delivery/objects.PrivateUploadsBackend (delivery-platform) while binding the upload-object sweep. It resolves the existing private uploads backend but performs no object mutation, lock or scope effect."
     },
     {
       "source_owner": "enrollment",
@@ -29608,9 +29610,9 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/filestorage/compose.NewDocumentCoordinator",
       "target_owner": "file-storage",
       "binding_digest": "70853f10c8694e1ceed5341c2e97ceee",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction helper: enrollment reaches modules/filestorage/compose.NewDocumentCoordinator (file-storage) while binding the upload-object sweep. It constructs the existing coordinator but performs no object mutation, lock or scope effect."
     },
     {
       "source_owner": "enrollment",
@@ -29619,9 +29621,9 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform",
       "binding_digest": "55dd897a1e8488ea9fa4accce6e41db7",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through modules/settings/records.BatchSettingsService.ResolveInt. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
@@ -29788,9 +29790,9 @@
       "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
       "target_owner": "tenant-runtime",
       "binding_digest": "7f1f91420a3a214f627966c4a5859f42",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only platform helper: enrollment reaches tenant.NewTenantID (tenant-runtime) through api.enrollmentUploadUnits.DiscardUpload. It validates the supplied tenant ID but performs no persistent, lock or scope effect."
     },
     {
       "source_owner": "enrollment",
@@ -29799,9 +29801,10 @@
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
       "target_owner": "tenant-runtime",
       "binding_digest": "8b786aa033ae24a37774c0e0c15228ea",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTenant (tenant-runtime) through api.enrollmentUploadUnits.DiscardUpload. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
@@ -29810,9 +29813,10 @@
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
       "binding_digest": "98aa353b0e5ee7de11cd6e3407c63410",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinCurrentTenant (tenant-runtime) through api.enrollmentUploadUnits.OpenRequestUpload. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
@@ -29821,9 +29825,9 @@
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime",
       "binding_digest": "1ff36fc4c4324efec18c4e5b79f73e99",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through api.enrollmentUploadUnits.PrepareUpload. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
@@ -29832,9 +29836,9 @@
       "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
       "target_owner": "tenant-runtime",
       "binding_digest": "01cc39aa892f8745fec4b600c2654bf4",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only platform helper: enrollment reaches tenant.NewTenantID (tenant-runtime) through api.enrollmentUploadUnits.PrepareUpload. It validates the supplied tenant ID but performs no persistent, lock or scope effect."
     },
     {
       "source_owner": "enrollment",
@@ -29843,9 +29847,10 @@
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
       "target_owner": "tenant-runtime",
       "binding_digest": "efbce7a8c46646812676e6e1d463d2e8",
-      "effect": "unknown",
-      "classification": "",
-      "reason": ""
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTenant (tenant-runtime) through api.enrollmentUploadUnits.PrepareUpload. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
