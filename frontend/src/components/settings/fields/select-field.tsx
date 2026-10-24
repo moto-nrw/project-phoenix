@@ -1,6 +1,5 @@
 "use client";
 
-import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 
 interface SelectOption {
@@ -14,11 +13,6 @@ interface SelectFieldProps {
   readonly onChange: (value: unknown) => void;
   readonly options: SelectOption[];
   readonly disabled?: boolean;
-  /**
-   * Multi-select: one checkbox per option. `value` is the list of chosen
-   * option values, and `onChange` receives the new list in option order.
-   */
-  readonly multiple?: boolean;
 }
 
 function toStr(v: unknown): string {
@@ -34,40 +28,7 @@ export function SelectField({
   onChange,
   options,
   disabled = false,
-  multiple = false,
 }: SelectFieldProps) {
-  if (multiple) {
-    const chosen = new Set(Array.isArray(value) ? value.map(toStr) : []);
-    return (
-      <div role="group" aria-label={ariaLabel} className="flex flex-col gap-2">
-        {options.map((opt) => {
-          const key = toStr(opt.value);
-          return (
-            <label
-              key={key}
-              className="flex items-start gap-2 text-sm text-gray-700"
-            >
-              <Checkbox
-                checked={chosen.has(key)}
-                disabled={disabled}
-                onChange={(event) => {
-                  const next = new Set(chosen);
-                  if (event.target.checked) next.add(key);
-                  else next.delete(key);
-                  onChange(
-                    options
-                      .filter((option) => next.has(toStr(option.value)))
-                      .map((option) => option.value),
-                  );
-                }}
-              />
-              <span>{opt.label}</span>
-            </label>
-          );
-        })}
-      </div>
-    );
-  }
   return (
     <div className="max-w-full min-w-0">
       <CustomSelect

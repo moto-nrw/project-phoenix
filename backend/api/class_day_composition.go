@@ -97,12 +97,30 @@ func (b classDayTripStatusDays) RecordClassTrip(ctx context.Context, schoolClass
 	switch {
 	case err == nil:
 		return nil
-	case errors.As(err, &conflict), errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
+	case errors.As(err, &conflict):
+		return classTripStatusConflict(conflict)
+	case errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
 		return fmt.Errorf("%w: %w", classday.ErrClassTripStatusConflict, err)
 	case errors.Is(err, studentpresence.ErrStudentStatusDayReassigned):
 		return fmt.Errorf("%w: %w", classday.ErrClassTripStudentNotInClass, err)
 	}
 	return err
+}
+
+// classTripStatusConflict carries the OGS's conflict sample and count, so
+// moto schule names the blocking children and days like the OGS dialog.
+func classTripStatusConflict(conflict *studentpresence.StudentStatusDayConflictError) error {
+	sample := conflict.SampleConflicts()
+	out := &classday.ClassTripStatusConflictError{
+		Conflicts: make([]classday.ClassTripConflict, 0, len(sample)),
+		Total:     conflict.ConflictTotal(),
+	}
+	for _, day := range sample {
+		out.Conflicts = append(out.Conflicts, classday.ClassTripConflict{
+			StudentID: day.StudentID, Date: classday.Date(day.Date.String()), Status: day.Status,
+		})
+	}
+	return out
 }
 
 // classDayRosters reads Enrollment's class roster of a day.

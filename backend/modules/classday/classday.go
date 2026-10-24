@@ -113,6 +113,27 @@ type ClassTripResult struct {
 	DateCount    int    `json:"date_count"`
 }
 
+// ClassTripConflict is one day a chosen child already has a status on.
+type ClassTripConflict struct {
+	StudentID int64  `json:"student_id"`
+	Date      Date   `json:"date"`
+	Status    string `json:"status"`
+}
+
+// ClassTripStatusConflictError names the days that refused a class trip,
+// like the OGS's own status-day write does: at most a sample of Conflicts
+// and the full Total. It answers errors.Is for ErrClassTripStatusConflict.
+type ClassTripStatusConflictError struct {
+	Conflicts []ClassTripConflict
+	Total     int
+}
+
+func (e *ClassTripStatusConflictError) Error() string { return ErrClassTripStatusConflict.Error() }
+
+func (e *ClassTripStatusConflictError) Is(target error) bool {
+	return target == ErrClassTripStatusConflict
+}
+
 // ErrMorningAttendanceNotConfigured is returned by the morning attendance
 // write when the projection was composed without the Student Presence seam.
 var ErrMorningAttendanceNotConfigured = errors.New("morning attendance is not configured")
