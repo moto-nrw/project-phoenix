@@ -152,8 +152,9 @@ type OperatorMFAEvidence struct {
 	Override    *OperatorMFAOverrideEvidence
 }
 
-// OperatorMFAOverrideEvidence records one platform-wide override transition.
+// OperatorMFAOverrideEvidence records one privileged account MFA change.
 type OperatorMFAOverrideEvidence struct {
+	SchoolID         int64
 	Action           string
 	Scope            string
 	Override         string
