@@ -201,6 +201,7 @@ export const HELP_TOPICS = {
   teacherClassList: "die-liste-einer-klasse-lesen",
   teacherMorningAttendance: "anwesenheit-am-vormittag-eintragen",
   teacherHomework: "hausaufgaben-eintragen",
+  teacherClassHandover: "klasse-an-die-ogs-uebergeben",
   teacherChildDetails: "als-lehrkraft-angaben-zu-einem-kind-ansehen",
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
   teacherSupervision: "meine-aufsichten-ansehen",

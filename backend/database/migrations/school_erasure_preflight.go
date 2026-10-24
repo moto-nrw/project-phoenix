@@ -15,13 +15,13 @@ func installSchoolErasurePreflight(ctx context.Context, tx bun.Tx) error {
 
 const schoolErasurePreflightSQL = schoolErasurePreflightPart1SQL + `    education.class_homework,
 ` + schoolErasurePreflightPart2SQL + `    education.homework_feedback,
-` + schoolErasurePreflightPart3SQL + `    ) AS edge) <> 'b2a18de2ab9512b12cb9bc6c57996fe3249aa92a8ad4d5c6df08ecfe04fd5aed' THEN
+` + schoolErasurePreflightPart3SQL + `    ) AS edge) <> '4bd1f5f51e12259671e67baf34db9e7ead5994df30a247ce152b73e0e8bd8186' THEN
 ` + schoolErasurePreflightPart4SQL + `    UNION ALL
     SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
 ` + schoolErasurePreflightPart5SQL
 
 // The pre-1.15.510 definition shares the unchanged SQL sections.
-const schoolErasurePreflightWithoutHomeworkSQL = schoolErasurePreflightPart1SQL + schoolErasurePreflightPart2SQL + schoolErasurePreflightPart3SQL + `    ) AS edge) <> 'cc93958213bac77bfbb56a1a42ffb350e5c305fd1c6738c8f466a92bbfd4147c' THEN
+const schoolErasurePreflightWithoutHomeworkSQL = schoolErasurePreflightPart1SQL + schoolErasurePreflightPart2SQL + schoolErasurePreflightPart3SQL + `    ) AS edge) <> '4b396b704fd400fca1a02a347ac362b01314ba4ea9fb654aa50cecd2aef28334' THEN
 ` + schoolErasurePreflightPart4SQL + schoolErasurePreflightPart5SQL
 
 const schoolErasurePreflightPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)
@@ -34,6 +34,8 @@ const schoolErasurePreflightPart1SQL = `CREATE OR REPLACE FUNCTION platform.scho
     active.activity_session_attendance,
     active.activity_sessions,
     active.attendance,
+    active.class_handover_children,
+    active.class_handovers,
     active.combined_groups,
     active.excused_absence_requests,
     active.group_mappings,
@@ -301,6 +303,8 @@ const schoolErasurePreflightPart4SQL = `    RAISE EXCEPTION 'school erasure fore
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
    IF EXISTS (
+    SELECT 1 FROM active.class_handovers AS c JOIN users.staff_school_memberships AS p ON c."handed_over_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
     SELECT 1 FROM active.excused_absence_requests AS c JOIN users.student_profiles AS p ON c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM active.morning_attendance AS c JOIN users.class_list_entries AS p ON c."class_list_entry_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)

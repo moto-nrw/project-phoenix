@@ -38,6 +38,7 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 				StudentID: 12, FirstName: "Nico", LastName: "Krank", Registered: true, Offerings: []string{},
 				Departure: "Keine Angabe", Status: "sick", ReportedAt: &reportedAt,
 				MorningAttendance: &classday.DayMorningAttendance{Status: "absent", Source: "report"},
+				HandoverAbsent:    true,
 			},
 			{
 				FirstName: "Lisa", LastName: "NurListe", ListEntry: true, ListEntryID: 9007199254740993, Offerings: []string{},
@@ -45,6 +46,10 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 		},
 		ClassArrivalException:      &classday.DayArrivalException{ArrivalTime: "12:45", Reason: "Unterricht fällt aus", Origin: "school"},
 		CanRecordMorningAttendance: true,
+		Handover: &classday.DayHandover{
+			HandedOverAt: time.Date(2026, 8, 5, 11, 45, 0, 0, time.UTC), HandedOverBy: "Petra Lehrkraft", AbsentCount: 1,
+		},
+		CanHandOver: true,
 	}
 
 	got, err := json.Marshal(report)
@@ -60,13 +65,15 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 			 "reported_at": "2026-08-05T05:00:00Z"},
 			{"student_id": 12, "first_name": "Nico", "last_name": "Krank", "registered": true, "stays_today": false,
 			 "offerings": [], "departure": "Keine Angabe", "status": "sick", "reported_at": "2026-08-05T05:00:00Z",
-			 "morning_attendance": {"status": "absent", "source": "report"}},
+			 "morning_attendance": {"status": "absent", "source": "report"}, "handover_absent": true},
 			{"student_id": 0, "first_name": "Lisa", "last_name": "NurListe", "list_entry": true,
 			 "list_entry_id": "9007199254740993", "registered": false, "stays_today": false, "offerings": []}
 		],
 		"class_arrival_exception": {"arrival_time": "12:45", "reason": "Unterricht fällt aus", "origin": "school"},
 		"can_record_morning_attendance": true,
-		"can_write_homework": false
+		"can_write_homework": false,
+		"handover": {"handed_over_at": "2026-08-05T11:45:00Z", "handed_over_by": "Petra Lehrkraft", "absent_count": 1},
+		"can_hand_over": true
 	}`, string(got))
 
 	// The optionals stay omitted.
@@ -77,6 +84,9 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 	assert.Contains(t, string(bare), `"can_record_morning_attendance":false`, "the verdict is always on the wire")
 	assert.Contains(t, string(bare), `"can_write_homework":false`, "the homework verdict is always on the wire")
 	assert.NotContains(t, string(bare), `"homework"`, "a day without homework carries no list")
+	assert.NotContains(t, string(bare), `"handover"`)
+	assert.NotContains(t, string(bare), "handover_absent")
+	assert.Contains(t, string(bare), `"can_hand_over":false`, "the handover verdict is always on the wire")
 }
 
 // TestArrivalExceptionErrorsKeepTheirMessages pins the error contract of the

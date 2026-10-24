@@ -19,7 +19,9 @@ import {
   deleteHomeworkSchool,
   fetchClassDayClassesSchool,
   fetchClassDaySchool,
+  handOverClassSchool,
   recordMorningAttendanceSchool,
+  withdrawClassHandoverSchool,
 } from "~/lib/school-class-day-api";
 
 // Die Schreibwege der Hausaufgaben (#4796), einmal für alle Renders.
@@ -40,6 +42,8 @@ function ClassFromAddress() {
       fetchClasses={fetchClassDayClassesSchool}
       recordMorningAttendance={recordMorningAttendanceSchool}
       homework={homeworkApi}
+      handOverClass={handOverClassSchool}
+      withdrawClassHandover={withdrawClassHandoverSchool}
     />
   );
 }

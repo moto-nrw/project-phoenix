@@ -28,10 +28,10 @@ type (
 	HomeworkDependencies          = application.HomeworkDependencies
 	HomeworkEntry                 = application.HomeworkEntry
 	HomeworkFeedbackEntry         = application.HomeworkFeedbackEntry
+	ClassHandoverDependencies     = application.ClassHandoverDependencies
 )
 
-// ClassDayDependencies wire the day report, the supervision sheet and the three
-// write seams of moto schule (#2970, #4790, #4796); a nil seam answers "not configured".
+// ClassDayDependencies wire the school-portal reads and write seams; a nil seam is unconfigured.
 type ClassDayDependencies struct {
 	Caller                 CallerReader
 	Rosters                DayRosters
@@ -49,6 +49,7 @@ type ClassDayDependencies struct {
 	Announcer              ArrivalScheduleAnnouncer
 	MorningAttendanceDependencies
 	HomeworkDependencies
+	ClassHandoverDependencies
 }
 
 // NewClassDay composes the school-portal capability.
@@ -62,6 +63,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
 		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, Announcer: deps.Announcer,
 		MorningAttendanceDependencies: deps.MorningAttendanceDependencies, HomeworkDependencies: deps.HomeworkDependencies,
+		ClassHandoverDependencies: deps.ClassHandoverDependencies,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}

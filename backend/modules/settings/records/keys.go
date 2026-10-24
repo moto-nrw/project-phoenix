@@ -380,21 +380,37 @@ const (
 
 // SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
 // The OGS decides what a Lehrkraft may write into OGS data through "moto
-// schule"; the default is nothing. A single-select on purpose: the key is
-// meant to carry further school-portal write rights as more values, and a
-// multi-select is built once a second value exists.
+// schule"; the setting is a multi-select (#4794), and the default selects
+// nothing, which keeps the school portal read-only.
 const (
-	// SchoolPortalWriteScopeNone keeps the school portal read-only. Default.
-	SchoolPortalWriteScopeNone = "none"
 	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
 	// class-wide arrival day exception (#2962) for her assigned classes.
 	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
+	// SchoolPortalWriteScopeClassHandover lets a Lehrkraft hand her
+	// assigned class over to the OGS after lessons and mark the children
+	// who are not there (#4794).
+	SchoolPortalWriteScopeClassHandover = "class_handover"
 )
 
-// SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
-// the school portal set class-wide arrival day exceptions.
-func SchoolPortalWritesClassArrivalExceptions(scope string) bool {
-	return scope == SchoolPortalWriteScopeClassArrivalExceptions
+// SchoolPortalWriteScopeIncludes reports whether the resolved write scope
+// (the JSON array of KeySchoolPortalWriteScope) selects scope. A value that
+// is no list selects nothing.
+func SchoolPortalWriteScopeIncludes(value any, scope string) bool {
+	switch v := value.(type) {
+	case []string:
+		for _, item := range v {
+			if item == scope {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s == scope {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The

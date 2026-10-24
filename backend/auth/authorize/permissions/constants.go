@@ -348,6 +348,12 @@ const (
 	// education.class_teachers assignment decides for which class; no school
 	// setting gates it, because the entry changes no OGS record.
 	ClassDayHomeworkWrite = ResourceClassDay + ":homework_write"
+	// ClassDayHandoverWrite lets a Lehrkraft hand her assigned class over to
+	// the OGS after lessons and take the handover back the same day (#4794).
+	// The school's operations.school_portal_write_scope decides whether it
+	// is unlocked, and the education.class_teachers assignment decides for
+	// which class.
+	ClassDayHandoverWrite = ResourceClassDay + ":handover_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

@@ -78,6 +78,11 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(homeworkWrite, withTx).Post("/homework/{schoolClass}", rs.postHomework)
 	r.With(homeworkWrite, withTx).Put("/homework/{schoolClass}/{homeworkId}", rs.putHomework)
 	r.With(homeworkWrite, withTx).Delete("/homework/{schoolClass}/{homeworkId}", rs.deleteHomework)
+	// Class handover (#4794): the Lehrkraft hands today's class over to the
+	// OGS or takes it back; the write scope and the day are checked behind it.
+	handoverWrite := common.RequiresPermission(permissions.ClassDayHandoverWrite)
+	r.With(handoverWrite, withTx).Put("/handover/{schoolClass}/{date}", rs.putClassHandover)
+	r.With(handoverWrite, withTx).Delete("/handover/{schoolClass}/{date}", rs.deleteClassHandover)
 }
 
 // ClassesResponse lists the caller's assigned school classes.
@@ -161,10 +166,12 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 	}
 	// The projection says whether the day and the school allow the morning
 	// attendance; the token decides whether this caller may write it.
+	granted := sessiontoken.PermissionsFromCtx(r.Context())
 	report.CanRecordMorningAttendance = report.CanRecordMorningAttendance &&
-		common.HasPermission(permissions.ClassDayMorningAttendanceWrite, sessiontoken.PermissionsFromCtx(r.Context()))
-	// Homework (#4796) needs only the permission: the class is assigned.
-	report.CanWriteHomework = common.HasPermission(permissions.ClassDayHomeworkWrite, sessiontoken.PermissionsFromCtx(r.Context()))
+		common.HasPermission(permissions.ClassDayMorningAttendanceWrite, granted)
+	report.CanHandOver = report.CanHandOver && common.HasPermission(permissions.ClassDayHandoverWrite, granted)
+	// Homework needs only the permission: the class is assigned.
+	report.CanWriteHomework = common.HasPermission(permissions.ClassDayHomeworkWrite, granted)
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
 }

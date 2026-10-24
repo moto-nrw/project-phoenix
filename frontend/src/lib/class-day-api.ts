@@ -1,6 +1,6 @@
 // Report-Vertrag der Klassenansicht (#1772): Tagesansicht einer Klasse;
-// geschrieben werden die Anwesenheit am Vormittag (#4790) und die
-// Hausaufgaben (#4796). Das Backend scopt jeden Abruf auf die zugewiesenen Klassen der
+// geschrieben werden Vormittagsanwesenheit, Übergabe an die OGS und
+// Hausaufgaben. Das Backend scopt jeden Abruf auf die zugewiesenen Klassen der
 // aufrufenden Person (education.class_teachers) und liefert hier nie
 // Kontaktdaten der Sorgeberechtigten.
 //
@@ -43,6 +43,9 @@ export interface ClassDayRow {
   // Rückmeldung der OGS zu den Hausaufgaben der Klasse an diesem Tag
   // (#4796). Fehlt ohne Rückmeldung und bei Klassenlisteneinträgen.
   homework_feedback?: ClassDayHomeworkFeedback;
+  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind bei der
+  // heutigen Übergabe als „nicht da“ markiert.
+  handover_absent?: boolean;
 }
 
 interface ClassDayHomeworkFeedback {
@@ -100,6 +103,20 @@ export interface ClassDayReport {
   homework?: ClassDayHomework[];
   // Die Lehrkraft darf Hausaufgaben eintragen (Berechtigung liegt vor).
   can_write_homework?: boolean;
+  // Übergabe der Klasse an die OGS (#4794). Fehlt, solange die Klasse an
+  // dem Tag nicht übergeben ist.
+  handover?: ClassDayHandover;
+  // Die Lehrkraft darf die Klasse übergeben oder die Übergabe zurücknehmen:
+  // der Tag ist heute und ein Schultag, die OGS hat es freigegeben und die
+  // Berechtigung liegt vor.
+  can_hand_over?: boolean;
+}
+
+export interface ClassDayHandover {
+  handed_over_at: string; // ISO-Zeitstempel
+  // Name der Lehrkraft; fehlt, wenn sie nicht mehr angelegt ist.
+  handed_over_by?: string;
+  absent_count: number;
 }
 
 interface ClassDayArrivalException {

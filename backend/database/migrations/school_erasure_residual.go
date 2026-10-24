@@ -34,6 +34,10 @@ const schoolErasureResidualPart1SQL = `CREATE OR REPLACE FUNCTION platform.schoo
     UNION ALL
     SELECT 1 FROM active.attendance AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM active.class_handover_children AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM active.class_handovers AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM active.combined_groups AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.excused_absence_requests AS r WHERE r.tenant_id = p_school_id

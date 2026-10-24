@@ -581,6 +581,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/school/supervisions/{id}/students/{student_id}/homework-feedback"}: event("homework_feedback_recorded"),
 	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-in"}:         event("supervision_attendance_recorded"),
 	{http.MethodPost, "/school/supervisions/{id}/students/{student_id}/check-out"}:        event("supervision_attendance_recorded"),
+	{http.MethodDelete, "/school/class-day/handover/{schoolClass}/{date}"}:                event("class_handover_withdrawn"),
+	{http.MethodPut, "/school/class-day/handover/{schoolClass}/{date}"}:                   event("class_handed_over"),
 
 	// Public demo (#3462), mounted under APP_ENV=demo only. A redeemed
 	// access enters a demo school that is ready, so the entry is the proof

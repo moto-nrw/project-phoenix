@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIotActivityCapacityExceeded                    = "iot.activity_capacity_exceeded"
+	CodeIotDeviationReasonRequired                     = "iot.deviation_reason_required"
+	CodeIotDeviceApiKeyFormatInvalid                   = "iot.device_api_key_format_invalid"
+	CodeIotDeviceApiKeyInvalid                         = "iot.device_api_key_invalid"
 	CodeIotDeviceApiKeyRequired                        = "iot.device_api_key_required"
 	CodeIotDeviceIdTaken                               = "iot.device_id_taken"
 	CodeIotDeviceInactive                              = "iot.device_inactive"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableStartTooEarly                         = "timetable.start_too_early"
 	CodeTimetableStartWindowExpired                    = "timetable.start_window_expired"
 	CodeTimetableStudentAlreadyActive                  = "timetable.student_already_active"
-	CodeTimetableStudentCareEnded                      = "timetable.student_care_ended"
-	CodeTimetableStudentGraduated                      = "timetable.student_graduated"
-	CodeTimetableStudentNotCheckedIn                   = "timetable.student_not_checked_in"
-	CodeTimetableStudentNotFound                       = "timetable.student_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.activity_capacity_exceeded":                       "business_rejection",
+	"iot.deviation_reason_required":                        "input",
+	"iot.device_api_key_format_invalid":                    "permission",
+	"iot.device_api_key_invalid":                           "permission",
 	"iot.device_api_key_required":                          "permission",
 	"iot.device_id_taken":                                  "business_rejection",
 	"iot.device_inactive":                                  "permission",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.start_too_early":                            "business_rejection",
 	"timetable.start_window_expired":                       "business_rejection",
 	"timetable.student_already_active":                     "business_rejection",
-	"timetable.student_care_ended":                         "business_rejection",
-	"timetable.student_graduated":                          "business_rejection",
-	"timetable.student_not_checked_in":                     "business_rejection",
-	"timetable.student_not_found":                          "business_rejection",
 }
 
 func init() {

@@ -171,3 +171,38 @@ export async function deleteHomeworkSchool(
     { method: "DELETE" },
   );
 }
+
+function classHandoverPath(schoolClass: string, date: string): string {
+  return `/api/school/class-day/handover/${encodeURIComponent(schoolClass)}/${encodeURIComponent(date)}`;
+}
+
+/** Die übergebenen Kinder, die in die OGS gehen: „da“ und „nicht da“. */
+export interface ClassHandoverChildren {
+  readonly present: readonly number[];
+  readonly absent: readonly number[];
+}
+
+/** Übergibt eine zugewiesene Klasse heute an die OGS (#4794). */
+export async function handOverClassSchool(
+  schoolClass: string,
+  date: string,
+  children: ClassHandoverChildren,
+): Promise<void> {
+  await authFetch<unknown>(classHandoverPath(schoolClass, date), {
+    method: "PUT",
+    body: {
+      present_student_ids: children.present,
+      absent_student_ids: children.absent,
+    },
+  });
+}
+
+/** Nimmt die heutige Übergabe einer zugewiesenen Klasse zurück (#4794). */
+export async function withdrawClassHandoverSchool(
+  schoolClass: string,
+  date: string,
+): Promise<void> {
+  await authFetch<unknown>(classHandoverPath(schoolClass, date), {
+    method: "DELETE",
+  });
+}
