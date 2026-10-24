@@ -12,7 +12,8 @@ const TRAEGER_PUBLIC_PAGES = ["/traeger/login", "/login"];
  * Client-side auth guard for Träger routes ("moto träger", #4649). Mirrors
  * SchoolAuthGuard: other portals' tokens never reach this app (host-only
  * cookies plus the proxy), so it only handles "loading" → spinner,
- * "no session" → login, and a session of another scope → root.
+ * "no session" → login, and a session of another scope or a terminally
+ * failed refresh → login.
  */
 export function TraegerAuthGuard({
   children,
@@ -29,7 +30,15 @@ export function TraegerAuthGuard({
     return <>{children}</>;
   }
 
-  if (status === "authenticated" && session?.user?.scope !== "org") {
+  // A session of another scope, or one whose refresh ended for good (expired
+  // or revoked refresh token, membership gone), goes back to the login page,
+  // which clears the failed session.
+  if (
+    status === "authenticated" &&
+    (session?.user?.scope !== "org" ||
+      session.error === "RefreshTokenExpired" ||
+      !session.user.token)
+  ) {
     redirect(traegerPath("/traeger/login"));
   }
   if (status === "unauthenticated") {

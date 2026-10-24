@@ -175,3 +175,52 @@ func TestOperatorTraegerGrantLosesToAConcurrentErasure(t *testing.T) {
 		+ (SELECT count(*) FROM auth.organization_account_roles WHERE account_id = ?)`, account.ID, account.ID).Scan(ctx, &rows))
 	assert.Zero(t, rows, "an erased account gets neither membership nor Träger role")
 }
+
+// Two grants of the same account to two Träger must queue, not deadlock. The
+// first grant is played by hand: it holds the key-share lock of its
+// membership insert and then locks the account for its role. The second grant
+// runs through the operator route in between; it must take the account lock
+// before any key share, so the first one gets its lock and both commit.
+func TestOperatorTraegerGrantsOfOneAccountQueueWithoutDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-queue")
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("queue-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource)
+
+	first, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = first.Rollback() }()
+	var lockedID int64
+	require.NoError(t, first.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR KEY SHARE`, account.ID).Scan(ctx, &lockedID))
+
+	granted := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		body := bytes.NewBufferString(fmt.Sprintf(`{"email":%q,"role":"read_only"}`, account.Email))
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/organizations/%d/traeger-members", organizationID), body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		granted <- rec
+	}()
+
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(ctx, &waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 20*time.Millisecond, "the second grant waits for the first one's lock")
+	require.NoError(t, first.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID).Scan(ctx, &lockedID),
+		"the first grant gets the account lock; no deadlock aborts it")
+	require.NoError(t, first.Commit())
+
+	rec := <-granted
+	assert.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+}

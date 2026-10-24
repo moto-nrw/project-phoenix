@@ -56,7 +56,7 @@ func (p *Provisioning) AssignTraegerMember(ctx context.Context, input organizati
 }
 
 // assignTraegerMember runs the grant on the administrative unit: the account
-// behind the address, the membership, the role and the operator audit.
+// behind the address, the role, the membership and the operator audit.
 func (p *Provisioning) assignTraegerMember(adminCtx context.Context, input organizationtenancy.AssignTraegerMember, email string) (organizationtenancy.TraegerMember, error) {
 	accountID, found, err := p.identity.FindAccountIDByEmail(adminCtx, email)
 	if err != nil {
@@ -65,15 +65,18 @@ func (p *Provisioning) assignTraegerMember(adminCtx context.Context, input organ
 	if !found {
 		return organizationtenancy.TraegerMember{}, organizationtenancy.ErrTraegerAccountNotFound
 	}
-	membership, err := p.organizations.ActivateTraegerMembership(adminCtx, input.OrganizationID, accountID)
-	if err != nil {
-		return organizationtenancy.TraegerMember{}, mapOrganizationError(err, input.OrganizationID)
-	}
+	// The role grant locks the live account first, before the membership
+	// insert takes its foreign-key lock: two grants of the same account then
+	// queue on that lock instead of deadlocking on each other's key share.
 	if err := p.identity.AssignTraegerRole(adminCtx, input.OrganizationID, accountID, input.Role); err != nil {
 		if errors.Is(err, organizationtenancy.ErrInvalidTraegerRole) {
 			return organizationtenancy.TraegerMember{}, &organizationtenancy.InvalidProvisioningDataError{Err: err}
 		}
 		return organizationtenancy.TraegerMember{}, err
+	}
+	membership, err := p.organizations.ActivateTraegerMembership(adminCtx, input.OrganizationID, accountID)
+	if err != nil {
+		return organizationtenancy.TraegerMember{}, mapOrganizationError(err, input.OrganizationID)
 	}
 	if err := p.recordAction(adminCtx, input.OperatorID, domain.AuditActionGrant, domain.AuditResourceTraegerMember, &accountID, input.ClientIP, map[string]any{
 		"organization_id": input.OrganizationID,
