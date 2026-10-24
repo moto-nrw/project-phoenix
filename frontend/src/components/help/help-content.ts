@@ -1699,6 +1699,67 @@ function parentMessageTopic(): HelpTopic {
   };
 }
 
+/**
+ * `/messages/groups`: Gruppennachrichten (#4784). Die OGS schreibt an eine
+ * Gruppe, Klasse oder AG; Eltern antworten nur der OGS.
+ */
+function parentGroupMessageTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentGroupMessage,
+    title: "Einer Gruppe eine Nachricht schreiben",
+    question: "Wie schreibe ich allen Eltern einer Gruppe?",
+    summary:
+      "Schreiben Sie allen Eltern einer Gruppe, Klasse oder AG. Jede Familie antwortet nur der OGS.",
+    group: "team",
+    audience: ["caregiver", "lead"],
+    icon: "UsersThree",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Eine Gruppennachricht beginnen",
+        steps: [
+          "Öffnen Sie unter `Eltern` den Bereich `Nachrichten`.",
+          "Wählen Sie den Reiter `Gruppennachrichten`.",
+          "Wählen Sie `Neue Gruppennachricht`.",
+          "Wählen Sie `Gruppe`, `Klasse` oder `AG` und dann den Namen.",
+          "Prüfen Sie, wie viele Familien die Nachricht bekommen.",
+          "Geben Sie einen Titel und Ihre Nachricht ein.",
+          "Wählen Sie `Senden`.",
+        ],
+      },
+      {
+        title: "Eine weitere Nachricht schreiben",
+        steps: [
+          "Öffnen Sie die Gruppennachricht in der Liste.",
+          "Schreiben Sie unten Ihre Nachricht.",
+          "Wählen Sie `Senden`.",
+        ],
+      },
+      {
+        title: "Eine Gruppennachricht schließen",
+        description: "Danach können die Eltern nicht mehr antworten.",
+        steps: [
+          "Öffnen Sie die Gruppennachricht.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Schließen` und bestätigen Sie.",
+        ],
+      },
+    ],
+    result:
+      "Jede Familie liest die Nachricht in der Eltern-App unter `Nachrichten`. Antworten erscheinen in der Unterhaltung mit der Familie, mit dem Hinweis `Antwort auf Gruppennachricht`.",
+    differences: [
+      "Sehen Sie den Reiter `Gruppennachrichten` nicht? Dann ist der Nachrichtenaustausch mit den Eltern ausgeschaltet, oder Ihnen fehlt der Zugriff auf alle Kinder.",
+      "Steht bei einem Kind `Kein Eltern-Zugang`? Dann bekommt diese Familie die Nachricht nicht.",
+    ],
+    notes: [
+      "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
+      "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
+      "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
+    ],
+    related: [HELP_TOPICS.parentMessage, HELP_TOPICS.leadParentAnnouncement],
+  };
+}
+
 function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
   return {
     id: HELP_TOPICS.parentRequests,
@@ -2766,6 +2827,7 @@ function caregiverTopics(
     activeSupervisionTopic(presenceMode),
     manageActivityTopic(presenceMode, nfcEnabled),
     parentMessageTopic(),
+    parentGroupMessageTopic(),
     parentRequestsTopic(groupMode),
     teamChatTopic(),
     findStaffTopic(presenceMode),
@@ -6754,6 +6816,39 @@ function parentMessagesTopic(): HelpTopic {
 }
 
 /**
+ * `/parents/messages/group/…`: Gruppennachrichten der OGS lesen und
+ * beantworten (#4784). Die Antwort geht nur an die OGS.
+ */
+function parentGroupMessagesTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentGroupMessages,
+    title: "Gruppennachrichten lesen und beantworten",
+    question: "Was ist eine Gruppennachricht?",
+    summary:
+      "Die OGS schreibt allen Eltern einer Gruppe, Klasse oder AG. Ihre Antwort lesen nur die OGS.",
+    group: "nachrichten",
+    audience: "parent",
+    icon: "UsersThree",
+    steps: [
+      "Tippen Sie unten auf `Nachrichten`.",
+      "Tippen Sie unter `Gruppennachrichten der OGS` auf die Nachricht.",
+      "Tippen Sie unter `Antwort an die OGS` in das Feld `Antwort an die OGS schreiben`.",
+      "Tippen Sie rechts auf den Pfeil `Senden`.",
+    ],
+    result:
+      "Ihre Antwort steht danach im Chat mit der OGS zu Ihrem Kind. Andere Eltern sehen sie nicht.",
+    notes: [
+      "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
+      "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
+    ],
+    differences: [
+      "Steht dort `Diese Gruppennachricht ist geschlossen`? Dann können Sie nicht mehr antworten. Schreiben Sie der OGS im Chat zu Ihrem Kind.",
+    ],
+    related: [HELP_TOPICS.parentMessages, HELP_TOPICS.parentNotifications],
+  };
+}
+
+/**
  * `/parents/news`: Elternbriefe, Mitteilungen und Umfragen. Manche verlangen
  * eine Lesebestaetigung, Umfragen eine Antwort.
  */
@@ -7198,6 +7293,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
 
   // --- Nachrichten und Infos ---
   parentMessagesTopic(),
+  parentGroupMessagesTopic(),
   parentNewsTopic(),
   parentCalendarTopic(),
   parentMealPlanTopic(),

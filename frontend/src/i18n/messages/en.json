@@ -2066,6 +2066,25 @@
     "errorObjectMessage": "the message",
     "errorObjectList": "the list of conversations"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Group messages from the OGS",
+    "sectionDescription": "Here the OGS writes to your child's group, class or club.",
+    "closed": "Closed",
+    "forChildren": "For {names}",
+    "privacyNote": "Your reply goes only to the OGS. Other parents do not see it.",
+    "replyTitle": "Reply to the OGS",
+    "replyChildLabel": "Reply for",
+    "replyPlaceholder": "Write a reply to the OGS",
+    "replyFieldLabel": "Reply",
+    "sentConfirmation": "The OGS has received your reply.",
+    "toChat": "Go to the chat with the OGS",
+    "closedNote": "This group message is closed. You can still write to the OGS in the chat about your child.",
+    "writingDisabled": "You cannot reply to this message. You can still read it.",
+    "answerTo": "Reply to: {title}",
+    "errorObjectThread": "the group message",
+    "errorObjectAnswer": "the reply",
+    "errorObjectList": "the group messages"
+  },
   "parentCalendar": {
     "kicker": "Appointments at a glance",
     "title": "Calendar",
@@ -2262,7 +2281,9 @@
         "staff_messaging_disabled": "You cannot access {object}. Please contact the school.",
         "staff_notice_outdated": "{object} could not be changed. Please check its current status.",
         "system_announcement_immutable": "{object} could not be changed. Please check its current status.",
-        "announcement_not_found": "{object} could not be changed. Please check its current status."
+        "announcement_not_found": "{object} could not be changed. Please check its current status.",
+        "group_thread_closed": "This group message is closed. You can no longer reply.",
+        "group_thread_no_recipients": "No child in this group has parents with access to moto. The message was not sent."
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",

@@ -2066,6 +2066,25 @@
     "errorObjectMessage": "mesazhi",
     "errorObjectList": "lista e bisedave"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Mesazhe grupi nga OGS",
+    "sectionDescription": "Këtu OGS i shkruan grupit, klasës ose kursit të fëmijës suaj.",
+    "closed": "Mbyllur",
+    "forChildren": "Për {names}",
+    "privacyNote": "Përgjigjja juaj shkon vetëm te OGS. Prindërit e tjerë nuk e shohin.",
+    "replyTitle": "Përgjigje për OGS",
+    "replyChildLabel": "Përgjigje për",
+    "replyPlaceholder": "Shkruani një përgjigje për OGS",
+    "replyFieldLabel": "Përgjigje",
+    "sentConfirmation": "OGS e ka marrë përgjigjen tuaj.",
+    "toChat": "Te biseda me OGS",
+    "closedNote": "Ky mesazh grupi është mbyllur. Mund t'i shkruani akoma OGS në bisedën për fëmijën tuaj.",
+    "writingDisabled": "Nuk mund t'i përgjigjeni këtij mesazhi. Mund ta lexoni akoma.",
+    "answerTo": "Përgjigje për: {title}",
+    "errorObjectThread": "mesazhi i grupit",
+    "errorObjectAnswer": "përgjigjja",
+    "errorObjectList": "mesazhet e grupit"
+  },
   "parentCalendar": {
     "kicker": "Terminet me një vështrim",
     "title": "Kalendari",
@@ -2262,7 +2281,9 @@
         "staff_messaging_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "staff_notice_outdated": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "group_thread_closed": "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
+        "group_thread_no_recipients": "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua."
       },
       "enrollment": {
         "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",

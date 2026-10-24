@@ -1369,6 +1369,17 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		// Group threads (#4784): the group's name, then each new thread's id.
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/groups/") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"name": "Sternengruppe"}})
+			return
+		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/messages/group-threads" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"thread": map[string]any{"id": fmt.Sprintf("%d", idCounter)}},
+			})
+			return
+		}
 		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/students/") &&
 			strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/students/"), "0123456789") == "" {
 			_ = json.NewEncoder(w).Encode(map[string]any{

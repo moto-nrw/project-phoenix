@@ -21,11 +21,13 @@ import (
 // Resource is the staff messaging HTTP resource.
 type Resource struct {
 	Service communication.ParentMessagingCapability
+	// Groups serves the group threads (#4784); nil leaves them unmounted.
+	Groups communication.ParentGroupThreadCapability
 }
 
 // NewResource wires the staff messaging resource.
-func NewResource(service communication.ParentMessagingCapability) *Resource {
-	return &Resource{Service: service}
+func NewResource(service communication.ParentMessagingCapability, groups communication.ParentGroupThreadCapability) *Resource {
+	return &Resource{Service: service, Groups: groups}
 }
 
 // Router returns the chi router scoped to /messages.
@@ -57,6 +59,7 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
 		r.With(read, withTx).Get("/reachable-students", rs.listReachableStudents)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
+		rs.mountGroupThreadRoutes(r, read, withTx)
 	})
 
 	return r
@@ -96,6 +99,10 @@ type MessageResponse struct {
 	DecisionReason string          `json:"decision_reason,omitempty"`
 	ReadByStaff    bool            `json:"read_by_staff,omitempty"`
 	ReadByGuardian bool            `json:"read_by_guardian,omitempty"`
+	// GroupThreadID and GroupThreadTitle name the group thread a guardian's
+	// message answers (#4784).
+	GroupThreadID    string `json:"group_thread_id,omitempty"`
+	GroupThreadTitle string `json:"group_thread_title,omitempty"`
 }
 
 type ThreadDetailResponse struct {
@@ -148,26 +155,35 @@ func toMessageResponses(messages []communication.ParentMessage) []MessageRespons
 			appliedBy = strconv.FormatInt(*m.AppliedBy, 10)
 		}
 		out = append(out, MessageResponse{
-			ID:             strconv.FormatInt(m.ID, 10),
-			SenderKind:     m.SenderKind,
-			SenderName:     m.SenderName,
-			Body:           m.Body,
-			CreatedAt:      m.CreatedAt,
-			Kind:           m.Kind,
-			EventType:      m.EventType,
-			RequestType:    m.RequestType,
-			RequestStatus:  m.RequestStatus,
-			Payload:        m.Payload,
-			RefTable:       m.RefTable,
-			RefID:          refID,
-			AppliedAt:      m.AppliedAt,
-			AppliedBy:      appliedBy,
-			DecisionReason: m.DecisionReason,
-			ReadByStaff:    m.ReadByStaff,
-			ReadByGuardian: m.ReadByGuardian,
+			ID:               strconv.FormatInt(m.ID, 10),
+			SenderKind:       m.SenderKind,
+			SenderName:       m.SenderName,
+			Body:             m.Body,
+			CreatedAt:        m.CreatedAt,
+			Kind:             m.Kind,
+			EventType:        m.EventType,
+			RequestType:      m.RequestType,
+			RequestStatus:    m.RequestStatus,
+			Payload:          m.Payload,
+			RefTable:         m.RefTable,
+			RefID:            refID,
+			AppliedAt:        m.AppliedAt,
+			AppliedBy:        appliedBy,
+			DecisionReason:   m.DecisionReason,
+			ReadByStaff:      m.ReadByStaff,
+			ReadByGuardian:   m.ReadByGuardian,
+			GroupThreadID:    optionalIDString(m.GroupThreadID),
+			GroupThreadTitle: m.GroupThreadTitle,
 		})
 	}
 	return out
+}
+
+func optionalIDString(id *int64) string {
+	if id == nil {
+		return ""
+	}
+	return strconv.FormatInt(*id, 10)
 }
 
 func toThreadDetail(d *communication.ParentMessageThread) ThreadDetailResponse {

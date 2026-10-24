@@ -2066,6 +2066,25 @@
     "errorObjectMessage": "сообщение",
     "errorObjectList": "список переписок"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Групповые сообщения от OGS",
+    "sectionDescription": "Здесь OGS пишет группе, классу или кружку вашего ребёнка.",
+    "closed": "Закрыто",
+    "forChildren": "Для: {names}",
+    "privacyNote": "Ваш ответ получит только OGS. Другие родители его не видят.",
+    "replyTitle": "Ответ для OGS",
+    "replyChildLabel": "Ответ за",
+    "replyPlaceholder": "Напишите ответ для OGS",
+    "replyFieldLabel": "Ответ",
+    "sentConfirmation": "OGS получила ваш ответ.",
+    "toChat": "Перейти в чат с OGS",
+    "closedNote": "Это групповое сообщение закрыто. Вы можете и дальше писать OGS в чате о вашем ребёнке.",
+    "writingDisabled": "Вы не можете ответить на это сообщение. Читать его вы можете.",
+    "answerTo": "Ответ на: {title}",
+    "errorObjectThread": "групповое сообщение",
+    "errorObjectAnswer": "ответ",
+    "errorObjectList": "групповые сообщения"
+  },
   "parentCalendar": {
     "kicker": "Все события",
     "title": "Календарь",
@@ -2262,7 +2281,9 @@
         "staff_messaging_disabled": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "staff_notice_outdated": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "system_announcement_immutable": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-        "announcement_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние."
+        "announcement_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "group_thread_closed": "Это групповое сообщение закрыто. Ответить больше нельзя.",
+        "group_thread_no_recipients": "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено."
       },
       "enrollment": {
         "form_attachment_invalid": "Проверьте название и PDF-файл.",

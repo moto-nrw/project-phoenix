@@ -206,10 +206,14 @@ const schoolErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_responses',(SELECT count(*) FROM users.parent_announcement_responses AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_targets',(SELECT count(*) FROM users.parent_announcement_targets AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcements',(SELECT count(*) FROM users.parent_announcements AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_message_recipients',(SELECT count(*) FROM users.parent_group_message_recipients AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_messages',(SELECT count(*) FROM users.parent_group_messages AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_thread_reads',(SELECT count(*) FROM users.parent_group_thread_reads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_message_count_preferences',(SELECT count(*) FROM users.parent_message_count_preferences AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_message_reads',(SELECT count(*) FROM users.parent_message_reads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_message_threads',(SELECT count(*) FROM users.parent_message_threads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_messages',(SELECT count(*) FROM users.parent_messages AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.parent_group_threads',(SELECT count(*) FROM users.parent_group_threads AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_request_events',(SELECT count(*) FROM users.parent_request_events AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_request_rss_feeds',(SELECT count(*) FROM users.parent_request_rss_feeds AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_request_share_events',(SELECT count(*) FROM users.parent_request_share_events AS r WHERE r.tenant_id = p_school));

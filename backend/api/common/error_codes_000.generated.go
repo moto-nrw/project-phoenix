@@ -84,6 +84,8 @@ const (
 	CodeCommunicationAnnouncementPublishedImmutable      = "communication.announcement_published_immutable"
 	CodeCommunicationAnnouncementReminderSent            = "communication.announcement_reminder_sent"
 	CodeCommunicationDeclarationHasSubmissions           = "communication.declaration_has_submissions"
+	CodeCommunicationGroupThreadClosed                   = "communication.group_thread_closed"
+	CodeCommunicationGroupThreadNoRecipients             = "communication.group_thread_no_recipients"
 	CodeCommunicationNotificationsDisabled               = "communication.notifications_disabled"
 	CodeCommunicationParentNewsDisabled                  = "communication.parent_news_disabled"
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
@@ -300,8 +302,6 @@ const (
 	CodeIotDevicePinInvalid                              = "iot.device_pin_invalid"
 	CodeIotDevicePinRequired                             = "iot.device_pin_required"
 	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
-	CodeIotInvalidStaffClockRequest                      = "iot.invalid_staff_clock_request"
-	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -387,6 +387,8 @@ var errorCodeClasses0 = map[string]string{
 	"communication.announcement_published_immutable":       "business_rejection",
 	"communication.announcement_reminder_sent":             "business_rejection",
 	"communication.declaration_has_submissions":            "business_rejection",
+	"communication.group_thread_closed":                    "business_rejection",
+	"communication.group_thread_no_recipients":             "business_rejection",
 	"communication.notifications_disabled":                 "business_rejection",
 	"communication.parent_news_disabled":                   "permission",
 	"communication.poll_not_open":                          "business_rejection",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.device_pin_invalid":                               "permission",
 	"iot.device_pin_required":                              "permission",
 	"iot.invalid_rfid_tag":                                 "input",
-	"iot.invalid_staff_clock_request":                      "input",
-	"iot.invalid_staff_clock_state":                        "business_rejection",
 }
 
 func init() {

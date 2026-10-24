@@ -23081,6 +23081,28 @@
     },
     {
       "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentGroupAudienceReads.GroupAudience",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationGroupAudience.GroupAudience",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.GroupAudience",
+      "target_owner": "parent-announcement-audience",
+      "binding_digest": "90c83a61ad1392550a4881bfcca5bcd6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.GroupAudience; modules/parentannouncementaudience/internal/adapters/postgres/group_threads.go:53. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentGroupAudienceReads.GroupStudents",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationGroupAudience.GroupStudents",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.GroupStudents",
+      "target_owner": "parent-announcement-audience",
+      "binding_digest": "d511f26de6d2a49c7030939eac91ce1a",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.GroupStudents; modules/parentannouncementaudience/internal/adapters/postgres/group_threads.go:101. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessagePeople.FindParentMessageStudent",
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.parentMessagePeople.FindParentMessageStudent",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentState.IsAlumnus",

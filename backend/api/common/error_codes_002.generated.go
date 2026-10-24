@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetableTemplateInvalid                     = "timetable.template_invalid"
+	CodeTimetableTemplateMaxParticipantsInvalid      = "timetable.template_max_participants_invalid"
 	CodeTimetableTemplateNotFound                    = "timetable.template_not_found"
 	CodeTimetableTemplatePlanningTrackUnavailable    = "timetable.template_planning_track_unavailable"
 	CodeTimetableTemplateRosterRebaseConflict        = "timetable.template_roster_rebase_conflict"
@@ -88,6 +90,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.template_invalid":                        "input",
+	"timetable.template_max_participants_invalid":       "input",
 	"timetable.template_not_found":                      "business_rejection",
 	"timetable.template_planning_track_unavailable":     "business_rejection",
 	"timetable.template_roster_rebase_conflict":         "business_rejection",

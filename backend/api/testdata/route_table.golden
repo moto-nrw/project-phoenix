@@ -290,6 +290,9 @@ GET /api/meal-plan/participants/week
 GET /api/meal-plan/participants/week/export
 GET /api/messages/
 GET /api/messages/count-scope
+GET /api/messages/group-threads
+GET /api/messages/group-threads/audience
+GET /api/messages/group-threads/{groupThreadId}
 GET /api/messages/reachable-students
 GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
@@ -560,6 +563,8 @@ GET /parent/me/enrollments
 GET /parent/me/messages
 GET /parent/me/messages/children/{studentId}
 GET /parent/me/messages/children/{studentId}/threads
+GET /parent/me/messages/group-threads
+GET /parent/me/messages/group-threads/{groupThreadId}
 GET /parent/me/messages/unread-count
 GET /parent/me/news
 GET /parent/me/news/unread-count
@@ -722,6 +727,9 @@ POST /api/iot/staff-clock
 POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
+POST /api/messages/group-threads
+POST /api/messages/group-threads/{groupThreadId}/close
+POST /api/messages/group-threads/{groupThreadId}/messages
 POST /api/messages/mark-all-read
 POST /api/messages/threads
 POST /api/messages/threads/open

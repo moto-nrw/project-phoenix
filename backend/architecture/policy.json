@@ -4478,6 +4478,22 @@
       "write_owner": "communication"
     },
     {
+      "name": "users.parent_group_message_recipients",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_thread_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_threads",
+      "write_owner": "communication"
+    },
+    {
       "name": "users.parent_message_count_preferences",
       "write_owner": "communication"
     },

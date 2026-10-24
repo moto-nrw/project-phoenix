@@ -4259,6 +4259,18 @@
       "legacy": "staff.external_access_invalid"
     },
     {
+      "code": "communication.group_thread_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_closed"
+    },
+    {
+      "code": "communication.group_thread_no_recipients",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_no_recipients"
+    },
+    {
       "code": "operator.audit_unavailable",
       "class": "unavailable",
       "parameters": [],

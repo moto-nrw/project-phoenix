@@ -1194,6 +1194,10 @@ export const ERROR_CATALOG = {
         "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
       "staff.external_access_invalid":
         "Bitte wählen Sie, welchen Zugang die Person bekommt.",
+      "communication.group_thread_closed":
+        "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
+      "communication.group_thread_no_recipients":
+        "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
     },
@@ -1491,6 +1495,10 @@ export const ERROR_CATALOG = {
         "This email address already has an open invitation for someone else. Please use another address.",
       "staff.external_access_invalid":
         "Please choose which access this person gets.",
+      "communication.group_thread_closed":
+        "This group message is closed. You can no longer reply.",
+      "communication.group_thread_no_recipients":
+        "No child in this group has parents with access to moto. The message was not sent.",
     },
   },
   ru: {
@@ -1768,6 +1776,10 @@ export const ERROR_CATALOG = {
         "Статус этого запроса на изменение изменился. Обновите страницу.",
       "identity.operator_self_deactivation":
         "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
+      "communication.group_thread_closed":
+        "Это групповое сообщение закрыто. Ответить больше нельзя.",
+      "communication.group_thread_no_recipients":
+        "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
     },
   },
   sq: {
@@ -2059,6 +2071,10 @@ export const ERROR_CATALOG = {
         "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
       "identity.operator_self_deactivation":
         "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
+      "communication.group_thread_closed":
+        "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
+      "communication.group_thread_no_recipients":
+        "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
     },
   },
   pl: {
@@ -2337,6 +2353,10 @@ export const ERROR_CATALOG = {
         "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
       "identity.operator_self_deactivation":
         "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
+      "communication.group_thread_closed":
+        "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
+      "communication.group_thread_no_recipients":
+        "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
     },
   },
   tr: {
@@ -2622,6 +2642,10 @@ export const ERROR_CATALOG = {
         "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
       "identity.operator_self_deactivation":
         "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
+      "communication.group_thread_closed":
+        "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
+      "communication.group_thread_no_recipients":
+        "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
     },
   },
   uk: {
@@ -2897,6 +2921,10 @@ export const ERROR_CATALOG = {
         "Статус цього запиту на зміну змінився. Оновіть сторінку.",
       "identity.operator_self_deactivation":
         "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
+      "communication.group_thread_closed":
+        "Це групове повідомлення закрито. Відповісти більше не можна.",
+      "communication.group_thread_no_recipients":
+        "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
     },
   },
 } as const;
