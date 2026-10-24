@@ -246,7 +246,7 @@ const permissionDescriptions: Record<string, string> = {
   "class_day:class_trip_write":
     "Für eine eigene Klasse einen Ausflug oder eine Klassenfahrt melden",
   "class_day:homework_write":
-    "Für eine eigene Klasse Hausaufgaben eintragen und eigene ändern",
+    "Für eine eigene Klasse Hausaufgaben eintragen, ändern und löschen",
   "class_day:morning_attendance_write":
     "Für eine eigene Klasse heute eintragen, wer am Vormittag da ist",
   "class_day:handover_write":

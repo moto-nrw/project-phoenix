@@ -2327,7 +2327,7 @@
         "class_trip_return_time_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "class_trip_status_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "class_trip_student_not_in_class": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "homework_not_found": "Tego zadania domowego już nie ma albo nie zostało wpisane przez Ciebie. Odśwież stronę.",
+        "homework_not_found": "Tego zadania domowego już nie ma. Odśwież stronę.",
         "morning_attendance_no_school_day": "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
         "morning_attendance_not_today": "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
         "morning_attendance_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",

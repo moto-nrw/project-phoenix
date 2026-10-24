@@ -2327,7 +2327,7 @@
         "class_trip_return_time_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "class_trip_status_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "class_trip_student_not_in_class": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "homework_not_found": "Kjo detyrë shtëpie nuk ekziston më ose nuk është shënuar nga ju. Ringarkoni faqen.",
+        "homework_not_found": "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
         "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
         "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
         "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",

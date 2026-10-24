@@ -37,8 +37,9 @@ const homeworkRetentionKind = "homework_retention"
 //     by its Lehrkraft. The subject is optional, the text is not. Several
 //     entries per class and day are allowed (one per subject). The class is
 //     matched via LOWER(BTRIM(...)) like education.class_arrival_exceptions.
-//     created_by_staff_id is the author; only the author changes or deletes
-//     an entry, and a removed staff member leaves it without one.
+//     created_by_staff_id is the author; every Lehrkraft of the class
+//     changes or deletes an entry, and a removed staff member leaves it
+//     without an author.
 //   - education.homework_feedback: the OGS feedback of one child on one day,
 //     "done", "not_done" or "difficult", with an optional short note. One row
 //     per child and day; a second feedback replaces the first. It goes with
@@ -241,7 +242,7 @@ const classHomeworkGrantSQL = `
 // log by the retention kind and grants class_day:homework_write. Like
 // class_day:morning_attendance_write it opens a door without widening a
 // scope: the route re-checks the caller's education.class_teachers
-// assignment, and only the author changes or deletes an entry.
+// assignment for every entry it changes or deletes.
 func classHomeworkUp(ctx context.Context, db *bun.DB) error {
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

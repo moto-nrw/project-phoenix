@@ -2327,7 +2327,7 @@
         "class_trip_return_time_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "class_trip_status_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "class_trip_student_not_in_class": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "homework_not_found": "Bu ev ödevi artık yok veya sizin tarafınızdan girilmedi. Lütfen sayfayı yenileyin.",
+        "homework_not_found": "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
         "morning_attendance_no_school_day": "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
         "morning_attendance_not_today": "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
         "morning_attendance_unknown_child": "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",

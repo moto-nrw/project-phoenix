@@ -154,7 +154,7 @@ export const ERROR_CATALOG = {
       "classday.class_trip_student_not_in_class":
         "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.homework_not_found":
-        "Diese Hausaufgabe gibt es nicht mehr, oder sie ist nicht von Ihnen. Bitte laden Sie die Seite neu.",
+        "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
         "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
       "classday.morning_attendance_not_today":
@@ -1374,7 +1374,7 @@ export const ERROR_CATALOG = {
       "classday.class_handover_unknown_child":
         "A child no longer belongs to this class. Please reload the page.",
       "classday.homework_not_found":
-        "This homework no longer exists or was entered by someone else. Please reload the page.",
+        "This homework no longer exists. Please reload the page.",
       "classday.morning_attendance_no_school_day":
         "Today is not a school day. Attendance can only be recorded on school days.",
       "classday.morning_attendance_not_today":
@@ -1703,7 +1703,7 @@ export const ERROR_CATALOG = {
       "classday.class_handover_unknown_child":
         "Один ребёнок больше не относится к этому классу. Обновите страницу.",
       "classday.homework_not_found":
-        "Этого домашнего задания больше нет, или его внесли не вы. Обновите страницу.",
+        "Этого домашнего задания больше нет. Обновите страницу.",
       "classday.morning_attendance_no_school_day":
         "Сегодня не учебный день. Посещаемость можно отмечать только в учебные дни.",
       "classday.morning_attendance_not_today":
@@ -2018,7 +2018,7 @@ export const ERROR_CATALOG = {
       "classday.class_handover_unknown_child":
         "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
       "classday.homework_not_found":
-        "Kjo detyrë shtëpie nuk ekziston më ose nuk është shënuar nga ju. Ringarkoni faqen.",
+        "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
       "classday.morning_attendance_no_school_day":
         "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
       "classday.morning_attendance_not_today":
@@ -2344,7 +2344,7 @@ export const ERROR_CATALOG = {
       "classday.class_handover_unknown_child":
         "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
       "classday.homework_not_found":
-        "Tego zadania domowego już nie ma albo nie zostało wpisane przez Ciebie. Odśwież stronę.",
+        "Tego zadania domowego już nie ma. Odśwież stronę.",
       "classday.morning_attendance_no_school_day":
         "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
       "classday.morning_attendance_not_today":
@@ -2659,7 +2659,7 @@ export const ERROR_CATALOG = {
       "classday.class_handover_unknown_child":
         "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
       "classday.homework_not_found":
-        "Bu ev ödevi artık yok veya sizin tarafınızdan girilmedi. Lütfen sayfayı yenileyin.",
+        "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
       "classday.morning_attendance_no_school_day":
         "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
       "classday.morning_attendance_not_today":
@@ -2977,7 +2977,7 @@ export const ERROR_CATALOG = {
       "classday.class_handover_unknown_child":
         "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
       "classday.homework_not_found":
-        "Цього домашнього завдання більше немає, або його внесли не ви. Оновіть сторінку.",
+        "Цього домашнього завдання більше немає. Оновіть сторінку.",
       "classday.morning_attendance_no_school_day":
         "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
       "classday.morning_attendance_not_today":
