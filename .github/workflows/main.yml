@@ -304,7 +304,8 @@ jobs:
           CHANGED_COUNT: ${{ steps.filter.outputs.backend-tests_count }}
           CHANGED_FILES: ${{ fromJSON(steps.filter.outputs.backend-tests_count) < 500 && steps.filter.outputs.backend-tests_files || '[]' }}
         run: |
-          if [ "${CHANGED_COUNT:-0}" -ge 500 ]; then
+          : "${CHANGED_COUNT:?changed-file count is required}"
+          if [ "$CHANGED_COUNT" -ge 500 ]; then
             echo "full=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi

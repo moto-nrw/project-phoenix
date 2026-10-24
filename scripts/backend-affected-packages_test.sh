@@ -360,14 +360,14 @@ size_script=$(awk '
 [ -n "$size_script" ] || { echo 'backend scope size guard missing' >&2; exit 1; }
 for count in 63 64; do
   files=$(jq -cn --argjson count "$count" '[range(0; $count) | "backend/package\(.)/source.go", "backend/package\(.)/source_test.go", "backend/notes\(.)/README.md"]')
-  CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  CHANGED_COUNT=$((count * 3)) CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
   expected=false
   [ "$count" -lt 64 ] || expected=true
   grep -qx "full=$expected" "$fixture/scope-size"
   rm "$fixture/scope-size"
 done
 for manifest in go.mod go.sum; do
-  CHANGED_FILES="[\"backend/$manifest\"]" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  CHANGED_COUNT=1 CHANGED_FILES="[\"backend/$manifest\"]" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
   grep -qx 'full=true' "$fixture/scope-size"
   rm "$fixture/scope-size"
 done
