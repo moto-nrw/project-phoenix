@@ -65,14 +65,7 @@ func pickupRequestPayload(ctx context.Context, pickup ports.RequestSubmissionPic
 	if input.DepartureMode != "" {
 		payload["departure_mode"] = input.DepartureMode
 	}
-	if input.PickupPerson != nil {
-		payload["pickup_person"] = map[string]any{
-			"guardian_profile_id": input.PickupPerson.GuardianProfileID, "name": strings.TrimSpace(input.PickupPerson.Name),
-		}
-	}
-	if input.Signature != nil {
-		payload["signature"] = map[string]any{"id": input.Signature.SignatureID, "statement": input.Signature.Statement}
-	}
+	addPickupPersonAndSignature(payload, input)
 	if pickup == nil {
 		return json.Marshal(payload)
 	}
@@ -95,6 +88,19 @@ func pickupRequestPayload(ctx context.Context, pickup ports.RequestSubmissionPic
 		}
 	}
 	return json.Marshal(payload)
+}
+
+// addPickupPersonAndSignature stores the day's collector and the signed
+// wording (#4780).
+func addPickupPersonAndSignature(payload map[string]any, input carerequests.PickupChangeCreateInput) {
+	if input.PickupPerson != nil {
+		payload["pickup_person"] = map[string]any{
+			"guardian_profile_id": input.PickupPerson.GuardianProfileID, "name": strings.TrimSpace(input.PickupPerson.Name),
+		}
+	}
+	if input.Signature != nil {
+		payload["signature"] = map[string]any{"id": input.Signature.SignatureID, "statement": input.Signature.Statement}
+	}
 }
 
 // previousDepartureModes is the Abholart of the day before a request changes

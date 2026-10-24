@@ -35,28 +35,9 @@ func (s *Service) PickupRequestProof(ctx context.Context, accountID, studentID, 
 	}
 	var proof *PickupProof
 	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		request, findErr := s.CareRequests.FindStudentRequest(txCtx, studentID, requestID)
-		if errors.Is(findErr, carerequests.ErrNotFound) {
-			return ErrPickupProofNotFound
-		}
-		if findErr != nil {
-			return findErr
-		}
-		signed := carerequests.StoredSignature(request.Payload)
-		if request.SubmittedBy != accountID || signed == nil {
-			return ErrPickupProofNotFound
-		}
-		signatures, readErr := s.PickupSignatures.PickupSignatures(txCtx, studentID, map[int64]string{signed.SignatureID: signed.Statement})
-		if readErr != nil {
-			return readErr
-		}
-		signature := signatures[signed.SignatureID]
-		proof = &PickupProof{
-			Request: *request, ChildName: child.StudentName, SchoolName: child.SchoolName,
-			Statement: signed.Statement, Summary: carerequests.RequestedSummary(request.Payload),
-			Signature: signature, Intact: signature != nil && signature.Intact,
-		}
-		return nil
+		var readErr error
+		proof, readErr = s.pickupProofInTx(txCtx, child, accountID, studentID, requestID)
+		return readErr
 	})
 	if err != nil {
 		if errors.Is(err, ErrPickupProofNotFound) {
@@ -65,4 +46,29 @@ func (s *Service) PickupRequestProof(ctx context.Context, accountID, studentID, 
 		return nil, fmt.Errorf("parent: pickup permission proof: %w", err)
 	}
 	return proof, nil
+}
+
+// pickupProofInTx reads the caller's own signed request and its signature.
+func (s *Service) pickupProofInTx(txCtx context.Context, child *Child, accountID, studentID, requestID int64) (*PickupProof, error) {
+	request, err := s.CareRequests.FindStudentRequest(txCtx, studentID, requestID)
+	if errors.Is(err, carerequests.ErrNotFound) {
+		return nil, ErrPickupProofNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	signed := carerequests.StoredSignature(request.Payload)
+	if request.SubmittedBy != accountID || signed == nil {
+		return nil, ErrPickupProofNotFound
+	}
+	signatures, err := s.PickupSignatures.PickupSignatures(txCtx, studentID, map[int64]string{signed.SignatureID: signed.Statement})
+	if err != nil {
+		return nil, err
+	}
+	signature := signatures[signed.SignatureID]
+	return &PickupProof{
+		Request: *request, ChildName: child.StudentName, SchoolName: child.SchoolName,
+		Statement: signed.Statement, Summary: carerequests.RequestedSummary(request.Payload),
+		Signature: signature, Intact: signature != nil && signature.Intact,
+	}, nil
 }

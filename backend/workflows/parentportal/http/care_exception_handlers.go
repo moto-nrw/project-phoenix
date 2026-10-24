@@ -165,6 +165,56 @@ func toCareExceptionResponse(c *parentService.CareException) CareExceptionRespon
 	}
 }
 
+// decodePickupChangeSubmission reads and checks the wire shape of a one-day
+// request; it renders the error and returns false on a refused input.
+func decodePickupChangeSubmission(w http.ResponseWriter, r *http.Request) (parentService.PickupChangeSubmission, bool) {
+	var none parentService.PickupChangeSubmission
+	var req SubmitCareExceptionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return none, false
+	}
+	date, err := timezone.ParseDate(req.Date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date, expected YYYY-MM-DD")))
+		return none, false
+	}
+	pickup, err := parseCareExceptionTime(req.PickupTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return none, false
+	}
+	if req.ArrivalTime != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("parents cannot change arrival times")))
+		return none, false
+	}
+	departureMode := ""
+	if req.DepartureMode != nil {
+		departureMode = strings.TrimSpace(*req.DepartureMode)
+	}
+	personID, err := parsePickupPersonID(req.PickupPersonGuardianProfileID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return none, false
+	}
+	if pickup == nil && departureMode == "" && personID == 0 {
+		renderParentWriteError(w, r, parentService.ErrNoCareException)
+		return none, false
+	}
+	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)
+	if !ok {
+		return none, false
+	}
+	submission := parentService.PickupChangeSubmission{
+		Date: date, DepartureMode: departureMode, Reason: req.Reason,
+		RecipientGuardianProfileIDs: recipients, PickupPersonID: personID, Signature: req.Signature.pickupInput(),
+	}
+	if pickup != nil {
+		submission.PickupTime = *pickup
+	}
+	return submission, true
+}
+
 // submitCareException sets a one-day pickup override for the parent's child.
 // The service verifies the relationship-level pickup permission.
 func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) {
@@ -177,52 +227,11 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var req SubmitCareExceptionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-
-	date, err := timezone.ParseDate(req.Date)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date, expected YYYY-MM-DD")))
-		return
-	}
-	pickup, err := parseCareExceptionTime(req.PickupTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	if req.ArrivalTime != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("parents cannot change arrival times")))
-		return
-	}
-
-	departureMode := ""
-	if req.DepartureMode != nil {
-		departureMode = strings.TrimSpace(*req.DepartureMode)
-	}
-	personID, err := parsePickupPersonID(req.PickupPersonGuardianProfileID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	if pickup == nil && departureMode == "" && personID == 0 {
-		renderParentWriteError(w, r, parentService.ErrNoCareException)
-		return
-	}
-	recipients, ok := parseCreateRecipients(w, r, req.RecipientGuardianProfileIDs)
+	submission, ok := decodePickupChangeSubmission(w, r)
 	if !ok {
 		return
 	}
-	var pickupTime time.Time
-	if pickup != nil {
-		pickupTime = *pickup
-	}
-	result, err := rs.ParentService.SubmitPickupChange(r.Context(), accountID, studentID, parentService.PickupChangeSubmission{
-		Date: date, PickupTime: pickupTime, DepartureMode: departureMode, Reason: req.Reason,
-		RecipientGuardianProfileIDs: recipients, PickupPersonID: personID, Signature: req.Signature.pickupInput(),
-	})
+	result, err := rs.ParentService.SubmitPickupChange(r.Context(), accountID, studentID, submission)
 	if err != nil {
 		renderParentRequestError(w, r, err)
 		return

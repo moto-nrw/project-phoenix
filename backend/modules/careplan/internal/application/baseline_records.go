@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
@@ -243,6 +244,9 @@ func (a pickupApprovalExceptions) SaveDeparture(ctx context.Context, value carep
 }
 
 func (a pickupApprovalExceptions) CreateNote(ctx context.Context, value careplan.PickupNote) (int64, error) {
+	if value.StudentID <= 0 || value.NoteDate == "" || strings.TrimSpace(value.Content) == "" {
+		return 0, carerequests.ErrInvalidPayload
+	}
 	row, err := a.records.CreatePickupNote(ctx, value)
 	return row.ID, err
 }

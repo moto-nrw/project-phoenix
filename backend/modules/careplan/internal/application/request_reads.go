@@ -33,15 +33,21 @@ func (s *RequestReads) GetPendingForStudent(ctx context.Context, studentID int64
 }
 
 func (s *RequestReads) ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]carerequests.Request, error) {
-	return s.Records.ListCareRequests(ctx, studentID, []string{"pickup_change"}, nil, since)
+	return s.studentRequests(ctx, studentID, []string{"pickup_change"}, since)
+}
+
+// studentRequests is the one read of a child's requests of the given kinds
+// (all kinds for nil) created since the instant, newest first.
+func (s *RequestReads) studentRequests(ctx context.Context, studentID int64, kinds []string, since time.Time) ([]carerequests.Request, error) {
+	return s.Records.ListCareRequests(ctx, studentID, kinds, nil, since)
 }
 
 func (s *RequestReads) ListPickupPermissionRequests(ctx context.Context, studentID int64, since time.Time) ([]carerequests.Request, error) {
-	return s.Records.ListCareRequests(ctx, studentID, []string{carerequests.KindPickupPermission}, nil, since)
+	return s.studentRequests(ctx, studentID, []string{carerequests.KindPickupPermission}, since)
 }
 
 func (s *RequestReads) FindStudentRequest(ctx context.Context, studentID, requestID int64) (*carerequests.Request, error) {
-	rows, err := s.Records.ListCareRequests(ctx, studentID, nil, nil, time.Time{})
+	rows, err := s.studentRequests(ctx, studentID, nil, time.Time{})
 	if err != nil {
 		return nil, err
 	}

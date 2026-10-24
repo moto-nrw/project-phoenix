@@ -89,22 +89,7 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 	if err != nil {
 		return fmt.Errorf("schedule: read care request ledger: %w", err)
 	}
-	// The newest decision names the rows it wrote: a time, a day Abholart
-	// (#3945), or both.
-	var applied carerequests.PickupApplied
-	var found bool
-	for _, event := range events {
-		if event.Type != "decided" {
-			continue
-		}
-		pickupID, pickupOK := correctionExceptionID(event.Payload["pickup_exception_id"])
-		departureID, departureOK := correctionExceptionID(event.Payload["departure_exception_id"])
-		noteID, noteOK := correctionExceptionID(event.Payload["pickup_note_id"])
-		if pickupOK || departureOK || noteOK {
-			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID, PickupNoteID: noteID}
-			found = true
-		}
-	}
+	applied, found := decidedPickupRows(events)
 	if !found {
 		return fmt.Errorf("%w: zu dieser Entscheidung ist kein Eintrag gespeichert, der zurückgenommen werden kann. Bitte ändern Sie die Abholung direkt", careplan.ErrParentRequestCorrectionUnsupported)
 	}
@@ -151,6 +136,26 @@ func (s *RequestCorrections) revertDepartureException(ctx context.Context, reque
 		return fmt.Errorf("%w: die Abholart am %s wurde nach der Entscheidung geändert", careplan.ErrParentRequestCorrectionUnsupported, row.ExceptionDate.Format("02.01.2006"))
 	}
 	return s.Records.DeleteDepartureException(ctx, row.ID)
+}
+
+// decidedPickupRows reads the rows the newest decision wrote: a time, a day
+// Abholart (#3945), the day's collector note (#4780), or several of them.
+func decidedPickupRows(events []ports.RequestCorrectionEvent) (carerequests.PickupApplied, bool) {
+	var applied carerequests.PickupApplied
+	var found bool
+	for _, event := range events {
+		if event.Type != "decided" {
+			continue
+		}
+		pickupID, pickupOK := correctionExceptionID(event.Payload["pickup_exception_id"])
+		departureID, departureOK := correctionExceptionID(event.Payload["departure_exception_id"])
+		noteID, noteOK := correctionExceptionID(event.Payload["pickup_note_id"])
+		if pickupOK || departureOK || noteOK {
+			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID, PickupNoteID: noteID}
+			found = true
+		}
+	}
+	return applied, found
 }
 
 func correctionExceptionID(value any) (int64, bool) {
