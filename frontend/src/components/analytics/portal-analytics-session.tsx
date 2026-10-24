@@ -4,16 +4,38 @@ import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { setAnalyticsContext } from "~/lib/posthog-client";
 import { clearPortalSession, registerPortalSession } from "~/lib/analytics";
+import {
+  setAnalyticsConsentSchool,
+  startAnalyticsConsent,
+  stopAnalyticsConsent,
+} from "~/lib/analytics-consent";
+import {
+  germanAnalyticsConsentCopy,
+  useParentAnalyticsConsentCopy,
+} from "~/components/analytics/analytics-consent-copy";
+import { AnalyticsConsentPrompt } from "~/components/analytics/analytics-consent-prompt";
 
 const PORTALS = {
-  parents: { scope: "parent", role: "guardian" },
-  school: { scope: "school", role: "lehrkraft" },
+  parents: { scope: "parent", role: "guardian", consent: "parent" },
+  school: { scope: "school", role: "lehrkraft", consent: "school" },
 } as const;
+
+const SCHOOL_CONSENT_COPY = germanAnalyticsConsentCopy("Einstellungen");
+
+function ParentConsentPrompt() {
+  return (
+    <AnalyticsConsentPrompt
+      portal="parent"
+      copy={useParentAnalyticsConsentCopy()}
+    />
+  );
+}
 
 /**
  * Registers the analytics context of the parents or school portal at login
  * and clears it at logout, like TenantAuthWrapper does for the OGS portal.
- * Mounted inside the portal's SessionProvider; renders nothing.
+ * Mounted inside the portal's SessionProvider. It also reads the person's
+ * consent (#4901) and renders the consent prompt after login.
  */
 export function PortalAnalyticsSession({
   surface,
@@ -21,7 +43,7 @@ export function PortalAnalyticsSession({
   readonly surface: keyof typeof PORTALS;
 }) {
   const { data: session, status } = useSession();
-  const { scope, role } = PORTALS[surface];
+  const { scope, role, consent } = PORTALS[surface];
   const inScope = session?.user?.scope === scope;
   const accountId = session?.user?.id;
   // Parent tokens carry no school: a guardian can have children in several.
@@ -33,6 +55,7 @@ export function PortalAnalyticsSession({
     let cancelled = false;
     setAnalyticsContext({ surface, enabled: false });
     if (status === "authenticated" && inScope) {
+      if (accountId) startAnalyticsConsent(consent, accountId);
       const refresh = () => {
         setAnalyticsContext({ surface, enabled: false });
         const sequence = ++requestSequence;
@@ -47,6 +70,7 @@ export function PortalAnalyticsSession({
           )
           .then((result) => {
             if (cancelled || sequence !== requestSequence) return;
+            setAnalyticsConsentSchool(consent, result?.data?.enabled === true);
             // Account IDs stay local; a different account starts a fresh SDK session.
             const key = JSON.stringify([accountId, schoolId]);
             registerPortalSession(
@@ -78,13 +102,18 @@ export function PortalAnalyticsSession({
       };
     } else if (status === "unauthenticated" || status === "authenticated") {
       clearPortalSession();
+      stopAnalyticsConsent(consent);
       registeredRef.current = null;
     }
     return () => {
       cancelled = true;
       setAnalyticsContext({ surface, enabled: false });
     };
-  }, [status, inScope, accountId, schoolId, surface, scope, role]);
+  }, [status, inScope, accountId, schoolId, surface, scope, role, consent]);
 
-  return null;
+  return surface === "parents" ? (
+    <ParentConsentPrompt />
+  ) : (
+    <AnalyticsConsentPrompt portal="school" copy={SCHOOL_CONSENT_COPY} />
+  );
 }

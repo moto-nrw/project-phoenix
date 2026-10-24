@@ -48,6 +48,26 @@ vi.mock("posthog-js", () => ({
   },
 }));
 
+// Every session here belongs to an account that consented (#4901): the
+// school policy gates under test come on top of that consent. The consent
+// store, its prompt and texts have their own tests.
+// The client is resolved per call: vi.resetModules() gives each test its own.
+async function publishConsent(consent: boolean): Promise<void> {
+  (await import("~/lib/posthog-client")).setAnalyticsContext({ consent });
+}
+vi.mock("~/lib/analytics-consent", () => ({
+  startAnalyticsConsent: () => publishConsent(true),
+  stopAnalyticsConsent: () => publishConsent(false),
+  setAnalyticsConsentSchool: () => undefined,
+}));
+vi.mock("~/components/analytics/analytics-consent-prompt", () => ({
+  AnalyticsConsentPrompt: () => null,
+}));
+vi.mock("~/components/analytics/analytics-consent-copy", () => ({
+  germanAnalyticsConsentCopy: () => ({}),
+  useParentAnalyticsConsentCopy: () => ({}),
+}));
+
 vi.mock("~/lib/enrollment-submission-api", () => ({
   fetchParentEnrollmentBootstrap: mocks.fetchBootstrap,
   fetchEnrollmentEditBootstrap: mocks.fetchEditBootstrap,
@@ -138,6 +158,7 @@ describe("embedded enrollment analytics policy", () => {
       setAnalyticsContext({
         surface,
         enabled: true,
+        consent: true,
         analyseFreigabe: true,
         recordingSamplePercent: 100,
       });
@@ -236,7 +257,7 @@ describe("embedded enrollment analytics policy", () => {
         await import("~/components/enrollment/enrollment-edit-page");
       const { setAnalyticsContext, initializePostHog } =
         await import("~/lib/posthog-client");
-      setAnalyticsContext({ surface, enabled: true });
+      setAnalyticsContext({ surface, enabled: true, consent: true });
       const view = render(
         <TenantProvider tenantSlug="school-a" tenant={tenant}>
           <div>Allowed page content</div>
@@ -500,7 +521,7 @@ describe("embedded enrollment analytics policy", () => {
     expect(mocks.init).not.toHaveBeenCalled();
   });
 
-  it("still initializes on the OGS host when its school allows analytics", async () => {
+  it("initializes on the OGS host only with the school's switch and the person's consent", async () => {
     vi.stubGlobal("location", {
       host: "school-a.localhost:3000",
       hostname: "school-a.localhost",
@@ -514,6 +535,11 @@ describe("embedded enrollment analytics policy", () => {
       </TenantProvider>,
     );
     expect(screen.getByText("Enrollment form")).toBeInTheDocument();
+    // An anonymous visit has no consent (#4901): the school's switch alone
+    // loads nothing.
+    await initializePostHog();
+    expect(mocks.init).not.toHaveBeenCalled();
+    await publishConsent(true);
     await initializePostHog();
     expect(mocks.init).toHaveBeenCalledOnce();
   });
@@ -581,6 +607,8 @@ describe("embedded enrollment analytics policy", () => {
         hostname: "school-a.localhost",
         pathname: "/",
       });
+      // A consenting session; the school gates come on top (#4901).
+      await publishConsent(true);
       vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
       const { TenantProvider } = await import("~/lib/tenant-context");
       const { initializePostHog } = await import("~/lib/posthog-client");
@@ -653,6 +681,8 @@ describe("embedded enrollment analytics policy", () => {
         hostname: "school-a.localhost",
         pathname: "/",
       });
+      // A consenting session; the school gates come on top (#4901).
+      await publishConsent(true);
       vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
       let resolveBootstrap!: (value: unknown) => void;
       mocks.fetchEditBootstrap.mockImplementation(
@@ -902,6 +932,8 @@ describe("embedded enrollment analytics policy", () => {
       hostname: "school-a.localhost",
       pathname: "/",
     });
+    // A consenting session; the school gates come on top (#4901).
+    await publishConsent(true);
     const { TenantProvider } = await import("~/lib/tenant-context");
     const { default: EnrollmentStatusPage } =
       await import("~/app/[tenant]/(public)/anmeldung/status/[token]/page");
@@ -962,7 +994,7 @@ describe("embedded enrollment analytics policy", () => {
       });
       mocks.useSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { scope: "parent" } },
+        data: { user: { id: "7", scope: "parent" } },
       });
       vi.mocked(fetch).mockImplementation(async (input) => {
         if (String(input).startsWith("/api/tenant/resolve")) {

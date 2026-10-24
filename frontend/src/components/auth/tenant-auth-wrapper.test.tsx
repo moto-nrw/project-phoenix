@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   useTenant: vi.fn(),
   registerPortalSession: vi.fn(),
   clearPortalSession: vi.fn(),
+  startAnalyticsConsent: vi.fn(),
+  stopAnalyticsConsent: vi.fn(),
+  setAnalyticsConsentSchool: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: mocks.useSession }));
@@ -22,6 +25,15 @@ vi.mock("~/lib/analytics", async (importOriginal) => ({
   clearPortalSession: mocks.clearPortalSession,
 }));
 vi.mock("~/lib/tenant-context", () => ({ useTenant: mocks.useTenant }));
+// The consent store and its prompt have their own tests.
+vi.mock("~/lib/analytics-consent", () => ({
+  startAnalyticsConsent: mocks.startAnalyticsConsent,
+  stopAnalyticsConsent: mocks.stopAnalyticsConsent,
+  setAnalyticsConsentSchool: mocks.setAnalyticsConsentSchool,
+}));
+vi.mock("~/components/analytics/analytics-consent-prompt", () => ({
+  AnalyticsConsentPrompt: () => null,
+}));
 
 function renderWrapper() {
   return render(
@@ -53,6 +65,48 @@ describe("TenantAuthWrapper analytics", () => {
       { surface: "ogs", schoolId: "2", role: "staff", enabled: false },
       false,
     );
+  });
+
+  it("reads the own account's consent with the school's decision for the prompt", () => {
+    mocks.useTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      routingMode: "path",
+      tenant: { tenantId: 2, analyticsEnabled: true },
+    });
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "7", tenantId: 2 } },
+    });
+
+    const view = renderWrapper();
+
+    expect(mocks.startAnalyticsConsent).toHaveBeenCalledWith("tenant", "7");
+    expect(mocks.setAnalyticsConsentSchool).toHaveBeenLastCalledWith(
+      "tenant",
+      true,
+    );
+
+    mocks.useSession.mockReturnValue({ status: "unauthenticated", data: null });
+    view.rerender(
+      <TenantAuthWrapper>
+        <div>Tenant content</div>
+      </TenantAuthWrapper>,
+    );
+    expect(mocks.stopAnalyticsConsent).toHaveBeenCalledWith("tenant");
+  });
+
+  it("never reads or answers consent in the read-only staff preview", () => {
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "7", tenantId: 2, isPreview: true } },
+    });
+
+    renderWrapper();
+
+    // Anker: the preview session itself is registered for the analytics.
+    expect(mocks.registerPortalSession).toHaveBeenCalled();
+    expect(mocks.startAnalyticsConsent).not.toHaveBeenCalled();
+    expect(mocks.stopAnalyticsConsent).toHaveBeenCalledWith("tenant");
   });
 
   it("sends the admin flag as role, never a school's role name", () => {

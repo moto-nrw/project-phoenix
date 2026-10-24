@@ -607,6 +607,22 @@
     "appInstallGenericDescription": "Add moto to your phone's home screen so you can open it like an app.",
     "appInstallGuide": "Open guide"
   },
+  "analyticsConsent": {
+    "title": "Usage analytics",
+    "promptTitle": "Allow usage analytics?",
+    "promptIntro": "moto would like to count which pages and buttons you use. This helps us improve moto.",
+    "promptPrivacy": "moto does not see names or anything you type.",
+    "promptNoDisadvantage": "If you decline, you can use moto just the same.",
+    "promptChangeLater": "You can change this at any time under “Settings”.",
+    "allow": "Allow",
+    "refuse": "Decline",
+    "saving": "Saving…",
+    "closeLabel": "Decide later",
+    "sectionDescription": "May moto count which pages and buttons you use? moto does not see names or anything you type. Only you decide this.",
+    "switchLabel": "Allow usage analytics",
+    "schoolOff": "Your school has turned usage analytics off. Your choice applies as soon as the school turns it on again.",
+    "errorObject": "the usage analytics setting"
+  },
   "pwaInstallHint": {
     "title": "Use moto as an app",
     "samsungDescription": "Do not install moto through Samsung Internet. Open moto in Chrome and sign in there.",

@@ -607,6 +607,22 @@
     "appInstallGenericDescription": "Dodaj moto do ekranu głównego telefonu i otwieraj je jak aplikację.",
     "appInstallGuide": "Otwórz instrukcję"
   },
+  "analyticsConsent": {
+    "title": "Analiza korzystania",
+    "promptTitle": "Zezwolić na analizę korzystania?",
+    "promptIntro": "moto chce liczyć, z których stron i przycisków Pan/Pani korzysta. Dzięki temu ulepszamy moto.",
+    "promptPrivacy": "moto nie widzi przy tym imion ani wpisywanych treści.",
+    "promptNoDisadvantage": "Jeśli Pan/Pani odmówi, może Pan/Pani korzystać z moto tak samo.",
+    "promptChangeLater": "Można to zmienić w każdej chwili w „Ustawieniach”.",
+    "allow": "Zezwól",
+    "refuse": "Odmów",
+    "saving": "Zapisywanie…",
+    "closeLabel": "Zdecyduj później",
+    "sectionDescription": "Czy moto może liczyć, z których stron i przycisków Pan/Pani korzysta? moto nie widzi przy tym imion ani wpisywanych treści. Decyduje tylko Pan/Pani.",
+    "switchLabel": "Zezwól na analizę korzystania",
+    "schoolOff": "Szkoła wyłączyła analizę korzystania. Pana/Pani wybór zacznie obowiązywać, gdy szkoła ją ponownie włączy.",
+    "errorObject": "ustawienie analizy korzystania"
+  },
   "pwaInstallHint": {
     "title": "moto jako aplikacja",
     "samsungDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome i tam się zalogować.",

@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   registerPortalSession: vi.fn(),
   clearPortalSession: vi.fn(),
   setAnalyticsContext: vi.fn(),
+  startAnalyticsConsent: vi.fn(),
+  stopAnalyticsConsent: vi.fn(),
+  setAnalyticsConsentSchool: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: mocks.useSession }));
@@ -17,6 +20,20 @@ vi.mock("~/lib/analytics", () => ({
 
 vi.mock("~/lib/posthog-client", () => ({
   setAnalyticsContext: mocks.setAnalyticsContext,
+}));
+// The consent store and its prompt have their own tests; here only the
+// session wiring counts.
+vi.mock("~/lib/analytics-consent", () => ({
+  startAnalyticsConsent: mocks.startAnalyticsConsent,
+  stopAnalyticsConsent: mocks.stopAnalyticsConsent,
+  setAnalyticsConsentSchool: mocks.setAnalyticsConsentSchool,
+}));
+vi.mock("~/components/analytics/analytics-consent-prompt", () => ({
+  AnalyticsConsentPrompt: () => null,
+}));
+vi.mock("~/components/analytics/analytics-consent-copy", () => ({
+  germanAnalyticsConsentCopy: () => ({}),
+  useParentAnalyticsConsentCopy: () => ({}),
 }));
 
 describe("PortalAnalyticsSession", () => {
@@ -98,6 +115,29 @@ describe("PortalAnalyticsSession", () => {
     );
   });
 
+  it.each([
+    { surface: "parents", scope: "parent", portal: "parent" },
+    { surface: "school", scope: "school", portal: "school" },
+  ] as const)(
+    "reads the $surface account's consent and the school decision for its prompt",
+    async ({ surface, scope, portal }) => {
+      mocks.useSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { id: "7", scope, tenantId: 42 } },
+      });
+
+      render(<PortalAnalyticsSession surface={surface} />);
+
+      expect(mocks.startAnalyticsConsent).toHaveBeenCalledWith(portal, "7");
+      await waitFor(() =>
+        expect(mocks.setAnalyticsConsentSchool).toHaveBeenCalledWith(
+          portal,
+          true,
+        ),
+      );
+    },
+  );
+
   it("registers a teacher of the school portal with the school", async () => {
     mocks.useSession.mockReturnValue({
       status: "authenticated",
@@ -150,6 +190,7 @@ describe("PortalAnalyticsSession", () => {
     view.rerender(<PortalAnalyticsSession surface="school" />);
 
     expect(mocks.clearPortalSession).toHaveBeenCalledOnce();
+    expect(mocks.stopAnalyticsConsent).toHaveBeenCalledWith("school");
   });
 
   it("resets the identity when the school changes", async () => {
