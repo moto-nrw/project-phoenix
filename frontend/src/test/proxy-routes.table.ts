@@ -461,10 +461,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "DELETE school /school/class-day/handover/schoolClass%2F1/date%2F1",
     "PUT school /school/class-day/handover/schoolClass%2F1/date%2F1",
   ],
+  "api/school/class-day/classes": ["GET school /school/class-day/classes"],
   "api/school/class-day/morning-attendance/[schoolClass]/[date]": [
     "PUT school /school/class-day/morning-attendance/schoolClass%2F1/date%2F1",
   ],
-  "api/school/class-day/classes": ["GET school /school/class-day/classes"],
   "api/school/notifications/preferences": [
     "DELETE school /school/notifications/preferences/",
     "GET school /school/notifications/preferences/",

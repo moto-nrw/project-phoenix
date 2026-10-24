@@ -33,7 +33,7 @@ var devices_init_checkout_0Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       10,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyCheckoutSchulhofEnabled,
@@ -46,7 +46,7 @@ var devices_init_checkout_0Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       11,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyCheckoutWCEnabled,
@@ -59,7 +59,7 @@ var devices_init_checkout_0Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       12,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 }
 
@@ -75,7 +75,7 @@ var devices_init_nach_hause_1Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "nach-hause",
 		SortOrder:       8,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 }
 
@@ -91,7 +91,7 @@ var devices_init_kapazit_t_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "kapazität",
 		SortOrder:       14,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyCheckinRoomCapacityDetailsEnabled,
@@ -104,7 +104,7 @@ var devices_init_kapazit_t_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "kapazität",
 		SortOrder:       15,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 }
 

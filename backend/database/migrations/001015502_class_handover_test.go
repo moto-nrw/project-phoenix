@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestClassHandoverRollsBack pins 1.15.500 (#4794): the tables exist only
+// TestClassHandoverRollsBack pins 1.15.502 (#4794): the tables exist only
 // after the migration, with forced RLS, one handover per class and day and
 // tenant-bound keys; the write scope turns into a list that keeps a stored
 // value and back; the lehrkraft role holds the write permission; and the
@@ -124,7 +124,7 @@ func TestClassHandoverRollsBack(t *testing.T) {
 }
 
 // TestSchoolErasureDeletesClassHandovers proves the erasure phases cover both
-// tables after 1.15.500 extended the plan with them.
+// tables after 1.15.502 extended the plan with them.
 func TestSchoolErasureDeletesClassHandovers(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

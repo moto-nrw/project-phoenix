@@ -498,7 +498,7 @@ export function ClassDayClass({
             <div className="min-w-0">
               <p className="text-sm font-medium text-gray-900">
                 {report.handover
-                  ? handoverLine(report.handover)
+                  ? handoverLine(report.handover, ogsRows.length)
                   : "Die Klasse ist noch nicht an die OGS übergeben."}
               </p>
               {canHandOver && !report.handover ? (
@@ -751,8 +751,8 @@ export function ClassDayClass({
           <div className="space-y-3">
             <FormErrorAlert message={withdrawErrors.error} />
             <p className="text-sm text-gray-600">
-              Die OGS sieht dann wieder, dass die Klasse noch nicht übergeben
-              ist. Sie können die Klasse danach neu übergeben.
+              Die OGS sieht die Übergabe dann nicht mehr. Sie können die Klasse
+              danach neu übergeben.
             </p>
           </div>
         </ConfirmationModal>

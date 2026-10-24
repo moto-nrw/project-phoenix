@@ -58,5 +58,11 @@ describe("class handover helpers (#4794)", () => {
     expect(handoverLine({ handed_over_at: "", absent_count: 1 })).toBe(
       "Übergeben · 1 Kind nicht da",
     );
+    expect(
+      handoverLine(
+        { handed_over_at: "2026-09-09T09:45:00Z", absent_count: 0 },
+        0,
+      ),
+    ).toBe("Übergeben um 11:45 Uhr");
   });
 });

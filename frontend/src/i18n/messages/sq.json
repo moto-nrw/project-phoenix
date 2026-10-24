@@ -2938,7 +2938,9 @@
         "presence_mode_switch_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "booking_authority_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "attendance_visible_exceeds_retention": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "attendance_retention_below_visible": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+        "attendance_retention_below_visible": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

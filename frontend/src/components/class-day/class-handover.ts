@@ -39,14 +39,22 @@ export function initialAbsentIds(
   return absent;
 }
 
-/** „Übergeben um 11:45 Uhr von Petra Lehrkraft · 1 Kind nicht da“. */
-export function handoverLine(handover: ClassDayHandover): string {
+/**
+ * „Übergeben um 11:45 Uhr von Petra Lehrkraft · 1 Kind nicht da“. Ohne
+ * Kinder, die in die OGS gehen, (`ogsChildren` 0) entfällt „alle da“.
+ */
+export function handoverLine(
+  handover: ClassDayHandover,
+  ogsChildren?: number,
+): string {
   const clock = berlinClockFromISO(handover.handed_over_at);
   const by = handover.handed_over_by ? ` von ${handover.handed_over_by}` : "";
   const absent =
     handover.absent_count === 0
-      ? "alle da"
-      : `${handover.absent_count === 1 ? "1 Kind" : `${handover.absent_count} Kinder`} nicht da`;
+      ? ogsChildren === 0
+        ? ""
+        : " · alle da"
+      : ` · ${handover.absent_count === 1 ? "1 Kind" : `${handover.absent_count} Kinder`} nicht da`;
   const at = clock ? ` um ${clock} Uhr` : "";
-  return `Übergeben${at}${by} · ${absent}`;
+  return `Übergeben${at}${by}${absent}`;
 }

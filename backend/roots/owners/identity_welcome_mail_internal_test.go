@@ -63,7 +63,7 @@ func (f fakeWelcomeSettings) ResolveString(_ context.Context, key string) (strin
 func TestWelcomeHelpURLCarriesRoleArticleAndSchoolSettings(t *testing.T) {
 	t.Parallel()
 	settings := fakeWelcomeSettings{
-		bools: map[string]bool{"attendance.nfc_enabled": true},
+		bools: map[string]bool{"module.nfc_anwesenheit": true},
 		strings: map[string]string{
 			"operations.presence_mode": "binary",
 			"operations.group_mode":    "open_care",

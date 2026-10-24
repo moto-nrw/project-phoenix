@@ -2938,7 +2938,9 @@
         "presence_mode_switch_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "booking_authority_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attendance_visible_exceeds_retention": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-        "attendance_retention_below_visible": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+        "attendance_retention_below_visible": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "module_requires": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

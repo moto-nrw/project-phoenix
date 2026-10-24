@@ -17,6 +17,7 @@ import {
 import { setTenantAnalyticsPolicy } from "~/lib/posthog-client";
 import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
+import type { ModuleKey } from "~/lib/modules";
 
 interface TenantContextValue {
   /** The tenant slug from the URL path segment */
@@ -226,15 +227,32 @@ export function usePresenceMode(): PresenceMode {
 }
 
 /**
- * Returns whether the current tenant uses NFC attendance devices.
+ * Returns whether the current tenant uses NFC attendance devices: the school
+ * booked the module NFC-Anwesenheit (#4892).
  *
- * Defaults to false when tenant metadata is unavailable. That matches the
- * registry default and keeps NFC-only navigation hidden until the tenant
- * explicitly opts into NFC.
+ * Defaults to false when tenant metadata is unavailable, so NFC-only
+ * navigation stays hidden until the booking is known.
  */
 export function useNFCEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.nfcEnabled === true;
+}
+
+const NO_BOOKED_MODULES: readonly ModuleKey[] = [];
+
+/**
+ * Returns the additional modules the current school booked (#4892), in
+ * module-list order. Empty while tenant metadata is unavailable: a module
+ * never appears before its booking is known.
+ */
+export function useBookedModules(): readonly ModuleKey[] {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.bookedModules ?? NO_BOOKED_MODULES;
+}
+
+/** Returns whether the current school booked module (#4892). */
+export function useModuleBooked(module: ModuleKey): boolean {
+  return useBookedModules().includes(module);
 }
 
 /**

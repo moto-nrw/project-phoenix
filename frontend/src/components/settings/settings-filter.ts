@@ -35,6 +35,7 @@ export const categoryLabels: Record<string, string> = {
   formular: "Anmeldeformular",
   "frueh-abgeholt": "Früh abgeholt",
   geburtstage: "Geburtstage",
+  "gebuchte-module": "Gebuchte Module",
   "info-displays": "Info-Displays",
   kalender: "Kalender",
   kapazität: "Volle Räume und Aktivitäten",

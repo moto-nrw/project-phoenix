@@ -9,14 +9,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const classHandoverVersion = "1.15.500"
+const classHandoverVersion = "1.15.502"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     classHandoverVersion,
 		Description: "Übergabe nach dem Unterricht: die Lehrkraft gibt die Klasse an die OGS ab (#4794)",
 		DependsOn: []string{
-			"1.15.499",               // the last migration before this one (password login protection)
+			moduleNFCSwitchVersion,   // the last migration before this one (module switch NFC)
 			morningAttendanceVersion, // the morning attendance the handover stands beside
 			lehrkraftRoleVersion,     // the role the write permission goes to
 			schoolErasureVersion,     // the erasure plan this migration extends

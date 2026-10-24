@@ -46,7 +46,7 @@ func (s configureProfileStep) Run(_ context.Context, rt *Runtime) error {
 // 1234. OGS_DEVICE_PIN is only a demo/seeder input, never a runtime fallback. Without
 // this write every device call of a school seeded with another PIN fails with
 // 401. The setting is admin-only, so the school admin writes it. Its
-// dependency on attendance.nfc_enabled only hides it in the settings screen;
+// dependency on module.nfc_anwesenheit only hides it in the settings screen;
 // the write also succeeds while NFC is off, as on the public demo.
 type configureDevicePINStep struct{}
 
