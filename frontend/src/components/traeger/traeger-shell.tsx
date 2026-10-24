@@ -55,12 +55,13 @@ export function TraegerShell({
   };
 
   const header = (
-    <header className="flex items-center justify-between gap-4 border-b border-gray-200/70 bg-white/95 px-8 py-4 max-md:px-4">
+    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200/70 bg-white/95 px-8 py-4 max-md:px-4">
       <div className="flex items-center gap-3">
         <MotoBrand />
         <span className="text-sm font-semibold text-gray-600">Träger</span>
       </div>
-      <div className="flex items-center gap-2">
+      {/* Wraps below the brand on narrow phones (320 px) instead of overflowing. */}
+      <div className="ml-auto flex items-center gap-2">
         {session?.user?.email ? (
           <span className="text-sm text-gray-600 max-md:hidden">
             {session.user.email}

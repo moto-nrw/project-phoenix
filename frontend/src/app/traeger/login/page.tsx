@@ -22,6 +22,7 @@ import { PasswordToggleButton } from "~/components/shared/password-toggle-button
 import { Alert } from "~/components/ui/alert";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { Loading } from "~/components/ui/loading";
 import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { errorStatus } from "~/lib/expected-failure";
@@ -48,15 +49,6 @@ function clearSessionErrorFromUrl() {
     {},
     "",
     `${url.pathname}${url.search}${url.hash}`,
-  );
-}
-
-function Spinner({ label }: { readonly label: string }) {
-  return (
-    <div className="flex flex-col items-center gap-4 py-10">
-      <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-      <p className="text-sm text-gray-500">{label}</p>
-    </div>
   );
 }
 
@@ -177,7 +169,7 @@ function LoginForm() {
   if (status === "loading") {
     return (
       <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-        <Spinner label="Sitzung wird überprüft …" />
+        <Loading fullPage={false} message="Sitzung wird überprüft …" />
       </AuthShell>
     );
   }
@@ -333,7 +325,7 @@ export default function TraegerLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <Spinner label="Laden …" />
+          <Loading fullPage={false} message="Laden …" />
         </AuthShell>
       }
     >

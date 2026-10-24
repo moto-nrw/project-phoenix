@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -89,21 +90,18 @@ export function AssignTraegerMemberModal({
       title="Person dem Träger-Büro zuordnen"
       footer={
         <>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
+          <Button type="button" variant="outline" size="md" onClick={onClose}>
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="assign-traeger-member-form"
+            variant="primary"
+            size="md"
             disabled={saving || !email.trim()}
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? "Wird zugeordnet..." : "Zuordnen"}
-          </button>
+          </Button>
         </>
       }
     >
