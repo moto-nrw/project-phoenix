@@ -2982,6 +2982,7 @@
   "surveyForm": {
     "anonymousTitle": "Anonimowa",
     "anonymousText": "Szkoła nie widzi, kto co odpowiedział. Wyniki zobaczy dopiero przy {min} odpowiedziach.",
+    "anonymousTextHint": "Prosimy nie wpisywać imion ani nazwisk, jeśli chcą Państwo pozostać anonimowi.",
     "notAnonymousTitle": "Nieanonimowa",
     "notAnonymousText": "Szkoła widzi Twoje imię i nazwisko przy Twoich odpowiedziach.",
     "parentOneAnswer": "Odpowiadasz raz dla swojego konta rodzica, a nie za każde dziecko.",

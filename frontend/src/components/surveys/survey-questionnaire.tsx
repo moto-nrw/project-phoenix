@@ -123,6 +123,7 @@ function QuestionField({
   onChange,
   disabled,
   error,
+  anonymous,
 }: Readonly<{
   question: SurveyQuestion;
   index: number;
@@ -131,6 +132,7 @@ function QuestionField({
   onChange: (next: SurveyDraft) => void;
   disabled: boolean;
   error: string | null;
+  anonymous: boolean;
 }>) {
   const t = useTranslations("surveyForm");
   const baseId = useId();
@@ -156,6 +158,9 @@ function QuestionField({
           {question.required && <span>{t("required")}</span>}
           {question.kind === "multiple" && <span>{t("multipleHint")}</span>}
           {question.kind === "scale" && <span>{t("scaleLegend")}</span>}
+          {question.kind === "text" && anonymous && (
+            <span>{t("anonymousTextHint")}</span>
+          )}
         </span>
       </legend>
 
@@ -414,6 +419,7 @@ export function SurveyAnswerPanel({
               onChange={setDraft}
               disabled={submitting}
               error={missingIds.has(question.id) ? t("missingField") : null}
+              anonymous={form.survey.anonymous}
             />
           ))}
           <div className="space-y-3 border-t border-gray-100 pt-4">

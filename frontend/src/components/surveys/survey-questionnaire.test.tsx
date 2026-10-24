@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
@@ -147,6 +148,59 @@ describe("SurveyAnswerPanel", () => {
     expect(
       screen.queryByRole("button", { name: "Antwort absenden" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("toggles a multiple-choice option once per click on its text", async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <SurveyAnswerPanel
+        load={() =>
+          Promise.resolve(
+            form({
+              questions: [
+                {
+                  id: "q3",
+                  position: 1,
+                  kind: "multiple",
+                  prompt: "Was wünschen Sie sich?",
+                  required: true,
+                  options: [
+                    { id: "o1", label: "Mehr Material" },
+                    { id: "o2", label: "Kürzere Besprechungen" },
+                    { id: "o3", label: "Feste Rückzugsräume" },
+                  ],
+                },
+              ],
+            }),
+          )
+        }
+        submit={submit}
+        respondent="staff"
+      />,
+    );
+
+    await user.click(await screen.findByText("Mehr Material"));
+    await user.click(screen.getByText("Kürzere Besprechungen"));
+    await user.click(screen.getByText("Feste Rückzugsräume"));
+    await user.click(screen.getByText("Feste Rückzugsräume"));
+
+    expect(
+      screen.getByRole("checkbox", { name: "Mehr Material" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Kürzere Besprechungen" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Feste Rückzugsräume" }),
+    ).not.toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Antwort absenden" }));
+    await waitFor(() =>
+      expect(submit).toHaveBeenCalledWith({
+        answers: [{ question_id: "q3", option_ids: ["o1", "o2"] }],
+      }),
+    );
   });
 
   it("shows the done state instead of the questions after taking part", async () => {

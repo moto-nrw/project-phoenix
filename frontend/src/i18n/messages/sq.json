@@ -2982,6 +2982,7 @@
   "surveyForm": {
     "anonymousTitle": "Anonim",
     "anonymousText": "Shkolla nuk e sheh kush çfarë është përgjigjur. Rezultatet i sheh vetëm kur ka {min} përgjigje.",
+    "anonymousTextHint": "Ju lutemi mos shkruani emra nëse doni të mbeteni anonim.",
     "notAnonymousTitle": "Jo anonim",
     "notAnonymousText": "Shkolla e sheh emrin tuaj pranë përgjigjeve tuaja.",
     "parentOneAnswer": "Ju përgjigjeni një herë për llogarinë tuaj të prindit, jo për çdo fëmijë.",

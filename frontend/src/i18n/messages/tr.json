@@ -2982,6 +2982,7 @@
   "surveyForm": {
     "anonymousTitle": "Anonim",
     "anonymousText": "Okul kimin ne cevap verdiğini görmez. Sonuçları ancak {min} yanıttan sonra görür.",
+    "anonymousTextHint": "Anonim kalmak istiyorsanız lütfen isim yazmayın.",
     "notAnonymousTitle": "Anonim değil",
     "notAnonymousText": "Okul, yanıtlarınızın yanında adınızı görür.",
     "parentOneAnswer": "Her çocuk için değil, veli hesabınız için bir kez yanıt verirsiniz.",
