@@ -113,6 +113,14 @@ function schoolTitleForPath(pathname: string): string | null {
   return null;
 }
 
+// In moto schule arbeiten Lehrkräfte und die Schulverwaltung (#4789);
+// Sekretariat und Schulleitung sollen nicht als Lehrkraft beschriftet sein.
+function schoolRoleLabel(roles: readonly string[]): string {
+  return roles.some((role) => role.trim().toLowerCase() === "schulverwaltung")
+    ? "Schulverwaltung"
+    : "Lehrkraft";
+}
+
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
   const {
@@ -242,7 +250,7 @@ export function Header() {
       : mode === "parent"
         ? tParentNav("role")
         : mode === "school"
-          ? "Lehrkraft"
+          ? schoolRoleLabel(userRoles)
           : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese

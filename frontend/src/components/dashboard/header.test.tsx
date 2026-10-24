@@ -26,6 +26,7 @@ const mockUseBreadcrumb = vi.fn(() => ({
   breadcrumb: {},
 }));
 const shellAuth = vi.hoisted(() => ({
+  roles: ["admin"] as string[],
   mode: "teacher" as "teacher" | "school",
 }));
 
@@ -88,15 +89,18 @@ vi.mock("./header/profile-dropdown", () => ({
     onClick,
     ref,
     ariaLabel,
+    userRole,
   }: {
     onClick: () => void;
     ref?: React.Ref<HTMLButtonElement>;
     ariaLabel: string;
+    userRole?: string;
   }) => (
     <button
       ref={ref}
       type="button"
       data-testid="profile-trigger"
+      data-role={userRole}
       aria-label={ariaLabel}
       onClick={onClick}
     >
@@ -182,7 +186,11 @@ vi.mock("./header/breadcrumb-utils", () => ({
 
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: () => ({
-    user: { name: "Test User", email: "test@example.com", roles: ["admin"] },
+    user: {
+      name: "Test User",
+      email: "test@example.com",
+      roles: shellAuth.roles,
+    },
     profile: { firstName: "John", lastName: "Doe" },
     status: "authenticated",
     isSessionExpired: false,
@@ -224,6 +232,7 @@ describe("Header", () => {
       breadcrumb: {},
     });
     shellAuth.mode = "teacher";
+    shellAuth.roles = ["admin"];
     // Reset window.scrollY
     Object.defineProperty(window, "scrollY", { value: 0, writable: true });
   });
@@ -380,6 +389,32 @@ describe("Header", () => {
     render(<Header />);
 
     expect(screen.getByTestId("page-title")).toHaveTextContent("Kalender");
+  });
+
+  it("names the Schulverwaltung in moto schule by its role", () => {
+    shellAuth.mode = "school";
+    shellAuth.roles = ["schulverwaltung"];
+    mockUsePathname.mockReturnValue("/");
+
+    render(<Header />);
+
+    expect(screen.getByTestId("profile-trigger")).toHaveAttribute(
+      "data-role",
+      "Schulverwaltung",
+    );
+  });
+
+  it("names a teacher in moto schule Lehrkraft", () => {
+    shellAuth.mode = "school";
+    shellAuth.roles = ["lehrkraft"];
+    mockUsePathname.mockReturnValue("/");
+
+    render(<Header />);
+
+    expect(screen.getByTestId("profile-trigger")).toHaveAttribute(
+      "data-role",
+      "Lehrkraft",
+    );
   });
 
   it("normalizes tenant-prefixed paths before resolving page titles", () => {
