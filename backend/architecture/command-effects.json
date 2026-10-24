@@ -54892,6 +54892,28 @@
     },
     {
       "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableSchoolCalendarStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "e6d9213154a129f15b1799cd222b9dc2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "91ebc08a9ad60b8cea60e0f1f3215eb3",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "people-directory",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindSchoolPortalStaffIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.SchoolPortalStaffIDs",
@@ -61484,6 +61506,39 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: school-calendar reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "e6d9213154a129f15b1799cd222b9dc2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "96457d707936ece25a9dc6ee250beb34",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "91ebc08a9ad60b8cea60e0f1f3215eb3",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
     },
     {
       "source_owner": "school-calendar",

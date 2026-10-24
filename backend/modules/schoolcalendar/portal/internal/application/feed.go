@@ -289,6 +289,13 @@ func (s *service) staffFeedStaffID(ctx context.Context, accountID int64) (int64,
 	if !teachers[staff.ID] {
 		return 0, ErrNotFound
 	}
+	schoolReachable, err := s.cfg.StaffRepo.FindReachableSchoolCalendarStaffIDs(ctx, []int64{staff.ID})
+	if err != nil {
+		return 0, err
+	}
+	if !schoolReachable[staff.ID] {
+		return 0, ErrNotFound
+	}
 	return staff.ID, nil
 }
 

@@ -107,6 +107,7 @@ type calendarStaffPort struct {
 }
 
 type calendarSchoolPortalStaff interface {
+	FindReachableSchoolCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 	FindSchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error)
 }
 

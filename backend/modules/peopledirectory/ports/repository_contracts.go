@@ -251,6 +251,8 @@ type StaffRepository interface {
 	// active account holds a school-portal role there: the Lehrkräfte of
 	// moto schule (#4798).
 	FindSchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error)
+	// FindReachableSchoolCalendarStaffIDs keeps accounts with calendar:school.
+	FindReachableSchoolCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*peopledirectory.Staff, error)

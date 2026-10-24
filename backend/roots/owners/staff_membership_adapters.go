@@ -497,6 +497,21 @@ func (r StaffMembershipRepository) FindReachableCalendarStaffIDs(ctx context.Con
 	return result, nil
 }
 
+// FindReachableSchoolCalendarStaffIDs requires the current calendar:school
+// permission, independently of school-portal role membership.
+func (r StaffMembershipRepository) FindReachableSchoolCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	const op = "find reachable school calendar staff"
+	directory, err := r.staffDirectory()
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	result, err := directory.ReachableStaffIDs(ctx, ids, permissions.CalendarSchool)
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	return result, nil
+}
+
 // FindSchoolPortalStaffIDs keeps the staff members whose account holds a
 // school-portal role: the Lehrkräfte the calendar target all_teachers
 // reaches (#4798).

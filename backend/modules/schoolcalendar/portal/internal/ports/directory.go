@@ -99,6 +99,8 @@ type StaffDirectory interface {
 	// account holds a school-portal role there: the Lehrkräfte of moto
 	// schule (#4798).
 	FindSchoolPortalStaffIDs(context.Context) (map[int64]bool, error)
+	// FindReachableSchoolCalendarStaffIDs requires current calendar:school access.
+	FindReachableSchoolCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error)
 	FindWithPersonByIDs(context.Context, []int64) (map[int64]*Staff, error)
 	FindByPersonID(context.Context, int64) (*Staff, error)
 }

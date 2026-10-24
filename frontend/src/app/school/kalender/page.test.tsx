@@ -5,8 +5,30 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Exercise the real translation context supplied by the school auth guard.
+vi.unmock("next-intl");
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/school/kalender",
+  redirect: vi.fn(),
+}));
+vi.mock("~/lib/shell-auth-context", () => ({
+  SchoolShellProvider: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock("~/components/school/shell/school-shell", () => ({
+  SchoolShell: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock("~/components/school/school-realtime-bridge", () => ({
+  SchoolRealtimeBridge: () => null,
+}));
+vi.mock("~/components/tenant/pwa-install-hint", () => ({
+  PwaInstallHint: () => null,
+}));
+vi.mock("~/components/notifications/portal-notification-setup", () => ({
+  PortalNotificationSetup: () => null,
+}));
 
 vi.mock("~/components/ui/date-picker", async () =>
   (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
@@ -64,10 +86,13 @@ vi.mock("~/lib/personal-calendar-api", async () => {
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { SchoolCalendarResponse } from "~/lib/personal-calendar-api";
 
+import { SchoolAuthGuard } from "../auth-guard";
 import SchoolCalendarPage from "./page";
 
 function render(ui: ReactElement) {
-  return rtlRender(ui, { wrapper: ToastProvider });
+  return rtlRender(<SchoolAuthGuard>{ui}</SchoolAuthGuard>, {
+    wrapper: ToastProvider,
+  });
 }
 
 // Die Testuhr steht auf Mittwoch, 09.09.2026; alles liegt in dieser Woche.

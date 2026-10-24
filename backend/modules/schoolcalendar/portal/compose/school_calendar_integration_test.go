@@ -302,3 +302,50 @@ func TestSchoolCalendarIntegration_LehrkraftSubscribesToTheFeed(t *testing.T) {
 	require.NoError(t, err, "a Lehrkraft without calendar:own still owns the feed")
 	assert.Contains(t, content, "SUMMARY:Sportfest")
 }
+
+func TestSchoolCalendarIntegration_FeedRequiresCurrentCalendarPermission(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos, reposPeople, reposCalendar, _, _, _, _ := calendarTestRepositories(t, db)
+	cfg := calendarTestConfig(t, db)
+	cfg = owners.BindCalendarFeedFacts(cfg, nil, repos.ParentCalendarFeed, repos.StaffCalendarFeedToken, reposPeople.Person)
+	cfg.StaffFeedTombstoneRepo = reposCalendar.CalendarStaffFeedTombstone
+	cfg.CalDAVPolicy = fixedCalDAVSettings{enabled: true}
+	cfg.FrontendURL = "https://moto.test"
+	service := owners.NewCalendarPortal(cfg)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Kalender", "Rechteentzug")
+	role := testpkg.CreateTestRole(t, db, "school-calendar")
+	_, err := db.ExecContext(testpkg.Ctx(t), "UPDATE auth.roles SET school_portal = TRUE WHERE id = ?", role.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(testpkg.Ctx(t), "INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)", account.ID, role.ID, testpkg.Tenant(t))
+	require.NoError(t, err)
+	_, err = db.ExecContext(testpkg.Ctx(t), `INSERT INTO auth.role_permissions (role_id, permission_id)
+		SELECT ?, id FROM auth.permissions WHERE name = 'calendar:school'`, role.ID)
+	require.NoError(t, err)
+
+	url, _, err := testpkg.TenantQueryPair0(t, calendarContext(t, account.ID), db, service.SchoolCalendarFeedURL)
+	require.NoError(t, err)
+	token := strings.TrimPrefix(url, "https://moto.test/api/calendar-feed/")
+	require.NotEmpty(t, token)
+	_, content, err := service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	assert.Contains(t, content, "BEGIN:VCALENDAR")
+	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, token)
+	require.NoError(t, err)
+
+	// Keep the school-portal role and the issued token, revoking only its calendar grant.
+	_, err = db.ExecContext(testpkg.Ctx(t), "DELETE FROM auth.role_permissions WHERE role_id = ?", role.ID)
+	require.NoError(t, err)
+	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, token)
+	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
+
+	// The same token remains usable when the account still has OGS calendar access.
+	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), account.ID, "calendar:own")
+	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), token)
+	require.NoError(t, err)
+	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, token)
+	require.NoError(t, err)
+}
