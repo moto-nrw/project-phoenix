@@ -10,7 +10,7 @@ import { MODULE_LABELS, type ModuleKey } from "~/lib/modules";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 /** Was der Zustand sagt, je nachdem, wer ihn liest. */
-export function moduleNotBookedText(
+function moduleNotBookedText(
   module: ModuleKey,
   leadsSchool: boolean,
 ): { readonly title: string; readonly description: string } {

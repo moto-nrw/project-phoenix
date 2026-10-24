@@ -41,7 +41,7 @@ Ein Modul, das es noch nicht gibt, hat trotzdem einen Schalter. Er hält fest, w
 
 - Ferienbetreuung setzt Online-Anmeldung voraus.
 - Elternbeiträge und Abrechnung setzt Verträge und Dokumente voraus.
-- Dienstplan setzt nur Basis voraus. Heute blendet `timetable.enabled` den Dienstplan nebenbei aus; das löst #4894 vom Dienstplan.
+- Dienstplan setzt nur Basis voraus. Seit #4894 hängen `Dienstplan`, `Mein Dienstplan` und die Dienstarten nicht mehr an `timetable.enabled`, sondern am Modul Dienstplan.
 - Der Reiter Arbeitszeitmodell gehört zu Zeiterfassung.
 - Stempeln am Kiosk braucht Zeiterfassung und NFC-Anwesenheit. Das ist keine Abhängigkeit zwischen Schaltern: Beide Module bleiben einzeln buchbar, das Stempeln prüft beide (#4896).
 
@@ -94,3 +94,13 @@ Das Deadcode-Gate (`scripts/check-deadcode.sh`) lässt keine Produktionsfunktion
 - `frontend/src/lib/modules.ts`: Typ `ModuleKey`, `MODULE_KEYS`, `moduleSettingKey`, `parseBookedModules`. Unbekannte Schlüssel fallen weg, eine fehlende Liste bucht nichts.
 - `useBookedModules()` und `useModuleBooked(module)` aus `~/lib/tenant-context`. Ohne Mandantendaten ist nichts gebucht. `useNFCEnabled()` folgt dem Modul NFC-Anwesenheit.
 - Eine Änderung eines Modulschalters leert den Cache der Mandantendaten sofort (`TENANT_RESOLVE_AFFECTING_KEYS`).
+
+## Navigation, Kacheln und erklärender Zustand (#4894)
+
+Das Modul-Register `frontend/src/lib/module-register.ts` ordnet jede Seite der Mitarbeiter-Navigation, jeden Bereich der Seitenleiste, jeden Baustein der Startseite und jeden Reiter der Personalakte einem Modul oder der Basis zu. Seitenleiste, mobile Navigation, Startseite, Datenverwaltung und die Personalakte lesen nur dieses Register; `module-register.test.ts` schlägt an, wenn eine Seite oder ein Baustein fehlt.
+
+- **Darstellung C.** Wer die Schule leitet (Adminzuschnitt oder `config:manage`), sieht den Eintrag eines nicht gebuchten Moduls mit Schloss. Der Eintrag führt auf die Seite. Alle anderen sehen ihn nicht. Die Reiter unten in der mobilen Navigation zeigen nur offene Seiten; ein Eintrag mit Schloss steht im Mehr-Menü.
+- **Feinsteuerung.** Schul-Einstellungen wie `operations.meal_plan_enabled` oder `timetable.enabled` gelten nur bei gebuchtem Modul. Bei nicht gebuchtem Modul sieht die Leitung das Schloss, auch wenn die Einstellung aus ist.
+- **Startseite und Reiter.** Bausteine und Reiter der Personalakte eines nicht gebuchten Moduls fehlen für alle, ohne Schloss: eine Kachel ohne Daten belegt nur Platz, und die Leitung sieht das Modul in der Navigation und unter Einstellungen.
+- **Erklärender Zustand.** `ModuleRouteGate` im geschützten Layout zeigt auf jeder Seite eines nicht gebuchten Moduls statt des Inhalts, zu welchem Modul sie gehört und wer handelt: die Leitung das moto-Team, alle anderen ihre Leitung. Lehnt eine Anfrage mit `module.not_booked` ab, zeigen `TenantPage`, `LoadErrorAlert` und `FormErrorAlert` denselben Zustand als Hinweis statt als Fehler, und die Mandantendaten laden neu.
+- **Bewusste Abweichungen vom Backend.** Aktivitäten (`/activities`, `/database/activities`) gehören im Register zu NFC-Anwesenheit, weil sie vor den Modulen nur mit NFC zu sehen waren. Geräte (`/database/devices`) folgen NFC-Anwesenheit, obwohl das Backend sie erst mit #4896 sperrt.
