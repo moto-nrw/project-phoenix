@@ -5,10 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
-	records "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
-
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	records "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 )
 
 // ParentAnnouncementConfig is the compatibility composition seam for the
