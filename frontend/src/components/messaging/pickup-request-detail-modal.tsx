@@ -150,9 +150,14 @@ export function PickupRequestDetailModal({
     <Modal
       isOpen={requestId !== null}
       onClose={onClose}
-      title={detailTitle(
-        state.kind === "loaded" ? state.detail.pickup_change : undefined,
-      )}
+      title={
+        state.kind === "loaded" &&
+        state.detail.request_kind === "pickup_permission"
+          ? "Anfrage: Abholberechtigung"
+          : detailTitle(
+              state.kind === "loaded" ? state.detail.pickup_change : undefined,
+            )
+      }
       mobileSheet
       footer={
         <div className="flex flex-wrap justify-end gap-2">
@@ -204,6 +209,8 @@ export function PickupRequestDetailModal({
 
 /** „Anfrage: Abholzeit“, „Anfrage: Abholart“ oder beides (#3945). */
 function detailTitle(pickup: StaffCareRequestDetail["pickup_change"]): string {
+  if (pickup?.pickup_person && !pickup.pickup_time && !pickup.departure_mode)
+    return "Anfrage: Abholperson";
   if (pickup?.departure_mode && pickup.pickup_time)
     return "Anfrage: Abholzeit und Abholart";
   if (pickup?.departure_mode) return "Anfrage: Abholart";
@@ -216,6 +223,8 @@ function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
   // Nur Abholzeit-Hinweise öffnen dieses Fenster; ein Antrag ohne lesbaren
   // Tag zeigt „Keine Angabe" statt eines erfundenen Werts.
   const pickup = detail.pickup_change;
+  // Eine Abholberechtigung hat keinen Tag und keine Abholzeit (#4780).
+  const isPermission = detail.request_kind === "pickup_permission";
   return (
     <div className="space-y-3">
       <InfoSection title="Beantragt" icon={DetailIcons.document}>
@@ -223,10 +232,12 @@ function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
           <DataField label="Kind">
             {detail.first_name} {detail.last_name}
           </DataField>
-          <DataField label="Tag">
-            {pickup ? formatDate(pickup.date) : "Keine Angabe"}
-          </DataField>
-          {(!pickup || pickup.pickup_time) && (
+          {!isPermission && (
+            <DataField label="Tag">
+              {pickup ? formatDate(pickup.date) : "Keine Angabe"}
+            </DataField>
+          )}
+          {!isPermission && (!pickup || pickup.pickup_time) && (
             <>
               <DataField label="Gewünschte Abholzeit">
                 {pickup?.pickup_time
@@ -254,6 +265,17 @@ function DetailBody({ detail }: Readonly<{ detail: StaffCareRequestDetail }>) {
               </DataField>
             </>
           )}
+          {pickup?.pickup_person && (
+            <DataField label="Abholperson an diesem Tag">
+              {pickup.pickup_person}
+            </DataField>
+          )}
+          {detail.request_kind === "pickup_permission" &&
+            detail.requested.map((entry) => (
+              <DataField key={entry.label} label={entry.label} fullWidth>
+                {entry.new}
+              </DataField>
+            ))}
           <DataField label="Grund der Eltern" fullWidth>
             {detail.request_reason ?? "Keine Angabe"}
           </DataField>

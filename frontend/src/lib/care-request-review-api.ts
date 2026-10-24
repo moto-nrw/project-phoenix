@@ -8,9 +8,14 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
  */
 
 import { createLogger } from "~/lib/logger";
+import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import type { RequestDiffEntry } from "~/lib/messaging-status";
 
 const logger = createLogger({ component: "CareRequestReviewAPI" });
+
+/** Wochenplan, einzelner Tag oder Abholberechtigung (#4780). */
+export type CareRequestKind =
+  "weekly_schedule" | "pickup_change" | "pickup_permission";
 
 type CareRequestStatus =
   "pending" | "approved" | "rejected" | "withdrawn" | "done" | "care_ended";
@@ -23,7 +28,7 @@ export interface StaffCareRequest {
   readonly first_name: string;
   readonly last_name: string;
   readonly status: CareRequestStatus;
-  readonly request_kind: "weekly_schedule" | "pickup_change";
+  readonly request_kind: CareRequestKind;
   readonly diff: readonly RequestDiffEntry[];
   readonly request_reason?: string;
   readonly decision_reason?: string;
@@ -32,6 +37,8 @@ export interface StaffCareRequest {
   readonly affected_blocks: readonly AffectedCareBlock[];
   readonly impact_available: boolean;
   readonly impact_token: string;
+  /** Die Eltern haben die Anfrage unterschrieben (#4780). */
+  readonly signed?: boolean;
 }
 
 interface AffectedCareBlock {
@@ -120,7 +127,7 @@ export interface StaffCareRequestHistoryEntry {
   readonly first_name: string;
   readonly last_name: string;
   readonly status: CareRequestStatus;
-  readonly request_kind: "weekly_schedule" | "pickup_change";
+  readonly request_kind: CareRequestKind;
   readonly requested: readonly RequestDiffEntry[];
   /** Frozen decision-time diff; absent without a snapshot. */
   readonly diff?: readonly RequestDiffEntry[];
@@ -142,7 +149,7 @@ export interface StaffCareRequestDetail {
   readonly first_name: string;
   readonly last_name: string;
   readonly status: CareRequestStatus;
-  readonly request_kind: "weekly_schedule" | "pickup_change";
+  readonly request_kind: CareRequestKind;
   readonly requested: readonly RequestDiffEntry[];
   /** Frozen decision-time diff; absent without a snapshot. */
   readonly diff?: readonly RequestDiffEntry[];
@@ -165,7 +172,11 @@ export interface StaffCareRequestDetail {
     /** The Abholart asked for the day, absent when it stays (#3945). */
     readonly departure_mode?: DepartureMode;
     readonly previous_departure_modes?: readonly DepartureMode[];
+    /** Die Kontaktperson, die an diesem Tag abholt (#4780). */
+    readonly pickup_person?: string;
   };
+  /** Die Eltern haben die Anfrage unterschrieben (#4780). */
+  readonly signed?: boolean;
 }
 
 /**
@@ -183,4 +194,23 @@ export async function fetchCareScheduleChangeRequest(
     throw await readError(response, "Anfrage konnte nicht geladen werden");
   }
   return unwrap((await response.json()) as Envelope<StaffCareRequestDetail>);
+}
+
+/**
+ * Lädt den Nachweis einer unterschriebenen Elternanfrage als PDF (#4780).
+ */
+export async function downloadCareRequestProofPdf(
+  requestId: string,
+): Promise<void> {
+  const response = await transportFetch(
+    `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}/proof`,
+    { method: "GET" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Nachweis konnte nicht geladen werden");
+  }
+  downloadBlob(
+    await response.blob(),
+    filenameFromDisposition(response) ?? "nachweis-elternanfrage.pdf",
+  );
 }
