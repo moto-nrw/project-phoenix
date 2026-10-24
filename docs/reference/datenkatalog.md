@@ -105,6 +105,13 @@ Personen**. Ein späterer Export muss Feldprojektionen und den Auftragszweck
 anwenden. Interne Protokolle können erforderlichen Auskunftskontext enthalten;
 ein Tabellenausschluss ersetzt dessen rechtliche Prüfung nicht.
 
+`exportOrder` ersetzt die physische Zeilenfolge (`ctid`) eines Exports durch
+die genannten Spalten. Die physische Folge ist die Einfügefolge; bei Tabellen,
+die zusammen geschrieben werden und getrennt bleiben müssen, würde sie die
+Zeilen wieder paaren. Die Teilnahmen und Antworten anonymer Umfragen (#4781)
+werden deshalb nach Umfrage und Konto bzw. nach zufälliger Antwort-ID
+exportiert. Jede genannte Spalte muss Teil des Exports sein.
+
 `personKeys` enthält direkte FK-Belege zu Kind, Erziehungsberechtigten,
 Beschäftigten, Person, Konto oder Eltern-Kind-Beziehung. Der Wächter prüft die
 Belege, nicht ihre Vollständigkeit für Art.-15-Auskunft. Indirekte Beziehungen,
