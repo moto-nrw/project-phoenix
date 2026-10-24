@@ -83,8 +83,8 @@ func TestCatererReadsNoClassesWhenTheSchoolOrdersTotals(t *testing.T) {
 	assert.Empty(t, week.Days[0].Classes)
 }
 
-// ADR 0077: a caterer reads and confirms nothing the school ordered before
-// its supply started, so a successor never sees its predecessor's orders.
+// ADR 0077: a caterer reads and confirms nothing of a day before its supply
+// started, so a successor never sees what its predecessor delivered.
 func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -100,8 +100,8 @@ func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 	week, err := monday.CatererOrders(ctx, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin), "2026-09-07", "2026-09-07")
 	require.NoError(t, err)
 	mondayOrder := week.Days[0].OrderID
-	// A takeover later on the same day must not expose its frozen order.
-	takeover := time.Date(2026, 9, 7, 11, 0, 0, 0, testBerlin)
+	// The successor starts the next morning.
+	takeover := time.Date(2026, 9, 8, 7, 0, 0, 0, testBerlin)
 	previous, err := buildModuleWithRules(t, db, singleDeadlineSettings("09:00"), takeover).CatererOrders(ctx, takeover, "2026-09-07", "2026-09-07")
 	require.NoError(t, err)
 	assert.Empty(t, previous.Days)
@@ -111,15 +111,15 @@ func TestNewCatererSeesNothingBeforeItsSupply(t *testing.T) {
 	require.NoError(t, tuesday.SettleOrders(ctx))
 	week, err = tuesday.CatererOrders(ctx, takeover, "2026-09-07", "2026-09-08")
 	require.NoError(t, err)
-	require.Len(t, week.Days, 1, "Monday was ordered before the supply started")
+	require.Len(t, week.Days, 1, "Monday was delivered before the supply started")
 	assert.Equal(t, mealplan.Date("2026-09-08"), week.Days[0].Date)
 	require.ErrorIs(t, tuesday.ConfirmOrder(ctx, mondayOrder, takeover, 0), mealplan.ErrOrderNotFound)
 	require.NoError(t, tuesday.ConfirmOrder(ctx, week.Days[0].OrderID, takeover, 0))
 }
 
-// Delayed settlement must not transfer an order to the successor, including
-// the idempotent confirmation path for an already confirmed order.
-func TestNewCatererCannotAccessPredecessorOrderSettledAfterTakeover(t *testing.T) {
+// The order of a day before the supply stays the predecessor's, also when
+// it was already confirmed (the idempotent path of a confirmation).
+func TestNewCatererCannotAccessAnOrderOfADayBeforeItsSupply(t *testing.T) {
 	t.Parallel()
 	for _, confirmed := range []bool{false, true} {
 		t.Run(fmt.Sprintf("confirmed=%t", confirmed), func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestNewCatererCannotAccessPredecessorOrderSettledAfterTakeover(t *testing.T
 			db := testpkg.SetupTestDB(t)
 			ctx := testpkg.Ctx(t)
 			settings := singleDeadlineSettings("09:00")
-			takeover := time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)
+			takeover := time.Date(2026, 9, 8, 0, 0, 0, 0, testBerlin)
 			settled := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 11, 0, 0, 0, testBerlin))
 			require.NoError(t, settled.SettleOrders(ctx))
 			week, err := settled.Orders(ctx, "2026-09-07", "2026-09-07")
@@ -142,8 +142,92 @@ func TestNewCatererCannotAccessPredecessorOrderSettledAfterTakeover(t *testing.T
 			}
 			visible, err := settled.CatererOrders(ctx, takeover, "2026-09-07", "2026-09-07")
 			require.NoError(t, err)
-			assert.Empty(t, visible.Days, "the deadline preceded the new supply")
+			assert.Empty(t, visible.Days, "the day preceded the new supply")
 			require.ErrorIs(t, settled.ConfirmOrder(ctx, orderID, takeover, 0), mealplan.ErrOrderNotFound)
 		})
 	}
+}
+
+// ADR 0077: the caterer sees the days from the start of its supply on. An
+// order fixed before it accepted is the one it delivers, so it reads and
+// confirms it; the predecessor's confirmation does not count for it. Here
+// with a deadline the day before: the successor accepts on Tuesday at 10:00,
+// after Wednesday's order was fixed at 09:00.
+func TestNewCatererSeesTheDaysItDeliversEvenWhenOrderedBefore(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Eva", "Wechsel", "3a")
+	parent := testpkg.CreateTestAccount(t, db, "meal-switch-parent")
+	settings := singleDeadlineSettings("09:00")
+	settings.RegistrationLeadDays = 1
+	register := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 4, 8, 0, 0, 0, testBerlin))
+	for _, date := range []mealplan.Date{"2026-09-07", "2026-09-08", "2026-09-09"} {
+		require.NoError(t, register.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: parent.ID, Date: date, Participating: true}))
+	}
+	require.NoError(t, buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin)).SettleOrders(ctx))
+	beforeSwitch := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 9, 30, 0, 0, testBerlin))
+	require.NoError(t, beforeSwitch.SettleOrders(ctx))
+	predecessorSince := time.Date(2026, 9, 1, 8, 0, 0, 0, testBerlin)
+	predecessor, err := beforeSwitch.CatererOrders(ctx, predecessorSince, "2026-09-07", "2026-09-09")
+	require.NoError(t, err)
+	require.Len(t, predecessor.Days, 3)
+	wednesdayOrder := orderDay(t, predecessor, "2026-09-09").OrderID
+	require.NotZero(t, wednesdayOrder, "Wednesday is fixed at Tuesday 09:00")
+	require.NoError(t, beforeSwitch.ConfirmOrder(ctx, wednesdayOrder, predecessorSince, 0))
+
+	takeover := time.Date(2026, 9, 8, 10, 0, 0, 0, testBerlin)
+	successor := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 10, 30, 0, 0, testBerlin))
+	week, err := successor.CatererOrders(ctx, takeover, "2026-09-07", "2026-09-09")
+	require.NoError(t, err)
+	dates := make([]mealplan.Date, 0, len(week.Days))
+	for _, day := range week.Days {
+		dates = append(dates, day.Date)
+	}
+	assert.Equal(t, []mealplan.Date{"2026-09-08", "2026-09-09"}, dates, "Monday is before the supply, Tuesday and Wednesday are its days")
+	wednesday := orderDay(t, week, "2026-09-09")
+	assert.Equal(t, wednesdayOrder, wednesday.OrderID)
+	assert.Equal(t, 1, wednesday.Total)
+	assert.Equal(t, mealplan.OrderOrdered, wednesday.Status, "the predecessor's confirmation is not the successor's")
+	assert.Nil(t, wednesday.ConfirmedAt)
+
+	require.ErrorIs(t, successor.ConfirmOrder(ctx, orderDay(t, predecessor, "2026-09-07").OrderID, takeover, 0), mealplan.ErrOrderNotFound)
+	require.NoError(t, successor.ConfirmOrder(ctx, wednesdayOrder, takeover, 0))
+	week, err = successor.CatererOrders(ctx, takeover, "2026-09-09", "2026-09-09")
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.OrderConfirmed, week.Days[0].Status)
+	require.NotNil(t, week.Days[0].ConfirmedAt)
+	assert.False(t, week.Days[0].ConfirmedAt.Before(takeover), "the confirmation is the successor's own")
+}
+
+// With weekly orders the whole week is fixed before it starts: a caterer
+// taking over in the middle of the week reads and confirms its remaining
+// days.
+func TestNewCatererTakesOverTheRestOfAWeeklyOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Udo", "Woche", "4a")
+	parent := testpkg.CreateTestAccount(t, db, "meal-weekly-switch-parent")
+	settings := singleDeadlineSettings("09:00")
+	settings.OrderRhythm = "weekly"
+	register := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 10, 8, 0, 0, 0, testBerlin))
+	for _, date := range []mealplan.Date{"2026-09-14", "2026-09-16", "2026-09-18"} {
+		require.NoError(t, register.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: parent.ID, Date: date, Participating: true}))
+	}
+	require.NoError(t, buildModuleWithRules(t, db, settings, time.Date(2026, 9, 14, 10, 0, 0, 0, testBerlin)).SettleOrders(ctx))
+
+	takeover := time.Date(2026, 9, 15, 10, 0, 0, 0, testBerlin)
+	successor := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 15, 11, 0, 0, 0, testBerlin))
+	week, err := successor.CatererOrders(ctx, takeover, "2026-09-14", "2026-09-18")
+	require.NoError(t, err)
+	require.Len(t, week.Days, 4, "Tuesday to Friday, not Monday")
+	assert.Equal(t, mealplan.Date("2026-09-15"), week.Days[0].Date)
+	meals := 0
+	for _, day := range week.Days {
+		require.NotZero(t, day.OrderID, "%s belongs to the week's order", day.Date)
+		meals += day.Total
+	}
+	assert.Equal(t, 2, meals, "Wednesday and Friday")
+	require.NoError(t, successor.ConfirmOrder(ctx, week.Days[0].OrderID, takeover, 0))
 }

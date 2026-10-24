@@ -9,9 +9,10 @@ import (
 )
 
 // ConfirmOrder records the caterer's confirmation of a fixed order once and
-// reports whether the order deadline falls within the current supply. A
-// second confirmation keeps the first.
-func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, since time.Time, confirmedAt time.Time) (bool, domain.OperationStats, error) {
+// reports whether the order has a day from firstDay, the first day of the
+// current supply, on. A second confirmation keeps the first; one from before
+// since, the predecessor's, is replaced.
+func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, firstDay domain.Date, since, confirmedAt time.Time) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
@@ -23,12 +24,12 @@ func (s *Store) ConfirmOrder(ctx context.Context, orderID, accountID int64, sinc
 			WITH confirmed AS (
 				UPDATE schedule.meal_orders
 				SET confirmed_at = ?, confirmed_by_account_id = ?
-				WHERE tenant_id = ? AND id = ? AND deadline_at >= ? AND confirmed_at IS NULL
+				WHERE tenant_id = ? AND id = ? AND period_end >= ? AND (confirmed_at IS NULL OR confirmed_at < ?)
 				RETURNING id
 			)
 			SELECT EXISTS (SELECT 1 FROM confirmed)
-				OR EXISTS (SELECT 1 FROM schedule.meal_orders WHERE tenant_id = ? AND id = ? AND deadline_at >= ?)`,
-			confirmedAt, optionalAccount(accountID), tenantID, orderID, since, tenantID, orderID, since).Scan(ctx, &found)
+				OR EXISTS (SELECT 1 FROM schedule.meal_orders WHERE tenant_id = ? AND id = ? AND period_end >= ?)`,
+			confirmedAt, optionalAccount(accountID), tenantID, orderID, firstDay, since, tenantID, orderID, firstDay).Scan(ctx, &found)
 	}); err != nil {
 		return false, stats, fmt.Errorf("meal plan postgres: confirm order: %w", err)
 	}

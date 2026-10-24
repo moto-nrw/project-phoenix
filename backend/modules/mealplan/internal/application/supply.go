@@ -13,10 +13,11 @@ import (
 var ErrOrderNotFound = errors.New("meal order not found")
 
 // catererOrders is the school's orders of [from, to] as its caterer reads
-// them: laid out like every other read, without a write or a lock, from the
-// start of its supply on, and cut down to what the caterer may see. Who supplies the school is no Meal
-// Plan data (ADR 0077); the caterer portal checks it in the same school
-// transaction and hands in when the supply started.
+// them: laid out like every other read, without a write or a lock, the
+// delivery days from the start of its supply on, and cut down to what the
+// caterer may see. Who supplies the school is no Meal Plan data (ADR 0077);
+// the caterer portal checks it in the same school transaction and hands in
+// when the supply started.
 func (s *Service) catererOrders(ctx context.Context, since time.Time, from, to string) (mealplan.OrderWeek, error) {
 	var view domain.OrderView
 	err := s.run(ctx, "read_caterer_orders", func(txCtx context.Context) (domain.OperationStats, error) {
@@ -36,25 +37,36 @@ func (s *Service) catererOrders(ctx context.Context, since time.Time, from, to s
 	return catererWeek(publicOrderWeek(view), view.Rules), nil
 }
 
-// daysSince keeps the days from the start of the supply on: a caterer never
-// reads what the school ordered from its predecessor.
+// daysSince keeps the delivery days from the start of the supply on (ADR
+// 0077): a caterer never reads a day its predecessor delivered, but reads
+// every day it delivers, even one whose order was fixed before it started.
+// A confirmation from before the start is its predecessor's and does not
+// count for it.
 func daysSince(days []domain.OrderDay, start time.Time) []domain.OrderDay {
+	first := domain.DateFromInstant(start)
 	kept := days[:0:0]
 	for _, day := range days {
-		if !day.Date.Before(domain.DateFromInstant(start)) && (day.Order == nil || !day.Order.DeadlineAt.Before(start)) {
-			kept = append(kept, day)
+		if day.Date.Before(first) {
+			continue
 		}
+		if day.Order != nil && day.Order.ConfirmedAt != nil && day.Order.ConfirmedAt.Before(start) {
+			order := *day.Order
+			order.ConfirmedAt = nil
+			day.Order = &order
+		}
+		kept = append(kept, day)
 	}
 	return kept
 }
 
-// confirmOrder records that the caterer received a fixed order of its
-// supply. It is the caterer's only write (ADR 0077); confirming twice keeps
-// the first. A due order the worker has not stored yet has no ID, so it
-// cannot be confirmed before it is stored: confirming never fixes an order.
+// confirmOrder records that the caterer received a fixed order with a day of
+// its supply. It is the caterer's only write (ADR 0077); confirming twice
+// keeps the first, a predecessor's confirmation gives way to the caterer's
+// own. A due order the worker has not stored yet has no ID, so it cannot be
+// confirmed before it is stored: confirming never fixes an order.
 func (s *Service) confirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error {
 	return mapPublicError(s.run(ctx, "confirm_order", func(txCtx context.Context) (domain.OperationStats, error) {
-		found, stats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, since, s.now())
+		found, stats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, domain.DateFromInstant(since), since, s.now())
 		if err == nil && !found {
 			err = ErrOrderNotFound
 		}

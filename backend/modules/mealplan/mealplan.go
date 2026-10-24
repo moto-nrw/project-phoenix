@@ -249,13 +249,15 @@ type Ordering interface {
 	// sequence, so all readers see the same numbers.
 	Orders(ctx context.Context, from, to Date) (OrderWeek, error)
 	// CatererOrders returns the school's orders of [from, to] as the caterer
-	// whose supply started at since reads them: only days from since on,
+	// whose supply started at since reads them: only delivery days from the
+	// day of since on, a predecessor's confirmation not as confirmed,
 	// numbers by class only when the school orders by class, and the
 	// children's names only while the school shows them to the caterer.
 	CatererOrders(ctx context.Context, since time.Time, from, to Date) (OrderWeek, error)
 	// ConfirmOrder records that the caterer whose supply started at since
-	// received a stored order of that supply; confirming twice keeps the
-	// first. An order not stored yet has no ID and cannot be confirmed.
+	// received a stored order with a delivery day of that supply; confirming
+	// twice keeps the first, a predecessor's confirmation gives way. An order
+	// not stored yet has no ID and cannot be confirmed.
 	ConfirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error
 }
 

@@ -30,9 +30,9 @@ type Store interface {
 // ConfirmationStore records the caterer's confirmation of an order (ADR
 // 0077).
 type ConfirmationStore interface {
-	// ConfirmOrder confirms an order frozen since the supply started once;
-	// false: no such order.
-	ConfirmOrder(ctx context.Context, orderID, accountID int64, since time.Time, confirmedAt time.Time) (bool, domain.OperationStats, error)
+	// ConfirmOrder confirms an order with a day from firstDay on once; a
+	// confirmation from before since gives way. false: no such order.
+	ConfirmOrder(ctx context.Context, orderID, accountID int64, firstDay domain.Date, since, confirmedAt time.Time) (bool, domain.OperationStats, error)
 }
 
 // OrderStore holds the school's orders (#3873). LockOrders serializes every

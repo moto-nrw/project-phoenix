@@ -97,8 +97,11 @@ tenant transaction.
 6. **Numbers by default.** The caterer reads orders, changes to them and
    counts per day and class. Children's names reach it only while the school's
    `gdpr.meal_caterer_names_enabled` is on. The reason a child does not eat
-   never reaches it. It reads and confirms only days from the start of its
-   supply on, so a new caterer never sees its predecessor's orders. Its only
+   never reaches it. It reads and confirms the delivery days from the day
+   its supply starts (Berlin) on, also those whose order was fixed before it
+   accepted, and never a day before, so a new caterer never sees what its
+   predecessor delivered. A predecessor's confirmation does not count as its
+   own; its own confirmation replaces it. Its only
    write in V1 is confirming an order. No read writes: the Meal Plan's
    worker and the school's registration writes fix due orders and record
    their changes; a read shows a due order the worker has not stored yet as
