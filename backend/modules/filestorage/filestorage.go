@@ -240,11 +240,21 @@ type AttachmentQuery interface {
 // school's RLS, for a caller that has already decided the audience; they check
 // nothing else. An invalid id or a missing attachment is ErrAttachmentNotFound.
 // They are not part of Capability: only the parents portal's attachment entry
-// receives them, through compose.TenantAttachmentReads (#4825).
+// receives them, through TenantReads (#4825).
 type TenantAttachmentReads interface {
 	ListAnnouncementAttachmentsInTenant(ctx context.Context, tenantID, announcementID int64) ([]Attachment, error)
 	FindAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (Attachment, error)
 	OpenAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (Content, error)
+}
+
+// TenantReads returns the tenant-scoped attachment reads of a composed file
+// store; it decides no audience.
+func TenantReads(files Capability) (TenantAttachmentReads, error) {
+	reads, ok := files.(TenantAttachmentReads)
+	if !ok {
+		return nil, errors.New("file storage: the file store serves no tenant attachment reads")
+	}
+	return reads, nil
 }
 
 // AttachmentCommand changes the attachments of a draft announcement.

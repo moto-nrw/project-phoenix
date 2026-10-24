@@ -181,14 +181,3 @@ func (transaction) AfterCommit(ctx context.Context, fn func()) {
 func (transaction) Detach(ctx context.Context) context.Context {
 	return postgres.DetachedContext(ctx)
 }
-
-// TenantAttachmentReads returns the tenant-scoped attachment reads of a file
-// store New composed. Only the parents portal's attachment entry receives
-// them; it decides the guardian audience before and after each read (#4825).
-func TenantAttachmentReads(files filestorage.Capability) (filestorage.TenantAttachmentReads, error) {
-	reads, ok := files.(filestorage.TenantAttachmentReads)
-	if !ok {
-		return nil, errors.New("file storage compose: the file store serves no tenant attachment reads")
-	}
-	return reads, nil
-}

@@ -20,7 +20,6 @@ import (
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
@@ -130,7 +129,7 @@ func mountCommunicationRoutes(
 // SchoolMiddleware authenticate them.
 func mountDeliveryRoutes(root, tenant chi.Router, logger *slog.Logger, fileStore filestorageModule.Capability, parent *parentportal.Portal, hub *realtime.Hub, caller *owners.CallerRows, identity identityaccess.Owner) error {
 	files := filestoreAPI.NewResource(fileStore, logger.With("handler", "filestore"))
-	attachmentReads, err := filestorageCompose.TenantAttachmentReads(fileStore)
+	attachmentReads, err := filestorageModule.TenantReads(fileStore)
 	if err != nil {
 		return err
 	}

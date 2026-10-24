@@ -23,7 +23,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -243,7 +242,7 @@ func TestAnnouncementAttachmentTenantReadsServeOnlyTheNamedSchool(t *testing.T) 
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	tenantID := testpkg.Tenant(t)
-	reads, err := filestorageCompose.TenantAttachmentReads(c.files)
+	reads, err := filestorageModule.TenantReads(c.files)
 	require.NoError(t, err)
 
 	attachments, err := reads.ListAnnouncementAttachmentsInTenant(ctx, tenantID, c.announcementID)
