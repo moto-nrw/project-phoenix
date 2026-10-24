@@ -203,6 +203,9 @@ type IntakeDependencies struct {
 	// switched it on (#3780). Nil keeps the configured list only.
 	AdminSubscribers AdminMailSubscribers
 	ManualDecider    ManualEnrollmentDecider
+	// Uploads stores the files parents attach (#4783). Nil leaves file
+	// answers untouched and refuses uploads.
+	Uploads IntakeUploads
 	// ParentChanges makes a request unread for the staff again after a
 	// parent edit or renewal confirmation (#3778). Nil skips it (focused tests).
 	ParentChanges RequestParentChanges

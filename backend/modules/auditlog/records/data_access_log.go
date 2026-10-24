@@ -23,6 +23,11 @@ const (
 	// ResourceTypeEnrollmentStudentExport records an export of enrollment
 	// answers attached to one student profile.
 	ResourceTypeEnrollmentStudentExport = "enrollment_student_export"
+	// ResourceTypeEnrollmentUploadView records a staff member opening a file
+	// a parent attached to an enrollment request, such as an income proof
+	// (#4783). StudentID stays NULL; metadata carries request_id, upload_id
+	// and field_key.
+	ResourceTypeEnrollmentUploadView = "enrollment_upload_view"
 	// ResourceTypeStaffFinancialView records serving the MASKED bank & tax
 	// data of one staff member (#1423). StudentID stays NULL; metadata
 	// carries staff_id.

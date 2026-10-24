@@ -59,7 +59,7 @@ func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request
 	if err := json.Unmarshal(request.Payload, &stored); err != nil {
 		return nil, err
 	}
-	if current, ok := stored["date"].(string); ok && input.Cutoff != nil {
+	if current, ok := stored["date"].(string); ok {
 		if day, err := calendar.ParseDate(current); err == nil && input.Cutoff.Closed(day) {
 			return nil, carerequests.ErrPickupChangeCutoffPassed
 		}

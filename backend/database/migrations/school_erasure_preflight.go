@@ -28,6 +28,7 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     active.group_mappings,
     active.group_supervisors,
     active.groups,
+    active.morning_attendance,
     active.presence_backfill_batches,
     active.presence_backfill_checkpoints,
     active.scheduled_checkouts,
@@ -142,6 +143,8 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     enrollment.request_children,
     enrollment.request_guardians,
     enrollment.request_reads,
+    enrollment.request_upload_cleanup,
+    enrollment.request_uploads,
     enrollment.requests,
     enrollment.submission_rate_limits,
     facilities.rooms,
@@ -201,6 +204,10 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     users.parent_announcement_responses,
     users.parent_announcement_targets,
     users.parent_announcements,
+    users.parent_group_message_recipients,
+    users.parent_group_messages,
+    users.parent_group_thread_reads,
+    users.parent_group_threads,
     users.parent_message_count_preferences,
     users.parent_message_reads,
     users.parent_message_threads,
@@ -273,12 +280,16 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '965e62ae91b59194532b9156d076734507fa84e1c90dd8d5b5dc93d16572d510' THEN
+    ) AS edge) <> 'cc93958213bac77bfbb56a1a42ffb350e5c305fd1c6738c8f466a92bbfd4147c' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
    IF EXISTS (
     SELECT 1 FROM active.excused_absence_requests AS c JOIN users.student_profiles AS p ON c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM active.morning_attendance AS c JOIN users.class_list_entries AS p ON c."class_list_entry_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM active.morning_attendance AS c JOIN users.staff_school_memberships AS p ON c."recorded_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM active.staff_absence_audit AS c JOIN active.staff_absences AS p ON c."absence_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
@@ -404,6 +415,10 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     UNION ALL
     SELECT 1 FROM enrollment.request_reads AS c JOIN enrollment.requests AS p ON c."request_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
+    SELECT 1 FROM enrollment.request_uploads AS c JOIN enrollment.phases AS p ON c."phase_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM enrollment.request_uploads AS c JOIN enrollment.requests AS p ON c."request_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
     SELECT 1 FROM enrollment.requests AS c JOIN enrollment.phases AS p ON c."phase_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM enrollment.requests AS c JOIN enrollment.form_schemas AS p ON c."schema_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
@@ -451,6 +466,18 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     SELECT 1 FROM users.parent_announcement_responses AS c JOIN users.student_profiles AS p ON c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM users.parent_announcement_targets AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.parent_group_message_recipients AS c JOIN users.parent_group_messages AS p ON c."message_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.parent_group_message_recipients AS c JOIN users.parent_group_threads AS p ON c."thread_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.parent_group_message_recipients AS c JOIN users.student_profiles AS p ON c."tenant_id" = p."tenant_id" AND c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.parent_group_messages AS c JOIN users.parent_group_threads AS p ON c."thread_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.parent_group_thread_reads AS c JOIN users.parent_group_threads AS p ON c."thread_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.parent_messages AS c JOIN users.parent_group_threads AS p ON c."group_thread_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM users.parent_message_reads AS c JOIN users.parent_message_threads AS p ON c."thread_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

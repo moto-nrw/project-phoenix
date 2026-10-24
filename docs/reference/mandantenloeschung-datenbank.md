@@ -16,7 +16,11 @@ Die bisherigen Schreib-Owner bleiben unverändert. Die neue Nachweistabelle
 [Runbook](../operations/tenant-erasure.md), Migration `1.15.490`.
 Der technische Abschluss umfasst DB und lokale Dateien, nicht die manuellen
 Nebensystemschritte oder den rechtlichen Gesamtabschluss.
-3837-d behandelt die Wiederholung nach Restore. Produktiver Rollout,
+3837-d ergänzt eine außerhalb von DB-/Upload-Sicherungen liegende
+Löschungsliste und eine sperrende Restore-Prüfung. Der CLI bestätigt erst nach
+dauerhaftem Listeneintrag Erfolg; `completed` in der DB alleine beweist diesen
+externen Schritt nicht. [Betriebsverfahren](../operations/tenant-erasure.md).
+Keine neue Migration oder DB-Rollenfreigabe in 3837-d. Produktiver Rollout,
 Rollenvergabe und Wirksamkeit sind offen. Dieser Slice wurde nur an lokalen,
 synthetischen Testdaten geprüft. Kein Zugriff auf Produktion oder Staging.
 

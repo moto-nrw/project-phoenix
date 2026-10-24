@@ -210,7 +210,7 @@ export function GraduatesModal({
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
               <SlideOverTitle>
-                {`Abgänge: Jahrgangswechsel ${transition.academicYear}`}
+                {`Abgänge: Schuljahreswechsel ${transition.academicYear}`}
               </SlideOverTitle>
               <SlideOverDescription>
                 Kinder, die die OGS mit diesem Wechsel verlassen haben.
@@ -220,11 +220,11 @@ export function GraduatesModal({
           </SlideOverHeader>
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <p className="text-sm text-gray-600">
-              Diese Kinder haben die OGS mit diesem Jahrgangswechsel verlassen.
-              Sie sind in der App ausgeblendet, ihre Daten aber noch vorhanden.
-              Über <span className="font-medium">Zurücksetzen</span> lassen sie
-              sich zurückholen, solange sie hier nicht endgültig gelöscht
-              wurden.
+              Diese Kinder haben die OGS mit diesem Schuljahreswechsel
+              verlassen. Sie sind in der App ausgeblendet, ihre Daten aber noch
+              vorhanden. Über <span className="font-medium">Zurücksetzen</span>{" "}
+              lassen sie sich zurückholen, solange sie hier nicht endgültig
+              gelöscht wurden.
             </p>
 
             {entries === null && (
@@ -237,7 +237,7 @@ export function GraduatesModal({
 
             {entries !== null && !loadFailed && entries.length === 0 && (
               <p className="rounded-lg border border-gray-200 p-4 text-sm text-gray-500">
-                Dieser Jahrgangswechsel hatte keine Abgänge.
+                Dieser Schuljahreswechsel hatte keine Abgänge.
               </p>
             )}
 

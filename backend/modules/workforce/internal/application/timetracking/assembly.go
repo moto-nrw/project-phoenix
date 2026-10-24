@@ -162,11 +162,12 @@ func (c *Clock) Sessions() WorkSessionService {
 }
 
 // WithAbsences builds the absence lifecycle over the clock's month service
-// and the required sick cascade, and returns every service.
-func (c *Clock) WithAbsences(syncer ShiftPlanSyncer) *Services {
+// and returns every service. Its sick-report writes return their plan for the
+// shift-plan-sync workflow to apply (#4825).
+func (c *Clock) WithAbsences() *Services {
 	deps, services := c.deps, c.services
 	services.Absences = NewStaffAbsenceService(deps.Absences, deps.Sessions, deps.VacationQuotas, deps.AbsenceAudits, deps.Settings, services.Months,
-		append(deps.absenceOptions(deps.AbsenceTypes, deps.MonthSnapshots, loggerOrDefault(deps.Logger), syncer), WithAbsenceUnitOfWork(runTimeTrackingUnit))...)
+		append(deps.absenceOptions(deps.AbsenceTypes, deps.MonthSnapshots, loggerOrDefault(deps.Logger)), WithAbsenceUnitOfWork(runTimeTrackingUnit))...)
 	return &services
 }
 
@@ -236,7 +237,7 @@ func (deps Dependencies) overview(snapshots MonthSnapshots, logger *slog.Logger)
 	)
 }
 
-func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots MonthSnapshots, logger *slog.Logger, syncer ShiftPlanSyncer) []StaffAbsenceOption {
+func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots MonthSnapshots, logger *slog.Logger) []StaffAbsenceOption {
 	options := []StaffAbsenceOption{
 		WithAbsenceTypes(types),
 		WithAbsenceEvents(deps.Events),
@@ -259,8 +260,6 @@ func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots Month
 		// Absence email notifications (#1419 4d).
 		options = append(options, WithAbsenceEmail(*deps.AbsenceEmail))
 	}
-	// The #1843 sick cascade.
-	options = append(options, WithAbsenceShiftPlanSyncer(syncer))
 	return options
 }
 

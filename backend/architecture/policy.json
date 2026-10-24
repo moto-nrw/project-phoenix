@@ -1039,6 +1039,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/organizationtenancy/erasureledger",
+      "owner": "organization-tenancy",
+      "role": "public",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/organizationtenancy/internal/adapters/postgres",
       "owner": "organization-tenancy",
       "role": "postgres",
@@ -3923,6 +3930,10 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.account_avatar_file_cleanup",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "auth.accounts",
       "write_owner": "identity-access"
     },
@@ -4180,6 +4191,14 @@
     },
     {
       "name": "enrollment.request_reads",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_upload_cleanup",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_uploads",
       "write_owner": "enrollment"
     },
     {
@@ -4464,6 +4483,22 @@
     },
     {
       "name": "users.parent_announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_message_recipients",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_thread_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_threads",
       "write_owner": "communication"
     },
     {
@@ -10741,17 +10776,6 @@
       "source_owner": "staff-offboarding",
       "source_role": "compose",
       "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.workforce.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "workforce",
       "target_role": "public"
     },
     {

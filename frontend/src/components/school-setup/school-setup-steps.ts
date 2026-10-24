@@ -177,7 +177,7 @@ export const NEXT_HELP_GROUPS: readonly SchoolSetupNextTopic[] = [
   {
     title: "Betreuung und Team planen",
     description:
-      "Betreuungsplan, Dienstplan, Vertretungen, Schuljahr und Ferien.",
+      "Betreuungsplan, Dienstplan, Vertretungsplan, Schuljahr und Kalender.",
     link: { group: "planung" },
   },
   {

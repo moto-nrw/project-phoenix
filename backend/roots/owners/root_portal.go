@@ -73,6 +73,7 @@ func BuildParentPortal(
 		ParentRequestShares:       BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(db.Pool())),
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(db.Pool())), StudentAudit: NewParentStudentAudit(services.StudentAudit),
 		MessageThreadRepo: BindParentMessageThreadAccess(messaging.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(messaging.ParentMessageRead),
+		GroupThreads: BindParentGroupThreads(parentStore.NewGroupThreadPortal(db.Pool())),
 		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: messaging.ParentMessageThread, MessageRepo: messages, ReadRepo: messaging.ParentMessageRead,
 			Broadcaster: hub, Logger: env.Logger.With("service", "parent"),
@@ -95,17 +96,18 @@ func BuildParentPortal(
 // Elternmitteilungen (#2890) through the public File Storage capability
 // (#2707). Die Datei gehört der Dateiablage, der Empfängerkreis der
 // Mitteilung: the announcements received the attachment side at
-// construction, the store reads the announcements and the guardian
-// audience of the parents portal.
+// construction and the store reads the announcements. The guardian audience
+// stays with the parents portal, whose attachment entry reads through this
+// store (#4825).
 func BuildFileStore(
 	db transactionruntime.Database, env RootEnvironment, objects filestorageCompose.ObjectBackend, identity identityaccess.Owner,
 	persons peopledirectory.Capability, settings settingsCompose.SettingsService, audit AuditOwner,
-	announcements communication.ParentAnnouncementCapability, parent *parentportal.Portal,
+	announcements communication.ParentAnnouncementCapability,
 ) (filestorageModule.Capability, error) {
 	return filestorageCompose.New(filestorageCompose.Dependencies{
 		DB: db.Pool(), Objects: objects, Identity: identity, People: persons,
 		Settings: FileStorageSettings{Service: settings}, Events: FileStorageEvents{Repo: audit.Persistence.FileEvent},
 		HasPermission: securityruntime.HasPermission, Announcements: announcements,
-		GuardianAudience: parent, Observe: env.Observe.FileStorage, Logger: env.Logger.With("service", "filestore"), Now: env.Now,
+		Observe: env.Observe.FileStorage, Logger: env.Logger.With("service", "filestore"), Now: env.Now,
 	})
 }

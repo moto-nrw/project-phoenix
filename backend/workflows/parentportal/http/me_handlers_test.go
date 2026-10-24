@@ -214,7 +214,15 @@ func (f *fakeParentService) GetChildConversation(context.Context, int64, int64) 
 	return nil, nil
 }
 
-func (f *fakeParentService) PostChildMessage(context.Context, int64, int64, string) (*parentService.MessageThreadView, error) {
+func (f *fakeParentService) PostChildReply(context.Context, int64, int64, string, int64) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListGroupThreads(context.Context, int64) ([]*parentService.GroupThreadListItem, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetGroupThread(context.Context, int64, int64) (*parentService.GroupThreadDetail, error) {
 	return nil, nil
 }
 

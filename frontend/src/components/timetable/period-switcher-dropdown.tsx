@@ -340,8 +340,8 @@ export function PeriodSwitcherDropdown({
               onClick={() => setOpen(false)}
               className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
             >
-              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Zeiträume
-              verwalten
+              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Schuljahr
+              und Kalender verwalten
             </Link>
           )}
         </div>

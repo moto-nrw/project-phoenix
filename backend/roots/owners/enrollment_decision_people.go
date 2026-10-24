@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -83,7 +81,7 @@ func (enrollmentPeopleRules) IsFullGuardianRole(role string) bool {
 }
 
 func (enrollmentPeopleRules) MapRelationshipType(label string) string {
-	return importModels.MapRelationshipType(label)
+	return peopledirectory.MapGuardianRelationshipType(label)
 }
 
 // enrollmentGuardianRoleName is the stored role of a decision's role preset.

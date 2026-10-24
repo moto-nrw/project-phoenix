@@ -55,7 +55,7 @@ type SickCascadeDependencies struct {
 	Today func() calendar.Date
 }
 
-// NewSickCascade binds the cascade Workforce's absence lifecycle calls. Every
+// NewSickCascade binds the cascade the sick-report entry applies. Every
 // dependency but the optional ones below is required: the cascade is
 // fail-closed, so a half-wired composition must fail here instead of letting a
 // sick report commit without its plan effects.
@@ -83,7 +83,7 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 }
 
 // SubstitutionDependencies are the Betreuungsplan surfaces a Terminvertretung
-// reads and writes.
+// reads and writes, and the request's tenant transaction.
 type SubstitutionDependencies struct {
 	// Deviations applies the Timetable owner's deviation writes
 	// (timetable.StaffDeviations); ActivityInstances, InstanceStaff and Staff
@@ -95,30 +95,30 @@ type SubstitutionDependencies struct {
 
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
+	Runtime     application.ScheduleRuntime
 }
 
-// NewSubstitution binds the schedule half of the substitution module
-// (services/education stays the port owner until #2742).
+// NewSubstitution binds the Terminvertretung entry the root routes the
+// schedule target of /api/substitutions to (#4825).
 func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubstitution, error) {
 	if missing := application.MissingNames(map[string]bool{
 		"Deviations":        deps.Deviations != nil,
 		"ActivityInstances": deps.ActivityInstances != nil,
 		"InstanceStaff":     deps.InstanceStaff != nil,
 		"Staff":             deps.Staff != nil,
+		"Runtime":           deps.Runtime != nil,
 	}); len(missing) > 0 {
 		return nil, fmt.Errorf("shift plan sync compose: schedule substitution needs %s", strings.Join(missing, ", "))
 	}
-	return application.NewSubstitutionAdapter(application.SubstitutionAdapterDependencies{
+	return application.NewScheduleSubstitutions(application.NewSubstitutionAdapter(application.SubstitutionAdapterDependencies{
 		Instances:     deps.ActivityInstances,
 		InstanceStaff: deps.InstanceStaff,
 		Staff:         deps.Staff,
 		Engine:        deps.Deviations,
 		Broadcaster:   deps.Broadcaster,
 		Logger:        deps.Logger,
-	}), nil
+	}), deps.Runtime), nil
 }
 
-var (
-	_ ports.Shifts                       = application.Shifts{}
-	_ shiftplansync.ScheduleSubstitution = (*application.SubstitutionAdapter)(nil)
-)
+var _ ports.Shifts = application.Shifts{}
+var _ shiftplansync.ScheduleSubstitution = (*application.ScheduleSubstitutions)(nil)

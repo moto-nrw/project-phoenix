@@ -1699,6 +1699,67 @@ function parentMessageTopic(): HelpTopic {
   };
 }
 
+/**
+ * `/messages/groups`: Gruppennachrichten (#4784). Die OGS schreibt an eine
+ * Gruppe, Klasse oder AG; Eltern antworten nur der OGS.
+ */
+function parentGroupMessageTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentGroupMessage,
+    title: "Einer Gruppe eine Nachricht schreiben",
+    question: "Wie schreibe ich allen Eltern einer Gruppe?",
+    summary:
+      "Schreiben Sie allen Eltern einer Gruppe, Klasse oder AG. Jede Familie antwortet nur der OGS.",
+    group: "team",
+    audience: ["caregiver", "lead"],
+    icon: "UsersThree",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Eine Gruppennachricht beginnen",
+        steps: [
+          "Öffnen Sie unter `Eltern` den Bereich `Nachrichten`.",
+          "Wählen Sie den Reiter `Gruppennachrichten`.",
+          "Wählen Sie `Neue Gruppennachricht`.",
+          "Wählen Sie `Gruppe`, `Klasse` oder `AG` und dann den Namen.",
+          "Prüfen Sie, wie viele Familien die Nachricht bekommen.",
+          "Geben Sie einen Titel und Ihre Nachricht ein.",
+          "Wählen Sie `Senden`.",
+        ],
+      },
+      {
+        title: "Eine weitere Nachricht schreiben",
+        steps: [
+          "Öffnen Sie die Gruppennachricht in der Liste.",
+          "Schreiben Sie unten Ihre Nachricht.",
+          "Wählen Sie `Senden`.",
+        ],
+      },
+      {
+        title: "Eine Gruppennachricht schließen",
+        description: "Danach können die Eltern nicht mehr antworten.",
+        steps: [
+          "Öffnen Sie die Gruppennachricht.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Schließen` und bestätigen Sie.",
+        ],
+      },
+    ],
+    result:
+      "Jede Familie liest die Nachricht in der Eltern-App unter `Nachrichten`. Antworten erscheinen in der Unterhaltung mit der Familie, mit dem Hinweis `Antwort auf Gruppennachricht`.",
+    differences: [
+      "Sehen Sie den Reiter `Gruppennachrichten` nicht? Dann ist der Nachrichtenaustausch mit den Eltern ausgeschaltet, oder Ihnen fehlt der Zugriff auf alle Kinder.",
+      "Steht bei einem Kind `Kein Eltern-Zugang`? Dann bekommt diese Familie die Nachricht nicht.",
+    ],
+    notes: [
+      "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
+      "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
+      "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
+    ],
+    related: [HELP_TOPICS.parentMessage, HELP_TOPICS.leadParentAnnouncement],
+  };
+}
+
 function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
   return {
     id: HELP_TOPICS.parentRequests,
@@ -1802,7 +1863,7 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // Live geprueft: die Auswahl traegt ihren aktuellen Wert als
       // Beschriftung, anfangs `Alle`. Ein Knopf `Filter` existiert nicht.
       "Öffnen Sie bei Bedarf rechts neben der Suche die Auswahl `Alle`.",
-      "Wählen Sie zum Beispiel `Anwesend`, `Homeoffice` oder `Krank/Urlaub`.",
+      "Wählen Sie zum Beispiel `Anwesend`, `Unterwegs` oder `Krank/Urlaub`.",
       "Prüfen Sie auf der Karte, ob die Person gerade da ist.",
     ],
     // Ohne Aufsichten steht auf der Karte auch keine.
@@ -1890,7 +1951,7 @@ function trackWorkTimeTopic(): HelpTopic {
         title: "Arbeitszeit starten",
         steps: [
           "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
-          "Wählen Sie unter `Stempeluhr` den Arbeitsort `In der OGS` oder `Homeoffice`.",
+          "Wählen Sie unter `Stempeluhr` den Arbeitsort `In der OGS` oder `Unterwegs`. `Unterwegs` heißt zum Beispiel Ausflug, Fortbildung oder zu Hause.",
           "Wählen Sie `Einstempeln`.",
         ],
       },
@@ -1920,7 +1981,7 @@ function trackWorkTimeTopic(): HelpTopic {
       "Oben steht Ihr Stand: `Ist`, `Soll` und `Saldo`.",
     ],
     differences: [
-      "Steht dort `Bitte Status wählen`? Dann fehlt noch der Arbeitsort. Wählen Sie zuerst `In der OGS` oder `Homeoffice`.",
+      "Steht dort `Bitte Status wählen`? Dann fehlt noch der Arbeitsort. Wählen Sie zuerst `In der OGS` oder `Unterwegs`.",
       "Eine geplante Schicht steht oberhalb der Stempeluhr. Sie startet die Zeiterfassung nicht automatisch.",
       "Bei einer deutlichen Abweichung von Ihrer geplanten Schicht kann moto nach einem Grund fragen.",
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt moto, ab wann es geht.",
@@ -1972,7 +2033,7 @@ function ownShiftPlanTopic(): HelpTopic {
     title: "Eigenen Dienstplan ansehen",
     question: "Wo sehe ich meinen Dienstplan für die Woche?",
     summary:
-      "Sehen Sie Ihre Schichten der Woche, die Stunden je Schichtart und Ihr Soll.",
+      "Sehen Sie Ihre Schichten der Woche, die Stunden je Dienstart und Ihr Soll.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
     icon: "CalendarCheck",
@@ -1981,7 +2042,7 @@ function ownShiftPlanTopic(): HelpTopic {
       "Wechseln Sie mit den Pfeilen zur gewünschten Woche. `Diese Woche` bringt Sie zurück.",
     ],
     result:
-      "Sie sehen jede Schicht im Wochenraster. Darunter stehen die Stunden je Tag und je Schichtart.",
+      "Sie sehen jede Schicht im Wochenraster. Darunter stehen die Stunden je Tag und je Dienstart.",
     notes: [
       "Oben stehen die geplanten Stunden, Ihr `Soll` und die `Differenz`.",
       "In der `Zeiterfassung` führt oben der Knopf `Mein Dienstplan` ebenfalls hierher.",
@@ -2262,7 +2323,6 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
     steps: [
       "Öffnen Sie im `Menü` den Bereich `Mitarbeiter-Stempeln`.",
       "Wählen Sie `Armband scannen` und halten Sie Ihr Armband an den NFC-Sensor.",
-      "Wählen Sie beim Einstempeln `Vor Ort` oder `Homeoffice`.",
       "Wählen Sie `Einstempeln`.",
       "Scannen Sie das Armband erneut, um `Pause starten`, `Pause beenden` oder `Ausstempeln` zu wählen.",
       "Geben Sie bei einer Abweichung vom Dienstplan den verlangten Grund ein.",
@@ -2273,6 +2333,9 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
       "Kinderarmbänder und nicht zugewiesene Armbänder funktionieren für die persönliche Arbeitszeit nicht.",
       "Eine laufende Pause wird als `In Pause` angezeigt.",
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt das Tablet, ab wann es geht.",
+    ],
+    notes: [
+      "Am Tablet gibt es keine Wahl des Arbeitsorts. Wer dort einstempelt, ist in der OGS. Arbeiten Sie unterwegs, stempeln Sie in der moto-App unter `Zeiterfassung` ein.",
     ],
     troubleshooting: HELP_TOPICS.nfcProblem,
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.tagAssignment],
@@ -2764,6 +2827,7 @@ function caregiverTopics(
     activeSupervisionTopic(presenceMode),
     manageActivityTopic(presenceMode, nfcEnabled),
     parentMessageTopic(),
+    parentGroupMessageTopic(),
     parentRequestsTopic(groupMode),
     teamChatTopic(),
     findStaffTopic(presenceMode),
@@ -3243,12 +3307,12 @@ function dataManagementTopic(): HelpTopic {
     notes: [
       "In der Seitenleiste erreichen Sie jeden Bereich auch direkt unter `Datenverwaltung`.",
       "Der Info-Knopf neben dem Seitennamen erklärt kurz, was hierher gehört.",
-      "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Schichtarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
+      "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Dienstarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
     ],
     differences: [
       "Sie sehen weniger Kacheln als eine Kollegin? Jede Kachel hängt an einem eigenen Recht.",
       "Ohne NFC fehlen `Aktivitäten` und `Geräte`.",
-      "Ohne Planungsbereich fehlen `Planungsspuren` und `Schichtarten`.",
+      "Ohne Planungsbereich fehlen `Planungsspuren` und `Dienstarten`.",
     ],
     troubleshootingDetails: [
       "Suchen Sie ein Kind für heute? Das steht nicht hier, sondern unter `Alle Kinder` im `Tagesbetrieb`.",
@@ -3351,7 +3415,7 @@ function goLiveTopic(
             : []),
           "Übernehmen Sie die Kinder aus einer Liste. Oder legen Sie sie einzeln an.",
           "Tragen Sie die Betreuungszeiten der Kinder ein.",
-          "Tragen Sie `Schuljahr und Ferien` ein.",
+          "Tragen Sie unter `Schuljahr und Kalender` Schuljahr, Ferien und Schließtage ein.",
           ...(usesNfc
             ? ["Richten Sie die NFC-Geräte und die Armbänder ein."]
             : []),
@@ -3767,14 +3831,14 @@ function gradeTransitionTopic(): HelpTopic {
     audience: "lead",
     icon: "ArrowUpRight",
     steps: [
-      "Öffnen Sie `Datenverwaltung` und danach `Jahrgangswechsel`.",
-      "Wählen Sie `Neuer Jahrgangswechsel`.",
+      "Öffnen Sie `Datenverwaltung` und danach `Schuljahreswechsel`.",
+      "Wählen Sie `Neuer Schuljahreswechsel`.",
       "Tragen Sie bei `Schuljahr (neu)` das neue Schuljahr ein, zum Beispiel `2026-2027`.",
       "Tragen Sie bei Bedarf eine `Notiz (optional)` ein.",
       "Prüfen Sie die vorgeschlagenen Klassen und passen Sie sie an.",
       "Wählen Sie `Weiter zur Vorschau`.",
       "Prüfen Sie die Vorschau.",
-      "Wählen Sie `Jahrgangswechsel anwenden`. Bestätigen Sie mit `Ja, anwenden`.",
+      "Wählen Sie `Schuljahreswechsel anwenden`. Bestätigen Sie mit `Ja, anwenden`.",
     ],
     result:
       "Alle Kinder stehen in der neuen Klasse. Abgänge sind aus der Betreuung heraus.",
@@ -3783,12 +3847,12 @@ function gradeTransitionTopic(): HelpTopic {
       "Ein Entwurf bleibt liegen. Über `Zurück zum Entwurf` arbeiten Sie später weiter.",
     ],
     differences: [
-      "Auf dem Handy erscheint nur ein Hinweis. Der Jahrgangswechsel läuft am Computer.",
+      "Auf dem Handy erscheint nur ein Hinweis. Der Schuljahreswechsel läuft am Computer.",
       "Ohne das Recht zum Anwenden sehen Sie die Vorschau, aber keinen Knopf zum Anwenden.",
     ],
     troubleshootingDetails: [
       "Die Vorschau meldet geänderte Daten? Dann hat jemand zwischendurch Klassen geändert. Prüfen Sie erneut und bestätigen Sie dann.",
-      "Fehlt `Jahrgangswechsel`? Dann fehlt Ihnen das Recht dafür.",
+      "Fehlt `Schuljahreswechsel`? Dann fehlt Ihnen das Recht dafür.",
     ],
     related: [
       HELP_TOPICS.leadEndCare,
@@ -4060,8 +4124,8 @@ function parentDeclarationTopic(): HelpTopic {
 function mealPlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadMealPlan,
-    title: "Einen Essensplan veröffentlichen",
-    question: "Wie zeige ich den Eltern den Essensplan?",
+    title: "Einen Speiseplan veröffentlichen",
+    question: "Wie zeige ich den Eltern den Speiseplan?",
     summary:
       "Tragen Sie die Gerichte je Tag ein. Eltern sehen den Plan sofort.",
     group: "elternarbeit",
@@ -4069,7 +4133,7 @@ function mealPlanTopic(): HelpTopic {
     icon: "UtensilsCrossed",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
-      "Öffnen Sie `Essensplan`.",
+      "Öffnen Sie `Speiseplan`.",
       "Blättern Sie mit den Pfeilen zur gewünschten Woche.",
       "Tragen Sie bei einem Tag unter `Gericht eintragen...` das Gericht ein.",
       "Tragen Sie bei Bedarf einen `Hinweis (optional)` dazu ein.",
@@ -4096,7 +4160,7 @@ function mealPlanTopic(): HelpTopic {
       "Fehlt `Kind anmelden`? Dafür brauchen Sie das Recht, Einstellungen zu ändern und Kinder zu sehen. Für vergangene Tage gibt es den Knopf nicht.",
     ],
     troubleshootingDetails: [
-      "Fehlt `Essensplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet.",
+      "Fehlt `Speiseplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet.",
     ],
     related: [
       HELP_TOPICS.leadParentAnnouncement,
@@ -4208,6 +4272,7 @@ function enrollmentSetupTopic(): HelpTopic {
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
+      "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
     ],
     differences: [
@@ -4299,6 +4364,29 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eltern Dateien hochladen lassen",
+        description:
+          "Mit dem Typ `Datei` laden Eltern im Formular Nachweise hoch, zum Beispiel einen Steuerbescheid.",
+        steps: [
+          "Wählen Sie `+ Freie Zusatzfrage` und schreiben Sie die Frage.",
+          "Stellen Sie bei `Typ` die Option `Datei` ein.",
+          "Wählen Sie bei `Erlaubte Dateiarten` aus `PDF`, `JPG` und `PNG`.",
+          "Wählen Sie bei `Höchstens je Datei` eine Größe von 1 bis 10 MB.",
+          "Sollen Eltern mehrere Dateien schicken? Wählen Sie `Mehrere Dateien erlauben`. Dann sind bis zu 5 Dateien möglich.",
+        ],
+      },
+      {
+        title: "Die Einkommenserklärung hinzufügen",
+        description:
+          "Die Vorlage fragt die Einkommensstufe ab und verlangt einen Nachweis, wenn nicht der volle Beitrag gilt.",
+        steps: [
+          "Wählen Sie `+ Einkommenserklärung`.",
+          "moto fügt zwei Fragen hinzu: `Einkommensstufe` und `Einkommensnachweis`.",
+          "Passen Sie bei `Einkommensstufe` die `Auswahloptionen` an Ihre Beitragsstufen an.",
+          "Der `Einkommensnachweis` erscheint nur, wenn Eltern nicht `Voller Beitrag` wählen.",
+        ],
+      },
+      {
         title: "PDF-Dateien zu einem Hinweis hinzufügen",
         steps: [
           "Wählen Sie `Infotext` und schreiben Sie Ihren Hinweis.",
@@ -4348,6 +4436,9 @@ function enrollmentFormTopic(): HelpTopic {
       "Infotexte und Blöcke mit `Nur Hinweis` brauchen keine Zustimmung.",
       "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
       "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
+      "Eine Frage vom Typ `Datei` gilt immer für die ganze Anmeldung, nicht pro Kind.",
+      "Hochgeladene Nachweise öffnet nur, wer das Recht `Nachweise aus Anmeldungen ansehen` hat. Die Leitung hat es immer.",
+      "Nachweise werden nach einer festen Frist gelöscht. Die Frist legt das moto-Team fest.",
     ],
     differences: [
       "Bei einem `Stammdaten-Vorschlag` können Sie Beschriftung und Typ nicht ändern. Beides ist fest, damit die Antwort beim Kind ankommt.",
@@ -4394,6 +4485,8 @@ function enrollmentReviewTopic(): HelpTopic {
       "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
     notes: [
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+      "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
+      "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
@@ -4412,6 +4505,8 @@ function enrollmentReviewTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
+      "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
+      "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",
       "Beim Bestätigen erscheint `Das Kinderkontingent Ihrer Schule ist voll`? Dann bleibt die Anmeldung offen. Für weitere Kinder melden Sie sich beim moto-Team.",
       "Kinder, die schon aktiv oder vorgemerkt sind, können Sie auch bei vollem Kinderkontingent verlängern.",
       "Bei einer Anmeldung steht `Wegen Kinderkontingent offen`? Beim Schuljahreswechsel war das Kinderkontingent voll. Das Kind wurde nicht automatisch verlängert. Entscheiden Sie selbst.",
@@ -4900,7 +4995,7 @@ function leadTeacherAccessTopic(): HelpTopic {
       "Die Lehrkraft sieht nach der Anmeldung ihre Klassen und den heutigen Tag.",
     notes: [
       "Schreiben Sie die Klasse genau wie bei den Kindern. Groß- und Kleinschreibung spielt keine Rolle.",
-      "Beim Jahrgangswechsel wandern die Klassen automatisch mit. Prüfen Sie danach den Reiter `Klassen`.",
+      "Beim Schuljahreswechsel wandern die Klassen automatisch mit. Prüfen Sie danach den Reiter `Klassen`.",
       "Eine Lehrkraft sieht nur ihre Klassen, keine Stammdaten und keine Kontaktdaten.",
     ],
     differences: [
@@ -4967,14 +5062,13 @@ function staffNoticesTopic(): HelpTopic {
 }
 
 /**
- * `/calendar-periods` heisst in der Seitenleiste `Schuljahr und Ferien`, auf
- * der Seite selbst aber `Zeiträume` (planning-navigation.ts:70 gegen
- * calendar-periods/page.tsx:46). Der Artikel nennt beides, sonst sucht man.
+ * `/calendar-periods` heisst in Seitenleiste und Kopfzeile `Schuljahr und
+ * Kalender` (#4778).
  */
 function calendarPeriodsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadCalendarPeriods,
-    title: "Schuljahr und Ferien eintragen",
+    title: "Schuljahr, Ferien und Schließtage eintragen",
     question: "Wo trage ich Schuljahr, Ferien und Schließtage ein?",
     summary: "moto plant nur an Tagen, an denen Ihre OGS geöffnet hat.",
     group: "planung",
@@ -4995,7 +5089,7 @@ function calendarPeriodsTopic(): HelpTopic {
         title: "Einen Zeitraum anlegen",
         steps: [
           "Klappen Sie in der Seitenleiste `Planung` auf.",
-          "Öffnen Sie `Schuljahr und Ferien`.",
+          "Öffnen Sie `Schuljahr und Kalender`.",
           "Wählen Sie `Halbjahr anlegen` oder `Zeitraum anlegen`.",
           "Tragen Sie `Bezeichnung`, `Art`, `Startdatum` und `Enddatum` ein. Für Ferien wählen Sie die Art `Ferien`.",
           "Wählen Sie `Anlegen`.",
@@ -5004,7 +5098,7 @@ function calendarPeriodsTopic(): HelpTopic {
       {
         title: "Einen Schließtag eintragen",
         steps: [
-          "Öffnen Sie `Schuljahr und Ferien`.",
+          "Öffnen Sie `Schuljahr und Kalender`.",
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
@@ -5027,7 +5121,6 @@ function calendarPeriodsTopic(): HelpTopic {
     result:
       "Im Betreuungsplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
-      "Die Seite heißt oben `Zeiträume`. In der Seitenleiste steht `Schuljahr und Ferien`.",
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
@@ -5089,7 +5182,7 @@ function leadCarePlanTopic(): HelpTopic {
       "`Monat` und `Serien` stehen nicht in jeder Ansicht zur Wahl.",
     ],
     troubleshootingDetails: [
-      "Die Woche sagt `Noch kein Planungszeitraum`? Wählen Sie `Planungszeitraum anlegen` oder tragen Sie zuerst `Schuljahr und Ferien` ein.",
+      "Die Woche sagt `Noch kein Planungszeitraum`? Wählen Sie `Planungszeitraum anlegen` oder tragen Sie zuerst unter `Schuljahr und Kalender` einen Zeitraum ein.",
       "Ein Regeltermin lässt sich nur ab heute beenden. Vergangene Termine löschen Sie einzeln.",
     ],
     related: [
@@ -5159,10 +5252,10 @@ function dutyRosterTopic(): HelpTopic {
     result:
       "Die Person sieht ihre Schichten unter `Mein Kalender`. Dort tragen sie die Farbe `Schicht`.",
     notes: [
-      "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
-      "Über `Schichtarten verwalten` pflegen Sie die Arten.",
-      "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
-      "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
+      "Jede Schicht kann eine Dienstart tragen. Die Farbe kommt von der Dienstart.",
+      "Über `Dienstarten verwalten` pflegen Sie die Arten.",
+      "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Dienstart und das Soll.",
+      "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Dienstart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
@@ -5184,7 +5277,7 @@ function dutyRosterTopic(): HelpTopic {
   };
 }
 
-/** `/vertretung`. Heisst in der Seitenleiste `Vertretungsplan`. */
+/** `/vertretung`. Heisst in Seitenleiste und Kopfzeile `Vertretungsplan` (#4778). */
 function substitutionPlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadSubstitutionPlan,
@@ -5208,8 +5301,7 @@ function substitutionPlanTopic(): HelpTopic {
       "Auch ein `Dienst` ohne Kinder lässt sich vertreten. Sind weniger Personen da als unter `Benötigtes Personal` eingetragen, zeigt der Plan eine Lücke.",
     ],
     differences: [
-      "Die Seite heißt oben `Vertretung`. In der Seitenleiste steht `Vertretungsplan`.",
-      "`Vertretungen` im `Tagesbetrieb` ist etwas anderes: dort steht, was heute vertreten wird.",
+      "`Übergaben` im `Tagesbetrieb` ist etwas anderes: dort übergeben Sie Gruppen für heute. Unter `Vertretungen heute` sehen Sie dort auch die Vertretungen des Tages.",
     ],
     troubleshootingDetails: [
       "Fehlt der Einsatz? Dann ist er noch nicht im Betreuungsplan angelegt.",
@@ -5580,7 +5672,7 @@ function settingsGuideTopic(): HelpTopic {
         steps: [
           "`Nachrichten von Eltern`: Eltern schreiben dem Team zu ihrem Kind.",
           "`Krankmeldung über Elternportal`: Eltern melden ihr Kind selbst krank.",
-          "`Essensplan`: Eltern sehen, was es diese und nächste Woche zu essen gibt.",
+          "`Speiseplan`: Eltern sehen, was es diese und nächste Woche zu essen gibt.",
           "Alle Schalter für Eltern erklärt die Anleitung „Festlegen, was Eltern in moto sehen“.",
         ],
       },
@@ -5691,7 +5783,7 @@ function parentVisibilityTopic(): HelpTopic {
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
       "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-      "Der Essensplan ist ein eigener Schalter.",
+      "Der Speiseplan ist ein eigener Schalter.",
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
@@ -6726,6 +6818,39 @@ function parentMessagesTopic(): HelpTopic {
 }
 
 /**
+ * `/parents/messages/group/…`: Gruppennachrichten der OGS lesen und
+ * beantworten (#4784). Die Antwort geht nur an die OGS.
+ */
+function parentGroupMessagesTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentGroupMessages,
+    title: "Gruppennachrichten lesen und beantworten",
+    question: "Was ist eine Gruppennachricht?",
+    summary:
+      "Die OGS schreibt allen Eltern einer Gruppe, Klasse oder AG. Ihre Antwort lesen nur die OGS.",
+    group: "nachrichten",
+    audience: "parent",
+    icon: "UsersThree",
+    steps: [
+      "Tippen Sie unten auf `Nachrichten`.",
+      "Tippen Sie unter `Gruppennachrichten der OGS` auf die Nachricht.",
+      "Tippen Sie unter `Antwort an die OGS` in das Feld `Antwort an die OGS schreiben`.",
+      "Tippen Sie rechts auf den Pfeil `Senden`.",
+    ],
+    result:
+      "Ihre Antwort steht danach im Chat mit der OGS zu Ihrem Kind. Andere Eltern sehen sie nicht.",
+    notes: [
+      "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
+      "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
+    ],
+    differences: [
+      "Steht dort `Diese Gruppennachricht ist geschlossen`? Dann können Sie nicht mehr antworten. Schreiben Sie der OGS im Chat zu Ihrem Kind.",
+    ],
+    related: [HELP_TOPICS.parentMessages, HELP_TOPICS.parentNotifications],
+  };
+}
+
+/**
  * `/parents/news`: Elternbriefe, Mitteilungen und Umfragen. Manche verlangen
  * eine Lesebestaetigung, Umfragen eine Antwort.
  */
@@ -6863,7 +6988,7 @@ function parentMealPlanTopic(): HelpTopic {
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
     ],
     troubleshootingDetails: [
-      "moto sagt, der Essensplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",
+      "moto sagt, der Speiseplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",
       "Die Woche ist leer? Dann hat die OGS den Plan noch nicht eingetragen.",
     ],
     related: [
@@ -6952,6 +7077,10 @@ function parentEnrollTopic(): HelpTopic {
       "Mit `Weiteres Kind` melden Sie Geschwister in derselben Anmeldung an.",
       "Bewahren Sie die Bestätigungs-E-Mail auf. Der Link darin führt zum Stand.",
       "Eine Anmeldung gilt für ein `Schuljahr`, eine `Ferienbetreuung` oder `Sonstiges`.",
+      "Fragt das Formular nach einem Nachweis? Tippen Sie auf `Datei auswählen`. Die Datei wird sofort hochgeladen.",
+      "Unter dem Knopf steht, welche Dateien erlaubt sind und wie groß sie sein dürfen. Meist sind es PDF, JPG oder PNG bis 10 MB.",
+      "Auf dem Handy können Sie den Nachweis auch direkt fotografieren.",
+      "Eine falsche Datei entfernen Sie mit dem Kreuz neben dem Dateinamen.",
     ],
     differences: [
       "Manche Anmeldungen sind `Nur bereits angemeldete Kinder`.",
@@ -6961,6 +7090,7 @@ function parentEnrollTopic(): HelpTopic {
     troubleshootingDetails: [
       "moto sagt, aktuell sei keine Anmeldephase geöffnet? Dann wenden Sie sich an die OGS.",
       "moto sagt, die Online-Anmeldung sei nicht freigeschaltet? Dann nimmt diese OGS keine Anmeldungen über moto an.",
+      "moto sagt, eine hochgeladene Datei sei abgelaufen? Dann ist sie älter als einen Tag. Laden Sie sie noch einmal hoch und senden Sie die Anmeldung ab.",
       "Ein roter Hinweis nennt einen Tag und zwei Angebote? Diese Angebote gehen am selben Tag nicht zusammen. Nehmen Sie den Tag bei einem der beiden heraus.",
     ],
     related: [
@@ -7165,6 +7295,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
 
   // --- Nachrichten und Infos ---
   parentMessagesTopic(),
+  parentGroupMessagesTopic(),
   parentNewsTopic(),
   parentCalendarTopic(),
   parentMealPlanTopic(),
@@ -7739,7 +7870,7 @@ function teacherNoClassesTopic(): HelpTopic {
     ],
     differences: [
       "Sie sehen eine Klasse, aber keine Kinder? Dann ist die Klasse anders geschrieben als bei den Kindern.",
-      "Nach einem Jahrgangswechsel wandern die Klassen automatisch mit.",
+      "Nach einem Schuljahreswechsel wandern die Klassen automatisch mit.",
     ],
     troubleshootingDetails: [
       "Es steht `Kein Schultag`? Dann ist heute kein Unterricht. Prüfen Sie einen anderen Tag.",

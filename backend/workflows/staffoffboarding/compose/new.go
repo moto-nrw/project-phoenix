@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/uptrace/bun"
@@ -61,11 +60,9 @@ type Dependencies struct {
 	Broadcaster     realtime.Broadcaster
 	Logger          *slog.Logger
 	// Audit appends the offboarding's audit records in the caller's
-	// transaction, as AbsenceDeletionRecord and StaffDeletionRecord build
-	// them; the root binds all three.
-	Audit                 AuditLog
-	AbsenceDeletionRecord func(workforce.StaffAbsence, int64) (any, error)
-	StaffDeletionRecord   func(staffoffboarding.Actor, staffoffboarding.Result) any
+	// transaction, as StaffDeletionRecord builds them; the root binds both.
+	Audit               AuditLog
+	StaffDeletionRecord func(staffoffboarding.Actor, staffoffboarding.Result) any
 }
 
 // AuditLog is the Audit owner's append command.

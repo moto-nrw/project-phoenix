@@ -33,7 +33,6 @@ type RoomDirectory = groups.RoomDirectory
 type RunningSupervision = groups.RunningSupervision
 type Runtime = groups.Runtime
 type ScheduleAbsenceChange = groups.ScheduleAbsenceChange
-type ScheduleAdapter = groups.ScheduleAdapter
 type ScheduleAffectedAppointment = groups.ScheduleAffectedAppointment
 type ScheduleAppointmentOverview = groups.ScheduleAppointmentOverview
 type ScheduleAppointmentStaff = groups.ScheduleAppointmentStaff

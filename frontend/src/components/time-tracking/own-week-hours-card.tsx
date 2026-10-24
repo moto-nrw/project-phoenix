@@ -59,7 +59,7 @@ export function OwnWeekHoursCard({
     () => [
       {
         key: "type",
-        header: "Schichtart",
+        header: "Dienstart",
         render: (row) =>
           row.key === TOTAL_KEY ? (
             <span className="font-semibold text-gray-900">{row.label}</span>
@@ -100,7 +100,7 @@ export function OwnWeekHoursCard({
   return (
     <SectionCard
       title="Stunden der Woche"
-      description="Geplante Stunden je Schichtart, ohne Pausen. Ausgefallene Dienste zählen nicht."
+      description="Geplante Stunden je Dienstart, ohne Pausen. Ausgefallene Dienste zählen nicht."
       testId="own-week-hours-card"
     >
       <DataTable columns={columns} rows={rows} getRowKey={(row) => row.key} />

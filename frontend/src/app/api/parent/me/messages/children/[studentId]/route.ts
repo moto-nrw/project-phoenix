@@ -20,6 +20,8 @@ interface BackendThreadView {
 
 interface PostMessageBody {
   body: string;
+  // The group thread this message answers (#4784).
+  group_thread_id?: string;
 }
 
 /**

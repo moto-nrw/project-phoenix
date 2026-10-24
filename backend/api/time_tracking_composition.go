@@ -79,6 +79,7 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
 func newTimeTrackingResource(
 	users peoplePorts.PersonDirectory, documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking,
+	absenceWrites timeTrackingHTTP.OwnAbsenceWrites,
 	shifts workforceModule.StaffShiftPlanning, assignments workforceModule.StaffAssignmentQuery,
 	calendar schoolcalendar.Calendar, settings settingsCompose.SettingsService,
 ) *timeTrackingHTTP.Resource {
@@ -86,6 +87,7 @@ func newTimeTrackingResource(
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,
 		StaffAbsences:    capabilities.StaffAbsences,
+		AbsenceWrites:    absenceWrites,
 		Staff:            capabilities.Staff,
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
 		StaffShifts:      shifts,
@@ -108,7 +110,7 @@ func newTimeTrackingResource(
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer exportTransferModule.Capability, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absenceWrites timeTrackingHTTP.AdminAbsenceWrites, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer exportTransferModule.Capability, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
 	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
 	if err != nil {
 		panic(err)
@@ -125,6 +127,7 @@ func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, sched
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,
 		StaffAbsences:      capabilities.StaffAbsences,
+		AbsenceWrites:      absenceWrites,
 		WorkTimeMonth:      capabilities.WorkTimeMonth,
 		BalanceAdjustments: capabilities.BalanceAdjustments,
 		MonthClosing:       capabilities.MonthClosing,

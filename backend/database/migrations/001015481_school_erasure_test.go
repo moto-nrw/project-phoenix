@@ -115,6 +115,7 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
   WHERE NOT tr.tgisinternal AND (tr.tgtype::int & 8) <> 0 ORDER BY 1`).Scan(t.Context(), &triggers))
 	assert.Equal(t, []string{
 		"active.student_status_days:schedule.record_meal_sickness_status",
+		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",
@@ -469,12 +470,8 @@ func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	schoolID := testpkg.Tenant(t)
-	// 1.15.491 freezes the phases anew with active.morning_attendance; it rolls
-	// back first and reapplies last, as a migration run would.
-	require.NoError(t, morningAttendanceDown(t.Context(), db))
 	require.NoError(t, schoolErasureDown(t.Context(), db))
 	require.NoError(t, schoolErasureUp(t.Context(), db))
-	require.NoError(t, morningAttendanceUp(t.Context(), db))
 	orderID := beginErasure(t, db, schoolID)
 	require.Error(t, schoolErasureDown(t.Context(), db), "rollback must not discard any pending or completed proof")
 	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, schoolID, orderID).Status, "failed rollback preserves evidence and executable procedure")

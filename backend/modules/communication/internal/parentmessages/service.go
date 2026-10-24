@@ -107,6 +107,11 @@ type Config struct {
 	// Without the store every account counts all conversations.
 	CountPreferences CountPreferenceStore
 	Groups           CallerGroups
+
+	// GroupThreads and GroupAudience serve the group threads (#4784). The
+	// audience resolves a group, class or AG to its reachable families.
+	GroupThreads  GroupThreadStore
+	GroupAudience deliveryPorts.ParentGroupAudienceReads
 }
 
 // NewService wires a staff messaging service.
@@ -299,6 +304,9 @@ func (s *Service) buildDetailFromMessages(ctx context.Context, thread *ParentMes
 	// guardian has read, using the guardian's read cursor. Symmetric to the
 	// "OGS hat gelesen" receipt above so each side sees when the other has read.
 	DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
+	if err := s.decorateGroupThreadTitles(ctx, messages); err != nil {
+		return nil, err
+	}
 	detail := &ThreadDetail{
 		ThreadID:          thread.ID,
 		StudentID:         thread.StudentID,

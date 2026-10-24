@@ -113,3 +113,43 @@ describe("OgsConversation errors", () => {
     expect(field).toHaveValue("Hallo OGS");
   });
 });
+
+// #4784: eine Antwort auf eine Gruppennachricht zeigt, worauf sie sich bezieht.
+describe("OgsConversation group thread answers", () => {
+  it("shows the group thread an own answer refers to and links to it", async () => {
+    mockGetConversation.mockResolvedValueOnce({
+      ...thread,
+      messages: [
+        {
+          id: "m1",
+          kind: "message",
+          sender_kind: "guardian",
+          sender_name: "Sabine Schneider",
+          body: "Wir bringen einen Apfelkuchen mit.",
+          created_at: "2026-09-09T08:00:00Z",
+          group_thread_id: "9",
+          group_thread_title: "Sommerfest am Freitag",
+        },
+        {
+          id: "m2",
+          kind: "message",
+          sender_kind: "guardian",
+          sender_name: "Sabine Schneider",
+          body: "Und noch eine Frage.",
+          created_at: "2026-09-09T08:05:00Z",
+        },
+      ],
+    });
+
+    render(<OgsConversation studentId="42" />);
+
+    const reference = await screen.findByRole("link", {
+      name: "Antwort auf: Sommerfest am Freitag",
+    });
+    expect(reference).toHaveAttribute("href", "/parents/messages/group/9");
+    expect(screen.getByText("Und noch eine Frage.")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Antwort auf/ })).toHaveLength(
+      1,
+    );
+  });
+});

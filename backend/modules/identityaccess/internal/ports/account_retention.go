@@ -12,4 +12,6 @@ import (
 // returns each erased account with the avatar files it held.
 type AccountRetentionStore interface {
 	EraseUnusedAccounts(ctx context.Context) ([]domain.ErasedAccount, domain.OperationStats, error)
+	PendingAvatarCleanups(ctx context.Context) ([]domain.AvatarCleanup, error)
+	FinishAvatarCleanup(ctx context.Context, id int64, removed bool) error
 }

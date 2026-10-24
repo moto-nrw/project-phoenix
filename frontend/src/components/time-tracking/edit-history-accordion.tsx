@@ -47,7 +47,7 @@ export function formatEditValue(
     return `${value} min`;
   }
   if (fieldName === "status") {
-    return value === "home_office" ? "Homeoffice" : "In der OGS";
+    return value === "home_office" ? "Unterwegs" : "In der OGS";
   }
   return value;
 }

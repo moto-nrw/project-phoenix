@@ -39,7 +39,6 @@ type (
 	OverviewStaffQuery          = timetracking.OverviewStaffQuery
 	PayrollExportCategory       = timetracking.PayrollExportCategory
 	PayrollExportConfiguration  = timetracking.PayrollExportConfiguration
-	ShiftPlanSyncer             = timetracking.ShiftPlanSyncer
 	StaffDisplayNameQuery       = timetracking.StaffDisplayNameQuery
 	StaffScheduleAssignment     = timetracking.StaffScheduleAssignment
 	StaffScheduleBinding        = timetracking.StaffScheduleBinding
@@ -121,8 +120,8 @@ type StaffDayStatus interface {
 }
 type StaffScheduleBindingLookup func(context.Context, int64) (StaffScheduleBinding, error)
 
-func (s *WorkSessionSide) WithSickCascade(cascade ShiftPlanSyncer) (*TimeTracking, error) {
-	value, err := s.WorkSessionSide.WithSickCascade(cascade)
+func (s *WorkSessionSide) TimeTracking() (*TimeTracking, error) {
+	value, err := s.WorkSessionSide.TimeTracking()
 	return (*TimeTracking)(value), err
 }
 
