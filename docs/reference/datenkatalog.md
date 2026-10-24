@@ -46,7 +46,7 @@ Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
-installierter Plan enthält 235 Löschziele (seit Migration 1.15.519 mit den
+installierter Plan enthält 237 Löschziele (seit Migration 1.15.519 mit den
 Mittagessen-Tabellen) mit `tenant`, `tenantChild` oder
 `school`. Die explizit gesperrten Rechnungsreferenzen
 `platform.billing_key_date_counts` bleiben zehn Jahre ab Kalenderjahresende

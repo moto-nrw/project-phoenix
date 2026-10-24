@@ -21,8 +21,9 @@ func init() {
 			statusDayRetentionPurgeVersion, // the trigger function this one replaces
 			mealPlanAllergensVersion,       // development's latest migrations: meal plan allergens,
 			"1.15.499",                     // password login protection,
-			morningAttendanceVersion,       // morning attendance
-			moduleNFCSwitchVersion,         // and the NFC module switch
+			morningAttendanceVersion,       // morning attendance,
+			moduleNFCSwitchVersion,         // the NFC module switch
+			classHandoverVersion,           // and the class handover
 		},
 	})
 	Migrations.MustRegister(mealAbsenceHistoryUp, mealAbsenceHistoryDown)

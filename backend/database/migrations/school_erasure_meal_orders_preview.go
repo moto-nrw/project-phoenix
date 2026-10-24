@@ -26,6 +26,8 @@ const mealOrderErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('active.activity_session_attendance',(SELECT count(*) FROM active.activity_session_attendance AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.activity_sessions',(SELECT count(*) FROM active.activity_sessions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.attendance',(SELECT count(*) FROM active.attendance AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('active.class_handover_children',(SELECT count(*) FROM active.class_handover_children AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('active.class_handovers',(SELECT count(*) FROM active.class_handovers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.combined_groups',(SELECT count(*) FROM active.combined_groups AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.excused_absence_requests',(SELECT count(*) FROM active.excused_absence_requests AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.group_mappings',(SELECT count(*) FROM active.group_mappings AS r WHERE r.tenant_id = p_school));

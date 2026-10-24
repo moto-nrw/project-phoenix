@@ -16,7 +16,10 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     mealOrderErasureVersion,
 		Description: mealOrderErasureDescription,
-		DependsOn:   []string{mealCaterersVersion, morningAttendanceVersion},
+		DependsOn: []string{
+			mealCaterersVersion,
+			classHandoverVersion, // development's newest reinstall of the erasure functions
+		},
 	})
 	Migrations.MustRegister(mealOrderErasureUp, mealOrderErasureDown)
 }
@@ -24,8 +27,9 @@ func init() {
 // The installed erasure plan is a frozen projection of the data lifecycle
 // catalog (ADR 0092): a new school-scoped table needs a migration updating
 // the school erasure functions. Up installs them with the seven
-// school-scoped tables of the meal ordering (#3873); Down installs them as
-// development's latest erasure migration (1.15.492) left them. The caterer
+// school-scoped tables of the meal ordering (#3873) on top of development's
+// current functions (the school_erasure_*.go constants, last reinstalled by
+// 1.15.502); Down installs development's current functions. The caterer
 // business and its accounts are shared across schools and stay (ADR 0077).
 func mealOrderErasureUp(ctx context.Context, db *bun.DB) error {
 	return installSchoolErasureSteps(ctx, db, "add the meal orders to the school erasure",

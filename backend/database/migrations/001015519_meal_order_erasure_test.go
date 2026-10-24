@@ -1,6 +1,12 @@
 package migrations
 
 import (
+	"fmt"
+	"os"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -58,4 +64,92 @@ func TestMealOrderErasureRoundTrip(t *testing.T) {
 	assert.NotContains(t, without, "auth.caterer_schools")
 	require.NoError(t, mealOrderErasureUp(t.Context(), db))
 	assert.Equal(t, withMeals, planNames())
+}
+
+// mealOrderErasureTables are the seven school-scoped tables 1.15.519 adds to
+// development's school erasure functions.
+var mealOrderErasureTables = regexp.MustCompile(`\b(schedule\.(meal_order_changes|meal_order_lines|meal_order_days|meal_orders|meal_registration_changes)|auth\.caterer_(invitations|schools))\b`)
+
+var schoolErasureFingerprint = regexp.MustCompile(`<> '[0-9a-f]{64}' THEN`)
+
+// withoutMealOrderErasureTables removes every line naming a meal table (with
+// the UNION ALL joining it to the residual check) and blanks the FK
+// fingerprint, which the meal tables' foreign keys change by design.
+func withoutMealOrderErasureTables(sql string) string {
+	kept := make([]string, 0)
+	for _, line := range strings.Split(sql, "\n") {
+		if mealOrderErasureTables.MatchString(line) {
+			if n := len(kept); n > 0 && strings.TrimSpace(kept[n-1]) == "UNION ALL" {
+				kept = kept[:n-1]
+			}
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return schoolErasureFingerprint.ReplaceAllString(strings.Join(kept, "\n"), "<> 'fingerprint' THEN")
+}
+
+// The erasure functions 1.15.519 installs are static copies (new migrations
+// take static SQL only). Development keeps its current definition in the
+// school_erasure_{plan,preflight,residual,delete,preview}.go constants and
+// every erasure migration reinstalls them, so 1.15.519 running last would
+// silently drop a table development added after the copies were taken. Each
+// copy must therefore equal development's current function with exactly the
+// meal tables added: when this fails, rebuild the copy from development's
+// constant, recompute the fingerprint and depend on the new migration.
+func TestMealOrderErasureCopiesTrackDevelopmentsErasureFunctions(t *testing.T) {
+	t.Parallel()
+	for _, pair := range []struct{ name, development, meal string }{
+		{"plan", schoolErasurePlanSQL, mealOrderErasurePlanSQL},
+		{"preflight", schoolErasurePreflightSQL, mealOrderErasurePreflightSQL},
+		{"residual", schoolErasureResidualSQL, mealOrderErasureResidualSQL},
+		{"delete", schoolErasureDeleteSQL, mealOrderErasureDeleteSQL},
+		{"preview", schoolErasurePreviewSQL, mealOrderErasurePreviewSQL},
+	} {
+		require.Empty(t, mealOrderErasureTables.FindAllString(pair.development, -1), "%s: development's function names no meal table", pair.name)
+		names := map[string]bool{}
+		for _, name := range mealOrderErasureTables.FindAllString(pair.meal, -1) {
+			names[name] = true
+		}
+		assert.Len(t, names, 7, "%s: the copy names all seven meal tables", pair.name)
+		assert.Equal(t, withoutMealOrderErasureTables(pair.development), withoutMealOrderErasureTables(pair.meal),
+			"%s: the 1.15.519 copy drifted from development's current erasure function", pair.name)
+	}
+}
+
+var schoolErasureInstall = regexp.MustCompile(`\binstallSchoolErasure(Functions|Plan|Preflight|Residual|Delete|Preview)?\(ctx`)
+
+// 1.15.519 must run after the newest development migration that reinstalls
+// the school erasure functions, or that migration overwrites the meal
+// tables (and a newer one would need its function rebuilt here first).
+func TestMealOrderErasureRunsAfterEveryErasureReinstall(t *testing.T) {
+	t.Parallel()
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+	newest := ""
+	for _, entry := range entries {
+		name := entry.Name()
+		if len(name) < 10 || name[9] != '_' || strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "001015519_") {
+			continue
+		}
+		source, err := os.ReadFile(name)
+		require.NoError(t, err)
+		if !schoolErasureInstall.Match(source) {
+			continue
+		}
+		parts := make([]any, 0, 3)
+		for _, segment := range []string{name[0:3], name[3:6], name[6:9]} {
+			number, err := strconv.Atoi(segment)
+			require.NoError(t, err, name)
+			parts = append(parts, number)
+		}
+		if version := fmt.Sprintf("%d.%d.%d", parts...); newest == "" || compareVersionsSemantic(newest, version) {
+			newest = version
+		}
+	}
+	require.NotEmpty(t, newest)
+	assert.True(t, compareVersionsSemantic(newest, mealOrderErasureVersion),
+		"%s reinstalls the school erasure after %s: rebuild the meal copies on top of it", newest, mealOrderErasureVersion)
+	assert.True(t, slices.Contains(MigrationRegistry[mealOrderErasureVersion].DependsOn, newest),
+		"%s must depend on %s, the newest migration installing development's erasure functions", mealOrderErasureVersion, newest)
 }
