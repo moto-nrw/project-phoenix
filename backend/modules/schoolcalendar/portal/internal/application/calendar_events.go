@@ -238,6 +238,7 @@ func appointmentEvent(appointment *appointmentcap.Appointment, occurrenceDate ap
 		CanRespond:      appointment.CancelledAt == nil && recipientID != nil && responseStatus != nil && *responseStatus != appointmentcap.ResponseStatusInfo,
 		CanEdit:         appointment.OrganizerStaffID == staffID,
 		CanViewOverview: canStaffViewOverview(appointment, staffID, isStaffRecipient),
+		SchoolEventType: appointment.SchoolEventType,
 	}
 }
 

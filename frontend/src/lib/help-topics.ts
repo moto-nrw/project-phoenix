@@ -205,6 +205,7 @@ export const HELP_TOPICS = {
   teacherSupervisionRoster: "kinder-meiner-aufsicht-sehen",
   teacherMessages: "als-lehrkraft-nachrichten-lesen",
   teacherNotices: "als-lehrkraft-tagesinformationen-lesen",
+  teacherCalendar: "als-lehrkraft-den-kalender-nutzen",
   teacherLoginProblem: "anmeldung-bei-moto-schule-klappt-nicht",
   teacherNoClasses: "mir-wird-keine-klasse-angezeigt",
   teacherFeatureMissing: "als-lehrkraft-fehlt-mir-ein-bereich",
@@ -338,6 +339,7 @@ const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/klasse": HELP_TOPICS.teacherClassList,
   "/aufsichten": HELP_TOPICS.teacherSupervision,
   "/tagesinformationen": HELP_TOPICS.teacherNotices,
+  "/kalender": HELP_TOPICS.teacherCalendar,
   "/einstellungen": HELP_TOPICS.teacherSettings,
 };
 

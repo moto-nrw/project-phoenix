@@ -74,6 +74,9 @@ type Resource struct {
 	StaffMessaging StaffMessagingRouter
 	StaffNotices   StaffNoticesRouter
 	Notifications  NotificationRouter
+	// Calendar is the calendar of moto schule (#4798); nil leaves it
+	// unmounted.
+	Calendar SchoolRouter
 }
 
 // NewResource builds the school-portal resource. An incomplete resets
@@ -145,6 +148,13 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	// devices with portal "school".
 	if rs.Notifications != nil {
 		r.Mount("/notifications", rs.Notifications.SchoolRouter())
+	}
+
+	// The shared calendar (#4798): appointments for Lehrkräfte, closing days
+	// and holidays, the own Schultermine and the subscription feed, behind
+	// calendar:school. Same calendar service as /api/calendar.
+	if rs.Calendar != nil {
+		r.Mount("/calendar", rs.Calendar.SchoolRouter(protectedSchoolRoutes))
 	}
 
 	return r

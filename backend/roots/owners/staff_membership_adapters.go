@@ -12,6 +12,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -25,6 +26,25 @@ type staffIdentityQuery interface {
 	CountRoleNameMatchesByAccountIDs(ctx context.Context, accountIDs []int64, roleNames []string) (map[int64]int, error)
 	ListAccountIDsWithSystemRoleNames(ctx context.Context, accountIDs []int64, roleNames []string, tenantID int64) ([]int64, error)
 	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) ([]identityaccess.SchoolRoleClass, error)
+}
+
+// staffViewAccounts gives the staff directory view the Identity & Access
+// account facts, with the school-portal classification in the view's terms.
+type staffViewAccounts struct{ staffIdentityQuery }
+
+func (a staffViewAccounts) SchoolPortalAccountIDs(ctx context.Context, tenantID int64, accountIDs []int64) (map[int64]bool, error) {
+	rows, err := a.ClassifySchoolRoles(ctx, tenantID, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		if row.IsLehrkraft {
+			result[row.AccountID] = true
+		}
+	}
+	return result, nil
 }
 
 // staffMembershipDeps binds staff projections to their owners without legacy auth repositories.
@@ -338,7 +358,7 @@ func (r StaffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 // staffDirectory binds the staff directory view to the membership in use.
 func (r StaffMembershipRepository) staffDirectory() (*staffdirectoryview.Directory, error) {
 	return staffdirectoryview.New(staffdirectoryview.Dependencies{
-		Members: r.Membership, Persons: staffViewPersons{rows: r.Deps.persons}, Accounts: r.Deps.identity,
+		Members: r.Membership, Persons: staffViewPersons{rows: r.Deps.persons}, Accounts: staffViewAccounts{r.Deps.identity},
 		CallerTenant: tenant.FromContext, HasPermission: securityruntime.HasPermission,
 	})
 }
@@ -471,6 +491,25 @@ func (r StaffMembershipRepository) FindReachableCalendarStaffIDs(ctx context.Con
 		return nil, staffDirectoryError(op, err)
 	}
 	result, err := directory.ReachableStaffIDs(ctx, ids, permissions.CalendarOwn)
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	return result, nil
+}
+
+// FindSchoolPortalStaffIDs keeps the staff members whose account holds a
+// school-portal role: the Lehrkräfte the calendar target all_teachers
+// reaches (#4798).
+func (r StaffMembershipRepository) FindSchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error) {
+	const op = "find school portal staff"
+	directory, err := staffdirectoryview.New(staffdirectoryview.Dependencies{
+		Members: r.Membership, Persons: staffViewPersons{rows: r.Deps.persons}, Accounts: staffViewAccounts{r.Deps.identity},
+		CallerTenant: tenant.FromContext, HasPermission: securityruntime.HasPermission,
+	})
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	result, err := directory.SchoolPortalStaffIDs(ctx)
 	if err != nil {
 		return nil, staffDirectoryError(op, err)
 	}

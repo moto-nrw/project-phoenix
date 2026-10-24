@@ -1199,6 +1199,7 @@ function myScheduleTopic(): HelpTopic {
           "Grün zeigt Termine und Einladungen.",
           "Blau zeigt Ihre Einsätze im Betreuungsplan.",
           "Orange zeigt Ihre Schichten aus dem Dienstplan.",
+          "Lila zeigt Schultermine. Eine Lehrkraft hat sie in moto schule eingetragen, zum Beispiel einen Ausflug. Die Art steht im geöffneten Termin.",
         ],
       },
       {
@@ -1218,6 +1219,7 @@ function myScheduleTopic(): HelpTopic {
     notes: [
       "Mit `Sa/So` blenden Sie das Wochenende ein. Eine Zahl zeigt, dass dort Einträge liegen.",
       "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`.",
+      "Legen Sie einen Termin an und wählen Sie `Alle Lehrkräfte`. Dann sehen die Lehrkräfte ihn in moto schule.",
     ],
     differences: [
       "Das Kalender-Abo ist nur zum Lesen. Änderungen in Ihrem persönlichen Kalender werden nicht an moto übertragen.",
@@ -7777,6 +7779,56 @@ function teacherNoticesTopic(): HelpTopic {
   };
 }
 
+function teacherCalendarTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherCalendar,
+    title: "Den Kalender nutzen",
+    question: "Wie trage ich einen Ausflug oder Schultermin ein?",
+    summary:
+      "Der Kalender zeigt Termine der OGS, Schließtage, Ferien und Ihre Schultermine.",
+    group: "nachrichten",
+    audience: "teacher",
+    icon: "CalendarDays",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Einen Schultermin eintragen",
+        steps: [
+          "Öffnen Sie `Kalender`.",
+          "Wählen Sie `Neuer Termin`.",
+          "Geben Sie einen Titel ein und wählen Sie die Art, zum Beispiel `Ausflug`.",
+          "Wählen Sie Tag und Uhrzeit. Oder setzen Sie den Haken bei `Ganztägig`.",
+          "Wählen Sie unter `Wer sieht den Termin?`, ob auch Eltern ihn sehen.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Auf eine Einladung der OGS antworten",
+        steps: [
+          "Wählen Sie den Termin im Kalender.",
+          "Wählen Sie `Zusagen` oder `Absagen`.",
+        ],
+      },
+    ],
+    result:
+      "Die OGS und alle Lehrkräfte sehen Ihren Schultermin. Die Eltern sehen ihn nur, wenn Sie das gewählt haben.",
+    notes: [
+      "Ihre eigenen Schultermine öffnen Sie im Kalender. Dort finden Sie `Bearbeiten` und `Löschen`.",
+      "Schließtage und Ferien trägt die OGS ein. Sie stehen ganztägig im Kalender.",
+      "Unter `Kalender abonnieren` holen Sie die Termine in Ihren Handy-Kalender.",
+    ],
+    differences: [
+      "Wer den Termin sieht, wählen Sie nur beim Anlegen. Beim Ändern bleibt es gleich.",
+      "`Eltern meiner Klassen` ist grau? Dann ist Ihnen keine Klasse zugeordnet.",
+    ],
+    related: [
+      HELP_TOPICS.teacherNotices,
+      HELP_TOPICS.teacherMessages,
+      HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
 /** Problemartikel: falsches Portal ist die haeufigste Ursache. */
 function teacherLoginProblemTopic(): HelpTopic {
   return {
@@ -7886,7 +7938,7 @@ function teacherFeatureMissingTopic(): HelpTopic {
 
 // Portal "moto schule" (#2207). Geruest nach der echten Navigation des
 // Schul-Portals (`SCHOOL_PRIMARY_NAV`): Klassenansicht, Meine Aufsichten,
-// Nachrichten, Tagesinformationen.
+// Nachrichten, Tagesinformationen, Kalender.
 //
 // Eine Lehrkraft sieht bewusst wenig: ihre Klassen und ihre eigenen
 // Aufsichten. Abhol- und Notfallkontakte gibt es nur zu den Kindern einer
@@ -7914,6 +7966,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Nachrichten und Infos ---
   teacherMessagesTopic(),
   teacherNoticesTopic(),
+  teacherCalendarTopic(),
 
   // --- Wenn etwas nicht klappt ---
   teacherLoginProblemTopic(),

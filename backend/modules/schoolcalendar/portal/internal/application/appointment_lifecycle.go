@@ -16,13 +16,16 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 	var result *AppointmentDetail
 	err := s.withinAppointmentWrite(ctx, func(txCtx context.Context) error {
 		var commandErr error
-		result, commandErr = s.createStaffAppointment(txCtx, req)
+		result, commandErr = s.createAppointment(txCtx, req, false)
 		return commandErr
 	})
 	return result, err
 }
 
-func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointmentRequest) (*AppointmentDetail, error) {
+// createAppointment writes the appointment the current staff member
+// organizes. allowEmptyParents keeps a bulk parent target without reachable
+// guardians from failing the write; Schultermine use it (#4798).
+func (s *service) createAppointment(ctx context.Context, req CreateAppointmentRequest, allowEmptyParents bool) (*AppointmentDetail, error) {
 	staff, err := s.cfg.UserContext.GetCurrentStaff(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: current staff required", ErrForbidden)
@@ -32,7 +35,7 @@ func (s *service) createStaffAppointment(ctx context.Context, req CreateAppointm
 		return nil, err
 	}
 
-	recipientFields, targets, err := s.resolveTargets(ctx, appointment.DeliveryMode, req.Targets)
+	recipientFields, targets, err := s.resolveTargets(ctx, appointment.DeliveryMode, req.Targets, allowEmptyParents)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +105,7 @@ func newStaffAppointment(organizerStaffID int64, req CreateAppointmentRequest) (
 		// Persist the notification opt-in so a later cancellation honours it: an
 		// appointment created without send_email never mails guardians.
 		NotifyGuardians: req.SendEmail,
+		SchoolEventType: req.SchoolEventType,
 	}
 	if err := appointment.Validate(); err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
@@ -205,7 +209,7 @@ func appointmentCapabilityFields(value *appointmentcap.Appointment) appointmentc
 		Location: value.Location, StartDate: value.StartDate, EndDate: value.EndDate,
 		StartTime: value.StartTime, EndTime: value.EndTime, AllDay: value.AllDay,
 		DeliveryMode: value.DeliveryMode, OverviewVisibility: value.OverviewVisibility,
-		NotifyGuardians: value.NotifyGuardians,
+		NotifyGuardians: value.NotifyGuardians, SchoolEventType: value.SchoolEventType,
 	}
 }
 
@@ -266,6 +270,12 @@ func (s *service) updateStaffAppointment(ctx context.Context, appointmentID int6
 	if err != nil {
 		return nil, err
 	}
+	return s.updateLoadedAppointment(ctx, appointment, req)
+}
+
+// updateLoadedAppointment applies req to an appointment locked for write
+// and replaces its pending notices.
+func (s *service) updateLoadedAppointment(ctx context.Context, appointment *appointmentcap.Appointment, req UpdateAppointmentRequest) (*AppointmentDetail, error) {
 	// A cancelled appointment is terminal: there is no reactivation flow, so
 	// editing it (which would also fire a "Termin geändert" notice while the
 	// appointment stays cancelled) is rejected outright.
@@ -437,6 +447,11 @@ func (s *service) deleteStaffAppointment(ctx context.Context, appointmentID int6
 	if err != nil {
 		return err
 	}
+	return s.softDeleteLoadedAppointment(ctx, appointment)
+}
+
+// softDeleteLoadedAppointment removes an appointment locked for write.
+func (s *service) softDeleteLoadedAppointment(ctx context.Context, appointment *appointmentcap.Appointment) error {
 	// Deleting is silent (no notice); kill any queued e-mails first so the worker
 	// doesn't send a mail for a row we're about to remove or tombstone.
 	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment deleted"); err != nil {
@@ -510,7 +525,7 @@ func (s *service) cancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	return nil
 }
 
-func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targets []AppointmentTarget) ([]appointmentcap.AppointmentRecipientFields, []*appointmentcap.AppointmentTarget, error) {
+func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targets []AppointmentTarget, allowEmptyParents bool) ([]appointmentcap.AppointmentRecipientFields, []*appointmentcap.AppointmentTarget, error) {
 	status := appointmentcap.ResponseStatusPending
 	if deliveryMode == appointmentcap.DeliveryModeInformational {
 		status = appointmentcap.ResponseStatusInfo
@@ -521,8 +536,9 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 	}
 
 	recipients := targetRecipients{
-		staffIDs:         map[int64]struct{}{},
-		guardianStudents: map[int64]map[int64]struct{}{},
+		staffIDs:          map[int64]struct{}{},
+		guardianStudents:  map[int64]map[int64]struct{}{},
+		allowEmptyParents: allowEmptyParents,
 	}
 	targetRows := make([]*appointmentcap.AppointmentTarget, 0, len(targets))
 	for _, target := range targets {

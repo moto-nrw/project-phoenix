@@ -99,6 +99,66 @@ type FullService interface {
 	Service
 	FeedCleanupService
 	StaffCalDAVService
+	SchoolCalendar
+}
+
+// Parent audiences a Lehrkraft may choose for a Schultermin (#4798). The
+// OGS always sees a Schultermin; parents only when the Lehrkraft chooses.
+const (
+	SchoolParentsNone    = "none"
+	SchoolParentsClasses = "classes"
+	SchoolParentsSchool  = "school"
+)
+
+// SchoolCalendar is the calendar in moto schule (#4798): the appointments
+// addressed to the Lehrkraft, the closing days and holidays of the school,
+// the Lehrkraft's own Schultermine and the subscription feed. A Lehrkraft
+// changes only the Schultermine they organize.
+type SchoolCalendar interface {
+	ListSchoolCalendar(ctx context.Context, from, to Date) (*SchoolCalendarView, error)
+	CreateSchoolAppointment(ctx context.Context, req SchoolAppointmentRequest) (*AppointmentDetail, error)
+	UpdateSchoolAppointment(ctx context.Context, appointmentID int64, req SchoolAppointmentRequest) (*AppointmentDetail, error)
+	DeleteSchoolAppointment(ctx context.Context, appointmentID int64) error
+	RespondToSchoolInvitation(ctx context.Context, recipientID int64, status string) error
+	SchoolCalendarFeedURL(ctx context.Context) (httpsURL, webcalURL string, err error)
+	RotateSchoolCalendarFeed(ctx context.Context) (httpsURL, webcalURL string, err error)
+}
+
+// SchoolCalendarView is one window of the moto schule calendar. Classes
+// are the classes the Lehrkraft teaches, whose parents a new Schultermin
+// may address.
+type SchoolCalendarView struct {
+	Events      []Event      `json:"events"`
+	ClosingDays []SchoolDays `json:"closing_days"`
+	Holidays    []SchoolDays `json:"holidays"`
+	Classes     []string     `json:"classes"`
+}
+
+// SchoolDays is a closing-day range or a holiday period of the school,
+// inclusive on both ends.
+type SchoolDays struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+}
+
+// SchoolAppointmentRequest is a Schultermin as a Lehrkraft enters it. The
+// audience is fixed: the OGS staff and the Lehrkräfte, plus the parents the
+// Lehrkraft chooses. Parents and Classes are read on creation only; the
+// audience of an existing appointment never changes.
+type SchoolAppointmentRequest struct {
+	Title       string    `json:"title"`
+	Description *string   `json:"description,omitempty"`
+	Location    *string   `json:"location,omitempty"`
+	StartDate   Date      `json:"start_date"`
+	EndDate     Date      `json:"end_date"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+	AllDay      bool      `json:"all_day"`
+	EventType   string    `json:"school_event_type"`
+	Parents     string    `json:"parents"`
+	Classes     []string  `json:"classes,omitempty"`
 }
 
 type StaffCalDAVService interface {
@@ -179,29 +239,31 @@ type Event struct {
 	TimetableID    *string `json:"timetable_id,omitempty"`
 	// ActivityType is the block type of a timetable event; "duty" lets the
 	// calendar label a duty apart from Betreuung (#3822).
-	ActivityType     string    `json:"activity_type,omitempty"`
-	StudentID        *string   `json:"student_id,omitempty"`
-	StudentName      *string   `json:"student_name,omitempty"`
-	TenantID         *string   `json:"tenant_id,omitempty"`
-	SchoolName       *string   `json:"school_name,omitempty"`
-	Title            string    `json:"title"`
-	Description      *string   `json:"description,omitempty"`
-	Location         *string   `json:"location,omitempty"`
-	StartDate        string    `json:"start_date"`
-	EndDate          string    `json:"end_date"`
-	StartTime        string    `json:"start_time"`
-	EndTime          string    `json:"end_time"`
-	AllDay           bool      `json:"all_day"`
-	Cancelled        bool      `json:"cancelled"`
-	Recurring        bool      `json:"recurring"`
-	DeliveryMode     *string   `json:"delivery_mode,omitempty"`
-	ResponseStatus   *string   `json:"response_status,omitempty"`
-	RecipientID      *string   `json:"recipient_id,omitempty"`
-	OrganizerStaffID *string   `json:"organizer_staff_id,omitempty"`
-	CanRespond       bool      `json:"can_respond"`
-	CanEdit          bool      `json:"can_edit"`
-	CanViewOverview  bool      `json:"can_view_overview"`
-	ModifiedAt       time.Time `json:"-"`
+	ActivityType     string  `json:"activity_type,omitempty"`
+	StudentID        *string `json:"student_id,omitempty"`
+	StudentName      *string `json:"student_name,omitempty"`
+	TenantID         *string `json:"tenant_id,omitempty"`
+	SchoolName       *string `json:"school_name,omitempty"`
+	Title            string  `json:"title"`
+	Description      *string `json:"description,omitempty"`
+	Location         *string `json:"location,omitempty"`
+	StartDate        string  `json:"start_date"`
+	EndDate          string  `json:"end_date"`
+	StartTime        string  `json:"start_time"`
+	EndTime          string  `json:"end_time"`
+	AllDay           bool    `json:"all_day"`
+	Cancelled        bool    `json:"cancelled"`
+	Recurring        bool    `json:"recurring"`
+	DeliveryMode     *string `json:"delivery_mode,omitempty"`
+	ResponseStatus   *string `json:"response_status,omitempty"`
+	RecipientID      *string `json:"recipient_id,omitempty"`
+	OrganizerStaffID *string `json:"organizer_staff_id,omitempty"`
+	CanRespond       bool    `json:"can_respond"`
+	CanEdit          bool    `json:"can_edit"`
+	CanViewOverview  bool    `json:"can_view_overview"`
+	// SchoolEventType marks a Schultermin from moto schule (#4798).
+	SchoolEventType *string   `json:"school_event_type,omitempty"`
+	ModifiedAt      time.Time `json:"-"`
 }
 
 type AppointmentDetail struct {
@@ -225,6 +287,9 @@ type CreateAppointmentRequest struct {
 	Recurrence         *RecurrenceRequest  `json:"recurrence,omitempty"`
 	Targets            []AppointmentTarget `json:"targets"`
 	SendEmail          bool                `json:"send_email"`
+	// SchoolEventType is set by the moto schule entry only; the OGS form
+	// cannot mark a Schultermin.
+	SchoolEventType *string `json:"-"`
 }
 
 type UpdateAppointmentRequest struct {
