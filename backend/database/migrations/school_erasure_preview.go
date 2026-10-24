@@ -200,6 +200,12 @@ const schoolErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('users.guardian_phone_numbers',(SELECT count(*) FROM users.guardian_phone_numbers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.guardian_profiles',(SELECT count(*) FROM users.guardian_profiles AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.notification_preferences',(SELECT count(*) FROM users.notification_preferences AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_answers',(SELECT count(*) FROM users.survey_answers AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_responses',(SELECT count(*) FROM users.survey_responses AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_participations',(SELECT count(*) FROM users.survey_participations AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_question_options',(SELECT count(*) FROM users.survey_question_options AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.survey_questions',(SELECT count(*) FROM users.survey_questions AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.surveys',(SELECT count(*) FROM users.surveys AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_submissions',(SELECT count(*) FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_versions',(SELECT count(*) FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.parent_announcement_options',(SELECT count(*) FROM users.parent_announcement_options AS r WHERE r.tenant_id = p_school));

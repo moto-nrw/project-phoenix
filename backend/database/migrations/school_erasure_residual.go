@@ -373,6 +373,18 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     UNION ALL
     SELECT 1 FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM users.survey_answers AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_responses AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_participations AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_question_options AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_questions AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.surveys AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id

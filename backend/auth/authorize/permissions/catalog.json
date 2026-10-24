@@ -324,6 +324,10 @@
     "action": "own"
   },
   {
+    "resource": "surveys",
+    "action": "manage"
+  },
+  {
     "resource": "system",
     "action": "manage"
   },

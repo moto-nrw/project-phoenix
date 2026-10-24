@@ -37,6 +37,11 @@ type LifecycleTable struct {
 	// PersonKeys lists direct FK evidence only. It is not a complete person
 	// disclosure selector: historical snapshots, JSON and indirect links remain.
 	PersonKeys map[string]string `json:"personKeys,omitempty"`
+	// ExportOrder replaces the physical row order of the export with these
+	// columns. The physical order is the insertion order; for two tables
+	// written together (the participation and the answer of an anonymous
+	// survey, #4781) it would pair their rows again.
+	ExportOrder []string `json:"exportOrder,omitempty"`
 }
 
 // LifecycleParent is an actual foreign-key edge from Column to ParentColumn.

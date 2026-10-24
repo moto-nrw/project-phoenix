@@ -336,6 +336,12 @@ var tableRetentions = map[string]tableRetention{
 	"users.student_notes":                                   parent("users.student_profiles"),
 	"users.student_profiles":                                own("nightly retention step student_retention, Retention.DeleteExpiredStudents -> student deletion workflow (school window after the last care day, #3962)"),
 	"users.student_school_memberships":                      parent("users.student_profiles"),
+	"users.survey_answers":                                  parent("users.survey_responses"),
+	"users.survey_participations":                           parent("users.surveys"),
+	"users.survey_question_options":                         parent("users.survey_questions"),
+	"users.survey_questions":                                parent("users.surveys"),
+	"users.survey_responses":                                parent("users.surveys"),
+	"users.surveys":                                         own("nightly retention steps parent_survey_retention and staff_survey_retention, SurveyRetention.DeleteExpiredParentSurveys / DeleteExpiredStaffSurveys (school window gdpr.parent_message_retention_days or gdpr.staff_message_retention_days after the survey closed, a draft after its last change, #4781)"),
 	"users.teachers":                                        staffRetention("School Membership EraseNextRetiredStaff"),
 }
 
