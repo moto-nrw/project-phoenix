@@ -30,6 +30,8 @@ func TestSignaturesSchoolErasureDeletesSubmissionsBeforeSignatures(t *testing.T)
 }
 
 func TestSignatureSchoolErasureForeignKeyFingerprint(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	var fingerprint string
 	require.NoError(t, db.NewRaw(`SELECT encode(sha256(convert_to(COALESCE(string_agg(
