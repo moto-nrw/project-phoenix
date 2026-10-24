@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIotDeviceApiKeyInvalid                        = "iot.device_api_key_invalid"
+	CodeIotDeviceApiKeyRequired                       = "iot.device_api_key_required"
 	CodeIotDeviceIdTaken                              = "iot.device_id_taken"
 	CodeIotDeviceInactive                             = "iot.device_inactive"
 	CodeIotDevicePinInvalid                           = "iot.device_pin_invalid"
@@ -305,6 +307,8 @@ const (
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.device_api_key_invalid":                          "permission",
+	"iot.device_api_key_required":                         "permission",
 	"iot.device_id_taken":                                 "business_rejection",
 	"iot.device_inactive":                                 "permission",
 	"iot.device_pin_invalid":                              "permission",

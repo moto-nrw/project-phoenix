@@ -68,6 +68,7 @@ function declaration(
       signers: "all",
       revocable: true,
       requires_password: false,
+      requires_signature: false,
       deadline: null,
       closed: false,
       version: {

@@ -211,6 +211,10 @@ type canonicalDeclarationSubmission struct {
 	Method            string `json:"method"`
 	PasswordConfirmed bool   `json:"password_confirmed"`
 	SubmittedAt       string `json:"submitted_at"`
+	// SignatureID binds a signed answer to its signature (#4785). It is left
+	// out when empty, so every unsigned record keeps the hash it was stored
+	// with.
+	SignatureID *int64 `json:"signature_id,omitempty"`
 }
 
 // CanonicalRecord is the canonical JSON of the submission, including the
@@ -231,7 +235,7 @@ func CanonicalDeclarationRecord(s *DeclarationSubmission) []byte {
 		VersionID: s.VersionID, ContentHash: s.ContentHash, StudentID: s.StudentID,
 		GuardianProfileID: s.GuardianProfileID, SignerName: s.SignerName, GuardianRole: s.GuardianRole,
 		Action: s.Action, Method: s.Method, PasswordConfirmed: s.PasswordConfirmed,
-		SubmittedAt: s.SubmittedAt.UTC().Format(time.RFC3339Nano),
+		SubmittedAt: s.SubmittedAt.UTC().Format(time.RFC3339Nano), SignatureID: s.SignatureID,
 	})
 }
 

@@ -419,6 +419,7 @@
     "deadline": "Son tarih {date}",
     "closed": "Süre doldu",
     "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
+    "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
     "state": {
       "open": "Açık",
       "partial": "Kısmen yanıtlandı",
@@ -470,6 +471,22 @@
     "confirmVersion": "Metin",
     "confirmRecorded": "moto yanıtınızı tarih ve saatle kaydeder. Okul bunu görür.",
     "passwordLabel": "Veli hesabınızın şifresi",
+    "signature": {
+      "label": "İmzanız",
+      "hint": "Alana parmağınızla, kalemle veya fareyle imza atın.",
+      "canvas": "İmza alanı",
+      "clear": "Alanı temizle",
+      "typeInstead": "Adınızı yazın",
+      "drawInstead": "Bunun yerine çiz",
+      "typedName": "Adınız ve soyadınız",
+      "confirm": "İmzayı onayla",
+      "confirmed": "İmzanız hazır.",
+      "confirmedTyped": "Yazdığınız ad hazır.",
+      "change": "Yeniden imzala",
+      "preview": "İmzanız",
+      "emptyDrawing": "Lütfen alana imza atın.",
+      "nameTooShort": "Lütfen adınızı yazın."
+    },
     "revokeTitle": "Onayı geri al",
     "revokeBody": "{name} için onayınızı geri alıyorsunuz.",
     "revokeConfirm": "Geri al",
@@ -478,7 +495,8 @@
     "saved": "{name} için yanıtınız kaydedildi.",
     "errors": {
       "passwordRequired": "Lütfen şifrenizi girin.",
-      "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin."
+      "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin.",
+      "signatureRequired": "Lütfen imza atın ve “İmzayı onayla”ya dokunun."
     },
     "errorObjectAnswer": "yanıt"
   },
@@ -501,10 +519,14 @@
     "entryVersion": "Sürüm {version}",
     "passwordYes": "Şifre ile onaylandı",
     "passwordNo": "Şifresiz",
+    "signatureAlt": "{name} imzası",
+    "signatureDrawn": "Parmakla veya fareyle çizildi",
+    "signatureTyped": "Yazıldı: {name}",
     "versionsTitle": "Okulun metni",
     "versionHeading": "Sürüm {version}, yayınlanma: {date}",
     "attachments": "Dosyalar",
     "note": "Bu belge basit bir elektronik beyanı kanıtlar. Yasanın gerektirdiği kağıt üzerindeki imzanın yerini tutmaz.",
+    "noteSigned": "İmzalı yanıtlar, çizilmiş imzalı basit elektronik imza olarak verildi.",
     "errorObjectProof": "kanıt belgesi",
     "errorObjectPdf": "PDF dosyası"
   },
@@ -2241,6 +2263,8 @@
         "declaration_not_permitted": "Bu çocuk için yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",
         "declaration_password_incorrect": "Şifre doğru değil. Lütfen tekrar deneyin.",
         "declaration_password_required": "Lütfen şifrenizi girin.",
+        "declaration_signature_invalid": "İmza kaydedilemedi. Lütfen yeniden imza atın.",
+        "declaration_signature_required": "Lütfen onay vermeden önce imza atın.",
         "declaration_version_changed": "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
         "excused_request_not_pending": "{object} artık açık değil. Lütfen sayfayı yenileyin.",
         "excused_request_overlap": "{object} için saatler çakışıyor. Lütfen bilgileri kontrol edin.",

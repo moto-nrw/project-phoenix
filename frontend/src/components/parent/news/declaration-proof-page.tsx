@@ -5,12 +5,13 @@
  * mit dem vollständigen Text der Fassung und dem eigenen Verlauf. Zum Lesen
  * auf dem Handy; „Als PDF herunterladen“ holt das PDF, das moto erzeugt.
  * Prüfsummen stehen nicht auf dem Schirm, nur ein Satz, ob alles unverändert
- * ist.
+ * ist. Eine Zustimmung mit Unterschrift (#4785) zeigt das gespeicherte Bild.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { Download } from "lucide-react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -224,6 +225,29 @@ function ProofDocument({
                 {t("entryVersion", { version: entry.version_no })} ·{" "}
                 {entry.password_confirmed ? t("passwordYes") : t("passwordNo")}
               </p>
+              {entry.signature && (
+                <figure className="mt-2 space-y-1">
+                  <div className="rounded-lg bg-white p-2">
+                    {/* Stored as a data URL; next/image cannot optimise it. */}
+                    <Image
+                      src={entry.signature.image_data_url}
+                      alt={t("signatureAlt", { name: entry.signer_name })}
+                      width={600}
+                      height={160}
+                      unoptimized
+                      className="h-20 w-full object-contain"
+                    />
+                  </div>
+                  <figcaption className="text-gray-700">
+                    {entry.signature.method === "typed" &&
+                    entry.signature.typed_name
+                      ? t("signatureTyped", {
+                          name: entry.signature.typed_name,
+                        })
+                      : t("signatureDrawn")}
+                  </figcaption>
+                </figure>
+              )}
             </li>
           ))}
         </ol>
@@ -263,8 +287,11 @@ function ProofDocument({
         ))}
       </section>
 
-      <footer className="border-t border-gray-200 pt-3 text-sm text-gray-600">
-        {t("note")}
+      <footer className="space-y-1 border-t border-gray-200 pt-3 text-sm text-gray-600">
+        {proof.submissions.some((entry) => entry.signature) && (
+          <p>{t("noteSigned")}</p>
+        )}
+        <p>{t("note")}</p>
       </footer>
     </article>
   );

@@ -3874,6 +3874,10 @@
       "write_owner": "audit-platform"
     },
     {
+      "name": "audit.signatures",
+      "write_owner": "audit-platform"
+    },
+    {
       "name": "audit.guardian_financial_change_ledger",
       "write_owner": "audit-platform"
     },

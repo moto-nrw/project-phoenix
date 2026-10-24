@@ -68,6 +68,7 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     audit.guardian_financial_changes,
     audit.personnel_number_changes,
     audit.room_color_migration_backup,
+    audit.signatures,
     audit.staff_master_data_changes,
     audit.student_consent_changes,
     audit.student_deletions,
@@ -280,7 +281,7 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'cc93958213bac77bfbb56a1a42ffb350e5c305fd1c6738c8f466a92bbfd4147c' THEN
+    ) AS edge) <> '24d3ab42ad269f9f5349d9d2747fc4d8df7a5328d367e25cc178c303fa685719' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

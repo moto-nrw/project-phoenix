@@ -7,7 +7,9 @@
  * Nichts ist vorausgewählt. Jede Antwort läuft über eine Rückfrage, die Kind,
  * Aktion und Fassung wiederholt. Verlangt die Schule das Passwort, steht das
  * Feld in dieser Rückfrage. Ein falsches Passwort kommt als 403 zurück und
- * meldet deshalb niemanden ab.
+ * meldet deshalb niemanden ab. Verlangt die Schule eine Unterschrift (#4785),
+ * steht das Unterschriftsfeld für „Zustimmen“ in derselben Rückfrage;
+ * Ablehnen und Widerrufen gehen ohne Unterschrift.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -22,6 +24,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { SignaturePad } from "~/components/ui/signature-pad";
+import type { SignaturePadLabels } from "~/components/ui/signature-pad";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
@@ -36,6 +40,7 @@ import {
   declarationProofPath,
   submitDeclaration,
 } from "~/lib/parent-api";
+import type { SignatureValue } from "~/lib/signature";
 
 const logger = createLogger({ component: "ParentDeclaration" });
 
@@ -108,6 +113,9 @@ export function declarationErrorOutcome(err: unknown): {
         return { ...keep, clearPassword: false };
       case "care.declaration_password_incorrect":
         return { ...keep, clearPassword: true };
+      case "care.declaration_signature_required":
+      case "care.declaration_signature_invalid":
+        return { ...keep, clearPassword: false };
       case "care.declaration_version_changed":
       case "care.declaration_closed":
       case "care.declaration_action_not_allowed":
@@ -143,6 +151,37 @@ function stateAfter(
   return othersOpen ? "partial" : action;
 }
 
+/** True when this action of this Einverständnis needs a signature. */
+function declarationNeedsSignature(
+  declaration: ParentDeclaration,
+  action: ParentDeclarationAction,
+): boolean {
+  return declaration.requires_signature && action === "agreed";
+}
+
+/** The signature field's labels in the guardian's language. */
+function useSignaturePadLabels(): SignaturePadLabels {
+  const t = useTranslations("parentDeclaration.signature");
+  return {
+    label: t("label"),
+    hint: t("hint"),
+    canvas: t("canvas"),
+    clear: t("clear"),
+    typeInstead: t("typeInstead"),
+    drawInstead: t("drawInstead"),
+    typedName: t("typedName"),
+    confirm: t("confirm"),
+    confirmed: t("confirmed"),
+    confirmedTyped: t("confirmedTyped"),
+    change: t("change"),
+    preview: t("preview"),
+    emptyDrawing: t("emptyDrawing"),
+    nameTooShort: t("nameTooShort"),
+  };
+}
+
+const SIGNATURE_FIELD = "declaration-signature";
+
 interface PendingAction {
   readonly child: ParentDeclarationChild;
   readonly action: ParentDeclarationAction;
@@ -167,6 +206,8 @@ export function DeclarationSection({
 
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [password, setPassword] = useState("");
+  const [signature, setSignature] = useState<SignatureValue | null>(null);
+  const signatureLabels = useSignaturePadLabels();
   const [saving, setSaving] = useState(false);
   // Both sit inside the open letter dialog, which lies above every toast:
   // the confirmation's own error while it is open, the section's after a
@@ -195,6 +236,7 @@ export function DeclarationSection({
     action: ParentDeclarationAction,
   ) => {
     setPassword("");
+    setSignature(null);
     dialogError.clear();
     setNotice(null);
     sectionError.clear();
@@ -205,16 +247,24 @@ export function DeclarationSection({
     if (saving) return;
     setPending(null);
     setPassword("");
+    setSignature(null);
     dialogError.clear();
   };
 
   const submit = async () => {
     if (!pending) return;
+    const { child, action } = pending;
+    const needsSignature = declarationNeedsSignature(declaration, action);
+    if (needsSignature && signature === null) {
+      dialogError.invalid(t("errors.signatureRequired"), {
+        [SIGNATURE_FIELD]: t("errors.signatureRequired"),
+      });
+      return;
+    }
     if (declaration.requires_password && password === "") {
       dialogError.invalid(t("errors.passwordRequired"));
       return;
     }
-    const { child, action } = pending;
     setSaving(true);
     dialogError.clear();
     try {
@@ -223,6 +273,7 @@ export function DeclarationSection({
         action,
         versionId: declaration.version.id,
         password: declaration.requires_password ? password : undefined,
+        signature: needsSignature && signature ? signature : undefined,
       });
       const submittedAt = result.submission.submitted_at;
       onUpdated(item.id, {
@@ -247,6 +298,7 @@ export function DeclarationSection({
       });
       setPending(null);
       setPassword("");
+      setSignature(null);
       setNotice(t("saved", { name: child.first_name }));
       window.dispatchEvent(new Event("parent-news-unread-refresh"));
       onReload?.(item.id);
@@ -258,6 +310,13 @@ export function DeclarationSection({
       });
       if (outcome.keepDialog) {
         if (outcome.clearPassword) setPassword("");
+        // A refused image has to be drawn again; the field opens empty.
+        if (
+          err instanceof ApiError &&
+          err.code === "care.declaration_signature_invalid"
+        ) {
+          setSignature(null);
+        }
         void dialogError.show(err, {
           object: t("errorObjectAnswer"),
           retry: () => void submitRef.current(),
@@ -265,6 +324,7 @@ export function DeclarationSection({
       } else {
         setPending(null);
         setPassword("");
+        setSignature(null);
         // The dialog is gone, so there is nothing to retry from here; the
         // reload shows the stored state.
         void sectionError.show(err, {
@@ -317,6 +377,7 @@ export function DeclarationSection({
               })}
             </span>
           ) : null}
+          {declaration.requires_signature && <span>{t("signatureNote")}</span>}
           {declaration.requires_password && <span>{t("passwordNote")}</span>}
         </p>
       </div>
@@ -385,6 +446,19 @@ export function DeclarationSection({
               </dd>
             </dl>
             <p className="text-sm text-gray-600">{t("confirmRecorded")}</p>
+            {declarationNeedsSignature(declaration, pending.action) && (
+              <SignaturePad
+                id={SIGNATURE_FIELD}
+                value={signature}
+                onChange={(next) => {
+                  setSignature(next);
+                  if (next) dialogError.clear();
+                }}
+                disabled={saving}
+                error={dialogError.fieldError(SIGNATURE_FIELD)}
+                labels={signatureLabels}
+              />
+            )}
             {declaration.requires_password && (
               <Input
                 label={t("passwordLabel")}

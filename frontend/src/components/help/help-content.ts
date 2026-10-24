@@ -4069,8 +4069,9 @@ function parentSurveyTopic(): HelpTopic {
 
 /**
  * Einverständnis (#3430): Eltern stimmen je Kind zu oder lehnen ab. Einfache
- * Erklärung per Knopfdruck, mit Fassung und Nachweis. Eine reine
- * Lesebestätigung ist ein Elternbrief.
+ * Erklärung per Knopfdruck, mit Fassung und Nachweis, auf Wunsch mit
+ * gezeichneter Unterschrift (#4785). Eine reine Lesebestätigung ist ein
+ * Elternbrief.
  */
 function parentDeclarationTopic(): HelpTopic {
   const steps = parentAnnouncementSteps(
@@ -4102,6 +4103,7 @@ function parentDeclarationTopic(): HelpTopic {
       "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
     notes: [
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+      "Mit `Mit Unterschrift` unterschreiben Eltern ihre Zustimmung mit dem Finger oder der Maus. Ablehnen geht ohne Unterschrift. Die Unterschrift steht im Nachweis der Eltern und in `Bericht als PDF`.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
       "Unter `Herunterladen` lädt `Bericht als PDF` den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
@@ -6913,6 +6915,7 @@ function parentNewsTopic(): HelpTopic {
           "Lesen Sie den Text und die Dateien.",
           "Tippen Sie beim Kind auf `Zustimmen` oder `Ablehnen`.",
           "Prüfen Sie im Fenster das Kind und Ihre Antwort.",
+          "Verlangt die Schule eine Unterschrift? Unterschreiben Sie im Feld mit dem Finger oder der Maus. Tippen Sie dann auf `Unterschrift bestätigen`.",
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
