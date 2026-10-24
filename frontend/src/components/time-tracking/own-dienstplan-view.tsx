@@ -51,9 +51,8 @@ const EMPTY_SHIFTS: readonly StaffShift[] = [];
 
 export function OwnDienstplanView() {
   const { isReady } = useRequirePermission("time_tracking:own");
-  const dienstplanBooked = useModuleBooked("dienstplan");
 
-  if (!isReady || !dienstplanBooked) {
+  if (!isReady) {
     return (
       <TenantPage
         title="Mein Dienstplan"
