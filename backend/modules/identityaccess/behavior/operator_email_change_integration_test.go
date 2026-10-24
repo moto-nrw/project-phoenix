@@ -86,15 +86,8 @@ func TestIntegration_EmailChange_InitiateAndConfirm_HappyPath(t *testing.T) {
 	err := service.InitiateEmailChange(ctx, operatorID, newEmail, operatorTestPassword, clientIP)
 	require.NoError(t, err)
 
-	// Verify token was created
-	var tokenStr string
-	err = db.NewSelect().
-		TableExpr("platform.operator_email_change_tokens").
-		Column("token").
-		Where("operator_id = ? AND used = FALSE", operatorID).
-		Scan(ctx, &tokenStr)
-	require.NoError(t, err)
-	assert.NotEmpty(t, tokenStr)
+	// The link reaches the new address; the table stores only its hash.
+	tokenStr := mailedLinkToken(t, db, newEmail)
 
 	// Verify audit log for initiation
 	var initiateAuditCount int64
@@ -255,14 +248,8 @@ func TestIntegration_EmailChange_Confirm_EmailTakenBetweenInitiateAndConfirm(t *
 	err := service.InitiateEmailChange(ctx, operatorID, targetEmail, operatorTestPassword, clientIP)
 	require.NoError(t, err)
 
-	// Read the token
-	var tokenStr string
-	err = db.NewSelect().
-		TableExpr("platform.operator_email_change_tokens").
-		Column("token").
-		Where("operator_id = ? AND used = FALSE", operatorID).
-		Scan(ctx, &tokenStr)
-	require.NoError(t, err)
+	// The link reaches the new address; the table stores only its hash.
+	tokenStr := mailedLinkToken(t, db, targetEmail)
 
 	// Simulate: operator 2 takes targetEmail via direct DB update (as if they confirmed first)
 	_, err = db.ExecContext(ctx,
@@ -295,15 +282,8 @@ func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 	err := service.InitiateEmailChange(ctx, operatorID, newEmail, operatorTestPassword, clientIP)
 	require.NoError(t, err)
 
-	// 2. Read the token
-	var tokenStr string
-	err = db.NewSelect().
-		TableExpr("platform.operator_email_change_tokens").
-		Column("token").
-		Where("operator_id = ? AND used = FALSE", operatorID).
-		Scan(ctx, &tokenStr)
-	require.NoError(t, err)
-	require.NotEmpty(t, tokenStr)
+	// The link reaches the new address; the table stores only its hash.
+	tokenStr := mailedLinkToken(t, db, newEmail)
 
 	// 3. Change password — must atomically invalidate the outstanding token
 	newPassword := testpkg.NewTestPassword()
@@ -315,7 +295,7 @@ func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 	err = db.NewSelect().
 		TableExpr("platform.operator_email_change_tokens").
 		Column("used").
-		Where("token = ?", tokenStr).
+		Where("token = ?", sha256Hex(tokenStr)).
 		Scan(ctx, &used)
 	require.NoError(t, err)
 	assert.True(t, used, "email change token should be invalidated after password change")
@@ -347,7 +327,7 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 		`INSERT INTO platform.operator_email_change_tokens
 		 (operator_id, new_email, token, expiry, used)
 		 VALUES (?, ?, ?, ?, false)`,
-		operatorID, "expired@test.local", expiredToken, time.Now().Add(-10*time.Minute),
+		operatorID, "expired@test.local", sha256Hex(expiredToken), time.Now().Add(-10*time.Minute),
 	)
 	require.NoError(t, err)
 
@@ -356,7 +336,7 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 		`INSERT INTO platform.operator_email_change_tokens
 		 (operator_id, new_email, token, expiry, used, created_at)
 		 VALUES (?, ?, ?, ?, true, NOW() - INTERVAL '2 hours')`,
-		operatorID, "stale@test.local", staleToken, time.Now().Add(-90*time.Minute),
+		operatorID, "stale@test.local", sha256Hex(staleToken), time.Now().Add(-90*time.Minute),
 	)
 	require.NoError(t, err)
 
@@ -370,7 +350,7 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 	err = db.NewSelect().
 		TableExpr("platform.operator_email_change_tokens").
 		Column("used").
-		Where("token = ?", expiredToken).
+		Where("token = ?", sha256Hex(expiredToken)).
 		Scan(ctx, &used)
 	require.NoError(t, err)
 	assert.True(t, used, "expired token should be marked as used after cleanup")
@@ -378,7 +358,7 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 	// Verify stale token was deleted
 	count, err := db.NewSelect().
 		TableExpr("platform.operator_email_change_tokens").
-		Where("token = ?", staleToken).
+		Where("token = ?", sha256Hex(staleToken)).
 		Count(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count, "stale token should be deleted after cleanup")
@@ -427,14 +407,8 @@ func TestIntegration_EmailChange_Confirm_InactiveOperator(t *testing.T) {
 	err := service.InitiateEmailChange(ctx, operatorID, newEmail, operatorTestPassword, clientIP)
 	require.NoError(t, err)
 
-	// Read the token
-	var tokenStr string
-	err = db.NewSelect().
-		TableExpr("platform.operator_email_change_tokens").
-		Column("token").
-		Where("operator_id = ? AND used = FALSE", operatorID).
-		Scan(ctx, &tokenStr)
-	require.NoError(t, err)
+	// The link reaches the new address; the table stores only its hash.
+	tokenStr := mailedLinkToken(t, db, newEmail)
 
 	// Deactivate operator between initiate and confirm
 	_, err = db.ExecContext(ctx, `UPDATE platform.operators SET active = false WHERE id = ?`, operatorID)

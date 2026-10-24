@@ -64,7 +64,7 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	invited := testpkg.CreateTestAccount(t, db, "invited")
 	testpkg.UnclaimTestAccount(t, db, invited.ID)
 	exec(`INSERT INTO auth.invitation_tokens (tenant_id, email, token, role_id, created_by, expires_at)
-		VALUES (?, UPPER(?), ?, ?, ?, NOW() + INTERVAL '1 day')`, school, invited.Email, fmt.Sprintf("token-%d", invited.ID), teamRole.ID, team.ID)
+		VALUES (?, UPPER(?), encode(sha256(convert_to(?, 'UTF8')), 'hex'), ?, ?, NOW() + INTERVAL '1 day')`, school, invited.Email, fmt.Sprintf("token-%d", invited.ID), teamRole.ID, team.ID)
 
 	relative := testpkg.CreateTestAccount(t, db, "relative")
 	testpkg.UnclaimTestAccount(t, db, relative.ID)
@@ -72,7 +72,7 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	require.NoError(t, db.NewRaw(`INSERT INTO users.guardian_profiles (tenant_id, first_name, last_name, email)
 		VALUES (?, 'Eingeladen', 'Verwandt', ?) RETURNING id`, school, relative.Email).Scan(ctx, &invitedProfileID))
 	exec(`INSERT INTO auth.guardian_invitations (tenant_id, token, guardian_profile_id, created_by, expires_at)
-		VALUES (?, ?, ?, ?, NOW() + INTERVAL '1 day')`, school, fmt.Sprintf("guardian-token-%d", relative.ID), invitedProfileID, team.ID)
+		VALUES (?, encode(sha256(convert_to(?, 'UTF8')), 'hex'), ?, ?, NOW() + INTERVAL '1 day')`, school, fmt.Sprintf("guardian-token-%d", relative.ID), invitedProfileID, team.ID)
 
 	erased := eraseUnusedAccountsAsAdmin(t, db)
 	assert.Equal(t, map[int64][]string{

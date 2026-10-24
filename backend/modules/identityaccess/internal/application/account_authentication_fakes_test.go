@@ -596,7 +596,8 @@ func (s *fakeStore) MarkAccountSessionRotated(_ context.Context, id int64, repla
 		return false, stats(), nil
 	}
 	session.RotatedAt = &rotatedAt
-	session.ReplacementToken = &replacementToken
+	replacementHash := domain.HashToken(replacementToken)
+	session.ReplacementTokenHash = &replacementHash
 	session.RecoveryProofHash = recoveryProofHash
 	s.sessions[id] = session
 	return true, stats(), nil

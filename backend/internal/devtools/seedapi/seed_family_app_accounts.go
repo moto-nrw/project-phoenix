@@ -18,7 +18,7 @@ const openInvitationsKept = 2
 
 // seedFamilyAppAccountsStep gives one parent of every other demo child an
 // account in the parents app, and lets the parents of approved online
-// enrollments accept the invitation their approval sent. Before, only the six
+// enrollments accept an invitation. Before, only the six
 // scripted parents had one, so "Neue Nachricht" offered no recipient for
 // almost every child (#3894). The accounts only exist; the scripted parents
 // stay the ones who act.
@@ -59,8 +59,15 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 			return fmt.Errorf("accept guardian invitation %d: %w", guardianID, err)
 		}
 	}
+	// The approval's own link is stored as hash only (#4902) and reaches
+	// nobody but the parent's mailbox: the seeder accepts a fresh invitation
+	// of the same guardian, issued through the seed-only token exposure.
 	for _, invitation := range invitations {
-		if _, err := step.acceptGuardianInvitation(rt, invitation.Token, password); err != nil {
+		token, err := step.inviteGuardian(rt, adminAuth, invitation.GuardianProfileID)
+		if err != nil {
+			return fmt.Errorf("invite guardian %d: %w", invitation.GuardianProfileID, err)
+		}
+		if _, err := step.acceptGuardianInvitation(rt, token, password); err != nil {
 			return fmt.Errorf("accept guardian invitation %d: %w", invitation.GuardianProfileID, err)
 		}
 	}
@@ -99,16 +106,15 @@ func familyAppGuardians(guardianIDs map[string]int64, parents []ParentCredential
 }
 
 type enrollmentInvitation struct {
-	ID                int64  `json:"id"`
-	GuardianProfileID int64  `json:"guardian_profile_id"`
-	Token             string `json:"token"`
+	ID                int64 `json:"id"`
+	GuardianProfileID int64 `json:"guardian_profile_id"`
 }
 
-// enrollmentInvitationsToAccept returns the redeemable invitations to accept,
-// keeping two guardians' invitations open for the demo overview. Its tokens
-// are exposed only to the locally authorized seeder.
+// enrollmentInvitationsToAccept returns the redeemable invitations whose
+// guardians get an account, keeping two guardians' invitations open for the
+// demo overview.
 func enrollmentInvitationsToAccept(rt *Runtime, auth AuthRef) ([]enrollmentInvitation, error) {
-	raw, err := rt.Client.GetWithAuthAndHeaders(auth, "/api/guardians/invitations/pending", map[string]string{seedTokenHeader: "true"})
+	raw, err := rt.Client.GetWithAuth(auth, "/api/guardians/invitations/pending")
 	if err != nil {
 		return nil, fmt.Errorf("list open guardian invitations: %w", err)
 	}
@@ -140,9 +146,6 @@ func enrollmentInvitationsToAccept(rt *Runtime, auth AuthRef) ([]enrollmentInvit
 		}
 		if keptGuardians[invitation.GuardianProfileID] {
 			continue
-		}
-		if invitation.Token == "" {
-			return nil, fmt.Errorf("open guardian invitation %d did not include seed token", invitation.ID)
 		}
 		result = append(result, invitation)
 	}
