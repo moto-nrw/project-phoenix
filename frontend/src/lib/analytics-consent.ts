@@ -150,7 +150,9 @@ export function startAnalyticsConsent(
   const key = `${portal}:${accountKey}`;
   if (sessionKey === key) {
     // A cleared analytics context forgets the answer; the session keeps it.
+    // A failed first read is tried again; collection stays off meanwhile.
     if (state.status === "ready") publishStored();
+    else if (state.status === "error") void loadAnalyticsConsent();
     return;
   }
   sessionKey = key;
@@ -184,7 +186,10 @@ function watchOtherTabs(): void {
 async function refreshAnalyticsConsent(): Promise<void> {
   const portal = state.portal;
   // A decision in flight owns the answer; its own result follows.
-  if (!portal || state.status !== "ready" || deciding) return;
+  if (!portal || deciding) return;
+  // A failed first read has no answer yet: read it again, still denying.
+  if (state.status === "error") return loadAnalyticsConsent();
+  if (state.status !== "ready") return;
   const current = ++sequence;
   try {
     const granted = await requestConsent(portal);

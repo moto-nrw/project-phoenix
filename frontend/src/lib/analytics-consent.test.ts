@@ -230,6 +230,24 @@ describe("analytics consent", () => {
     visibility.mockRestore();
   });
 
+  it("retries a failed first read when the page becomes visible or the session remounts", async () => {
+    fetchMock.mockResolvedValueOnce(answer(null, 500));
+    const { startAnalyticsConsent } = await load();
+    startAnalyticsConsent("tenant", "7");
+    await vi.waitFor(() => expect(published()).toEqual([false, false]));
+
+    // Still failing on the remount: collection stays off.
+    fetchMock.mockResolvedValueOnce(answer(null, 500));
+    startAnalyticsConsent("tenant", "7");
+    await vi.waitFor(() => expect(published()).toEqual([false, false, false]));
+
+    fetchMock.mockResolvedValueOnce(answer(true));
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(published().at(-1)).toBe(true));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("keeps collection off after a failed re-read until a read succeeds", async () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     const { startAnalyticsConsent } = await load();
