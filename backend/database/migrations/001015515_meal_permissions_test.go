@@ -136,12 +136,12 @@ func TestMealPermissionsMoveStoredLeadDaysWithoutReplacingExplicitValues(t *test
 		}
 		return result
 	}
-	want := map[int64]string{legacyTenant: "2", explicitTenant: "0"}
-	assert.Equal(t, want, values("operations.meal_registration_lead_days"))
+	assert.Equal(t, map[int64]string{legacyTenant: "4", explicitTenant: "0"}, values("operations.meal_registration_lead_days"),
+		"two working days become four calendar days; the explicit value wins")
 	assert.Empty(t, values("operations.meal_registration_cutoff_lead_days"))
 
 	require.NoError(t, mealPermissionsDown(ctx, db))
-	assert.Equal(t, want, values("operations.meal_registration_cutoff_lead_days"))
+	assert.Equal(t, map[int64]string{legacyTenant: "2", explicitTenant: "0"}, values("operations.meal_registration_cutoff_lead_days"))
 	assert.Empty(t, values("operations.meal_registration_lead_days"))
 }
 
@@ -191,8 +191,8 @@ func TestMealPermissionsAdoptTheCutoffSettingsOfDevelopment(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"operations.meal_registration_model":         "ongoing_split",
 		"operations.meal_cancellation_deadline_kind": "days_before",
-		"operations.meal_cancellation_lead_days":     "1",
-	}, settings(separate), "a weekday of 0 was no weekly cutoff")
+		"operations.meal_cancellation_lead_days":     "3",
+	}, settings(separate), "a weekday of 0 was no weekly cutoff; one working day is three calendar days")
 	assert.Equal(t, map[string]string{
 		"operations.meal_registration_model":         "annual",
 		"operations.meal_cancellation_deadline_kind": "days_before",
@@ -202,4 +202,49 @@ func TestMealPermissionsAdoptTheCutoffSettingsOfDevelopment(t *testing.T) {
 	assert.Equal(t, "3", settings(weekly)["operations.meal_registration_cutoff_weekday"])
 	assert.Equal(t, "true", settings(separate)["operations.meal_cancellation_cutoff_separate"])
 	assert.Equal(t, "1", settings(separate)["operations.meal_cancellation_cutoff_lead_days"])
+}
+
+// Development counted lead days as working days (#4866), the ordering rules
+// count calendar days. Up stores the longest span N working days cover
+// across weekends, N + 2*ceil(N/5), so no deadline moves later without a
+// holiday; Down restores exactly N.
+func TestMealPermissionsConvertWorkingLeadDaysToCalendarDays(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	conversions := map[string]string{"0": "0", "1": "3", "2": "4", "5": "7", "6": "10"}
+	tenants := make(map[int64]string, len(conversions))
+	for working := range conversions {
+		tenantID, _ := testpkg.CreateTestTenant(t, db)
+		tenants[tenantID] = working
+		_, err := db.NewRaw(`
+			INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES
+				(?, 'operations.meal_registration_cutoff_lead_days', ?::jsonb),
+				(?, 'operations.meal_cancellation_cutoff_separate', 'true'::jsonb),
+				(?, 'operations.meal_cancellation_cutoff_lead_days', ?::jsonb)
+		`, tenantID, working, tenantID, tenantID, working).Exec(ctx)
+		require.NoError(t, err)
+	}
+	stored := func(tenantID int64, key string) string {
+		t.Helper()
+		var value string
+		require.NoError(t, db.NewRaw(`
+			SELECT value #>> '{}' FROM config.setting_values WHERE tenant_id = ? AND setting_key = ?
+		`, tenantID, key).Scan(ctx, &value))
+		return value
+	}
+
+	require.NoError(t, mealPermissionsUp(ctx, db))
+	require.NoError(t, mealPermissionsUp(ctx, db), "a rerun converts nothing twice")
+	for tenantID, working := range tenants {
+		assert.Equal(t, conversions[working], stored(tenantID, "operations.meal_registration_lead_days"), "registration lead of %s working days", working)
+		assert.Equal(t, conversions[working], stored(tenantID, "operations.meal_cancellation_lead_days"), "cancellation lead of %s working days", working)
+	}
+
+	require.NoError(t, mealPermissionsDown(ctx, db))
+	for tenantID, working := range tenants {
+		assert.Equal(t, working, stored(tenantID, "operations.meal_registration_cutoff_lead_days"), "Down restores %s working days", working)
+		assert.Equal(t, working, stored(tenantID, "operations.meal_cancellation_cutoff_lead_days"), "Down restores %s working days", working)
+	}
+	require.NoError(t, mealPermissionsUp(ctx, db))
 }

@@ -36,7 +36,7 @@ func init() {
 // hold all of them through admin:* anyway.
 func mealPermissionsUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
-		if err := renameMealLeadDays(ctx, tx, "operations.meal_registration_cutoff_lead_days", "operations.meal_registration_lead_days"); err != nil {
+		if err := moveMealLeadDays(ctx, tx, "operations.meal_registration_cutoff_lead_days", "operations.meal_registration_lead_days", true); err != nil {
 			return err
 		}
 		if err := adoptMealCutoffSettings(ctx, tx); err != nil {
@@ -70,7 +70,7 @@ func mealPermissionsDown(ctx context.Context, db *bun.DB) error {
 	if err := restoreMealCutoffSettings(ctx, db); err != nil {
 		return err
 	}
-	return renameMealLeadDays(ctx, db, "operations.meal_registration_lead_days", "operations.meal_registration_cutoff_lead_days")
+	return moveMealLeadDays(ctx, db, "operations.meal_registration_lead_days", "operations.meal_registration_cutoff_lead_days", false)
 }
 
 // adoptMealCutoffSettings carries the cutoffs of #3164 into the ordering
@@ -83,14 +83,14 @@ func adoptMealCutoffSettings(ctx context.Context, db bun.IDB) error {
 	if _, err := db.ExecContext(ctx, adoptMealCutoffSettingsSQL); err != nil {
 		return fmt.Errorf("adopt the meal cutoff settings: %w", err)
 	}
-	return renameMealLeadDays(ctx, db, "operations.meal_cancellation_cutoff_lead_days", "operations.meal_cancellation_lead_days")
+	return moveMealLeadDays(ctx, db, "operations.meal_cancellation_cutoff_lead_days", "operations.meal_cancellation_lead_days", true)
 }
 
 func restoreMealCutoffSettings(ctx context.Context, db bun.IDB) error {
 	if _, err := db.ExecContext(ctx, restoreMealCutoffSettingsSQL); err != nil {
 		return fmt.Errorf("restore the meal cutoff settings: %w", err)
 	}
-	return renameMealLeadDays(ctx, db, "operations.meal_cancellation_lead_days", "operations.meal_cancellation_cutoff_lead_days")
+	return moveMealLeadDays(ctx, db, "operations.meal_cancellation_lead_days", "operations.meal_cancellation_cutoff_lead_days", false)
 }
 
 const adoptMealCutoffSettingsSQL = `
@@ -135,17 +135,53 @@ const restoreMealCutoffSettingsSQL = `
 	ON CONFLICT (tenant_id, setting_key) DO NOTHING;
 `
 
-// Keep stored lead counts when moving to the ordering rules. An explicit
-// value at the destination wins, including zero; a rerun changes nothing.
-func renameMealLeadDays(ctx context.Context, db bun.IDB, from, to string) error {
-	_, err := db.NewRaw(`
+// Development's #4866 counts lead days as working days: weekends, holidays
+// and closing days do not count. The ordering rules count calendar days. N
+// working days span at most N + 2*ceil(N/5) calendar days across weekends
+// (1 -> 3, 2 -> 4, 5 -> 7, 6 -> 10), so Up stores that span and no deadline
+// moves later unless a holiday or closing day falls into the lead
+// (docs/operations/essensfristen-umrechnung-3873.md lists those schools).
+// 0 stays 0. The conversion is strictly increasing, so Down maps every value
+// Up wrote back to exactly its N; a value a school set afterwards that no N
+// converts to becomes the smallest N whose span covers it, so the deadline
+// does not move later across weekends either.
+const (
+	workingToCalendarLeadDaysSQL = `
 		DELETE FROM config.setting_values AS old
 		USING config.setting_values AS current
 		WHERE old.tenant_id = current.tenant_id AND old.setting_key = ? AND current.setting_key = ?;
-		UPDATE config.setting_values SET setting_key = ? WHERE setting_key = ?;
-	`, from, to, to, from).Exec(ctx)
+		UPDATE config.setting_values SET setting_key = ?,
+			value = CASE WHEN jsonb_typeof(value) = 'number' AND (value::text)::numeric >= 0
+				THEN to_jsonb(((value::text)::numeric::int + 2 * ceil((value::text)::numeric::int / 5.0))::int)
+				ELSE value END
+		WHERE setting_key = ?;
+	`
+	calendarToWorkingLeadDaysSQL = `
+		DELETE FROM config.setting_values AS old
+		USING config.setting_values AS current
+		WHERE old.tenant_id = current.tenant_id AND old.setting_key = ? AND current.setting_key = ?;
+		UPDATE config.setting_values SET setting_key = ?,
+			value = CASE WHEN jsonb_typeof(value) = 'number' AND (value::text)::numeric >= 0
+				THEN to_jsonb((SELECT min(n) FROM generate_series(0, (value::text)::numeric::int) AS n
+					WHERE n + 2 * ceil(n / 5.0) >= (value::text)::numeric::int)::int)
+				ELSE value END
+		WHERE setting_key = ?;
+	`
+)
+
+// moveMealLeadDays moves stored lead counts between the keys of development
+// and of the ordering rules, to calendar days (Up) or back to working days
+// (Down). An explicit value at the destination wins, including zero; a
+// rerun changes nothing.
+func moveMealLeadDays(ctx context.Context, db bun.IDB, from, to string, toCalendarDays bool) error {
+	var err error
+	if toCalendarDays {
+		_, err = db.NewRaw(workingToCalendarLeadDaysSQL, from, to, to, from).Exec(ctx)
+	} else {
+		_, err = db.NewRaw(calendarToWorkingLeadDaysSQL, from, to, to, from).Exec(ctx)
+	}
 	if err != nil {
-		return fmt.Errorf("move meal registration lead days: %w", err)
+		return fmt.Errorf("move meal lead days from %s: %w", from, err)
 	}
 	return nil
 }
