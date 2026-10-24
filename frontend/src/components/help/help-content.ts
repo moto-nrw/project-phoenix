@@ -7518,13 +7518,13 @@ function teacherClassListTopic(): HelpTopic {
 }
 
 /**
- * Anwesenheit am Morgen (#4790): die Lehrkraft markiert heute je Kind „Da“
+ * Anwesenheit am Vormittag (#4790): die Lehrkraft markiert heute je Kind „Da“
  * oder „Fehlt“ und speichert. Gespeichert getrennt von der OGS-Anwesenheit.
  */
 function teacherMorningAttendanceTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.teacherMorningAttendance,
-    title: "Anwesenheit am Morgen eintragen",
+    title: "Anwesenheit am Vormittag eintragen",
     question: "Wie trage ich ein, wer heute da ist?",
     summary: "Sie markieren bei jedem Kind „Da“ oder „Fehlt“ und speichern.",
     group: "klasse",

@@ -90,7 +90,10 @@ func TestSchoolErasureDeletesMorningAttendance(t *testing.T) {
 	erasureExec(t, db, `INSERT INTO active.morning_attendance (tenant_id, date, student_id, class_list_entry_id, status)
 		VALUES (?, '2026-10-21', ?, NULL, 'present'), (?, '2026-10-21', NULL, ?, 'absent')`, school, student.ID, school, entry.ID)
 
-	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, school, beginErasure(t, db, school)).Status)
+	result := eraseSchoolAsCLI(t, db, school, beginErasure(t, db, school))
+	assert.Equal(t, "db_done", result.Status)
+	assert.EqualValues(t, 2, result.RowCounts["active.morning_attendance"],
+		"the delete phase removes the rows itself, before the parents would cascade them")
 	var left int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM active.morning_attendance WHERE tenant_id = ?`, school).Scan(t.Context(), &left))
 	assert.Zero(t, left)

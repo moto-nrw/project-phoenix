@@ -212,10 +212,11 @@ func morningAttendanceUp(ctx context.Context, db *bun.DB) error {
 	if err := installSchoolErasurePreview(ctx, tx); err != nil {
 		return fmt.Errorf("extend school erasure preview: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
+	// Tenant isolation commits with the table, never after its grants.
+	if err := provisionTenantRLS(ctx, tx, "active.morning_attendance"); err != nil {
 		return err
 	}
-	if err := provisionTenantRLS(ctx, db, "active.morning_attendance"); err != nil {
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	return grantPermissionToRoles(ctx, db, permissionSpec{
