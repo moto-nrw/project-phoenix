@@ -580,7 +580,7 @@ export function ClassDayClass({
           targetLabel={schoolClassLabel(schoolClass)}
           students={tripStudents}
           onSuccess={() => void refetchReport()}
-          schoolReport={{ save: saveClassTrip }}
+          schoolReport={{ save: saveClassTrip, defaultDate: dateISO }}
         />
       ) : null}
       {schoolClass && canWriteArrivalException ? (

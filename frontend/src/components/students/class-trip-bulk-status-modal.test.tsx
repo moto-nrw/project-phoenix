@@ -393,3 +393,55 @@ describe("ClassTripBulkStatusModal in moto schule (#4799)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe("ClassTripBulkStatusModal date defaults in moto schule (#4799)", () => {
+  const child = [
+    {
+      id: "11",
+      name: "Anna Ausflug",
+      first_name: "Anna",
+      second_name: "Ausflug",
+    },
+  ];
+
+  it("starts on the day the class view shows and offers no return time on a weekend", () => {
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={vi.fn()}
+        targetLabel="Klasse 3b"
+        students={child}
+        schoolReport={{ save: vi.fn(), defaultDate: "2026-09-12" }}
+      />,
+    );
+
+    // 2026-09-12 is a Saturday: the trip starts there, but no child comes
+    // to the OGS, so there is no return time.
+    expect(screen.getByLabelText("Von")).toHaveValue("2026-09-12");
+    expect(screen.getByLabelText("Bis")).toHaveValue("2026-09-12");
+    expect(screen.queryByLabelText(/Rückkehrzeit/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Anna Ausflug")).toBeChecked();
+
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-09-14" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-09-14" },
+    });
+    expect(screen.getByLabelText(/Rückkehrzeit/)).toBeInTheDocument();
+  });
+
+  it("starts today when the class view shows a past day", () => {
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={vi.fn()}
+        targetLabel="Klasse 3b"
+        students={child}
+        schoolReport={{ save: vi.fn(), defaultDate: "2026-09-01" }}
+      />,
+    );
+
+    expect(screen.getByLabelText("Von")).toHaveValue("2026-09-09");
+  });
+});
