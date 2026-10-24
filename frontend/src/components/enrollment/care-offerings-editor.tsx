@@ -38,7 +38,14 @@ import {
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
+  offeringOccupancy,
+  totalFreePlaces,
 } from "~/lib/care-offering-booking-stats";
+import {
+  OfferingFullBadge,
+  OfferingOccupancyCell,
+  occupancySortValue,
+} from "~/components/enrollment/offering-occupancy";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -456,9 +463,10 @@ export function CareOfferingsEditor({
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
   // Booking stats are display-only (#2186): the availability-rule editor uses
-  // them to say how many existing bookings a rule would contradict. A failure
-  // to load them must never block catalog editing; the rule editor then says
-  // the count is unknown instead of reading as "no conflicts".
+  // them to say how many existing bookings a rule would contradict, the list
+  // shows occupancy and free places (#4782). A failure to load them must never
+  // block catalog editing; the list then hides the numbers, and the rule
+  // editor says the count is unknown instead of reading as "no conflicts".
   const [bookingStats, setBookingStats] = useState<
     Record<string, CareOfferingBookingStats>
   >({});
@@ -493,6 +501,9 @@ export function CareOfferingsEditor({
     if (offering.capacity == null) return sum;
     return sum + offering.capacity;
   }, 0);
+  const freePlaces = bookingStatsUnavailable
+    ? null
+    : totalFreePlaces(offerings, bookingStats);
   const autoAddRules = useMemo(() => {
     const offeringsById = new Map(
       offerings.map((offering) => [offering.id, offering]),
@@ -882,6 +893,17 @@ export function CareOfferingsEditor({
         ),
       },
       {
+        key: "occupancy",
+        header: "Belegt",
+        sortValue: (offering) =>
+          occupancySortValue(offeringOccupancy(bookingStats[offering.id])),
+        render: (offering) => (
+          <OfferingOccupancyCell
+            occupancy={offeringOccupancy(bookingStats[offering.id])}
+          />
+        ),
+      },
+      {
         key: "price",
         header: "Preis",
         sortValue: (offering) => offering.price_cents ?? 0,
@@ -896,7 +918,12 @@ export function CareOfferingsEditor({
         header: "Status",
         sortValue: (offering) => (offering.is_active ? 1 : 0),
         render: (offering) => (
-          <DataTableStatusBadge active={offering.is_active} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DataTableStatusBadge active={offering.is_active} />
+            <OfferingFullBadge
+              occupancy={offeringOccupancy(bookingStats[offering.id])}
+            />
+          </div>
         ),
       },
       {
@@ -925,6 +952,7 @@ export function CareOfferingsEditor({
     ],
     [
       beginEdit,
+      bookingStats,
       deletingId,
       gradeLevelMax,
       saving,
@@ -966,6 +994,7 @@ export function CareOfferingsEditor({
             activeOfferingCount={activeOfferingCount}
             selectableDaysCount={selectableDaysCount}
             totalCapacity={totalCapacity}
+            freePlaces={freePlaces}
             focusMode={Boolean(draft || cloneSource)}
             onPhaseChange={(phaseId) => {
               selectedPhaseIdRef.current = phaseId;
@@ -1057,6 +1086,10 @@ export function CareOfferingsEditor({
             <DataTable
               columns={columns}
               rows={offerings}
+              // Ohne geladene Belegung fehlt die Spalte, statt leer zu stehen.
+              hiddenColumns={
+                bookingStatsUnavailable ? OCCUPANCY_COLUMN_HIDDEN : undefined
+              }
               getRowKey={(offering) => offering.id}
               defaultSortKey="name"
               defaultSortDirection="asc"
@@ -1092,6 +1125,8 @@ export function CareOfferingsEditor({
   );
 }
 
+const OCCUPANCY_COLUMN_HIDDEN: ReadonlySet<string> = new Set(["occupancy"]);
+
 function CareOfferingToolbar({
   phases,
   selectedPhaseId,
@@ -1099,6 +1134,7 @@ function CareOfferingToolbar({
   activeOfferingCount,
   selectableDaysCount,
   totalCapacity,
+  freePlaces,
   focusMode,
   onPhaseChange,
   onCreate,
@@ -1109,6 +1145,8 @@ function CareOfferingToolbar({
   activeOfferingCount: number;
   selectableDaysCount: number;
   totalCapacity: number;
+  /** Free places of the phase; null while unknown or without any limit. */
+  freePlaces: number | null;
   focusMode: boolean;
   onPhaseChange: (phaseId: string) => void;
   onCreate: () => void;
@@ -1139,6 +1177,11 @@ function CareOfferingToolbar({
             icon={<MotoConceptIcon concept="children" size={18} />}
             label="Kapazität"
             value={totalCapacity || "frei"}
+            detail={
+              totalCapacity && freePlaces != null
+                ? `${freePlaces} frei`
+                : undefined
+            }
           />
         </div>
 
@@ -1179,10 +1222,13 @@ function CareOfferingMetric({
   icon,
   label,
   value,
+  detail,
 }: Readonly<{
   icon: React.ReactNode;
   label: string;
   value: number | string;
+  /** Second figure next to the label, e.g. the free places. */
+  detail?: string;
 }>) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
@@ -1193,7 +1239,9 @@ function CareOfferingMetric({
         <span className="block text-sm font-semibold text-gray-900">
           {value}
         </span>
-        <span className="block text-xs text-gray-500">{label}</span>
+        <span className="block text-xs text-gray-500">
+          {detail ? `${label} · ${detail}` : label}
+        </span>
       </span>
     </div>
   );
