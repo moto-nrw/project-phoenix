@@ -56,6 +56,10 @@
     "action": "own"
   },
   {
+    "resource": "calendar",
+    "action": "school"
+  },
+  {
     "resource": "class_day",
     "action": "all_classes"
   },

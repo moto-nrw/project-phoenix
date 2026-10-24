@@ -11,6 +11,9 @@ import (
 type targetRecipients struct {
 	staffIDs         map[int64]struct{}
 	guardianStudents map[int64]map[int64]struct{}
+	// allowEmptyParents lets a bulk parent target without reachable guardians
+	// add nobody instead of rejecting the appointment.
+	allowEmptyParents bool
 }
 
 func (r *targetRecipients) addTarget(readSet *targetResolutionReadSet, target AppointmentTarget) error {
@@ -18,9 +21,11 @@ func (r *targetRecipients) addTarget(readSet *targetResolutionReadSet, target Ap
 	case appointmentcap.TargetTypeAllStaff:
 		// Only invite staff with an active account and calendar:own; unreachable
 		// staff would leave RSVP appointments permanently pending.
-		for staffID := range readSet.reachableStaff {
-			r.staffIDs[staffID] = struct{}{}
-		}
+		r.addStaff(readSet.reachableStaff)
+	case appointmentcap.TargetTypeAllTeachers:
+		// Only invite school-portal staff with calendar:school or calendar:own;
+		// unreachable teachers would leave RSVP appointments pending.
+		r.addStaff(readSet.teachers)
 	case appointmentcap.TargetTypeStaff:
 		if !readSet.reachableStaff[*target.ID] {
 			return fmt.Errorf("%w: staff target is not available", ErrInvalidRequest)
@@ -31,26 +36,33 @@ func (r *targetRecipients) addTarget(readSet *targetResolutionReadSet, target Ap
 	case appointmentcap.TargetTypeAllSchoolParents:
 		// Only active students' portal-active guardians receive school-wide
 		// appointments. All reads have already been batched in the read set.
-		if r.addStudentsGuardians(readSet, activeStudentIDs(readSet.allSchoolStudents)) == 0 {
-			return fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
-		}
+		return r.requireGuardians(r.addStudentsGuardians(readSet, activeStudentIDs(readSet.allSchoolStudents)), "no reachable guardians at this school")
 	case appointmentcap.TargetTypeParentsByStudent:
-		if r.addStudentGuardians(readSet, *target.ID) == 0 {
-			return fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
-		}
+		return r.requireGuardians(r.addStudentGuardians(readSet, *target.ID), "parent target has no reachable guardians")
 	case appointmentcap.TargetTypeParentsByGroup:
 		// A former student still assigned to the group must not receive its invite.
 		studentIDs := activeStudentIDs(readSet.studentsByGroup[*target.ID])
-		if r.addStudentsGuardians(readSet, studentIDs) == 0 {
-			return fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
-		}
+		return r.requireGuardians(r.addStudentsGuardians(readSet, studentIDs), "parent target has no reachable guardians")
 	case appointmentcap.TargetTypeParentsByClass:
 		studentIDs := activeStudentIDs(readSet.studentsByClass[normalizeCalendarClass(*target.Value)])
-		if r.addStudentsGuardians(readSet, studentIDs) == 0 {
-			return fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
-		}
+		return r.requireGuardians(r.addStudentsGuardians(readSet, studentIDs), "parent target has no reachable guardians")
 	}
 	return nil
+}
+
+func (r *targetRecipients) addStaff(staffIDs map[int64]bool) {
+	for staffID := range staffIDs {
+		r.staffIDs[staffID] = struct{}{}
+	}
+}
+
+// requireGuardians rejects a parent target that reached nobody, unless the
+// caller allows empty parent targets (Schultermine, #4798).
+func (r *targetRecipients) requireGuardians(added int, reason string) error {
+	if added > 0 || r.allowEmptyParents {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", ErrInvalidRequest, reason)
 }
 
 func (r *targetRecipients) addGuardianTarget(readSet *targetResolutionReadSet, guardianProfileID int64) error {
