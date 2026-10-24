@@ -1800,6 +1800,10 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
       // #3945: Tagesanfrage mit Abholart.
       "Eine Anfrage für einen einzelnen Tag kann die Abholzeit, die Abholart oder beides ändern. Die neue Abholart gilt nur an diesem Tag.",
+      // #4780: Abholperson fuer einen Tag und Abholberechtigung je Wochentag.
+      "Eine Anfrage für einen Tag kann auch eine Abholperson nennen. Nach dem Freigeben steht beim Kind für diesen Tag `Abholung durch ... (Erlaubnis der Eltern)`.",
+      "Eine `Abholberechtigung` trägt eine Kontaktperson als abholberechtigt ein, an allen Tagen oder nur an bestimmten Tagen. Sie gilt erst nach dem Freigeben.",
+      "Haben die Eltern unterschrieben, öffnen Sie mit `Nachweis (PDF)` die Erklärung und die Unterschrift.",
       // #3946: freigegebene Tagesänderung markiert die Kinderkarte.
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
@@ -6561,6 +6565,8 @@ function parentGuardiansTopic(): HelpTopic {
           "Wählen Sie im Fenster `Kontakt hinzufügen` die `Beziehung zum Kind`.",
           "Schalten Sie bei Bedarf `Darf abholen` und `Notfallkontakt` ein.",
           "Tragen Sie `Vorname` und `Nachname` ein.",
+          "Mit `Darf abholen` wählen Sie bei `An welchen Tagen?` alle Tage oder einzelne Tage.",
+          "Unterschreiben Sie die Erlaubnis im Feld und tippen Sie auf `Unterschrift bestätigen`.",
           "Tippen Sie unten auf `Kontakt hinzufügen`.",
         ],
       },
@@ -6571,6 +6577,8 @@ function parentGuardiansTopic(): HelpTopic {
         steps: [
           "Tippen Sie bei der Person auf das zweite Symbol `Abholrecht verwalten`.",
           "Schalten Sie im Fenster `Abholung verwalten` `Darf abholen` ein oder aus.",
+          "Wählen Sie bei `An welchen Tagen?` `An allen Tagen` oder `Nur an bestimmten Tagen` und dann die Tage.",
+          "Erteilen oder ändern Sie das Abholrecht, unterschreiben Sie im Feld. Tippen Sie auf `Unterschrift bestätigen`.",
           "Schalten Sie bei Bedarf `Notfallkontakt` ein.",
           "Tragen Sie bei Bedarf einen `Hinweis zur Abholung` ein.",
           "Tippen Sie auf `Speichern`.",
@@ -6587,9 +6595,12 @@ function parentGuardiansTopic(): HelpTopic {
       },
     ],
     result:
-      "Die OGS sieht den Kontakt sofort. Die Kennzeichen stehen an der Person.",
+      "Die OGS sieht den Kontakt sofort. Ein neues oder geändertes Abholrecht gilt erst, wenn die OGS es bestätigt hat. Bis dahin steht an der Person `Wartet auf die OGS`.",
     notes: [
-      "An einer Person stehen `Primär`, `Darf abholen` oder `Notfallkontakt`.",
+      "An einer Person stehen `Primär`, `Darf abholen` oder `Notfallkontakt`. Gilt das Abholrecht nur an manchen Tagen, steht dort zum Beispiel `Nur Di, Do`.",
+      "Sie unterschreiben als einfache elektronische Signatur mit gezeichneter Unterschrift. Statt zu zeichnen, können Sie mit `Namen tippen` Ihren Namen eintragen.",
+      "Das Abholrecht wegnehmen geht sofort und ohne Unterschrift.",
+      "Holt jemand nur an einem einzigen Tag ab? Dann ändern Sie die Abholung für diesen Tag.",
       "Ein Kontakt braucht kein eigenes Konto. Zum Beispiel Oma oder Opa.",
       "Eine E-Mail beim Kontakt lädt niemanden ein. Der App-Zugang ist ein eigener Schritt.",
     ],
@@ -6601,6 +6612,7 @@ function parentGuardiansTopic(): HelpTopic {
       "moto sagt, die Kontaktdaten würden von der Schule verwaltet? Dann wenden Sie sich an die OGS.",
       "Die Verwaltung ist deaktiviert? Dann nimmt Ihre OGS das nicht über die App an.",
       "`Einladen` fehlt? Dann dürfen Sie für dieses Kind niemanden einladen. Fragen Sie die OGS.",
+      "`Darf abholen` fehlt bei einer Person mit eigenem Konto? Ein Elternteil mit eigenem Konto regelt die OGS. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.parentChildData,
@@ -6677,21 +6689,27 @@ function parentPickupChangeTopic(): HelpTopic {
       "Tippen Sie unter `Heute` auf `Abholzeit für ... ändern`.",
       "Wählen Sie bei `Tag` den betroffenen Tag.",
       "Tragen Sie bei `Abholzeit` die neue Zeit ein, zum Beispiel 15:30.",
+      "Holt jemand anderes ab? Wählen Sie bei `Wer holt ab?` die Person.",
       "Tragen Sie bei `Grund für die Änderung` kurz ein, warum.",
+      "Haben Sie eine Person gewählt, unterschreiben Sie die Erlaubnis im Feld. Tippen Sie auf `Unterschrift bestätigen`.",
       "Tippen Sie auf `Anfrage senden`.",
     ],
     result:
-      "Die Änderung gilt erst, nachdem die OGS sie bestätigt hat. Der reguläre Wochenplan bleibt unverändert.",
+      "Die Änderung gilt erst, nachdem die OGS sie bestätigt hat. Der reguläre Wochenplan bleibt unverändert. Eine gewählte Person darf nur an diesem Tag abholen.",
     differences: [
       "Steht dort `Abholung für ... ändern`? Dann können Sie auch die Abholart ändern. Wählen Sie bei `Abholart an diesem Tag` zum Beispiel `Wird abgeholt`. Lassen Sie `Abholzeit` leer, wenn die Uhrzeit gleich bleibt.",
       "Hat die OGS die Abholart für den Tag schon festgelegt? Dann steht sie im Fenster. Für eine Änderung schreiben Sie der OGS.",
+      "Wählen Sie `Geht allein` für den Tag? Dann unterschreiben Sie auch diese Erlaubnis.",
     ],
     notes: [
       "Der Grund ist Pflicht und darf höchstens 255 Zeichen lang sein.",
+      "Bei `Wer holt ab?` stehen nur Personen, die Sie bei den Kontakten eingetragen haben. Eine neue Person tragen Sie vorher dort ein.",
+      "Nach dem Senden finden Sie bei der Anfrage `Nachweis (PDF)`. Darin stehen Ihre Erklärung und Ihre Unterschrift.",
       "Soll sich die Zeit dauerhaft ändern? Dann fragen Sie eine Änderung der Betreuung an.",
     ],
     troubleshootingDetails: [
       "moto sagt, das Ändern der Abholzeit sei für diese OGS nicht aktiviert? Dann schreiben Sie der OGS eine Nachricht.",
+      "`Wer holt ab?` fehlt? Dann haben Sie noch keine weitere Person bei den Kontakten eingetragen.",
     ],
     related: [
       HELP_TOPICS.parentCareChange,
@@ -6773,6 +6791,7 @@ function parentCareChangeTopic(): HelpTopic {
           "Wählen Sie den Reiter `Betreuung`.",
           "Tippen Sie bei `Dein OGS Wochenplan` auf `Änderungen anfragen`.",
           "Schalten Sie je Tag `Betreuung an diesem Tag` ein oder aus.",
+          "Wählen Sie bei einem Tag `Geht allein`? Dann unterschreiben Sie die Erlaubnis im Feld und tippen auf `Unterschrift bestätigen`.",
           "Tippen Sie auf `Anfrage an OGS senden`.",
         ],
       },
