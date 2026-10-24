@@ -608,8 +608,9 @@ var moduleFuncLenAllowlist = map[string]int{
 	"realtime/hub.go:(*Hub).Unregister": 67,
 	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
-	"roots/owners/root_worker.go:ComposeWorker":                                              345,
-	"roots/owners/worker.go:NewWorker":                                                       89,
+	// ADR 0078: the worker composes the Meal Plan whose orders it settles.
+	"roots/owners/root_worker.go:ComposeWorker": 347,
+	"roots/owners/worker.go:NewWorker":          89,
 	// ADR 0087.
 	"seed/avatar/avatar.go:tracePath": 64,
 	// ADR 0087.

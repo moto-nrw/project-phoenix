@@ -149,8 +149,8 @@ what the caterer adds. Together with
    to the supply lock.
 4. `modulePassthroughOwnerBudgets["modules/mealplan"]` falls from 3 to 1: the
    supply left the Meal Plan.
-5. With ADR 0078, `modulePassthroughOwnerBudgetTotal` is 1,407 (1,406 on
-   development) and `moduleComposeBudgetTotal` 12,497 (12,378).
+5. With ADR 0078, `modulePassthroughOwnerBudgetTotal` is 1,402 (1,401 on
+   development) and `moduleComposeBudgetTotal` 12,504 (12,385).
 
 The Meal Plan's public contract splits into `Menu`, `Registration` and
 `Ordering`, each at most twelve methods wide; `Capability` embeds all three.

@@ -64,13 +64,17 @@ What remains in this change:
    307.
 3. `moduleComposeBudgetTotal` rises by the same 37 lines; with
    [ADR 0077](0077-the-caterer-is-an-identity-across-schools.md) it is
-   12,497 (12,378 on development).
+   12,504 (12,385 on development).
 4. `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
    to 18 for the adapter's week method.
-5. `modulePassthroughOwnerBudgets["modules/mealplan"]` does not rise: the
+5. `moduleFuncLenAllowlist["roots/owners/root_worker.go:ComposeWorker"]`
+   rises from 345 to 347. Development no longer composes the Meal Plan in
+   the worker; the worker settles the orders at their deadline, so it builds
+   the Meal Plan again, in one step and one variable (`workerMealPlan`).
+6. `modulePassthroughOwnerBudgets["modules/mealplan"]` does not rise: the
    rule methods replaced two delegations, and the engine methods of the
    orders and of their settling add one each.
-6. The raise covers exactly the methods named above. Every other number keeps
+7. The raise covers exactly the methods named above. Every other number keeps
    falling under ADR 0057 point 5.
 
 ## Consequences
