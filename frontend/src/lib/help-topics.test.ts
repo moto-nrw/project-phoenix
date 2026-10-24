@@ -329,8 +329,9 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    // 42 seit #3821 („Eigenen Dienstplan ansehen“).
-    expect(caregiverTopics).toHaveLength(43);
+    // 42 seit #3821 („Eigenen Dienstplan ansehen“), 44 seit #4901
+    // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
+    expect(caregiverTopics).toHaveLength(44);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -509,7 +510,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            43 -
+            44 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -548,7 +549,8 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    expect(leadTopics).toHaveLength(85);
+    // 86 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(leadTopics).toHaveLength(86);
     expect(
       leadTopics.every(
         (topic) =>
@@ -573,7 +575,8 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(23);
+    // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(parentTopics).toHaveLength(24);
     expect(
       parentTopics.every(
         (topic) =>
@@ -607,7 +610,8 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(20);
+    // 21 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(teacherTopics).toHaveLength(21);
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
     expect(
       teacherTopics.every(

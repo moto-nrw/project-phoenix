@@ -261,6 +261,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps,
 		seedParentEngagementStep{},
+		seedAnalyticsConsentStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
