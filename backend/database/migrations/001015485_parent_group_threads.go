@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentGroupThreadsVersion     = "1.15.484"
+	parentGroupThreadsVersion     = "1.15.485"
 	parentGroupThreadsDescription = "Create parent group threads: the OGS writes to a group, class or AG; recipients are frozen per message; parents answer only the OGS in their child's conversation (#4784)"
 )
 
