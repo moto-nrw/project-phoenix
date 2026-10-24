@@ -277,6 +277,7 @@ describe("OperatorProvisioningService", () => {
         name: "GGS Europaschule",
         slug: "ggs-europa",
         subdomain: "ggs-europa",
+        email: "info@ggs-europa.example",
       });
 
       expect(mockOperatorFetch).toHaveBeenCalledWith(
@@ -288,6 +289,7 @@ describe("OperatorProvisioningService", () => {
             name: "GGS Europaschule",
             slug: "ggs-europa",
             subdomain: "ggs-europa",
+            email: "info@ggs-europa.example",
           },
         },
       );

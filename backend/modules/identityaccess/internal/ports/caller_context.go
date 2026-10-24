@@ -38,11 +38,13 @@ type CallerMembership interface {
 
 // CallerStructure reads the groups and school classes of a staff member.
 // SubstitutedGroups answers for the school's current day and flags the
-// groups whose regular staff slot is unassigned.
+// groups whose regular staff slot is unassigned. ListSchoolClasses lists
+// every class of the school, for a caller who reaches all of them (#4789).
 type CallerStructure interface {
 	TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error)
 	SubstitutedGroups(ctx context.Context, staffID int64) (map[int64]bool, error)
 	SchoolClasses(ctx context.Context, staffID int64) ([]string, error)
+	ListSchoolClasses(ctx context.Context) ([]string, error)
 }
 
 // CallerActivities reads the activity groups a staff member supervises as

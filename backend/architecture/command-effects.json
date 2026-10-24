@@ -36082,6 +36082,17 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerStructure.ListSchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.callerStructure.ListSchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ListSchoolClasses",
+      "target_owner": "people-directory",
+      "binding_digest": "2d2a156cfcfcabcb03545c5d9d8e6ca2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.ListSchoolClasses; modules/peopledirectory/ports/repository_contracts.go:127. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerStructure.SchoolClasses",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.callerStructure.SchoolClasses",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.StaffGroupQuery.ListSchoolClassesByStaff",
@@ -37423,6 +37434,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only already reviewed target: identity-access reaches modules/studentpresence.Owner.ListSupervisedLiveGroups (student-presence) through modules/identityaccess/internal/application.CallerSessions.SupervisedSessionIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.CallerStructure.ListSchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerStructure.ListSchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ListSchoolClasses",
+      "target_owner": "people-directory",
+      "binding_digest": "2d2a156cfcfcabcb03545c5d9d8e6ca2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.ListSchoolClasses; modules/peopledirectory/ports/repository_contracts.go:127. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
