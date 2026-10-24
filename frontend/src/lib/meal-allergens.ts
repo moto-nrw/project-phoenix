@@ -28,7 +28,7 @@ const ORDER = new Map<string, number>(
   MEAL_ALLERGENS.map((allergen, index) => [allergen.code, index]),
 );
 
-export function isMealAllergen(code: string): code is MealAllergen {
+function isMealAllergen(code: string): code is MealAllergen {
   return ORDER.has(code);
 }
 
