@@ -8341,7 +8341,8 @@ function analyticsConsentTopic(): HelpTopic {
     summary:
       "Das entscheiden nur Sie. Wenn Sie ablehnen, können Sie moto genauso nutzen.",
     group: "einstieg",
-    audience: "all",
+    // Das Träger-Portal (#4649) erfasst nichts und fragt deshalb nicht.
+    audience: ["caregiver", "lead", "parent", "teacher"],
     icon: "ChartLine",
     steps: [],
     instructionGroups: [
