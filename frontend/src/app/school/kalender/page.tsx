@@ -19,6 +19,8 @@ import {
   visibleCalendarEvents,
   type CalendarViewMode,
 } from "~/components/calendar/personal-calendar";
+import { Plus } from "lucide-react";
+
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -275,13 +277,27 @@ export default function SchoolCalendarPage() {
 
   return (
     <div className="-mt-1.5 w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Kalender
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Termine der OGS, Schließtage, Ferien und Ihre Schultermine.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
+            Kalender
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Termine der OGS, Schließtage, Ferien und Ihre Schultermine.
+          </p>
+        </div>
+        {/* Neben der Überschrift statt in der Zeitleiste: auf dem Handy
+            bleibt dort sonst kein Platz für Tag, Woche und Monat. */}
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          className="gap-1.5"
+          onClick={openCreate}
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          Neuer Termin
+        </Button>
       </div>
 
       <SectionCard>
@@ -293,7 +309,6 @@ export default function SchoolCalendarPage() {
           onShowWeekendChange={setShowWeekend}
           onDateChange={setReferenceDate}
           onViewModeChange={setViewMode}
-          onCreate={openCreate}
         />
       </SectionCard>
 
