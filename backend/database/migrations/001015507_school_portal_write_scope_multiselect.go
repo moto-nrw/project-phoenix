@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	schoolPortalWriteScopeMultiSelectVersion = "1.15.501"
+	schoolPortalWriteScopeMultiSelectVersion = "1.15.507"
 	schoolPortalWriteScopeMultiSelectKey     = "operations.school_portal_write_scope"
 )
 
@@ -18,7 +18,7 @@ func init() {
 		Description: "Turn the school portal write scope into a multi-select and keep each school's choice (#4799)",
 		DependsOn: []string{
 			configSettingValuesVersion, // config.setting_values
-			"1.15.499",                 // latest migration at authoring time
+			moduleNFCSwitchVersion,     // latest migration at authoring time
 		},
 	})
 	Migrations.MustRegister(schoolPortalWriteScopeMultiSelectUp, schoolPortalWriteScopeMultiSelectDown)

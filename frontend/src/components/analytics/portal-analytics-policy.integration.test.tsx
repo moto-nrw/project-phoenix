@@ -74,6 +74,7 @@ const tenant: TenantInfo = {
   presenceMode: "detailed",
   studentPhotosEnabled: false,
   nfcEnabled: false,
+  bookedModules: [],
   messagingEnabled: false,
   staffMessagingEnabled: false,
   displayEnabled: false,

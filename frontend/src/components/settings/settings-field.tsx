@@ -32,6 +32,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { MultiSelect } from "~/components/ui/multi-select";
+import { MODULE_SETTING_KEYS } from "~/lib/modules";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
@@ -73,6 +74,23 @@ const CONFIRM_ON_DISABLE: Record<
     confirmText: "Deaktivieren und Fotos löschen",
   },
 };
+
+// operator_managed settings (ADR 0048) say who decides them: the moto team,
+// by contract. Module switches (#4892) name the booking, every other one is a
+// retention window.
+function operatorManagedNote(
+  key: string,
+  audience: "admin" | "operator",
+): string {
+  if (MODULE_SETTING_KEYS.includes(key)) {
+    return audience === "operator"
+      ? "Gebuchtes Modul aus dem Vertrag. Die Schule sieht es, kann es aber nicht ändern."
+      : "Welche Module Ihre Schule hat, steht im Vertrag mit moto. Für eine Änderung wenden Sie sich an das moto-Team.";
+  }
+  return audience === "operator"
+    ? "Löschfrist aus dem Vertrag. Die Schule sieht sie, kann sie aber nicht ändern."
+    : "Diese Frist legt moto mit Ihrer Schule fest. Für eine Änderung wenden Sie sich an moto.";
+}
 
 function toStr(v: unknown): string {
   if (v == null) return "";
@@ -1029,9 +1047,7 @@ export function SettingsField({
         )}
         {isOperatorManaged(setting) && (
           <p className="mt-0.5 text-xs text-gray-500">
-            {audience === "operator"
-              ? "Löschfrist aus dem Vertrag. Die Schule sieht sie, kann sie aber nicht ändern."
-              : "Diese Frist legt moto mit Ihrer Schule fest. Für eine Änderung wenden Sie sich an moto."}
+            {operatorManagedNote(setting.key, audience)}
           </p>
         )}
         {legalTextWarning && (

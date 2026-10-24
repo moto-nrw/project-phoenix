@@ -143,6 +143,7 @@ var TabOrder = []string{
 	"gdpr",
 	"system",
 	"general",
+	"modules",
 }
 
 // Validate checks that a Definition has all required fields and consistent configuration.

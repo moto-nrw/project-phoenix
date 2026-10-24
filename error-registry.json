@@ -4283,6 +4283,24 @@
       "legacy": "settings.attendance_retention_below_visible"
     },
     {
+      "code": "settings.module_requires",
+      "class": "input",
+      "parameters": [
+        "module",
+        "required"
+      ],
+      "legacy": "settings.module_requires"
+    },
+    {
+      "code": "settings.module_required_by",
+      "class": "input",
+      "parameters": [
+        "module",
+        "dependents"
+      ],
+      "legacy": "settings.module_required_by"
+    },
+    {
       "code": "communication.announcement_not_found",
       "class": "business_rejection",
       "parameters": [],

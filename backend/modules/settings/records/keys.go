@@ -187,7 +187,6 @@ const (
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
 	KeyPresenceMode                          = "operations.presence_mode"
 	KeyAttendanceWebEnabled                  = "attendance.web_enabled"
-	KeyAttendanceNFCEnabled                  = "attendance.nfc_enabled"
 	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
 	KeyWebExceedParticipantLimit             = "attendance.web_exceed_participant_limit_enabled"
 	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
@@ -681,4 +680,22 @@ const (
 	KeyAnalyticsEnabled                = "analytics.enabled"
 	KeyAnalyticsFreigabe               = "analytics.freigabe"
 	KeyAnalyticsRecordingSamplePercent = "analytics.recording_sample_percent"
+)
+
+// Module switches (#4892): one per additional module of the module catalog.
+// The moto team books them per school (AccessOperatorManaged); records/modules.go
+// holds the list with names and prerequisites.
+const (
+	KeyModuleNFCAnwesenheit      = "module.nfc_anwesenheit"
+	KeyModuleMittagessen         = "module.mittagessen"
+	KeyModuleElternApp           = "module.eltern_app"
+	KeyModuleOnlineAnmeldung     = "module.online_anmeldung"
+	KeyModuleUnterrichtVormittag = "module.unterricht_vormittag"
+	KeyModuleDienstplan          = "module.dienstplan"
+	KeyModuleZeiterfassung       = "module.zeiterfassung"
+	KeyModulePersonalakte        = "module.personalakte"
+	KeyModuleTraegerUebersicht   = "module.traeger_uebersicht"
+	KeyModuleFerienbetreuung     = "module.ferienbetreuung"
+	KeyModuleVertraege           = "module.vertraege"
+	KeyModuleElternbeitraege     = "module.elternbeitraege"
 )
