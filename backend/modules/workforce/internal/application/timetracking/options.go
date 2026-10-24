@@ -101,13 +101,6 @@ func WithAbsenceDeletionAudit(audit TimeTrackingDeletionAudit) StaffAbsenceOptio
 	return func(s *staffAbsenceService) { s.deletionRepo = audit }
 }
 
-// WithAbsenceShiftPlanSyncer binds a fixed #1843 syncer for suites that drive
-// the service directly. Composition never binds one: each planned write
-// records its own plan, and an unplanned write refuses a sick cascade.
-func WithAbsenceShiftPlanSyncer(syncer ShiftPlanSyncer) StaffAbsenceOption {
-	return func(s *staffAbsenceService) { s.shiftPlanSyncer = syncer }
-}
-
 // WithAbsenceEvents binds the time-account change notification.
 func WithAbsenceEvents(publisher EventPublisher) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.broadcaster = publisher }
