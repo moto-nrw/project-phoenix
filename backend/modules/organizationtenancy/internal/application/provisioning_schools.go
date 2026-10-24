@@ -166,13 +166,6 @@ func (p *Provisioning) UpdateSchool(ctx context.Context, id int64, changes organ
 		if existing.IsDeleted() {
 			return nil, &organizationtenancy.SchoolAlreadyDeletedError{SchoolID: id}
 		}
-		// Only a changed address is checked: a school that predates the rule
-		// keeps its other edits until the operator adds the address (#2872).
-		if changes.Email != existing.Email {
-			if err := organizationtenancy.ValidateSchoolContactEmail(changes.Email); err != nil {
-				return nil, &organizationtenancy.InvalidProvisioningDataError{Err: err}
-			}
-		}
 		diff, err := p.schoolChangeSet(adminCtx, existing, changes)
 		if err != nil {
 			return nil, err
@@ -191,6 +184,19 @@ func (p *Provisioning) UpdateSchool(ctx context.Context, id int64, changes organ
 		}
 		return p.finishSchoolUpdate(adminCtx, existing, updated, changes, diff, operatorID, clientIP)
 	})
+}
+
+// schoolContactEmailChange checks a changed contact address. Only a change
+// is checked: a school that predates the rule keeps its other edits until the
+// operator adds the address (#2872).
+func schoolContactEmailChange(existing organizationtenancy.School, changes organizationtenancy.SchoolChanges) error {
+	if changes.Email == existing.Email {
+		return nil
+	}
+	if err := organizationtenancy.ValidateSchoolContactEmail(changes.Email); err != nil {
+		return &organizationtenancy.InvalidProvisioningDataError{Err: err}
+	}
+	return nil
 }
 
 // finishSchoolUpdate applies a changed Kinderkontingent and audits the
@@ -229,9 +235,12 @@ func childQuotaAudit(quota *organizationtenancy.ChildQuota) map[string]int {
 	return map[string]int{"bundles": quota.Bundles, "bundle_size": quota.BundleSize, "limit": quota.Limit()}
 }
 
-// schoolChangeSet checks the new organisation, slug and subdomain and
-// describes every changed audited field.
+// schoolChangeSet checks the new organisation, slug, subdomain and contact
+// address and describes every changed audited field.
 func (p *Provisioning) schoolChangeSet(ctx context.Context, existing organizationtenancy.School, changes organizationtenancy.SchoolChanges) (map[string]any, error) {
+	if err := schoolContactEmailChange(existing, changes); err != nil {
+		return nil, err
+	}
 	diff := map[string]any{}
 	if changes.OrganizationID != existing.OrganizationID {
 		organization, err := p.organizations.FindOrganizationForSchoolMutation(ctx, changes.OrganizationID)
