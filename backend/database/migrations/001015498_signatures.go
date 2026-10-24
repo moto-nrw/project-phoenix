@@ -9,7 +9,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const signaturesVersion = "1.15.497"
+const signaturesVersion = "1.15.498"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
