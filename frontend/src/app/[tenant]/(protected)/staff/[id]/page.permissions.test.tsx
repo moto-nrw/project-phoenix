@@ -378,6 +378,41 @@ describe("StaffDetailContent permissions", () => {
     }
   });
 
+  it("fällt nach einer entfernten Modulbuchung auf den ersten sichtbaren Reiter zurück", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["admin"],
+          permissions: ["admin:*"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    try {
+      const { rerender } = render(<StaffDetailContent />);
+      fireEvent.click(screen.getByRole("tab", { name: "Zeiterfassung" }));
+      expect(screen.getByTestId("zeiterfassung-tab")).toBeInTheDocument();
+
+      vi.mocked(useBookedModules).mockReturnValue(
+        MODULE_KEYS.filter((key) => key !== "zeiterfassung"),
+      );
+      rerender(<StaffDetailContent />);
+
+      // Anker: Stammdaten bleibt nach der Buchungsänderung sichtbar.
+      expect(
+        screen.getByRole("tab", { name: "Stammdaten" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("stammdaten-tab")).toBeInTheDocument();
+      expect(screen.queryByTestId("zeiterfassung-tab")).not.toBeInTheDocument();
+    } finally {
+      vi.mocked(useBookedModules).mockReturnValue([...MODULE_KEYS]);
+    }
+  });
+
   it("blendet Modul-Reiter bei früheren Beschäftigungen aus", () => {
     detailRequest.endedOn = "2026-07-31";
     vi.mocked(useBookedModules).mockReturnValue(

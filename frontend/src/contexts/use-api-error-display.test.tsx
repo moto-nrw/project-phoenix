@@ -5,7 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Input } from "~/components/ui/input";
 import {
   loginUrl,
@@ -15,6 +15,12 @@ import {
 import { clientEnv } from "~/env.client";
 import { ApiError } from "~/lib/api-error";
 import { releaseFakeTimers } from "~/test/clock";
+
+const mockUseSession = vi.hoisted(() => vi.fn());
+
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
+}));
 
 function TestForm({ error }: { error: ApiError }) {
   const display = useApiErrorDisplay();
@@ -33,6 +39,10 @@ function TestForm({ error }: { error: ApiError }) {
 }
 
 describe("useApiErrorDisplay", () => {
+  beforeEach(() => {
+    mockUseSession.mockReturnValue({ data: null, status: "unauthenticated" });
+  });
+
   it("shows a message the screen found itself as a lasting error toast", async () => {
     vi.useFakeTimers();
     try {
@@ -166,7 +176,7 @@ describe("useApiErrorDisplay", () => {
     expect(
       await screen.findByRole("status", { name: /^Information:/ }),
     ).toHaveTextContent(
-      "Für die Zeiterfassung fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+      "Diese Seite gehört zum Modul Zeiterfassung. Ihre Schule nutzt es nicht. Wenn Sie es brauchen, sprechen Sie mit Ihrer Leitung.",
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

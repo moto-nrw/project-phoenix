@@ -10,6 +10,7 @@ import React, {
   useState,
   type RefObject,
 } from "react";
+import { useSession } from "next-auth/react";
 import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
@@ -17,8 +18,10 @@ import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { ApiError } from "~/lib/api-error";
 import {
   announceModuleBookingStale,
+  moduleNotBookedExplanation,
   notBookedModuleOf,
 } from "~/lib/module-not-booked";
+import { seesLockedModules } from "~/lib/module-register";
 import type { ModuleKey } from "~/lib/modules";
 import {
   errorLogFields,
@@ -643,6 +646,7 @@ function useApiErrorCore(
 /** Opt-in display path for actions without a form (#2510). */
 export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
   const toast = useToast();
+  const { data: session } = useSession();
   const deliver = useCallback(
     (shown: DisplayedError) => {
       const options = {
@@ -651,12 +655,18 @@ export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
         requestIdLabel: shown.requestIdLabel,
       };
       if (shown.notBookedModule) {
-        toast.info(shown.message, options);
+        toast.info(
+          moduleNotBookedExplanation(
+            shown.notBookedModule,
+            seesLockedModules(session),
+          ),
+          options,
+        );
         return;
       }
       toast.error(shown.message, options);
     },
-    [toast],
+    [toast, session],
   );
   const core = useApiErrorCore(formRef, deliver, "toast");
   /**

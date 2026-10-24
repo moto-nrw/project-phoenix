@@ -495,23 +495,22 @@ export default function StaffDetailContent() {
     ...(canViewRecord ? [{ value: "konto", label: "Konto" }] : []),
   ];
 
-  const defaultTab =
-    requestedTab === "dokumente" && showDocuments
-      ? "dokumente"
-      : requestedTab === "zeiterfassung" && showTimeTracking
-        ? "zeiterfassung"
-        : requestedTab === "konto" && canViewRecord
-          ? "konto"
-          : showTimeTracking
-            ? "uebersicht"
-            : showStammdaten
-              ? "stammdaten"
-              : showDocuments
-                ? "dokumente"
-                : canViewRecord
-                  ? "konto"
-                  : "abwesenheiten";
-  const activeTab = selectedTab ?? defaultTab;
+  const hasVisibleTab = (tab: string | null): tab is string =>
+    tab !== null && tabItems.some((item) => item.value === tab);
+  const defaultTab = hasVisibleTab(requestedTab)
+    ? requestedTab
+    : showTimeTracking
+      ? "uebersicht"
+      : showStammdaten
+        ? "stammdaten"
+        : showDocuments
+          ? "dokumente"
+          : canViewRecord
+            ? "konto"
+            : (tabItems[0]?.value ?? "konto");
+  // Eine nachträglich entfernte Berechtigung oder Modulbuchung darf keinen
+  // leeren Bereich hinterlassen. Der erste noch sichtbare Reiter übernimmt.
+  const activeTab = hasVisibleTab(selectedTab) ? selectedTab : defaultTab;
 
   // Aktionen im Kebab der Kopfkarte (Bauart 2 Regel 1): die Kontoaktionen
   // mit eigenem Ablauf (#3116) und das Löschen. Bearbeitet wird im Reiter
