@@ -421,16 +421,19 @@ export default function StaffDetailContent() {
     );
   }
 
+  const tabBooked = (tab: string) =>
+    isScopeBooked(STAFF_TAB_MODULES[tab], bookedModules);
+
   if (staff?.endedOn) {
     return (
       <FormerEmploymentDetails
         staff={staff}
         referrer={referrer}
         backLabel={backLabel}
-        canViewSections={canViewStammdatenSections}
-        canViewFinancial={canViewFinancial}
-        canViewTimeTracking={canViewTimeTracking}
-        canViewDocuments={canViewDocuments}
+        canViewSections={canViewStammdatenSections && tabBooked("stammdaten")}
+        canViewFinancial={canViewFinancial && tabBooked("stammdaten")}
+        canViewTimeTracking={canViewTimeTracking && tabBooked("zeiterfassung")}
+        canViewDocuments={canViewDocuments && tabBooked("dokumente")}
       />
     );
   }
@@ -456,8 +459,6 @@ export default function StaffDetailContent() {
   // Arbeitszeitmodell und Abwesenheiten gehören zur Zeiterfassung,
   // Stammdaten und Dokumente zur Personalakte (Modul-Register). Ein Reiter
   // trägt kein Schloss: die Navigation zeigt der Leitung das Modul.
-  const tabBooked = (tab: string) =>
-    isScopeBooked(STAFF_TAB_MODULES[tab], bookedModules);
   const showTimeTracking = canViewTimeTracking && tabBooked("zeiterfassung");
   const showWorkTimeModel = canEdit && tabBooked("arbeitszeitmodell");
   const showAbsences = canManageAbsences && tabBooked("abwesenheiten");

@@ -378,6 +378,43 @@ describe("StaffDetailContent permissions", () => {
     }
   });
 
+  it("blendet Modul-Reiter bei früheren Beschäftigungen aus", () => {
+    detailRequest.endedOn = "2026-07-31";
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter(
+        (key) => key !== "zeiterfassung" && key !== "personalakte",
+      ),
+    );
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["admin"],
+          permissions: ["admin:*"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    try {
+      render(<StaffDetailContent />);
+
+      // Anker: Der Bereich der früheren Beschäftigung bleibt erreichbar.
+      expect(
+        screen.getByRole("tab", { name: "Beschäftigung" }),
+      ).toBeInTheDocument();
+      for (const label of ["Stammdaten", "Zeiterfassung", "Dokumente"]) {
+        expect(
+          screen.queryByRole("tab", { name: label }),
+        ).not.toBeInTheDocument();
+      }
+    } finally {
+      vi.mocked(useBookedModules).mockReturnValue([...MODULE_KEYS]);
+    }
+  });
+
   it("passes the selected date from a time-tracking deep link", () => {
     searchParams.set("tab", "zeiterfassung");
     searchParams.set("date", "2026-01-05");

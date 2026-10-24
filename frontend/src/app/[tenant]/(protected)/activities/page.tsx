@@ -26,6 +26,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
@@ -53,9 +54,11 @@ interface ActivitiesPageData {
 // page's main function — React rules forbid conditional hooks.
 export default function ActivitiesPage() {
   return (
-    <BinaryModeGuard title="Aktivitäten">
-      <ActivitiesPageContent />
-    </BinaryModeGuard>
+    <ModuleRouteGuard module="nfc_anwesenheit" title="Aktivitäten">
+      <BinaryModeGuard title="Aktivitäten">
+        <ActivitiesPageContent />
+      </BinaryModeGuard>
+    </ModuleRouteGuard>
   );
 }
 
