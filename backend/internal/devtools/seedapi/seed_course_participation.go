@@ -43,62 +43,93 @@ func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("fixed seeder not available")
 	}
 	dates := pastWeekdays(courseDemoWeeks)
+	instances, cancelled, err := seedCourseParticipation(rt, dates)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  %d course occurrences seeded (%d cancelled)\n", instances, cancelled)
+	return nil
+}
+
+func seedCourseParticipation(rt *Runtime, dates []seedDate) (int, int, error) {
 	instances, cancelled := 0, 0
-
-	for courseIndex, activity := range DemoActivities {
-		if courseIndex >= 3 {
-			break
-		}
-		roomID := rt.FixedSeeder.activityRoomIDs[rt.FixedSeeder.activityIDs[activity.Name]]
-		if roomID == 0 {
-			return fmt.Errorf("room not available for course %s", activity.Name)
-		}
-		activityID, err := createCourseTemplate(rt, activity.Name, roomID, dates)
+	for courseIndex, activity := range DemoActivities[:min(3, len(DemoActivities))] {
+		courseInstances, courseCancelled, err := seedCourseActivity(rt, courseIndex, activity.Name, dates)
 		if err != nil {
-			return err
+			return 0, 0, err
 		}
-		studentIDs := make([]int64, 0, courseDemoChildren)
-		for i := range courseDemoChildren {
-			if id, ok := rt.FixedSeeder.studentIDByIndex[i]; ok {
-				studentIDs = append(studentIDs, id)
-			}
-		}
-		if len(studentIDs) == 0 {
-			return fmt.Errorf("no students available for course %s", activity.Name)
-		}
+		instances += courseInstances
+		cancelled += courseCancelled
+	}
+	return instances, cancelled, nil
+}
 
-		for dateIndex, date := range dates {
-			instanceID, err := createCourseOccurrence(rt, activity.Name, date, roomID, activityID, studentIDs)
-			if err != nil {
-				return err
-			}
-			instances++
+func seedCourseActivity(rt *Runtime, courseIndex int, name string, dates []seedDate) (int, int, error) {
+	roomID := rt.FixedSeeder.activityRoomIDs[rt.FixedSeeder.activityIDs[name]]
+	if roomID == 0 {
+		return 0, 0, fmt.Errorf("room not available for course %s", name)
+	}
+	activityID, err := createCourseTemplate(rt, name, roomID, dates)
+	if err != nil {
+		return 0, 0, err
+	}
+	studentIDs := seedCourseStudentIDs(rt)
+	if len(studentIDs) == 0 {
+		return 0, 0, fmt.Errorf("no students available for course %s", name)
+	}
+	return seedCourseOccurrences(rt, courseIndex, name, dates, roomID, activityID, studentIDs)
+}
 
-			// The oldest date of the first course was cancelled.
-			if courseIndex == 0 && dateIndex == 0 {
-				if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/cancel", instanceID), map[string]any{
-					"reason": "Raum war belegt",
-				}); err != nil {
-					return fmt.Errorf("cancel course occurrence: %w", err)
-				}
-				cancelled++
-				continue
-			}
-
-			for studentIndex, studentID := range studentIDs {
-				status := courseAttendanceStatus(courseIndex, dateIndex, studentIndex, len(dates))
-				if status == "" {
-					continue // left undecided: the block was never finished
-				}
-				path := fmt.Sprintf("/api/timetable/instances/%d/students/%d", instanceID, studentID)
-				if _, err := rt.Client.Patch(path, map[string]any{"status": status}); err != nil {
-					return fmt.Errorf("record course attendance: %w", err)
-				}
-			}
+func seedCourseStudentIDs(rt *Runtime) []int64 {
+	studentIDs := make([]int64, 0, courseDemoChildren)
+	for i := range courseDemoChildren {
+		if id, ok := rt.FixedSeeder.studentIDByIndex[i]; ok {
+			studentIDs = append(studentIDs, id)
 		}
 	}
+	return studentIDs
+}
 
-	fmt.Printf("  %d course occurrences seeded (%d cancelled)\n", instances, cancelled)
+func seedCourseOccurrences(rt *Runtime, courseIndex int, name string, dates []seedDate, roomID, activityID int64, studentIDs []int64) (int, int, error) {
+	instances, cancelled := 0, 0
+	for dateIndex, date := range dates {
+		wasCancelled, err := seedCourseOccurrence(rt, courseIndex, dateIndex, name, date, roomID, activityID, studentIDs, len(dates))
+		if err != nil {
+			return 0, 0, err
+		}
+		instances++
+		if wasCancelled {
+			cancelled++
+		}
+	}
+	return instances, cancelled, nil
+}
+
+func seedCourseOccurrence(rt *Runtime, courseIndex, dateIndex int, name string, date seedDate, roomID, activityID int64, studentIDs []int64, dateCount int) (bool, error) {
+	instanceID, err := createCourseOccurrence(rt, name, date, roomID, activityID, studentIDs)
+	if err != nil {
+		return false, err
+	}
+	if courseIndex == 0 && dateIndex == 0 {
+		if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/cancel", instanceID), map[string]any{"reason": "Raum war belegt"}); err != nil {
+			return false, fmt.Errorf("cancel course occurrence: %w", err)
+		}
+		return true, nil
+	}
+	return false, seedCourseAttendance(rt, courseIndex, dateIndex, dateCount, instanceID, studentIDs)
+}
+
+func seedCourseAttendance(rt *Runtime, courseIndex, dateIndex, dateCount int, instanceID int64, studentIDs []int64) error {
+	for studentIndex, studentID := range studentIDs {
+		status := courseAttendanceStatus(courseIndex, dateIndex, studentIndex, dateCount)
+		if status == "" {
+			continue // left undecided: the block was never finished
+		}
+		path := fmt.Sprintf("/api/timetable/instances/%d/students/%d", instanceID, studentID)
+		if _, err := rt.Client.Patch(path, map[string]any{"status": status}); err != nil {
+			return fmt.Errorf("record course attendance: %w", err)
+		}
+	}
 	return nil
 }
 

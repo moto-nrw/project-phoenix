@@ -561,8 +561,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_extras.go:(seedCareExitsStep).Run": 63,
 	// ADR 0087.
-	"internal/devtools/seedapi/seed_extras.go:(seedCourseParticipationStep).Run": 63,
-	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 69,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 107,
