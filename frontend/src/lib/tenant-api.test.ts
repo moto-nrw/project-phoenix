@@ -137,6 +137,8 @@ describe("tenant-api", () => {
         // — matches backend's own safe fallback.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        // Missing booked_modules books nothing (#4892).
+        bookedModules: [],
         nfcEnabled: false,
         messagingEnabled: false,
         // Der Team-Chat (#2598) fehlt in dieser Antwort, also bleibt er aus —
@@ -337,7 +339,7 @@ describe("tenant-api", () => {
       expect(result?.presenceMode).toBe("binary");
     });
 
-    it("passes through nfcEnabled=true when the backend advertises it", async () => {
+    it("derives nfcEnabled from the booked NFC module", async () => {
       const backendData = {
         status: "success",
         data: {
@@ -348,7 +350,7 @@ describe("tenant-api", () => {
           organization_id: 11,
           organization_name: "Org B",
           settings: {},
-          nfc_enabled: true,
+          booked_modules: ["nfc_anwesenheit", "zeiterfassung", "spaeter"],
         },
       };
       vi.mocked(global.fetch).mockResolvedValueOnce(
@@ -359,6 +361,34 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("nfc-school");
       expect(result?.nfcEnabled).toBe(true);
+      expect(result?.bookedModules).toEqual([
+        "nfc_anwesenheit",
+        "zeiterfassung",
+      ]);
+    });
+
+    it("books no module when booked_modules is missing", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 2,
+          slug: "basis-school",
+          name: "Basis School",
+          subdomain: "basis",
+          organization_id: 11,
+          organization_name: "Org B",
+          settings: {},
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("basis-school");
+      expect(result?.bookedModules).toEqual([]);
+      expect(result?.nfcEnabled).toBe(false);
     });
 
     it.each([

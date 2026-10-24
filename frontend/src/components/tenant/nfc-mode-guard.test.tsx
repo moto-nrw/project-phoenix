@@ -27,6 +27,7 @@ function makeTenant(nfcEnabled: boolean): TenantInfo {
     presenceMode: "detailed",
     studentPhotosEnabled: false,
     nfcEnabled,
+    bookedModules: nfcEnabled ? ["nfc_anwesenheit"] : [],
     messagingEnabled: false,
     staffMessagingEnabled: false,
     displayEnabled: false,

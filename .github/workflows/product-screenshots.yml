@@ -24,9 +24,9 @@ name: Produkt-Screenshots
 # schreiben und läuft nur nach einem erfolgreichen Capture. Ein kaputter Shot
 # bricht die Pipeline vor jeder Ausgabe ab, das Release bleibt dann unverändert.
 #
-# Grenze: an Wochenenden (Berliner Zeit) bricht der Lauf ab, siehe den Schritt
-# "Require a Berlin weekday". Ein Release vom Wochenende am nächsten Werktag
-# von Hand nachholen, gestartet vom Tag des Releases.
+# Am Wochenende (Berliner Zeit) stellt der Lauf die Uhr der VM auf den Freitag
+# davor, siehe "Move the runner clock to a Berlin weekday". Die Bilder zeigen
+# dann diesen Freitag.
 
 on:
   release:
@@ -193,16 +193,6 @@ jobs:
             echo "publish=${publish}"
           } >> "${GITHUB_OUTPUT}"
 
-      # Der Server rendert mit seiner echten Uhr, die Browser-Uhr steht auf
-      # einem Werktag um 10:15 (reference-time.ts). Am Wochenende passen beide
-      # nicht zusammen und jeder Shot bräche mit einem Hydration-Fehler ab.
-      - name: Require a Berlin weekday
-        run: |
-          if [ "$(TZ=Europe/Berlin date +%u)" -ge 6 ]; then
-            echo "::error::Produkt-Screenshots entstehen nur an Werktagen (Berliner Zeit). Am nächsten Werktag über 'Run workflow' auf main neu starten."
-            exit 1
-          fi
-
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -218,6 +208,62 @@ jobs:
         run: |
           go build -o "${RUNNER_TEMP}/phoenix" .
           go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # Server, Seed, Datenbank und Browser lesen dieselbe Uhr der VM. Die
+      # Browser-Uhr steht auf einem Werktag um 10:15 (reference-time.ts); am
+      # Wochenende ist das der Freitag davor, der Server läge auf dem echten
+      # Tag, und jeder Shot bräche mit einem Hydration-Fehler ab. Deshalb
+      # stellt der Lauf am Wochenende die Uhr der VM auf Freitag zurück. Erst
+      # nach allen Downloads: ein Zertifikat von gestern wäre sonst noch nicht
+      # gültig. "Restore the runner clock" stellt sie vor jedem Upload zurück.
+      - name: Move the runner clock to a Berlin weekday
+        run: |
+          case "$(TZ=Europe/Berlin date +%u)" in
+            6) days=1 ;;
+            7) days=2 ;;
+            *) days=0 ;;
+          esac
+          seconds=$((days * 86400))
+          echo "${seconds}" > "${RUNNER_TEMP}/clock-shift"
+          if [ "${seconds}" -eq 0 ]; then
+            echo "Werktag, die Uhr bleibt."
+            exit 0
+          fi
+          # Ohne Zeitsynchronisation, sonst stellt sie die Uhr wieder vor.
+          sudo timedatectl set-ntp false
+          sudo systemctl stop chrony.service systemd-timesyncd.service 2>/dev/null || true
+          sudo date -s "@$(( $(date +%s) - seconds ))" > /dev/null
+          echo "Uhr der VM um ${days} Tag(e) zurück: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       - name: Run migrations
         working-directory: backend
@@ -252,36 +298,6 @@ jobs:
             --pin "${OGS_DEVICE_PIN}" \
             --url http://localhost:8080
 
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
-        with:
-          node-version: "24"
-          cache: "pnpm"
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
-
-      - name: Install Playwright Chromium
-        working-directory: frontend
-        run: |
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
-            pnpm exec playwright install-deps chromium
-          else
-            pnpm exec playwright install --with-deps chromium
-          fi
-
       - name: Start frontend
         working-directory: frontend
         env:
@@ -305,6 +321,18 @@ jobs:
           SHOT_OUT: ${{ runner.temp }}/product-screenshots
           SHOT_VERSION: ${{ steps.version.outputs.version }}
         run: pnpm run generate:screenshots
+
+      # Vor jedem Upload: Artefakt-Dienst und TLS erwarten die echte Zeit.
+      - name: Restore the runner clock
+        if: always()
+        run: |
+          seconds=$(cat "${RUNNER_TEMP}/clock-shift" 2>/dev/null || echo 0)
+          if [ "${seconds}" -eq 0 ]; then
+            exit 0
+          fi
+          sudo date -s "@$(( $(date +%s) + seconds ))" > /dev/null
+          sudo timedatectl set-ntp true || true
+          echo "Uhr der VM wieder echt: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       - name: Upload screenshots
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

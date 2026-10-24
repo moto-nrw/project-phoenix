@@ -98,6 +98,8 @@ const (
 	CodeSettingsBookingAuthorityBlocked               = "settings.booking_authority_blocked"
 	CodeSettingsInvalidValue                          = "settings.invalid_value"
 	CodeSettingsManagedByUpload                       = "settings.managed_by_upload"
+	CodeSettingsModuleRequiredBy                      = "settings.module_required_by"
+	CodeSettingsModuleRequires                        = "settings.module_requires"
 	CodeSettingsNotFound                              = "settings.not_found"
 	CodeSettingsPresenceModeSwitchBlocked             = "settings.presence_mode_switch_blocked"
 	CodeStaffExternalAccessInvalid                    = "staff.external_access_invalid"
@@ -401,6 +403,8 @@ var errorCodeClasses1 = map[string]string{
 	"settings.booking_authority_blocked":                  "business_rejection",
 	"settings.invalid_value":                              "input",
 	"settings.managed_by_upload":                          "business_rejection",
+	"settings.module_required_by":                         "input",
+	"settings.module_requires":                            "input",
 	"settings.not_found":                                  "business_rejection",
 	"settings.presence_mode_switch_blocked":               "business_rejection",
 	"staff.external_access_invalid":                       "input",
