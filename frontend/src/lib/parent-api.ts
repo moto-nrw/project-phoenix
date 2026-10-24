@@ -1390,7 +1390,7 @@ export interface GroupThreadSummary {
 }
 
 /** One OGS message of a group thread; the sender is always the OGS. */
-export interface GroupThreadMessage {
+interface GroupThreadMessage {
   readonly id: string;
   readonly body: string;
   readonly created_at: string; // ISO timestamp

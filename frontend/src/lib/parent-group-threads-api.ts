@@ -11,7 +11,7 @@ import { ApiError, apiErrorFromText, transportFetch } from "~/lib/api-error";
 
 export type GroupTargetType = "group" | "class" | "activity_group";
 
-export interface GroupThread {
+interface GroupThread {
   id: string;
   target_type: GroupTargetType;
   /** Group or AG id, or the class name for a class. */
@@ -30,7 +30,7 @@ export interface GroupThreadSummary extends GroupThread {
   read_count: number;
 }
 
-export interface GroupMessage {
+interface GroupMessage {
   id: string;
   sender_name: string;
   body: string;
