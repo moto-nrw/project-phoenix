@@ -27,11 +27,14 @@ type childGuardianResponse struct {
 	IsPrimary          bool                    `json:"is_primary"`
 	IsEmergencyContact bool                    `json:"is_emergency_contact"`
 	CanPickup          bool                    `json:"can_pickup"`
-	PickupNotes        string                  `json:"pickup_notes,omitempty"`
-	HasAccount         bool                    `json:"has_account"`
-	IsSelf             bool                    `json:"is_self"`
-	CanEditContact     bool                    `json:"can_edit_contact"`
-	CanManagePickup    bool                    `json:"can_manage_pickup"`
+	// PickupWeekdays limits can_pickup to these weekdays (1 = Monday …
+	// 5 = Friday); absent means every day (#4780).
+	PickupWeekdays  []int  `json:"pickup_weekdays,omitempty"`
+	PickupNotes     string `json:"pickup_notes,omitempty"`
+	HasAccount      bool   `json:"has_account"`
+	IsSelf          bool   `json:"is_self"`
+	CanEditContact  bool   `json:"can_edit_contact"`
+	CanManagePickup bool   `json:"can_manage_pickup"`
 	// ContactLockedOwnAccount: this guardian's contact data is read-only to the
 	// caller because the guardian manages it through their own portal account.
 	ContactLockedOwnAccount bool `json:"contact_locked_own_account"`
@@ -270,6 +273,7 @@ func guardianResponse(g *parentService.ChildGuardian) childGuardianResponse {
 		IsPrimary:                 g.IsPrimary,
 		IsEmergencyContact:        g.IsEmergencyContact,
 		CanPickup:                 g.CanPickup,
+		PickupWeekdays:            g.PickupWeekdays,
 		PickupNotes:               g.PickupNotes,
 		HasAccount:                g.HasAccount,
 		IsSelf:                    g.IsSelf,
