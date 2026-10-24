@@ -194,6 +194,11 @@ export function MealParticipantList({
     [week],
   );
   const weekRows = useMemo(() => weeklyRows(week), [week]);
+  const closedDates = useMemo(
+    () =>
+      new Set(week?.days.filter((day) => day.closed).map((day) => day.date)),
+    [week],
+  );
   const weekColumns = useMemo<DataTableColumn<WeeklyMealRow>[]>(() => {
     const dayLabel = new Intl.DateTimeFormat(locale, {
       weekday: "short",
@@ -208,7 +213,9 @@ export function MealParticipantList({
         align: "center",
         stacked: "field",
         render: (row) =>
-          row.dates.has(day) ? (
+          closedDates.has(day) ? (
+            <span className="text-xs text-gray-500">{t("weekClosed")}</span>
+          ) : row.dates.has(day) ? (
             <>
               <Check
                 className="text-moto-green-strong inline-block h-4 w-4"
@@ -227,7 +234,7 @@ export function MealParticipantList({
         sortValue: (row) => (row.dates.has(day) ? 1 : 0),
       })),
     ];
-  }, [columns, weekDates, locale, t]);
+  }, [columns, weekDates, closedDates, locale, t]);
 
   const isWeek = view === "week";
   const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: "short" });
@@ -376,10 +383,11 @@ export function MealParticipantList({
               {week.days
                 .map(
                   (day) =>
-                    `${weekdayShort.format(parseISODate(day.date))} ${t(
-                      "weekCount",
-                      { count: day.participants.length },
-                    )}`,
+                    `${weekdayShort.format(parseISODate(day.date))} ${
+                      day.closed
+                        ? t("weekClosed")
+                        : t("weekCount", { count: day.participants.length })
+                    }`,
                 )
                 .join(" · ")}
             </span>

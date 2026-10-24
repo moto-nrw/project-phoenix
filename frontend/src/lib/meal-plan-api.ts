@@ -53,7 +53,12 @@ export interface DailyMealList {
 
 export interface WeeklyMealList {
   weekStart: string;
-  days: Array<{ date: string; participants: DailyMealParticipant[] }>;
+  // closed: a closing day or public holiday, nobody eats.
+  days: Array<{
+    date: string;
+    closed: boolean;
+    participants: DailyMealParticipant[];
+  }>;
 }
 
 function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
@@ -255,7 +260,11 @@ export async function getWeeklyMealParticipants(
   const json = (await response.json()) as {
     data?: {
       week_start: string;
-      days: Array<{ date: string; participants: BackendDailyParticipant[] }>;
+      days: Array<{
+        date: string;
+        closed?: boolean;
+        participants: BackendDailyParticipant[];
+      }>;
     };
   };
   const data = json.data;
@@ -265,6 +274,7 @@ export async function getWeeklyMealParticipants(
     weekStart: data.week_start,
     days: data.days.map((day) => ({
       date: day.date,
+      closed: day.closed === true,
       participants: day.participants.map(dailyParticipant),
     })),
   };

@@ -19,7 +19,7 @@ export const resourceLabels: Record<string, string> = {
   visits: "Besuche",
   substitutions: "Vertretungen",
   schedules: "Zeitpläne",
-  config: "Konfiguration",
+  config: "Einstellungen",
   feedback: "Feedback",
   iot: "Geräte",
   system: "System",
@@ -108,7 +108,8 @@ const permissionDescriptions: Record<string, string> = {
   "users:update": "Benutzerinformationen bearbeiten",
   "users:delete": "Benutzer löschen",
   "users:list": "Benutzer auflisten",
-  "users:manage": "Benutzerverwaltung (Vollzugriff)",
+  "users:manage":
+    "Konten anlegen, Rollen vergeben, Konten sperren und Anmeldungen beenden",
   "users:checkin": "Kinder in moto anmelden und abmelden",
   "users:absence":
     "Krankmeldungen und Abwesenheiten von Kindern eintragen und über Anfragen der Eltern entscheiden",
@@ -129,14 +130,14 @@ const permissionDescriptions: Record<string, string> = {
     "Kategorien für Angebote anlegen, umbenennen und archivieren",
 
   // Roles and permissions
-  "roles:create": "Neue Rollen erstellen",
-  "roles:read": "Rollen ansehen",
-  "roles:update": "Rollen bearbeiten",
+  "roles:create": "Neue Rollen anlegen",
+  "roles:read": "Rollen und ihre Berechtigungen ansehen",
+  "roles:update": "Name und Beschreibung von Rollen ändern",
   "roles:delete": "Rollen löschen",
-  "permissions:create": "Neue Berechtigungen erstellen",
-  "permissions:read": "Berechtigungen ansehen",
-  "permissions:update": "Berechtigungen bearbeiten",
-  "permissions:delete": "Berechtigungen löschen",
+  "permissions:create": "Neue Berechtigungen anlegen (nur moto-Team)",
+  "permissions:read": "Liste aller Berechtigungen ansehen",
+  "permissions:update": "Berechtigungen ändern (nur moto-Team)",
+  "permissions:delete": "Berechtigungen löschen (nur moto-Team)",
 
   // Rooms
   "rooms:create": "Neue Räume erstellen",
@@ -187,9 +188,10 @@ const permissionDescriptions: Record<string, string> = {
   "feedback:manage": "Feedbackverwaltung (Vollzugriff)",
 
   // Config
-  "config:read": "Konfiguration ansehen",
-  "config:update": "Konfiguration bearbeiten",
-  "config:manage": "Konfigurationsverwaltung (Vollzugriff)",
+  "config:read": "Einstellungen der Schule ansehen",
+  "config:update": "Einstellungen der Schule ändern",
+  "config:manage":
+    "Alle Einstellungen der Schule ändern, auch Anmeldung, Formulare und Datenschutz",
 
   // Mittagessen (#3873)
   "meals:read": "Essensplan und Essenszahlen ansehen",
@@ -198,12 +200,12 @@ const permissionDescriptions: Record<string, string> = {
   "meals:register": "Anmeldung eines Kindes ändern, auch nach der Frist",
 
   // IoT
-  "iot:read": "IoT-Geräte ansehen",
-  "iot:update": "IoT-Geräte bearbeiten",
-  "iot:manage": "IoT-Geräteverwaltung (Vollzugriff)",
+  "iot:read": "Tablets und Geräte ansehen",
+  "iot:update": "Tablets und Geräte bearbeiten",
+  "iot:manage": "Tablets und Geräte anlegen und entfernen",
 
   // Auth
-  "auth:manage": "Authentifizierungsverwaltung (Vollzugriff)",
+  "auth:manage": "Zahlen zu Rollen und Berechtigungen in der Übersicht sehen",
 
   // Time Tracking
   "time_tracking:own": "Eigene Arbeitszeiten erfassen",
@@ -262,9 +264,9 @@ const permissionDescriptions: Record<string, string> = {
   "grade_transitions:apply": "Klassenwechsel anwenden/zurücksetzen",
 
   // System & Admin
-  "system:manage": "Systemeinstellungen verwalten",
-  "admin:*": "Vollzugriff auf alle Ressourcen",
-  "*:*": "Vollzugriff auf alle Ressourcen",
+  "system:manage": "Einstellungen von moto verwalten (nur moto-Team)",
+  "admin:*": "Darf alles in der Schule (nur Rolle Verwaltung)",
+  "*:*": "Darf alles, auch Bereiche des moto-Teams (nur moto-Team)",
 
   // Legacy names (from initial migration)
   "user:create": "Neue Benutzer erstellen",
@@ -292,4 +294,50 @@ export function localizeDescription(
 ): string {
   const key = `${resource}:${action}`;
   return permissionDescriptions[key] ?? dbDescription ?? "";
+}
+
+/**
+ * Permissions no school role may gain (#4574): admin:* stays with the system
+ * role Verwaltung, the others belong to the moto team. The role editor hides
+ * them, and the backend refuses them with identity.role_platform_permission.
+ * Mirrors reservedPermissions in backend/modules/identityaccess/role_templates.go.
+ */
+const RESERVED_PERMISSIONS: ReadonlySet<string> = new Set([
+  "*:*",
+  "admin:*",
+  "system:manage",
+  "permissions:create",
+  "permissions:update",
+  "permissions:delete",
+]);
+
+export function isReservedPermission(
+  resource: string,
+  action: string,
+): boolean {
+  return RESERVED_PERMISSIONS.has(`${resource}:${action}`);
+}
+
+/**
+ * Permissions that let a person change who may do what (#4574). They stay
+ * selectable; the role editor shows the hint next to them.
+ */
+const riskyPermissionHints: Record<string, string> = {
+  "roles:create": "Wer Rollen anlegt, bestimmt mit, wer was darf.",
+  "roles:update": "Wer Rollen ändert, bestimmt mit, wer was darf.",
+  "roles:delete":
+    "Wer Rollen löscht, nimmt allen Personen mit dieser Rolle die Rechte.",
+  "permissions:read": "Zeigt alle Rechte, die es in moto gibt.",
+  "users:manage":
+    "Diese Person kann sich und anderen jede Rolle der Schule geben.",
+  "auth:manage": "Gehört zur Verwaltung. Nur an die Leitung geben.",
+  "config:manage": "Diese Person kann alle Einstellungen der Schule ändern.",
+};
+
+/** The hint for a risky permission, or undefined. */
+export function riskyPermissionHint(
+  resource: string,
+  action: string,
+): string | undefined {
+  return riskyPermissionHints[`${resource}:${action}`];
 }

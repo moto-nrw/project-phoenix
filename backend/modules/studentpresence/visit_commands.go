@@ -10,5 +10,5 @@ type VisitMaintenance interface {
 	CloseGroupVisits(context.Context, []int64) (int64, error)
 	TransferOpenVisits(context.Context, int64, int64) (int64, error)
 	TransferRecentDeviceVisits(context.Context, int64, int64) (int64, error)
-	DeleteCompletedVisitsBefore(context.Context, int64, time.Time) (int64, error)
+	DeleteCompletedVisitsBefore(context.Context, int64, VisitRetentionPolicy, time.Time) (int64, error)
 }

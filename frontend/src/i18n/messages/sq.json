@@ -264,7 +264,11 @@
     "cancelWeekConfirm": "Anulo",
     "cancelWeekDone": "Java është anuluar.",
     "cancelWeekLocked": "Këto ditë ishin porositur tashmë dhe mbeten të regjistruara: {days}.",
+    "registerWeek": "Regjistro për gjithë javën",
+    "registerWeekDone": "Java është regjistruar.",
+    "registerWeekLocked": "Afati i regjistrimit për këto ditë ka kaluar, ato mbeten të paregjistruara: {days}.",
     "errorObjectWeekCancel": "anulimin për javën",
+    "errorObjectWeekRegister": "regjistrimin për javën",
     "participationCutoffLead": "Mund ta ndryshoni regjistrimin deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}}.",
     "participationSicknessLead": "Një njoftim i konfirmuar për sëmundje deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar."
   },
@@ -359,7 +363,8 @@
     "weekRegistered": "i regjistruar",
     "weekNotRegistered": "i paregjistruar",
     "weekCountsLabel": "Numri i drekave për ditë",
-    "weekCount": "{count, plural, one {# fëmijë} other {# fëmijë}}"
+    "weekCount": "{count, plural, one {# fëmijë} other {# fëmijë}}",
+    "weekClosed": "pa vakt"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
@@ -2457,6 +2462,7 @@
         "preview_token_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "read_only_preview": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "role_platform_permission": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
         "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",

@@ -408,6 +408,7 @@ function ParticipationWeek({
   const [confirmingWeek, setConfirmingWeek] = useState(false);
   const [weekResult, setWeekResult] = useState<{
     readonly monday: string;
+    readonly participating: boolean;
     readonly locked: string[];
   } | null>(null);
   const {
@@ -629,23 +630,31 @@ function ParticipationWeek({
     setSaving(false);
   }
 
-  async function cancelWeek() {
+  // Registers or cancels every day of the week the family may still change;
+  // the backend leaves out the days whose deadline has passed.
+  async function saveWeek(participating: boolean) {
     setSaving(true);
     clearSaveError();
     try {
       const change = await setMealParticipationWeek(
         studentId,
         mondayISO,
-        false,
+        participating,
       );
-      setWeekResult({ monday: mondayISO, locked: change.locked });
+      setWeekResult({
+        monday: mondayISO,
+        participating,
+        locked: change.locked,
+      });
     } catch (err) {
       logger.error("parent_meal_participation_week_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void showSaveError(err, {
-        object: t("errorObjectWeekCancel"),
-        retry: () => void cancelWeek(),
+        object: participating
+          ? t("errorObjectWeekRegister")
+          : t("errorObjectWeekCancel"),
+        retry: () => void saveWeek(participating),
       });
       setSaving(false);
       setConfirmingWeek(false);
@@ -725,6 +734,19 @@ function ParticipationWeek({
     weekDates.some((date) => {
       const day = participationByDate.get(date);
       return day?.participating === true && day.can_cancel;
+    });
+  // A sick or absent day stays registered; registering the week leaves it.
+  const weekRegistrable =
+    !isEditing &&
+    weekDates.some((date) => {
+      const day = participationByDate.get(date);
+      return (
+        day?.participating === false &&
+        day.source !== "sick" &&
+        day.source !== "absent" &&
+        day.source !== "closed" &&
+        day.can_register
+      );
     });
   const lockedLabel = (dates: string[]) =>
     new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(
@@ -850,33 +872,53 @@ function ParticipationWeek({
 
       {weekReady &&
       !loading &&
-      (weekCancellable || weekResult?.monday === mondayISO) ? (
+      (weekCancellable ||
+        weekRegistrable ||
+        weekResult?.monday === mondayISO) ? (
         <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
           {weekResult?.monday === mondayISO ? (
             <Alert
               type="success"
               message={
-                weekResult.locked.length > 0
-                  ? `${t("cancelWeekDone")} ${t("cancelWeekLocked", { days: lockedLabel(weekResult.locked) })}`
-                  : t("cancelWeekDone")
+                weekResult.participating
+                  ? weekResult.locked.length > 0
+                    ? `${t("registerWeekDone")} ${t("registerWeekLocked", { days: lockedLabel(weekResult.locked) })}`
+                    : t("registerWeekDone")
+                  : weekResult.locked.length > 0
+                    ? `${t("cancelWeekDone")} ${t("cancelWeekLocked", { days: lockedLabel(weekResult.locked) })}`
+                    : t("cancelWeekDone")
               }
             />
           ) : null}
-          {weekCancellable ? (
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                className="min-h-11"
-                disabled={saving}
-                onClick={() => {
-                  clearSaveError();
-                  setConfirmingWeek(true);
-                }}
-              >
-                {t("cancelWeek")}
-              </Button>
+          {weekRegistrable || weekCancellable ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {weekRegistrable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  className="min-h-11"
+                  disabled={saving}
+                  onClick={() => void saveWeek(true)}
+                >
+                  {t("registerWeek")}
+                </Button>
+              ) : null}
+              {weekCancellable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  className="min-h-11"
+                  disabled={saving}
+                  onClick={() => {
+                    clearSaveError();
+                    setConfirmingWeek(true);
+                  }}
+                >
+                  {t("cancelWeek")}
+                </Button>
+              ) : null}
             </div>
           ) : null}
           {!isEditing && saveError ? (
@@ -888,7 +930,7 @@ function ParticipationWeek({
       <ConfirmationModal
         isOpen={confirmingWeek}
         onClose={() => setConfirmingWeek(false)}
-        onConfirm={() => void cancelWeek()}
+        onConfirm={() => void saveWeek(false)}
         title={t("cancelWeekTitle")}
         confirmText={t("cancelWeekConfirm")}
         cancelText={t("cancel")}

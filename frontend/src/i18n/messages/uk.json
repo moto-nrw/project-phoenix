@@ -264,7 +264,11 @@
     "cancelWeekConfirm": "Скасувати",
     "cancelWeekDone": "Тиждень скасовано.",
     "cancelWeekLocked": "Ці дні вже були замовлені й залишаються в записі: {days}.",
+    "registerWeek": "Записати на весь тиждень",
+    "registerWeekDone": "Записано на весь тиждень.",
+    "registerWeekLocked": "Строк запису на ці дні минув, вони залишаються без запису: {days}.",
     "errorObjectWeekCancel": "скасування на тиждень",
+    "errorObjectWeekRegister": "запис на тиждень",
     "participationCutoffLead": "Ви можете змінити запис до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}}.",
     "participationSicknessLead": "Підтверджене повідомлення про хворобу до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}} скасовує обід для вашої дитини. Після цього запис залишається."
   },
@@ -359,7 +363,8 @@
     "weekRegistered": "записано",
     "weekNotRegistered": "не записано",
     "weekCountsLabel": "Кількість обідів на день",
-    "weekCount": "{count, plural, one {# дитина} few {# дитини} many {# дітей} other {# дитини}}"
+    "weekCount": "{count, plural, one {# дитина} few {# дитини} many {# дітей} other {# дитини}}",
+    "weekClosed": "немає харчування"
   },
   "parentDashboard": {
     "eyebrow": "Батьківський портал",
@@ -2457,6 +2462,7 @@
         "preview_token_invalid": "У вас немає доступу до: {object}. Зверніться до школи.",
         "read_only_preview": "У вас немає доступу до: {object}. Зверніться до школи.",
         "role_name_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "role_platform_permission": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "session_account_inactive": "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
         "tenant_access_denied": "У вас немає доступу до: {object}. Зверніться до школи.",
         "use_parent_portal": "У вас немає доступу до: {object}. Зверніться до школи.",

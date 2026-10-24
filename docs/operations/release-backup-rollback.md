@@ -27,8 +27,11 @@ captures the previous state under `~/backups/<environment>/release-<timestamp>-<
 - `environment`, `created-at`, `uploads-volume`, `checksums.sha256`, `complete`:
   snapshot identity and verification data.
 
-The directory is owner-only. These files contain secrets and personal data;
-keep them on the server, never in Git or CI logs. Host certificates and the
+The directory is owner-only (0700, files 0600). It is **not encrypted**: `.env`
+contains plaintext operating secrets and `roles.sql` contains password hashes.
+Database and uploads contain personal data. This is access control on the
+source host, not protection against host/root compromise or site loss.
+Keep these files on the server, never in Git or CI logs. Host certificates and the
 Docker installation are unchanged infrastructure, not part of this
 application rollback. This snapshot is not an off-host disaster-recovery copy.
 Release snapshots are rollback points; the [encrypted daily backup](daily-backup.md) is the disaster-recovery backup for #3836.
@@ -43,6 +46,62 @@ files, their checksums, image availability, archive readability and Compose
 configuration. Only verified snapshots receive a usable completion marker.
 Retention removes complete sets, never individual components. Existing loose
 backups are left untouched but cannot be selected by the new rollback workflow.
+
+## Snapshot retention (Slice 3836-c)
+
+**Implemented in code:** Deployments retain at most 3 staging, 7 production and
+3 demo complete snapshots, additionally expiring snapshots after **30 days**.
+`RELEASE_SNAPSHOT_MAX_AGE_DAYS` is explicit infrastructure configuration, an
+integer from 1 to 90; missing or invalid values abort before a deployment changes
+anything. The workflow sets 30 for all environments. Keep the independent
+timer's value in sync when changing it. `BACKUP_RETENTION` remains the count
+limit. Neither is an application/Compose variable or a tenant setting.
+
+The age starts at the UTC creation timestamp in
+`release-YYYYMMDDTHHMMSSZ-<sha>`, not the directory modification time. At the
+configured age, cleanup deletes the whole directory, including interrupted
+snapshots without `complete`. Recent interrupted snapshots do not count as
+usable rollback points. Symlinks and names outside that format are not followed
+or deleted. Operators must inventory and securely remove any older loose dumps
+or nonstandard directories separately; they are not covered by this automation.
+The count limit keeps the newest remaining complete snapshots; during a deploy,
+the just-created rollback point always occupies one of those slots, even after
+a backward clock adjustment. No snapshot is exempt from age expiry, even when
+`.deploy-state` still names it. After a long period
+without deployments, manual rollback can therefore be unavailable; use the
+separate daily disaster-recovery procedure instead.
+
+`scripts/release-backup-cleanup.sh` runs the same policy without Docker or backup
+credentials, independent of deployments and daily-backup success. It acquires
+the same `.release-operation.lock` as deploy, rollback and daily backup. A busy
+lock or failed deletion returns nonzero, not success. The low-level
+`release-backup.sh prune` command is only for callers already holding this lock.
+An age limit is enforced at each cleanup run, not continuously. The daily timer
+checks once per day and catches up after downtime (`Persistent=true`).
+
+**Human installation and production evidence still required:**
+
+1. Install the matching `release-backup.sh` and `release-backup-cleanup.sh` as
+   root-owned, non-writable-by-others files under `/usr/local/lib/moto-release/`.
+   This copy must be updated alongside future changes to release retention;
+   deployment continues to use its environment-specific script copy.
+2. Copy `scripts/systemd/moto-release-retention@.{service,timer}` to
+   `/etc/systemd/system/`. For each environment present on this host, copy
+   [release-retention.env.example](release-retention.env.example) to
+   `/etc/moto-release-retention/<environment>.env` (root, 0600). Set the real
+   absolute deployment directory, count (3/7/3) and age (30). This dedicated
+   host configuration has no secrets; do not alter app env files or SOPS envs.
+3. Run `systemd-analyze verify` on both units, then `systemctl daemon-reload`.
+   Start `moto-release-retention@<environment>.service` once and inspect its
+   exit status/journal and remaining snapshot ages without printing contents.
+   Enable `moto-release-retention@<environment>.timer` with `systemctl enable
+   --now`; confirm the next scheduled run via `systemctl list-timers`.
+4. Record successful deletion and subsequent daily runs in the protected
+   operating evidence. Investigate failed units, retry after a busy release
+   lock clears, and configure the operator's existing failed-unit monitoring.
+   Never remove a lock while another release/restore/backup owns it. Production
+   installation, effective permissions, cleanup and monitoring have not been
+   verified by this slice.
 
 After migration and healthchecks, `.deploy-state` records `BACKUP_ID`. This is
 the matching pre-deployment snapshot, not whichever dump happens to be newest.

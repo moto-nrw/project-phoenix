@@ -27,6 +27,7 @@ on:
       - "frontend/e2e/**"
       - "!frontend/e2e/layout/**"
       - "frontend/playwright.config.ts"
+      - "frontend/playwright.network.config.ts"
       - "frontend/scripts/seed-state.ts"
       - "frontend/package.json"
       - "frontend/pnpm-lock.yaml"
@@ -211,6 +212,22 @@ jobs:
           else
             pnpm exec playwright install --with-deps chromium
           fi
+
+      # Separate frontend + localhost-only synthetic API; never calls vendors.
+      - name: Run portal network evidence
+        working-directory: frontend
+        env:
+          # Readiness must work even when Node cannot resolve portal hosts.
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
+        run: pnpm run test:network
+
+      - name: Upload sanitized network evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: portal-network-evidence-${{ github.run_id }}
+          path: frontend/test-results/network/*/network*.json
+          if-no-files-found: error
 
       # playwright.config.ts starts `next dev` on port 3000 itself (CI=true
       # disables reuseExistingServer) and runs one worker.

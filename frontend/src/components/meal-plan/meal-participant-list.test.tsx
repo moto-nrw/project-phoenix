@@ -732,4 +732,36 @@ describe("MealParticipantList", () => {
     });
     expect(mocks.downloadDailyMealParticipants).not.toHaveBeenCalled();
   });
+
+  it("marks a closed day in the week", async () => {
+    const mia = {
+      studentId: "42",
+      firstName: "Mia",
+      lastName: "Muster",
+      schoolClass: "2a",
+    };
+    mocks.getWeeklyMealParticipants.mockResolvedValue({
+      weekStart: "2026-09-07",
+      days: [
+        { date: "2026-09-07", closed: false, participants: [mia] },
+        { date: "2026-09-08", closed: true, participants: [] },
+        { date: "2026-09-09", closed: false, participants: [] },
+        { date: "2026-09-10", closed: false, participants: [] },
+        { date: "2026-09-11", closed: false, participants: [] },
+      ],
+    });
+    render(<MealParticipantList canRegister={false} />);
+    await screen.findByText("Mittagessen am 07.09.2026");
+
+    fireEvent.click(screen.getByRole("button", { name: "Woche" }));
+
+    expect(
+      (await screen.findByText("Essen pro Tag:")).parentElement,
+    ).toHaveTextContent(
+      "Essen pro Tag: Mo 1 Kind · Di kein Essen · Mi 0 Kinder · Do 0 Kinder · Fr 0 Kinder",
+    );
+    expect(
+      within(screen.getByRole("table")).getAllByText("kein Essen").length,
+    ).toBeGreaterThan(0);
+  });
 });

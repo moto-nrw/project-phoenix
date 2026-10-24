@@ -96,8 +96,11 @@ type Role struct {
 	Description string
 	IsSystem    bool
 	BaseRole    *string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// SchoolPortal marks a school role made from the Lehrkraft template: it
+	// opens moto schule like the system role lehrkraft (#4574).
+	SchoolPortal bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // AssignableSchoolRole is a role the policy allows for a school, with the
@@ -169,8 +172,12 @@ type RoleQuery interface {
 // change revokes the account's sessions at the school.
 type RoleCommand interface {
 	// CreateRole creates a custom role of the tenant in context; baseRole maps
-	// it to a system role for announcement targeting and is required.
-	CreateRole(ctx context.Context, name, description string, baseRole *string) (Role, error)
+	// it to a system role for announcement targeting and is required. With a
+	// template instead (#4574), baseRole is nil and the role starts with the
+	// template system role's tier and permissions, without the platform
+	// permissions. The copy is taken once; later changes to the template do
+	// not reach the role.
+	CreateRole(ctx context.Context, name, description string, baseRole *string, template ...RoleTemplate) (Role, error)
 	// UpdateRole writes name, description and base role of a custom role.
 	UpdateRole(ctx context.Context, role Role) error
 	DeleteRole(ctx context.Context, id int64) error
@@ -198,7 +205,9 @@ type PermissionCommand interface {
 	DeletePermission(ctx context.Context, id int64) error
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID int64) error
 	// ReplaceRolePermissions applies a complete selection atomically; an
-	// invalid request leaves the current selection untouched.
+	// invalid request leaves the current selection untouched. A reserved
+	// permission the role does not hold yet is refused with
+	// ErrReservedPermissionNotAllowed; one it already holds may stay or go.
 	ReplaceRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int64) error
 }

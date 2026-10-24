@@ -473,7 +473,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, hub)
+			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, owners.BuildPresenceCleanup(env, presence, audit, settings.Service), hub)
 			return
 		},
 		func() (err error) {

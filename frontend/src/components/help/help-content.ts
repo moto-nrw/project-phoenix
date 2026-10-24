@@ -4085,6 +4085,7 @@ function mealPlanTopic(): HelpTopic {
       "Die Wochenliste zeigt jedes angemeldete Kind mit einem Haken je Tag. Darüber steht, wie viele Kinder an jedem Tag essen.",
       "Öffnen Sie `Tagesliste herunterladen` oder `Wochenliste herunterladen`. Wählen Sie `PDF` oder `Excel`.",
       "Bis wann Eltern ändern können, legen Sie unter `Einstellungen` im Bereich `Mittagessen` fest.",
+      "An Feiertagen und Schließtagen gibt es kein Essen. Die Wochenliste zeigt dort `kein Essen`.",
     ],
     differences: [
       "Ihre Änderungen zählen erst mit `Speichern`. Vorher steht `Verwerfen` daneben.",
@@ -4686,7 +4687,7 @@ function inviteStaffTopic(): HelpTopic {
     ],
     differences: [
       "Beim Import muss die Spalte `Rolle` genau einer vorhandenen Rolle entsprechen.",
-      "Zur Wahl stehen `Administrator`, `Betreuer`, `Gast`, `Erziehungsberechtigter`, `Lehrkraft`, `AG-Leitung` und die eigenen Rollen Ihrer OGS.",
+      "Zur Wahl stehen `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung`, `Gast` und die eigenen Rollen der Schule. Die alten Namen `Administrator` und `Betreuer` erkennt moto auch.",
       "`Nur ansehen` fehlt bei einer externen Person? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt in einer Zeile die E-Mail-Adresse, gibt es keinen Zugang. Die Person steht dann nur in der Liste.",
       "Auf dem Handy steht `+ Personal` als runder Knopf unten rechts. Er öffnet dieselbe Auswahl.",
@@ -4883,8 +4884,9 @@ function removeStaffTopic(): HelpTopic {
 
 /**
  * Rollen unter `/database/roles`, Rechteliste unter `/database/permissions`.
- * Systemrollen sind gesperrt: `role.isSystem` blendet die Kopfaktionen aus
- * (roles-master-detail.tsx:146).
+ * Vorgegebene Rollen (`role.isSystem`) haben keine Kopfaktionen
+ * (roles-master-detail.tsx). Eine neue Rolle startet mit den Rechten ihrer
+ * Vorlage; gesperrte Rechte bietet der Reiter nicht an (#4574).
  */
 function staffPermissionsTopic(): HelpTopic {
   return {
@@ -4903,6 +4905,7 @@ function staffPermissionsTopic(): HelpTopic {
           "Öffnen Sie `Datenverwaltung` und danach `Rollen`.",
           "Wählen Sie oben rechts `+ Rolle`.",
           "Tragen Sie `Name` und `Beschreibung` ein.",
+          "Wählen Sie eine `Vorlage`: `Wie Betreuung`, `Wie Verwaltung` oder `Wie Lehrkraft`.",
           "Wählen Sie `Erstellen`.",
         ],
       },
@@ -4910,9 +4913,9 @@ function staffPermissionsTopic(): HelpTopic {
         title: "Die Rechte einer Rolle ändern",
         steps: [
           "Öffnen Sie `Rollen` und wählen Sie die Rolle aus der Liste.",
-          "Wählen Sie oben rechts `Berechtigungen`.",
+          "Öffnen Sie den Reiter `Berechtigungen` und wählen Sie `Bearbeiten`.",
           "Haken Sie an, was die Rolle dürfen soll.",
-          "Speichern Sie die Auswahl.",
+          "Wählen Sie `Speichern`.",
         ],
       },
       {
@@ -4920,14 +4923,20 @@ function staffPermissionsTopic(): HelpTopic {
         steps: [
           "Öffnen Sie `Datenverwaltung` und danach `Personal`.",
           "Wählen Sie die Person aus der Liste.",
-          "Ändern Sie die Rolle und wählen Sie `Speichern`.",
+          "Öffnen Sie den Reiter `Konto` und wählen Sie `Bearbeiten`.",
+          "Wählen Sie bei `Rolle` die neue Rolle und dann `Speichern`.",
         ],
       },
     ],
     result:
       "Die neue Rolle gilt, sobald sich die Person das nächste Mal anmeldet.",
     notes: [
-      "Unter `Berechtigungen` sehen Sie alle Rechte, die es in moto gibt. Ändern lässt sich dort nichts.",
+      "Eine neue Rolle bekommt einmal die Rechte ihrer Vorlage. Danach ändern Sie die Rechte nur noch an der Rolle selbst.",
+      "`Wie Verwaltung` gibt fast alle Rechte der Verwaltung. Einiges kann nur die Rolle `Verwaltung` selbst, zum Beispiel Mitteilungen an Eltern schreiben.",
+      "Eine Rolle aus `Wie Lehrkraft` arbeitet wie die Rolle `Lehrkraft` in moto schule. Wer sie hat, meldet sich dort an. Später lässt sie sich nicht gegen eine andere Rolle tauschen.",
+      "Bei manchen Rechten steht ein Hinweis. Damit kann eine Person Rollen, Konten oder Einstellungen ändern. Geben Sie diese Rechte nur der Leitung.",
+      "`Position` im Reiter `Konto` ist nur ein Text für die Personalliste. Sie ändert keine Rechte.",
+      "Unter `Datenverwaltung` → `Berechtigungen` sehen Sie alle verfügbaren Rechte. Diese Übersicht können Sie nur ansehen. Die Rechte einer eigenen Rolle ändern Sie unter `Rollen`.",
       "Die Rolle entscheidet auch darüber, welche Menüpunkte jemand sieht.",
       // ADR 0091: die zwei Zugangsstufen externer Personen sind feste Rollen.
       "`AG-Leitung` ist für Personen, die eigene Termine betreuen. Sie sieht unter `Heute` nur ihre eigenen Termine. Dort startet sie den Termin, checkt die Kinder ein und aus und beendet ihn.",
@@ -4935,9 +4944,9 @@ function staffPermissionsTopic(): HelpTopic {
       "Mit `AG-Leitung` oder `Gast` sieht die Person keine Zeiterfassung, keine Einstellungen und kein Personal.",
     ],
     differences: [
-      "Frisch eingerichtet bringt moto feste Rollen mit: `Administrator`, `Betreuer`, `Lehrkraft`, `AG-Leitung`, `Erziehungsberechtigter` und `Gast`.",
-      "Bei den festen Rollen fehlen `Berechtigungen`, `Bearbeiten` und `Löschen`. Dort steht: `System-Rollen können nicht bearbeitet oder gelöscht werden.`",
-      "Zum Ändern von Rechten legen Sie deshalb zuerst eine eigene Rolle an.",
+      "moto bringt einige Rollen schon mit: `Verwaltung`, `Betreuung`, `Lehrkraft`, `AG-Leitung` und `Gast`. Sie sind als `Vorgegeben` markiert.",
+      "Bei einer vorgegebenen Rolle fehlen `Bearbeiten` und `Löschen`. Zum Ändern von Rechten legen Sie deshalb eine eigene Rolle an.",
+      "Einige Rechte stehen nicht zur Auswahl. Sie gehören nur der Rolle `Verwaltung` oder dem moto-Team.",
     ],
     troubleshootingDetails: [
       "Eine Person sieht einen Bereich nicht? Prüfen Sie die Rechte ihrer Rolle.",
@@ -5467,7 +5476,10 @@ function statisticsTopic(): HelpTopic {
       "Die Pfeile schieben den Zeitraum um seine eigene Länge weiter.",
     ],
     differences: [
-      "`Räume` und `Kurse` zeigen nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
+      "`Räume` zeigt nur mit eingeschaltetem `Anwesenheitsprotokoll` Zahlen.",
+      "Ohne `Anwesenheitsprotokoll` fehlt dort auch das Menü zum Exportieren.",
+      "Ist die Raumhistorie ausgeschaltet? Ihre Administration kann das `Anwesenheitsprotokoll` einschalten. Die Einstellung steht unter `Einstellungen` und `Datenschutz`.",
+      "`Kurse` zeigt nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
     ],
     troubleshootingDetails: [
       "Fehlt `Statistik` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -5694,9 +5706,8 @@ function settingsGuideTopic(): HelpTopic {
         description: "Was moto speichert und wie lange.",
         ordered: false,
         steps: [
-          "`Anwesenheitsprotokoll`: Das Team sieht bei jedem Kind, wann es da war und in welchen Räumen.",
+          "`Anwesenheitsprotokoll`: Das Team sieht die Anwesenheit und frühere Räume. Ausgeschaltet bleiben frühere Raumbesuche nur für den heutigen Tag. Beim Ausschalten bestätigen Sie zuerst die endgültige Löschung. Geben Sie dafür `LÖSCHEN` ein. Das gilt auch bei `Zurücksetzen` auf den ausgeschalteten Standard. Abgeschlossene Raumbesuche vor heute werden sofort gelöscht. Das lässt sich nicht rückgängig machen. Erneutes Einschalten stellt nichts wieder her. Heutige Raumbesuche bleiben bis zum nächtlichen Löschen erhalten. Der aktuelle Raum und die Anwesenheitszeiten bleiben erhalten.",
           "Vor dem Einschalten prüft die Schule die Rechtsgrundlage. Sie ist für die Nutzung verantwortlich.",
-          "Ausschalten beendet die Erfassung nicht und löscht keine Daten. Der aktuelle Aufenthaltsort bleibt davon unabhängig.",
           "`Nutzungsanalyse`: moto erhält Nutzungsstatistiken Ihrer Schule, aber keine eingegebenen Inhalte.",
           "Löschfristen wie `Anwesenheit aufbewahren (Tage)`: Wie lange moto Daten behält. Sie können sie nur lesen.",
         ],
@@ -6957,6 +6968,7 @@ function parentMealPlanTopic(): HelpTopic {
     notes: [
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
       "Bei jedem Tag steht, bis wann Sie ändern können, zum Beispiel `Abmelden bis Do., 17.09., 12:00`.",
+      "Mit `Woche anmelden` oder `Woche abmelden` ändern Sie alle Tage der Woche auf einmal, die Sie noch ändern können.",
       "Die Anmeldung sehen Sie bis zu vier Wochen im Voraus. Den Essensplan gibt es für diese und nächste Woche.",
     ],
     differences: [
@@ -6964,6 +6976,7 @@ function parentMealPlanTopic(): HelpTopic {
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
       "Fehlt `Ändern` bei den festen Tagen? Dann ist die Anmeldung für das Schuljahr abgeschlossen. Die festen Tage ändert jetzt die Schule.",
       "Nach `Woche abmelden` bleiben Tage angemeldet, deren Frist schon vorbei ist. moto nennt sie.",
+      "Nach `Woche anmelden` bleiben Tage abgemeldet, deren Anmeldefrist schon vorbei ist. moto nennt sie.",
       "Steht `An diesem Tag ist die OGS zu`, gibt es an diesem Tag kein Essen.",
       "In den Ferien gelten die festen Tage nicht. Für die Ferienbetreuung melden Sie einzelne Tage an.",
     ],

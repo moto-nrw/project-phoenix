@@ -81,6 +81,7 @@ func staffRetention(owner string) tableRetention {
 
 // tableRetentions classifies every table of the schema.
 var tableRetentions = map[string]tableRetention{
+	"platform.school_erasures":                              own("administrative platform.delete_expired_school_erasures: completed evidence expires three years after completion; unresolved orders remain for recovery (#3837)"),
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),
 	"active.activity_sessions":                              parent("schedule.activity_instances"),
 	"active.attendance":                                     own("nightly retention step attendance_retention (api/worker_retention.go), Student Presence DeleteExpiredAttendance (school window gdpr.attendance_retention_days after the care day, #3957)"),
@@ -226,7 +227,7 @@ var tableRetentions = map[string]tableRetention{
 	"meta.parent_student_consent_permission_grants":         parent("users.student_guardian_relationships"),
 	"platform.announcement_views":                           parent("auth.accounts"),
 	"platform.announcements":                                notPersonal("operator release announcements"),
-	"platform.billing_key_date_counts":                      notPersonal("aggregate per-school counts for billing"),
+	"platform.billing_key_date_counts":                      own("platform.delete_expired_billing_key_date_counts: 10 years after the end of the key_date calendar year, restricted billing evidence (ADR 0092)"),
 	"platform.billing_settings":                             notPersonal("billing configuration"),
 	"platform.cleanup_runs":                                 notPersonal("ledger of last successful cleanup per school and job"),
 	"platform.demo_school_states":                           own("demo process only: hourly demoExpiry -> RetireDemoSchools -> RetireMany -> SQL platform.erase_closed_demo_visitors (closed order without demo access; also replaces the visitor's name in the hidden demo schools)"),

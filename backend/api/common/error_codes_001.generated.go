@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIotNoRoomAvailable                            = "iot.no_room_available"
 	CodeIotNoSessionToEnd                             = "iot.no_session_to_end"
 	CodeIotOpenRoomBinaryMode                         = "iot.open_room_binary_mode"
 	CodeIotPersonNotStudent                           = "iot.person_not_student"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableTemplateCategoryUnavailable          = "timetable.template_category_unavailable"
 	CodeTimetableTemplateEducationGroupInvalid        = "timetable.template_education_group_invalid"
 	CodeTimetableTemplateEndBeforeStart               = "timetable.template_end_before_start"
-	CodeTimetableTemplateGradeAboveMax                = "timetable.template_grade_above_max"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.no_room_available":                               "input",
 	"iot.no_session_to_end":                               "input",
 	"iot.open_room_binary_mode":                           "business_rejection",
 	"iot.person_not_student":                              "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_category_unavailable":             "business_rejection",
 	"timetable.template_education_group_invalid":          "input",
 	"timetable.template_end_before_start":                 "input",
-	"timetable.template_grade_above_max":                  "input",
 }
 
 func init() {

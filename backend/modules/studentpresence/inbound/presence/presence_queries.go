@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -38,7 +40,7 @@ func (rs *Resource) presenceSessionVisits(ctx context.Context, groupID int64) ([
 	if len(groups) == 0 {
 		return nil, &presenceError{Op: operation, Err: studentpresence.ErrGroupNotFound}
 	}
-	visits, err := rs.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
+	visits, err := rs.listReadableVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{groupID}})
 	if err != nil {
 		return nil, &presenceError{Op: operation, Err: studentpresence.ErrDatabaseOperation}
 	}
@@ -181,6 +183,15 @@ func (rs *Resource) findPresenceVisit(ctx context.Context, id int64) (*studentpr
 	if err == nil && visit == nil {
 		err = studentpresence.ErrVisitNotFound
 	}
+	if err == nil && visit.ExitTime != nil {
+		filter, policyErr := rs.readableVisitFilter(ctx, studentpresence.VisitFilter{})
+		if policyErr != nil {
+			return nil, presenceQueryError("GetVisit", policyErr)
+		}
+		if filter.ClosedSince != nil && visit.ExitTime.Before(*filter.ClosedSince) {
+			return nil, presenceQueryError("GetVisit", studentpresence.ErrVisitNotFound)
+		}
+	}
 	return visit, presenceQueryError("GetVisit", err)
 }
 
@@ -212,4 +223,32 @@ func newPresenceVisitResponse(visit studentpresence.Visit) VisitResponse {
 		CheckInTime: visit.EntryTime, CheckOutTime: visit.ExitTime, IsActive: visit.ExitTime == nil,
 		CreatedAt: visit.CreatedAt, UpdatedAt: visit.UpdatedAt,
 	}
+}
+
+// readableVisitFilter bounds completed visit reads even before the nightly job
+// has run. A failed setting lookup returns no history, not a permissive default.
+func (rs *Resource) readableVisitFilter(ctx context.Context, filter studentpresence.VisitFilter) (studentpresence.VisitFilter, error) {
+	if filter.OpenOnly {
+		return filter, nil
+	}
+	if rs.SettingsService == nil {
+		return filter, errors.New("attendance log settings are required")
+	}
+	enabled, err := rs.SettingsService.ResolveBool(ctx, "gdpr.attendance_log_enabled")
+	if err != nil {
+		return filter, err
+	}
+	if !enabled {
+		cutoff := calendar.TodayDate().BerlinMidnight()
+		filter.ClosedSince = &cutoff
+	}
+	return filter, nil
+}
+
+func (rs *Resource) listReadableVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
+	filter, err := rs.readableVisitFilter(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	return rs.Presence.ListVisits(ctx, filter)
 }

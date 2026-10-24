@@ -49,7 +49,7 @@ describe("getWeeklyMealParticipants", () => {
                 },
               ],
             },
-            { date: "2026-09-08", participants: [] },
+            { date: "2026-09-08", closed: true, participants: [] },
           ],
         },
       });
@@ -64,6 +64,7 @@ describe("getWeeklyMealParticipants", () => {
       days: [
         {
           date: "2026-09-07",
+          closed: false,
           participants: [
             {
               studentId: "42",
@@ -73,7 +74,7 @@ describe("getWeeklyMealParticipants", () => {
             },
           ],
         },
-        { date: "2026-09-08", participants: [] },
+        { date: "2026-09-08", closed: true, participants: [] },
       ],
     });
   });

@@ -25,7 +25,7 @@ func (s *Store) ClassifySchoolRoles(ctx context.Context, tenantID int64, account
 	started := time.Now()
 	err = db.NewRaw(`SELECT ar.account_id,
 		COALESCE(bool_or(r.base_role = 'admin' OR (r.is_system AND lower(btrim(r.name)) = 'admin')), false) AS is_admin,
-		COALESCE(bool_or(r.is_system AND lower(btrim(r.name)) = 'lehrkraft'), false) AS is_lehrkraft
+		COALESCE(bool_or(r.school_portal OR (r.is_system AND lower(btrim(r.name)) = 'lehrkraft')), false) AS is_lehrkraft
 		FROM auth.account_roles ar JOIN auth.roles r ON r.id = ar.role_id
 		WHERE ar.tenant_id = ? AND ar.account_id IN (?)
 		GROUP BY ar.account_id`,

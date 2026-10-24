@@ -264,7 +264,11 @@
     "cancelWeekConfirm": "Cancel",
     "cancelWeekDone": "The week is cancelled.",
     "cancelWeekLocked": "These days were already ordered and stay registered: {days}.",
+    "registerWeek": "Register week",
+    "registerWeekDone": "The week is registered.",
+    "registerWeekLocked": "The registration deadline for these days has passed; they stay unregistered: {days}.",
     "errorObjectWeekCancel": "the cancellation for the week",
+    "errorObjectWeekRegister": "the registration for the week",
     "participationCutoffLead": "You can change the registration until {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}}.",
     "participationSicknessLead": "A confirmed sick note by {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}} cancels lunch. After that, the registration remains unchanged."
   },
@@ -359,7 +363,8 @@
     "weekRegistered": "registered",
     "weekNotRegistered": "not registered",
     "weekCountsLabel": "Number of meals per day",
-    "weekCount": "{count, plural, one {# child} other {# children}}"
+    "weekCount": "{count, plural, one {# child} other {# children}}",
+    "weekClosed": "no meal"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",
@@ -2457,6 +2462,7 @@
         "preview_token_invalid": "You cannot access {object}. Please contact the school.",
         "read_only_preview": "You cannot access {object}. Please contact the school.",
         "role_name_taken": "{object} could not be changed. Please check its current status.",
+        "role_platform_permission": "{object} could not be saved. Please check your entries.",
         "session_account_inactive": "Your account is switched off. Please contact your school's management.",
         "tenant_access_denied": "You cannot access {object}. Please contact the school.",
         "use_parent_portal": "You cannot access {object}. Please contact the school.",

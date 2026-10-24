@@ -264,7 +264,11 @@
     "cancelWeekConfirm": "Wypisz",
     "cancelWeekDone": "Tydzień został wypisany.",
     "cancelWeekLocked": "Te dni były już zamówione i pozostają zapisane: {days}.",
+    "registerWeek": "Zapisz na cały tydzień",
+    "registerWeekDone": "Zapisano na cały tydzień.",
+    "registerWeekLocked": "Termin zapisu na te dni minął, pozostają niezapisane: {days}.",
     "errorObjectWeekCancel": "wypisania z tygodnia",
+    "errorObjectWeekRegister": "zapisu na tydzień",
     "participationCutoffLead": "Zapis można zmienić do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}}.",
     "participationSicknessLead": "Potwierdzone zgłoszenie choroby do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}} wypisuje Państwa dziecko z obiadu. Po tym terminie zapis pozostaje bez zmian."
   },
@@ -359,7 +363,8 @@
     "weekRegistered": "zapisane",
     "weekNotRegistered": "niezapisane",
     "weekCountsLabel": "Liczba posiłków na dzień",
-    "weekCount": "{count, plural, one {# dziecko} few {# dzieci} many {# dzieci} other {# dziecka}}"
+    "weekCount": "{count, plural, one {# dziecko} few {# dzieci} many {# dzieci} other {# dziecka}}",
+    "weekClosed": "brak posiłku"
   },
   "parentDashboard": {
     "eyebrow": "Portal dla rodziców",
@@ -2457,6 +2462,7 @@
         "preview_token_invalid": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "read_only_preview": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "role_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "role_platform_permission": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "session_account_inactive": "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
         "tenant_access_denied": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_parent_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",

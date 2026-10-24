@@ -264,7 +264,11 @@
     "cancelWeekConfirm": "İptal et",
     "cancelWeekDone": "Hafta iptal edildi.",
     "cancelWeekLocked": "Bu günler zaten sipariş edilmişti ve kayıtlı kalıyor: {days}.",
+    "registerWeek": "Tüm hafta için kaydet",
+    "registerWeekDone": "Hafta kaydedildi.",
+    "registerWeekLocked": "Bu günler için kayıt süresi doldu, kayıtsız kalıyor: {days}.",
     "errorObjectWeekCancel": "haftalık iptal",
+    "errorObjectWeekRegister": "haftalık kayıt",
     "participationCutoffLead": "Kaydı {days, plural, one {yemekten bir iş günü önce} other {yemekten # iş günü önce}} saat {time} olana kadar değiştirebilirsiniz.",
     "participationSicknessLead": "{days, plural, one {Yemekten bir iş günü önce} other {Yemekten # iş günü önce}} saat {time} olana kadar onaylanan bir hastalık bildirimi, çocuğunuzun öğle yemeği kaydını iptal eder. Sonrasında kayıt geçerli kalır."
   },
@@ -359,7 +363,8 @@
     "weekRegistered": "kayıtlı",
     "weekNotRegistered": "kayıtlı değil",
     "weekCountsLabel": "Günlük yemek sayısı",
-    "weekCount": "{count, plural, one {# çocuk} other {# çocuk}}"
+    "weekCount": "{count, plural, one {# çocuk} other {# çocuk}}",
+    "weekClosed": "yemek yok"
   },
   "parentDashboard": {
     "eyebrow": "Veli portalı",
@@ -2457,6 +2462,7 @@
         "preview_token_invalid": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "read_only_preview": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "role_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "role_platform_permission": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "session_account_inactive": "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
         "tenant_access_denied": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_parent_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",

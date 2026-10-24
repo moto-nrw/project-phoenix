@@ -38,10 +38,17 @@ App-Zugänge ein gesondert zu begrenzendes Risiko.
 
 **Akzeptiert ist die Maßnahmenwahl, nicht deren produktive Wirksamkeit.**
 Datenträger-/Schlüsselnachweis 3840-c, Diagnose-Leserolle 3840-f und produktive
-Backup-Abnahme sind offen. Die Gesundheitskopien in
-`users.student_data_change_requests` (#4844, Slice 4844-a) und die zu weiten
-Dateirechte von Kinderfotos/Avataren (Slice 3840-h) sind zu behebende Mängel,
-keine Ausnahmen dieser Entscheidung. Authentifizierte HTTP-Auslieferung
+Backup-Abnahme sind offen. Für Gesundheitskopien in
+`users.student_data_change_requests` ist die **Code-Abhilfe umgesetzt
+(#4854, Slice 4844-a)**: neue `health_info`-Protokollwerte werden maskiert,
+Migration `1.15.483` bereinigt den Altbestand. Rollout und produktiver Nachweis
+einschließlich Restore bleiben nach dem
+[Prüfablauf](../operations/gesundheitsangaben-aenderungsprotokoll-3840.md#elternportal-änderungsanfragen-slice-4844-a)
+offen. Für Kinderfotos/Avatare ist die Code-Abhilfe umgesetzt
+(#4852, Slice 3840-h): neue Dateien 0600, Zielverzeichnisse 0700. Bestand,
+Rollout und produktiver Nachweis bleiben nach dem
+[Foto-Runbook](../operations/private-fotodateien-3840.md) offen. Diese offenen
+Punkte sind keine Ausnahmen der Entscheidung. Authentifizierte HTTP-Auslieferung
 ersetzt keinen Schutz vor lokalem Dateizugriff. Der [Bewertungsstand](../reference/schutz-gespeicherter-daten.md)
 benennt Quellen, Bedrohungen und offene Kriterien; der
 [Mensch-Prüfablauf](../operations/datentraegerschutz-3840.md) beschreibt die
