@@ -1084,7 +1084,10 @@ describe("CareOfferingsEditor", () => {
     expect(unlimited.getByText("Unbegrenzt")).toBeInTheDocument();
 
     // The capacity tile adds the free places of the phase: 3 + 0.
-    expect(screen.getByText("Kapazität · 3 frei")).toBeInTheDocument();
+    expect(screen.getByText("· 3 frei")).toBeInTheDocument();
+    expect(screen.getByText("· 3 frei").parentElement).toHaveTextContent(
+      "15 · 3 frei",
+    );
   });
 
   it("hides the occupancy when it fails to load and keeps the list usable", async () => {
@@ -1109,7 +1112,7 @@ describe("CareOfferingsEditor", () => {
     );
     expect(screen.getByRole("button", { name: /^Preis/ })).toBeInTheDocument();
     expect(screen.getByText("10 Plätze")).toBeInTheDocument();
-    expect(screen.queryByText(/ frei$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/frei$/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     ).toBeEnabled();

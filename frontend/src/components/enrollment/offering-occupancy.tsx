@@ -15,7 +15,7 @@ export function OfferingOccupancyCell({
     return <span className="text-sm text-gray-700">{occupancy.booked}</span>;
   }
   return (
-    <div className="min-w-0">
+    <div className="whitespace-nowrap">
       <p className="text-sm text-gray-900">
         {occupancy.booked} von {occupancy.capacity}
       </p>
@@ -41,4 +41,12 @@ export function occupancySortValue(
   occupancy: OfferingOccupancy | null,
 ): number | null {
   return occupancy?.booked ?? null;
+}
+
+/** Spalte „Kapazität“: „Unbegrenzt“, „1 Platz“, „12 Plätze“. */
+export function formatOfferingCapacity(
+  capacity: number | null | undefined,
+): string {
+  if (capacity == null) return "Unbegrenzt";
+  return capacity === 1 ? "1 Platz" : `${capacity} Plätze`;
 }

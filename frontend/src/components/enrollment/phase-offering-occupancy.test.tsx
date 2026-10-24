@@ -60,12 +60,12 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
   it("shows the same numbers per offering as the offering list", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       offering({ id: "1", name: "Regelbetreuung", capacity: 10 }),
-      offering({ id: "2", name: "Randstunde", capacity: 5 }),
+      offering({ id: "2", name: "Randstunde", capacity: 1 }),
       offering({ id: "3", name: "Frühbetreuung", capacity: null }),
     ]);
     mocks.fetchCareOfferingBookingStats.mockResolvedValue({
       "1": stats("1", 10, 7),
-      "2": stats("2", 5, 5),
+      "2": stats("2", 1, 1),
       "3": stats("3", null, 4),
     });
 
@@ -78,13 +78,15 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
     expect(mocks.fetchCareOfferingBookingStats).toHaveBeenCalledWith("7");
 
     const regular = rowOf("Regelbetreuung");
+    expect(regular.getByText("10 Plätze")).toBeInTheDocument();
     expect(regular.getByText("7 von 10")).toBeInTheDocument();
     expect(regular.getByText("3 frei")).toBeInTheDocument();
     expect(regular.getByText("Aktiv")).toBeInTheDocument();
     expect(regular.queryByText("Voll")).not.toBeInTheDocument();
 
     const full = rowOf("Randstunde");
-    expect(full.getByText("5 von 5")).toBeInTheDocument();
+    expect(full.getByText("1 von 1")).toBeInTheDocument();
+    expect(full.getByText("1 Platz")).toBeInTheDocument();
     expect(full.getByText("Voll")).toBeInTheDocument();
 
     const unlimited = rowOf("Frühbetreuung");

@@ -15,6 +15,7 @@ import {
 import {
   OfferingFullBadge,
   OfferingOccupancyCell,
+  formatOfferingCapacity,
   occupancySortValue,
 } from "~/components/enrollment/offering-occupancy";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
@@ -66,6 +67,7 @@ export function PhaseOfferingOccupancy({
       {
         key: "name",
         header: "Betreuungsangebot",
+        stacked: "title",
         sortValue: (offering) => offering.name,
         render: (offering) => (
           <span className="font-medium text-gray-900">{offering.name}</span>
@@ -77,9 +79,7 @@ export function PhaseOfferingOccupancy({
         sortValue: (offering) => offering.capacity ?? Number.POSITIVE_INFINITY,
         render: (offering) => (
           <span className="text-sm text-gray-700">
-            {offering.capacity == null
-              ? "Unbegrenzt"
-              : `${offering.capacity} Plätze`}
+            {formatOfferingCapacity(offering.capacity)}
           </span>
         ),
       },
@@ -97,6 +97,7 @@ export function PhaseOfferingOccupancy({
       {
         key: "status",
         header: "Status",
+        stacked: "meta",
         sortValue: (offering) => (offering.is_active ? 1 : 0),
         render: (offering) => (
           <div className="flex flex-wrap items-center gap-1.5">
@@ -128,6 +129,7 @@ export function PhaseOfferingOccupancy({
         columns={columns}
         rows={data.offerings}
         getRowKey={(offering) => offering.id}
+        stackedOnMobile
         defaultSortKey="name"
         defaultSortDirection="asc"
       />

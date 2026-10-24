@@ -44,6 +44,7 @@ import {
 import {
   OfferingFullBadge,
   OfferingOccupancyCell,
+  formatOfferingCapacity,
   occupancySortValue,
 } from "~/components/enrollment/offering-occupancy";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
@@ -886,9 +887,7 @@ export function CareOfferingsEditor({
         sortValue: (offering) => offering.capacity ?? Number.POSITIVE_INFINITY,
         render: (offering) => (
           <span className="text-sm text-gray-700">
-            {offering.capacity == null
-              ? "Unbegrenzt"
-              : `${offering.capacity} Plätze`}
+            {formatOfferingCapacity(offering.capacity)}
           </span>
         ),
       },
@@ -1227,7 +1226,7 @@ function CareOfferingMetric({
   icon: React.ReactNode;
   label: string;
   value: number | string;
-  /** Second figure next to the label, e.g. the free places. */
+  /** Second figure next to the value, e.g. the free places. */
   detail?: string;
 }>) {
   return (
@@ -1236,12 +1235,13 @@ function CareOfferingMetric({
         {icon}
       </span>
       <span>
-        <span className="block text-sm font-semibold text-gray-900">
+        <span className="block text-sm font-semibold whitespace-nowrap text-gray-900">
           {value}
+          {detail ? (
+            <span className="font-normal text-gray-500"> · {detail}</span>
+          ) : null}
         </span>
-        <span className="block text-xs text-gray-500">
-          {detail ? `${label} · ${detail}` : label}
-        </span>
+        <span className="block text-xs text-gray-500">{label}</span>
       </span>
     </div>
   );
