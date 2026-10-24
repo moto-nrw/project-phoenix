@@ -39,13 +39,16 @@ export function MealAllergenMarks({
 
 /**
  * The legend of the letters used this week, with the line that says where
- * the information comes from. Read-only: it carries no affordance.
+ * the information comes from. Read-only: it carries no affordance. The staff
+ * plan leaves the source line out: the staff enter the information.
  */
 export function MealAllergenLegend({
   allergens,
+  showSource = true,
   className,
 }: {
   readonly allergens: readonly MealAllergen[];
+  readonly showSource?: boolean;
   readonly className?: string;
 }) {
   const t = useTranslations("mealAllergens");
@@ -68,7 +71,9 @@ export function MealAllergenLegend({
       ) : (
         <p>{t("noneThisWeek")}</p>
       )}
-      <p className="mt-1.5 text-gray-500">{t("source")}</p>
+      {showSource ? (
+        <p className="mt-1.5 text-gray-500">{t("source")}</p>
+      ) : null}
     </div>
   );
 }

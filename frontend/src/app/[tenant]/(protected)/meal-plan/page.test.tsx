@@ -127,10 +127,16 @@ describe("Speiseplan: Allergene je Gericht (#4777)", () => {
     expect(
       screen.getAllByRole("button", { name: "Allergene wählen" }),
     ).toHaveLength(4);
+    // The legend under the plan explains the letters used this week.
+    const legend = screen.getByRole("list", { name: "Allergene" });
+    expect(legend).toHaveTextContent("A Glutenhaltiges Getreide");
+    expect(legend).toHaveTextContent("D Fisch");
+    expect(legend).not.toHaveTextContent("Milch");
 
     fireEvent.click(trigger);
     fireEvent.click(screen.getByLabelText("Milch (auch Laktose) (G)"));
     expect(trigger).toHaveTextContent("A, D, G");
+    expect(legend).toHaveTextContent("G Milch (auch Laktose)");
     expect(trigger).toHaveAccessibleName(
       "Allergene: Glutenhaltiges Getreide, Fisch, Milch (auch Laktose)",
     );

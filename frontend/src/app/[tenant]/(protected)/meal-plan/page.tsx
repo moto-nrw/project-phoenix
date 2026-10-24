@@ -49,11 +49,13 @@ import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
 import {
+  MealAllergenLegend,
   MealAllergenMarks,
   MealAllergenSelect,
 } from "~/components/meal-plan/meal-allergens";
 import {
   normalizeMealAllergens,
+  usedMealAllergens,
   type MealAllergen,
 } from "~/lib/meal-allergens";
 
@@ -235,6 +237,10 @@ export default function MealPlanPage() {
   }, [today, weekOffset]);
 
   const weekDates = useMemo(() => workWeekDates(mondayISO), [mondayISO]);
+  // Legende unter dem Plan: nur die Buchstaben, die diese Woche vorkommen.
+  const weekAllergens = usedMealAllergens(
+    weekDates.flatMap((date) => drafts[date] ?? []),
+  );
 
   // Latest-wins guard: every load() captures a token; a slower earlier load
   // (e.g. a previous week on a slow connection) bails instead of overwriting
@@ -857,6 +863,13 @@ export default function MealPlanPage() {
             );
           })}
         </div>
+        {weekAllergens.length > 0 ? (
+          <MealAllergenLegend
+            allergens={weekAllergens}
+            showSource={false}
+            className="border-t border-gray-200 px-4 py-3"
+          />
+        ) : null}
       </SectionCard>
 
       {canReadParticipants ? (
