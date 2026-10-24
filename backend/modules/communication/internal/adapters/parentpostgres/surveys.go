@@ -123,7 +123,14 @@ func (s *SurveyStore) FindSurvey(ctx context.Context, id int64, lock bool) (*com
 	if err != nil {
 		return nil, err
 	}
-	return s.findSurvey(ctx, db, "sv.id = ? AND sv.tenant_id = ?", []any{id, tenantID}, lock)
+	row := new(surveyRow)
+	query := db.NewSelect().Model(row).Where("sv.id = ? AND sv.tenant_id = ?", id, tenantID)
+	if lock {
+		query = query.For("UPDATE")
+	} else {
+		query = query.Column("sv.*").ColumnExpr(participantCountColumn)
+	}
+	return withQuestions(ctx, db, row, query.Scan(ctx))
 }
 
 // FindPortalSurvey returns the published parent survey an announcement of the
@@ -133,24 +140,22 @@ func (s *SurveyStore) FindPortalSurvey(ctx context.Context, tenantID, announceme
 	if err != nil {
 		return nil, err
 	}
-	return s.findSurvey(ctx, db,
-		"sv.announcement_id = ? AND sv.tenant_id = ? AND sv.audience = ? AND sv.published_at IS NOT NULL",
-		[]any{announcementID, tenantID, communication.SurveyAudienceParents}, false)
+	row := new(surveyRow)
+	err = db.NewSelect().Model(row).Column("sv.*").ColumnExpr(participantCountColumn).
+		Where("sv.announcement_id = ? AND sv.tenant_id = ? AND sv.audience = ? AND sv.published_at IS NOT NULL",
+			announcementID, tenantID, communication.SurveyAudienceParents).
+		Scan(ctx)
+	return withQuestions(ctx, db, row, err)
 }
 
-func (s *SurveyStore) findSurvey(ctx context.Context, db bun.IDB, where string, args []any, lock bool) (*communication.Survey, error) {
-	row := new(surveyRow)
-	query := db.NewSelect().Model(row).Where(where, args...)
-	if lock {
-		query = query.For("UPDATE")
-	} else {
-		query = query.Column("sv.*").ColumnExpr(participantCountColumn)
-	}
-	if err := query.Scan(ctx); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+// withQuestions completes a scanned survey with its questions; a missing row
+// is nil.
+func withQuestions(ctx context.Context, db bun.IDB, row *surveyRow, scanErr error) (*communication.Survey, error) {
+	if scanErr != nil {
+		if errors.Is(scanErr, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("find survey: %w", err)
+		return nil, fmt.Errorf("find survey: %w", scanErr)
 	}
 	survey := row.value()
 	questions, err := loadSurveyQuestions(ctx, db, survey.TenantID, survey.ID)

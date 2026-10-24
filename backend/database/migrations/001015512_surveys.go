@@ -3,11 +3,7 @@ package migrations
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"regexp"
-	"slices"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -220,8 +216,8 @@ func surveysUp(ctx context.Context, db *bun.DB) error {
 		if err := provisionTenantRLS(ctx, tx, surveyTables...); err != nil {
 			return err
 		}
-		if err := replaceDataKindRetentions(ctx, tx, []string{parentSurveyRetentionKind, staffSurveyRetentionKind}, nil); err != nil {
-			return err
+		if _, err := tx.ExecContext(ctx, surveyDataKindsUpSQL); err != nil {
+			return fmt.Errorf("extend data_deletions subject check: %w", err)
 		}
 		if err := installSchoolErasureFunctions(ctx, tx); err != nil {
 			return fmt.Errorf("refresh school erasure functions for surveys: %w", err)
@@ -254,8 +250,8 @@ func surveysDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("cannot restore the data_deletions subject check while %d survey retention rows exist", logged)
 	}
 	if err := db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
-		if err := replaceDataKindRetentions(ctx, tx, nil, []string{parentSurveyRetentionKind, staffSurveyRetentionKind}); err != nil {
-			return err
+		if _, err := tx.ExecContext(ctx, surveyDataKindsDownSQL); err != nil {
+			return fmt.Errorf("restore data_deletions subject check: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `
 			DROP TABLE IF EXISTS users.survey_answers;
@@ -281,44 +277,110 @@ func surveysDown(ctx context.Context, db *bun.DB) error {
 	return dropPermission(ctx, db, surveysManagePermissionName)
 }
 
-var dataKindPattern = regexp.MustCompile(`'([a-z_]+)'`)
+// surveyDataKindsUpSQL extends the subject check of audit.data_deletions by
+// the two survey retention kinds; surveyDataKindsDownSQL restores the check
+// of 1.15.492. The list is spelled out: the architecture check classifies
+// only static migration SQL.
+const surveyDataKindsUpSQL = `
+		ALTER TABLE audit.data_deletions
+			DROP CONSTRAINT IF EXISTS chk_data_deletions_subject;
+		ALTER TABLE audit.data_deletions
+			ADD CONSTRAINT chk_data_deletions_subject CHECK (
+				(student_id IS NULL OR staff_id IS NULL)
+				AND (
+					student_id IS NOT NULL
+					OR staff_id IS NOT NULL
+					OR deletion_type IN (
+						'unregistered_tag_scan_retention',
+						'status_day_retention',
+						'attendance_retention',
+						'morning_attendance_retention',
+						'guardian_retention',
+						'parent_message_retention',
+						'parent_announcement_retention',
+						'staff_notice_retention',
+						'appointment_retention',
+						'appointment_tombstone_retention',
+						'grade_transition_retention',
+						'removed_file_retention',
+						'auth_event_retention',
+						'data_access_log_retention',
+						'deletion_log_retention',
+						'delivery_retention',
+						'file_cleanup_retention',
+						'staff_cleanup_retention',
+						'student_document_cleanup_retention',
+						'care_withdrawal_retention',
+						'submission_rate_limit_retention',
+						'settled_enrollment_retention',
+						'staff_sick_note_retention',
+						'student_deletion_log_retention',
+						'enrollment_deletion_log_retention',
+						'enrollment_restoration_log_retention',
+						'time_tracking_deletion_log_retention',
+						'staff_master_data_change_retention',
+						'personnel_number_change_retention',
+						'guardian_financial_change_retention',
+						'class_list_change_retention',
+						'substitution_change_retention',
+						'file_event_retention',
+						'export_transfer_retention',
+						'setting_audit_retention',
+						'enrollment_upload_retention',
+						'parent_survey_retention',
+						'staff_survey_retention'
+					)
+				)
+			);
+`
 
-// replaceDataKindRetentions rewrites the subject check of audit.data_deletions
-// from its live definition: it adds and removes the named data kinds and
-// keeps every kind another migration added. Rewriting the list by hand would
-// silently drop a kind a parallel migration registered in between.
-func replaceDataKindRetentions(ctx context.Context, tx bun.Tx, add, remove []string) error {
-	var definition string
-	if err := tx.NewRaw(`SELECT pg_get_constraintdef(c.oid)
-		FROM pg_constraint c
-		WHERE c.conrelid = 'audit.data_deletions'::regclass AND c.conname = 'chk_data_deletions_subject'`).Scan(ctx, &definition); err != nil {
-		return fmt.Errorf("read data_deletions subject check: %w", err)
-	}
-	kinds := make([]string, 0, 64)
-	for _, match := range dataKindPattern.FindAllStringSubmatch(definition, -1) {
-		if !slices.Contains(kinds, match[1]) && !slices.Contains(remove, match[1]) {
-			kinds = append(kinds, match[1])
-		}
-	}
-	if len(kinds) == 0 {
-		return errors.New("data_deletions subject check lists no data kind")
-	}
-	for _, kind := range add {
-		if !slices.Contains(kinds, kind) {
-			kinds = append(kinds, kind)
-		}
-	}
-	quoted := make([]string, 0, len(kinds))
-	for _, kind := range kinds {
-		quoted = append(quoted, "'"+kind+"'")
-	}
-	if _, err := tx.ExecContext(ctx, `
-		ALTER TABLE audit.data_deletions DROP CONSTRAINT IF EXISTS chk_data_deletions_subject;
-		ALTER TABLE audit.data_deletions ADD CONSTRAINT chk_data_deletions_subject CHECK (
-			(student_id IS NULL OR staff_id IS NULL)
-			AND (student_id IS NOT NULL OR staff_id IS NOT NULL OR deletion_type IN (`+strings.Join(quoted, ", ")+`))
-		)`); err != nil {
-		return fmt.Errorf("rewrite data_deletions subject check: %w", err)
-	}
-	return nil
-}
+const surveyDataKindsDownSQL = `
+		ALTER TABLE audit.data_deletions
+			DROP CONSTRAINT IF EXISTS chk_data_deletions_subject;
+		ALTER TABLE audit.data_deletions
+			ADD CONSTRAINT chk_data_deletions_subject CHECK (
+				(student_id IS NULL OR staff_id IS NULL)
+				AND (
+					student_id IS NOT NULL
+					OR staff_id IS NOT NULL
+					OR deletion_type IN (
+						'unregistered_tag_scan_retention',
+						'status_day_retention',
+						'attendance_retention',
+						'morning_attendance_retention',
+						'guardian_retention',
+						'parent_message_retention',
+						'parent_announcement_retention',
+						'staff_notice_retention',
+						'appointment_retention',
+						'appointment_tombstone_retention',
+						'grade_transition_retention',
+						'removed_file_retention',
+						'auth_event_retention',
+						'data_access_log_retention',
+						'deletion_log_retention',
+						'delivery_retention',
+						'file_cleanup_retention',
+						'staff_cleanup_retention',
+						'student_document_cleanup_retention',
+						'care_withdrawal_retention',
+						'submission_rate_limit_retention',
+						'settled_enrollment_retention',
+						'staff_sick_note_retention',
+						'student_deletion_log_retention',
+						'enrollment_deletion_log_retention',
+						'enrollment_restoration_log_retention',
+						'time_tracking_deletion_log_retention',
+						'staff_master_data_change_retention',
+						'personnel_number_change_retention',
+						'guardian_financial_change_retention',
+						'class_list_change_retention',
+						'substitution_change_retention',
+						'file_event_retention',
+						'export_transfer_retention',
+						'setting_audit_retention',
+						'enrollment_upload_retention'
+					)
+				)
+			);
+`

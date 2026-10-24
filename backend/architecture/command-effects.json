@@ -23556,6 +23556,17 @@
     },
     {
       "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/composition.SurveyStaff.ListAddressableStaff",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.StaffReadRecords.ListAddressableStaff",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.MessageableStaffRepository.ListMessageableStaff",
+      "target_owner": "people-directory",
+      "binding_digest": "4e1b590719545bfe215dd9e4e54504ba",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: the surveys (#4781) read the school's staff audience through modules/communication.StaffReadRecords.ListAddressableStaff, the team chat's colleague relation in People Directory (MessageableStaffRepository.ListMessageableStaff). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.DecisionNotifier.NotifyRequestDecision",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.RequestDecisionNotifier.NotifyRequestDecision",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.RequestDecisionNotifier.NotifyRequestDecision",
@@ -24204,6 +24215,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: communication reaches modules/peopledirectory/internal/adapters/peoplepostgres.MessageableStaffRepository.StaffRoleKinds (people-directory) through modules/communication.StaffReadRecords.StaffRoleKindsForAccounts. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.SurveyStaff.ListAddressableStaff",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/composition.SurveyStaff.ListAddressableStaff",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.MessageableStaffRepository.ListMessageableStaff",
+      "target_owner": "people-directory",
+      "binding_digest": "4e1b590719545bfe215dd9e4e54504ba",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: the surveys (#4781) read the school's staff audience through modules/communication/composition.SurveyStaff.ListAddressableStaff, the team chat's colleague relation in People Directory (MessageableStaffRepository.ListMessageableStaff). No persistent, lock or scope effect (ADR 0098)."
     },
     {
       "source_owner": "communication",
