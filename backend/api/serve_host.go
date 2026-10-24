@@ -97,6 +97,12 @@ func mountServeMiddleware(
 	// response is 2xx (#3602). After the verifier, which names the session.
 	router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(settings, logger), analyticsConsent(consent), policy))
 	router.Get("/analytics-policy", analytics.PolicyHandler(policy, analyticsRequestActor))
+	mountAnalyticsConsent(router, consent)
+	return sessionAuth, nil
+}
+
+// mountAnalyticsConsent serves each account's analytics choice in every portal.
+func mountAnalyticsConsent(router chi.Router, consent identityaccess.AccountAnalyticsConsent) {
 	// The account's own consent to the usage analytics (#4901) serves every
 	// portal session, like the policy above: the Authenticator verifies the
 	// access token, the preview middleware blocks writes, and the resource
@@ -104,7 +110,6 @@ func mountServeMiddleware(
 	router.Mount("/analytics-consent", meAPI.NewAnalyticsConsentResource(consent).Router(func(r chi.Router) {
 		r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware)
 	}))
-	return sessionAuth, nil
 }
 
 // registerRuntimeStatsProviders hands the live streams and the PWA usage to
