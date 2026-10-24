@@ -107,6 +107,7 @@ const env = {
   NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:13843",
   NEXT_PUBLIC_PARENTS_HOSTNAME: "eltern.localhost:13843",
   NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:13843",
+  NEXT_PUBLIC_CATERER_HOSTNAME: "caterer.localhost:13843",
   NEXT_PUBLIC_POSTHOG_KEY: "network-evidence-placeholder",
   // SaaS-shaped, nonfunctional placeholder so the real SDK uses /monitoring.
   NEXT_PUBLIC_SENTRY_DSN: "https://network_evidence@o0.ingest.sentry.io/1",
