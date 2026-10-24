@@ -83,7 +83,9 @@ type sickCascadePlanning interface {
 }
 
 // withSickCascadePlan is this service for one write whose plan changes are
-// recorded into the returned plan.
+// recorded into the returned plan. The copy is shallow on purpose: the
+// service holds only its collaborators and settings, no per-write state, so
+// the copy differs from s in the syncer alone.
 func (s *staffAbsenceService) withSickCascadePlan() (StaffAbsenceService, *workforce.SickCascadePlan) {
 	plan := &workforce.SickCascadePlan{}
 	planned := *s

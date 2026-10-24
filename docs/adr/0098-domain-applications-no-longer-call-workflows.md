@@ -27,7 +27,7 @@ from HTTP or the root.
 | Workforce → Staff Offboarding `NewAbsenceDeletion` | (a) | Workforce builds the deletion record of the absences it deletes. The root binds only that value and the Audit Platform append. |
 | School Membership runs a Staff Offboarding closure | (a) | School Membership offers `LockLiveStaff`. The workflow locks first and then writes in the same caller transaction. |
 | School Structure → Shift Plan Sync `GroupHandovers` | (a) | The handover store binds Workforce's group-substitution commands like the store's other methods. The root translates only the duplicate error. |
-| File Storage → Parent Portal `GuardianAudience` | (b) | File Storage offers tenant-scoped attachment reads. The parent download routes call the portal's `AnnouncementAttachments` entry through their own `GuardianAttachments` port. The entry checks the audience, reads the rows, checks again and only then opens the bytes. |
+| File Storage → Parent Portal `GuardianAudience` | (b) | File Storage offers tenant-scoped attachment reads as `TenantAttachmentReads`, outside its `Capability`. The root hands them only to the portal's `AnnouncementAttachments` entry. The parent download routes call that entry through their own `GuardianAttachments` port. The entry checks the audience, reads the rows, checks again and only then opens the bytes. |
 | School Structure → Shift Plan Sync schedule adapter | (b) | The `ScheduleSubstitutions` entry authorizes, runs the Timetable deviation writes in the request transaction and announces them after commit. The root routes the schedule target to it and the group targets to School Structure's module. |
 | Workforce → Shift Plan Sync `SickCascade` | (b) | The absence writes that can cascade a sick report return a `SickCascadePlan`. The `SickReports` entry runs the write and applies the plan in one tenant transaction. The Workforce routes reach it through `OwnAbsenceWrites` and `AdminAbsenceWrites`. |
 
@@ -45,8 +45,12 @@ interfaces.
 - Sick-report deletion and merging now release or re-point the provenance
   stamps after Workforce's row writes instead of before them. Both steps run
   in the same tenant transaction. The stamps have no foreign key, and the
-  cascade reads no absence row. An unplanned sick cascade is refused at write
-  time instead of at service construction.
+  cascade reads no absence row. Inside that transaction the absence row is now
+  written before the cascade takes the staff-shift and substitute-day locks.
+  The per-staff absence lock still comes first and serializes every absence
+  write and cascade of the same staff member, so no other writer can hold a
+  shift or day lock while it waits for that absence row. An unplanned sick
+  cascade is refused at write time instead of at service construction.
 - A parent attachment download now reads the attachment row twice: once
   before the second audience check and once when the bytes are opened. A row
   deleted between the two reads answers 404.

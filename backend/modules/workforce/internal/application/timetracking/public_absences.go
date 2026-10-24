@@ -106,7 +106,7 @@ func (c staffAbsenceCapability) CreateOwnAbsence(ctx context.Context, staffID in
 	if err != nil {
 		return nil, nil, err
 	}
-	return c.plannedAbsence(plan)(c.absence(absences.CreateOwnAbsence(ctx, staffID, actorAccountID, CreateAbsenceRequest(request))))
+	return plannedAbsence(plan)(c.absence(absences.CreateOwnAbsence(ctx, staffID, actorAccountID, CreateAbsenceRequest(request))))
 }
 
 func (c staffAbsenceCapability) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
@@ -114,7 +114,7 @@ func (c staffAbsenceCapability) CreateAbsenceFor(ctx context.Context, subjectSta
 	if err != nil {
 		return nil, nil, err
 	}
-	return c.plannedAbsence(plan)(c.absence(absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, CreateAbsenceRequest(request))))
+	return plannedAbsence(plan)(c.absence(absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, CreateAbsenceRequest(request))))
 }
 
 func (c staffAbsenceCapability) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
@@ -122,7 +122,7 @@ func (c staffAbsenceCapability) UpdateAbsence(ctx context.Context, staffID int64
 	if err != nil {
 		return nil, nil, err
 	}
-	return c.plannedAbsence(plan)(c.absence(absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, UpdateAbsenceRequest(request))))
+	return plannedAbsence(plan)(c.absence(absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, UpdateAbsenceRequest(request))))
 }
 
 func (c staffAbsenceCapability) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) (workforce.SickCascadePlan, error) {
@@ -142,7 +142,7 @@ func (c staffAbsenceCapability) DeleteAbsenceFor(ctx context.Context, subjectSta
 }
 
 // plannedAbsence attaches the recorded plan to a successful write.
-func (c staffAbsenceCapability) plannedAbsence(plan *workforce.SickCascadePlan) func(*workforce.StaffAbsenceResponse, error) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+func plannedAbsence(plan *workforce.SickCascadePlan) func(*workforce.StaffAbsenceResponse, error) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 	return func(value *workforce.StaffAbsenceResponse, err error) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 		if err != nil {
 			return nil, nil, err

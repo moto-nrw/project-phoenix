@@ -234,11 +234,14 @@ type AttachmentQuery interface {
 	// first, and whether the announcement may still be changed.
 	ListAttachments(ctx context.Context, announcementID int64) (AttachmentList, error)
 	OpenAttachment(ctx context.Context, announcementID, attachmentID int64) (Content, error)
-	// ListAnnouncementAttachmentsInTenant, FindAnnouncementAttachmentInTenant
-	// and OpenAnnouncementAttachmentInTenant read an announcement's
-	// attachments under the named school's RLS, for a caller that has
-	// already decided the audience; they check nothing else. An invalid id or
-	// a missing attachment is ErrAttachmentNotFound.
+}
+
+// TenantAttachmentReads read an announcement's attachments under the named
+// school's RLS, for a caller that has already decided the audience; they check
+// nothing else. An invalid id or a missing attachment is ErrAttachmentNotFound.
+// They are not part of Capability: only the parents portal's attachment entry
+// receives them, through compose.TenantAttachmentReads (#4825).
+type TenantAttachmentReads interface {
 	ListAnnouncementAttachmentsInTenant(ctx context.Context, tenantID, announcementID int64) ([]Attachment, error)
 	FindAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (Attachment, error)
 	OpenAnnouncementAttachmentInTenant(ctx context.Context, tenantID, announcementID, attachmentID int64) (Content, error)

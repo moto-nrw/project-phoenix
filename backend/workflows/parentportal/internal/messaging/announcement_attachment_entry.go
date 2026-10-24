@@ -30,11 +30,11 @@ type AttachmentAudience interface {
 	GuardianDeclarationProofAttachmentTenant(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (int64, error)
 }
 
-// AnnouncementAttachments is the guardian's attachment entry. Die erste
-// Prüfung und das Lesen laufen in getrennten Transaktionen; zwischen beiden
-// kann die Mitteilung zurückgezogen worden sein. The audience is therefore
-// asked a second time after the rows were read and before anything is handed
-// out, and a different school counts as "not visible". Every refusal is
+// AnnouncementAttachments is the guardian's attachment entry. The first
+// audience check and the row read run in separate transactions, and the
+// announcement may be withdrawn in between. The audience is therefore asked a
+// second time after the rows were read and before anything is handed out,
+// and a different school counts as "not visible". Every refusal is
 // ErrAttachmentNotFound, so "outside the audience" and "no such
 // announcement" stay indistinguishable.
 type AnnouncementAttachments[A, C any] struct {

@@ -27,8 +27,8 @@ type (
 	MessagingConfig        = messaging.Config
 	ChildResolver          = messaging.ChildResolver
 	RequestShareVisibility = care.RequestShareVisibility
-	// AnnouncementAttachments is the guardian's attachment entry; the root
-	// binds it to File Storage's parent download routes (#4825).
+	// AttachmentAudience is the guardian audience gate of the attachment
+	// entry; the messaging flows serve it.
 	AttachmentAudience = messaging.AttachmentAudience
 )
 
