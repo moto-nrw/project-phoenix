@@ -31,7 +31,7 @@ const logger = createLogger({ component: "AnalyticsConsentSection" });
  * is saved. The school's switch still decides whether anything runs; while it
  * is off, the card says so and keeps the person's choice for later.
  */
-export function AnalyticsConsentSection({
+function AnalyticsConsentSection({
   portal,
   copy,
   recording = false,
