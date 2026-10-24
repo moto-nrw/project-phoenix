@@ -817,7 +817,7 @@ describe("DienstplanView", () => {
   // Seit #4894 hängt der Dienstplan an seinem Modul, nicht am Betreuungsplan
   // (Entscheidung in #4812): ausgeschaltetes timetable.enabled lässt das
   // Raster stehen. Ohne gebuchtes Modul erklärt sich die Seite über
-  // ModuleRouteGate.
+  // TenantPage.
   it("renders the grid even when timetable.enabled is false", () => {
     mockOverviewLoaded();
     const loaded = mocks.useSWRAuth.getMockImplementation();

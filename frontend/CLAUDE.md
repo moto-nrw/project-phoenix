@@ -40,7 +40,7 @@ Inspect `src/app/` for the current page tree instead of copying a cached layout.
 - **`useTenantRouter()`** (`lib/tenant-router.ts`): subdomain-vs-path-aware navigation
 - **`TenantGuard`** (`components/tenant/tenant-guard.tsx`): detects session/URL tenant mismatch (multi-tab) and auto-switches
 - **`BinaryModeGuard`** (`components/tenant/`): gates routes on the `presence_mode` tenant setting
-- **`ModuleRouteGate`** (`components/tenant/`): pages of a module the school did not book show an explanation instead (#4894); `lib/module-register.ts` maps every navigation page, home block and staff tab to a module or Basis
+- **Modul-Register** (`lib/module-register.ts`, #4894): maps every navigation page, home block and staff tab to a module or Basis; `TenantPage` shows the explanation instead of a page whose module the school did not book
 
 ## UI: Reuse the Kit (MANDATORY)
 

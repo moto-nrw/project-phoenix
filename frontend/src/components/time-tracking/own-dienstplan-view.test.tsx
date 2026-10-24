@@ -357,7 +357,7 @@ describe("OwnDienstplanView", () => {
   });
 
   // Seit #4894 hängt die Seite am Modul Dienstplan, nicht am Betreuungsplan;
-  // ohne das Modul erklärt sich die Seite über ModuleRouteGate. Das Soll
+  // ohne das Modul erklärt sich die Seite über TenantPage. Das Soll
   // kommt aus der Zeiterfassung und wird ohne dieses Modul nicht geladen.
   it("shows the week without the Soll when the school did not book Zeiterfassung", () => {
     state.zeiterfassungBooked = false;

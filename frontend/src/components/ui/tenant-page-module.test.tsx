@@ -9,7 +9,7 @@ import {
   useTenantSafe,
 } from "~/lib/tenant-context";
 
-import { ModuleRouteGate } from "./module-route-gate";
+import { TenantPage } from "./tenant-page";
 
 const navigation = vi.hoisted(() => ({ pathname: "/time-tracking" }));
 vi.mock("next/navigation", () => ({
@@ -29,15 +29,16 @@ vi.mock("next-auth/react", () => ({
 
 const TENANT = { tenantId: 1, slug: "demo" } as TenantInfo;
 
-function renderGate() {
+function renderGate(title = "Zeiterfassung") {
   return render(
-    <ModuleRouteGate>
+    <TenantPage title={title} actions={<button type="button">Anlegen</button>}>
       <div>Inhalt der Seite</div>
-    </ModuleRouteGate>,
+    </TenantPage>,
   );
 }
 
-describe("ModuleRouteGate (#4894)", () => {
+// Seiten eines nicht gebuchten Moduls erklären sich im Seitengerüst (#4894).
+describe("TenantPage bei nicht gebuchtem Modul", () => {
   beforeEach(() => {
     navigation.pathname = "/time-tracking";
     auth.permissions = [];
@@ -74,6 +75,11 @@ describe("ModuleRouteGate (#4894)", () => {
     renderGate();
 
     expect(screen.queryByText("Inhalt der Seite")).not.toBeInTheDocument();
+    // Ohne Aktionen der Seite: nichts lädt zu einer Handlung ein, die nicht
+    // geht.
+    expect(
+      screen.queryByRole("button", { name: "Anlegen" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Zeiterfassung" }),
     ).toBeInTheDocument();
@@ -108,7 +114,7 @@ describe("ModuleRouteGate (#4894)", () => {
     );
     navigation.pathname = "/staff/dienstplan";
 
-    renderGate();
+    renderGate("Dienstplan");
 
     expect(screen.getByText("Dienstplan ist nicht gebucht")).toBeVisible();
   });
