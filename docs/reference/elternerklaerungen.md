@@ -1,6 +1,6 @@
 # Elternerklärungen: Verfahren, Einsatzfälle und Formulierungen
 
-Stand: #3430. Diese Seite beschreibt, was die Funktion „Einverständnis“ in
+Stand: #3430, Unterschrift #4785. Diese Seite beschreibt, was die Funktion „Einverständnis“ in
 den Elternmitteilungen leistet, wofür sie reicht und wofür nicht. Im Code
 heißt der Modus `declaration`. Sie ist keine
 Rechtsberatung. Die Einordnung der Einsatzfälle muss vor der Freigabe in der
@@ -14,24 +14,52 @@ Eltern-Portal pro Kind zu oder lehnen ab.
 
 | Baustein | Umsetzung |
 |---|---|
-| Verfahren | Einfache elektronische Erklärung im angemeldeten Eltern-Konto (`simple_electronic`). Keine gezeichnete Unterschrift, keine fortgeschrittene oder qualifizierte elektronische Signatur. |
+| Verfahren | Einfache elektronische Erklärung im angemeldeten Eltern-Konto (`simple_electronic`). Wählt die Einrichtung „Mit Unterschrift“, ist die Zustimmung eine einfache elektronische Signatur mit gezeichneter Unterschrift im angemeldeten Eltern-Konto (`simple_electronic_signature`). Keine fortgeschrittene oder qualifizierte elektronische Signatur. |
+| Unterschrift | Pro Einverständnis wählbar, zusätzlich zur Passwortabfrage. Mit Unterschrift ist sie für die Zustimmung Pflicht; Ablehnen und Widerrufen gehen ohne Unterschrift. Eltern unterschreiben mit Finger, Stift oder Maus. Wer nicht zeichnen kann oder nur die Tastatur nutzt, tippt den Namen; das Eltern-Portal setzt ihn als Bild in dasselbe Feld, und der Nachweis vermerkt „Name getippt“. Gespeichert werden das Bild (PNG, höchstens 200 KB und 1600 × 800 Pixel, mit sichtbarem Strich), Zeitpunkt, Konto, Name der unterschreibenden Person, SHA-256 des Bildes und die Prüfsumme der unterschriebenen Fassung, dazu eine Prüfsumme über den ganzen Eintrag. Die Antwort verweist auf die Unterschrift, und ihre eigene Prüfsumme deckt diesen Verweis ab. Das Einstellen ist wie die übrigen Regeln gesperrt, sobald jemand geantwortet hat. |
 | Art | Nur Zustimmung oder Ablehnung (`consent`). Kein vorausgewähltes Einverständnis. Eine reine Lesebestätigung ist bewusst keine Art dieses Modus: dafür gibt es den Elternbrief mit Lesebestätigung. Zwei Wege für dasselbe hätten das Personal verwirrt und „Erklärung“ zu einem unklaren Sammelbegriff gemacht. Die Art wird trotzdem gespeichert, damit jeder Nachweis nennt, was gefragt war. |
 | Wer antworten darf | Nur Personen mit `parent_portal.declarations.submit` für genau dieses Kind. Voreinstellung: Haupt-, Mit- und weitere Sorgeberechtigte. Abholberechtigte, Notfallkontakte und Sozialarbeit nie. Die Berechtigung wird bei jeder Antwort serverseitig erneut geprüft und für die Dauer der Antwort gesperrt. |
 | Mehrere Sorgeberechtigte | Pro Einverständnis wählbar: eine berechtigte Person genügt, oder alle berechtigten Personen mit Eltern-Konto müssen antworten. Eine Ablehnung oder ein Widerruf einer berechtigten Person geht einer Zustimmung vor. |
 | Erneute Anmeldung | Pro Einverständnis wählbar: Passwort des Eltern-Kontos vor jeder Antwort. Der Nachweis hält fest, ob das Passwort bestätigt wurde. Versuche laufen über die Anmelde-Drosselung. |
 | Fassung | Beim Veröffentlichen wird die Fassung eingefroren: Titel, Text, Art und SHA-256 jeder Anlage. Die Prüfsumme der Fassung ist SHA-256 über diese Angaben. Eine Korrektur (zurückziehen, ändern, erneut veröffentlichen) erzeugt eine neue Fassung; frühere Antworten bleiben unverändert gespeichert, zählen aber nicht mehr für den aktuellen Stand. Anlagen sind nach der ersten Veröffentlichung fest. |
 | Nachweis je Antwort | Kind, Einrichtung, Konto, Name der erklärenden Person (zum Zeitpunkt der Antwort), Berechtigungsrolle, Aktion, Verfahren, Passwortbestätigung, Zeitpunkt, Fassung, Prüfsumme der Fassung und eine Prüfsumme über den gesamten Eintrag. |
-| Unveränderlichkeit | Die Tabellen für Fassungen und Antworten erlauben den Anwendungsrollen nur Lesen und Einfügen. Ein Einverständnis mit Antworten kann nicht gelöscht werden. Statusansicht, Bericht und Eltern-Nachweis prüfen jede gespeicherte Prüfsumme erneut. Sie zeigen die Prüfsummen nicht an, sondern einen Satz: unverändert, oder eine Warnung bei einer Abweichung. |
+| Unveränderlichkeit | Die Tabellen für Fassungen, Antworten und Unterschriften (`audit.signatures`) erlauben den Anwendungsrollen nur Lesen und Einfügen. Ein Einverständnis mit Antworten kann nicht gelöscht werden. Statusansicht, Bericht und Eltern-Nachweis prüfen jede gespeicherte Prüfsumme erneut, bei einer Unterschrift auch Bild, Eintrag und dass sie zur Fassung der Antwort gehört. Sie zeigen die Prüfsummen nicht an, sondern einen Satz: unverändert, oder eine Warnung bei einer Abweichung. Einzige Ausnahme sind unterschriebene Antworten: Beide PDFs drucken neben dem Bild der Unterschrift die Prüfsumme der unterschriebenen Fassung. |
 | Widerruf | Bei widerruflichen Einwilligungen jederzeit, auch nach Ablauf der Frist. Vor der Frist kann eine Antwort korrigiert werden; jede Änderung ist ein neuer Eintrag. |
-| Nachweis für Eltern | Seite im Eltern-Portal in der Sprache der Eltern und PDF im moto-Design (deutsch) mit vollständigem Text, Dateien und eigenem Verlauf. |
-| Nachweis für die Einrichtung | Statusansicht je Kind, vollständiger Verlauf, Bericht als PDF im moto-Design, CSV-Export. Nur der CSV-Export enthält die Prüfsummen, als maschinenlesbare Ablage für Support oder einen Streitfall. |
-| Löschung | Wird ein Kind nach den Aufbewahrungsregeln gelöscht, entfallen seine Nachweise mit. Wird eine Schule gelöscht, ebenso. Das Einverständnis selbst bleibt, solange es Antworten hat; danach löscht es der nächtliche Lauf nach der Frist der Elternnachrichten (#4045, siehe [Löschfristen](loeschfristen.md)). |
+| Nachweis für Eltern | Seite im Eltern-Portal in der Sprache der Eltern und PDF im moto-Design (deutsch) mit vollständigem Text, Dateien und eigenem Verlauf, bei unterschriebenen Antworten mit dem Bild der eigenen Unterschrift. Unterschriften anderer Personen sieht niemand im Eltern-Portal. |
+| Nachweis für die Einrichtung | Statusansicht je Kind, vollständiger Verlauf, Bericht als PDF im moto-Design, CSV-Export. Der Bericht zeigt jede Unterschrift als Bild neben Fassung und Zeitpunkt; die Statusansicht nennt nur, ob und wie unterschrieben wurde. Nur der CSV-Export enthält die Prüfsummen (auch die des Unterschriftsbildes), als maschinenlesbare Ablage für Support oder einen Streitfall. |
+| Löschung | Wird ein Kind nach den Aufbewahrungsregeln gelöscht, entfallen seine Nachweise samt Unterschriften mit. Wird eine Schule gelöscht, ebenso. Das Einverständnis selbst bleibt, solange es Antworten hat; danach löscht es der nächtliche Lauf nach der Frist der Elternnachrichten (#4045, siehe [Löschfristen](loeschfristen.md)). |
 
 Grenzen des Nachweises: Eine Prüfsumme belegt, dass ein gespeicherter Eintrag
 nachträglich nicht verändert wurde, soweit die Prüfsumme selbst unverändert
 ist. Sie belegt weder die Identität der erklärenden Person noch eine
 vertrauenswürdige Entstehungszeit. Beides stützt sich auf die Anmeldung im
 Eltern-Konto (optional mit erneuter Passworteingabe) und die Serverzeit.
+Das Bild der Unterschrift ist eine Zeichnung im Browser. Es ändert an diesen
+Grenzen nichts: Es belegt nicht, wer gezeichnet hat, und wird nicht mit einer
+Unterschrift auf Papier verglichen.
+
+## Baustein „Unterschrift“ für weitere Abläufe
+
+Die Unterschrift ist ein gemeinsamer Baustein der Audit Platform
+(`modules/auditlog`, Tabelle `audit.signatures`). Er entscheidet nicht, wer
+unterschreiben darf; das prüft der Ablauf, der ihn nutzt. Nutzer sind
+Einverständnisse (#4785), geplant die Anmeldung (#4786) und die
+Abholerlaubnis (#4780).
+
+- Prüfen: `auditlog.ParseSignatureImage(method, pngBase64, typedName)` prüft
+  Verfahren, PNG (Magic Number, Größe, Abmessungen, sichtbarer Strich) und
+  den getippten Namen; jeder Fehler ist `auditlog.ErrSignatureInvalid`.
+- Speichern: `SignatureLedger.RecordSignature(ctx, SignatureEntry)` in der
+  Mandanten-Transaktion des Ablaufs, also zusammen mit dem Eintrag, der auf
+  die Unterschrift verweist. `DocumentSHA256` ist die Prüfsumme genau dessen,
+  was unterschrieben wurde. Der Bezug bestimmt die Löschung: `StudentID` für
+  Abläufe mit Kind, `EnrollmentRequestID` für eine Anmeldung (#4786); genau
+  einer ist gesetzt. `SignerAccountID` darf fehlen (öffentliche Anmeldung
+  ohne Konto).
+- Lesen: `SignatureLedger.Signatures(ctx, ids)` gibt nur Einträge der Schule
+  der Transaktion zurück, jeweils mit `IntegrityOK`.
+- Oberfläche: `frontend/src/components/ui/signature-pad.tsx` (Zeichenfläche,
+  Löschen, Bestätigen, Name tippen) und `frontend/src/lib/signature.ts` für
+  den Request-Teil `signature: {method, image_png, typed_name}`.
 
 ## Rechtlicher Rahmen
 
@@ -98,6 +126,10 @@ Zulässig:
 - „Einwilligungen können Eltern jederzeit widerrufen.“
 - „Einfache elektronische Erklärung im angemeldeten Eltern-Konto, auf Wunsch
   mit erneuter Passworteingabe.“
+- „Auf Wunsch unterschreiben Eltern ihre Zustimmung mit dem Finger oder der
+  Maus: eine einfache elektronische Signatur mit gezeichneter Unterschrift.“
+- „Die Unterschrift steht im Nachweis, zusammen mit Fassung, Zeitpunkt und
+  Prüfsumme.“
 
 Nicht zulässig:
 
@@ -107,6 +139,11 @@ Nicht zulässig:
   Änderungen erkennbar, verhindern sie nicht).
 - Jede Aussage, dass Verträge oder Kündigungen darüber geschlossen werden
   können.
+- „wie auf Papier unterschrieben“, „gleichwertig zur handschriftlichen
+  Unterschrift“, „fälschungssichere Unterschrift“ oder „Unterschrift mit
+  voller Beweiskraft“.
+- „elektronische Unterschrift“ oder „E-Signatur“ ohne den vollständigen
+  Namen „einfache elektronische Signatur mit gezeichneter Unterschrift“.
 
 Quellen: [Art. 25 eIDAS](https://gesetze.legal/eu/vo_eu_2014_910/25),
 [§ 126a BGB](https://www.gesetze-im-internet.de/bgb/__126a.html),

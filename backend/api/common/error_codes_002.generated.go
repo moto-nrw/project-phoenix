@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetableStaffNotFound                       = "timetable.staff_not_found"
+	CodeTimetableStaffNotOnSource                    = "timetable.staff_not_on_source"
 	CodeTimetableStaffPresentAndAbsent               = "timetable.staff_present_and_absent"
 	CodeTimetableStartTooEarly                       = "timetable.start_too_early"
 	CodeTimetableStartWindowExpired                  = "timetable.start_window_expired"
@@ -110,6 +112,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.staff_not_found":                         "business_rejection",
+	"timetable.staff_not_on_source":                     "input",
 	"timetable.staff_present_and_absent":                "input",
 	"timetable.start_too_early":                         "business_rejection",
 	"timetable.start_window_expired":                    "business_rejection",

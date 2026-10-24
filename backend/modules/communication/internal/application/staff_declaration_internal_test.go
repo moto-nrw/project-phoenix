@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	declarations "github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -343,4 +344,15 @@ func TestDeclarationKeepsItsDeadlineThroughTheFullNormalisation(t *testing.T) {
 	_, err = normalizePollOptions(&mitteilung)
 	require.NoError(t, err)
 	assert.Nil(t, mitteilung.ResponseDeadline)
+}
+
+func TestSignedSubmissionWithoutSignatureFailsIntegrity(t *testing.T) {
+	t.Parallel()
+
+	record := DeclarationSubmissionView{IntegrityOK: true}
+	submission := &StaffDeclarationSubmission{Method: declarations.DeclarationMethodSimpleElectronicSignature}
+
+	got := withSubmissionSignature(record, submission, nil)
+
+	assert.False(t, got.IntegrityOK)
 }

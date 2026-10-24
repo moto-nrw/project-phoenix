@@ -23,9 +23,11 @@ package listexport
 import (
 	"bytes"
 	"fmt"
+	"image/png"
 	"strings"
 
 	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	"github.com/signintech/gopdf"
 )
 
 // Vertical rhythm (PDF points) for the record card layout.
@@ -43,6 +45,12 @@ const (
 	recInterGroup    = 18.0 // gap between two groups
 	recGroupTitleGap = 12.0 // gap below a group heading
 	recEmptyLine     = "Keine Anmeldungen vorhanden."
+
+	// Image fields (a signature, #4785) scale into this box below their
+	// label, keeping the aspect ratio.
+	recImageMaxW = 220.0
+	recImageMaxH = 60.0
+	recImageGap  = 4.0
 )
 
 type recordLayout struct {
@@ -293,6 +301,9 @@ func (l *recordLayout) writeSub(sub listrecords.SubRecord, left float64, paged b
 // writeField renders "Label: value", wrapped to the available width. In
 // paged mode each line may page-break.
 func (l *recordLayout) writeField(x float64, f listrecords.Field, paged bool) error {
+	if len(f.PNG) > 0 {
+		return l.writeImageField(x, f, paged)
+	}
 	text, ok := fieldText(f)
 	if !ok {
 		return nil
@@ -352,6 +363,10 @@ func (l *recordLayout) subHeight(sub listrecords.SubRecord, left float64) float6
 }
 
 func (l *recordLayout) fieldHeight(x float64, f listrecords.Field) float64 {
+	if len(f.PNG) > 0 {
+		_, h := imageBox(f.PNG)
+		return recFieldLineH + h + recImageGap
+	}
 	text, ok := fieldText(f)
 	if !ok {
 		return 0
@@ -373,4 +388,53 @@ func (l *recordLayout) writeRecordGroup(group listrecords.RecordGroup) error {
 		}
 	}
 	return nil
+}
+
+// writeImageField prints the label line, then the image scaled into its
+// box. The trace records the label and an image marker, so tests can assert
+// the image is placed.
+func (l *recordLayout) writeImageField(x float64, f listrecords.Field, paged bool) error {
+	w, h := imageBox(f.PNG)
+	if paged {
+		if err := l.ensureSpace(recFieldLineH + h + recImageGap); err != nil {
+			return err
+		}
+	}
+	label := strings.TrimSpace(f.Label)
+	if value := strings.TrimSpace(f.Value); value != "" {
+		label = strings.TrimSpace(label + ": " + value)
+	}
+	if l.draw {
+		if err := l.setFont(styleNormal, fontBody); err != nil {
+			return err
+		}
+		l.setText(colorBody)
+	}
+	if err := l.emit(x, l.y+fontBody, label); err != nil {
+		return err
+	}
+	l.y += recFieldLineH
+	l.trace = append(l.trace, "[Bild]")
+	if l.draw && w > 0 {
+		holder, err := gopdf.ImageHolderByBytes(f.PNG)
+		if err != nil {
+			return fmt.Errorf("record image: %w", err)
+		}
+		if err := l.pdf.ImageByHolder(holder, x, l.y, &gopdf.Rect{W: w, H: h}); err != nil {
+			return fmt.Errorf("record image: %w", err)
+		}
+	}
+	l.y += h + recImageGap
+	return nil
+}
+
+// imageBox is the printed size of a PNG: its aspect ratio scaled into the
+// image box. An unreadable image takes no space.
+func imageBox(data []byte) (float64, float64) {
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil || img.Bounds().Dx() <= 0 || img.Bounds().Dy() <= 0 {
+		return 0, 0
+	}
+	scale := min(recImageMaxW/float64(img.Bounds().Dx()), recImageMaxH/float64(img.Bounds().Dy()))
+	return float64(img.Bounds().Dx()) * scale, float64(img.Bounds().Dy()) * scale
 }
