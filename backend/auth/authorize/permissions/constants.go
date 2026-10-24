@@ -349,6 +349,12 @@ const (
 	// is unlocked, and the education.class_teachers assignment decides for
 	// which class.
 	ClassDayDayHintWrite = ResourceClassDay + ":day_hint_write"
+	// ClassDayMorningAttendanceWrite lets a Lehrkraft mark each child of her
+	// assigned classes present or absent for today's school morning (#4790).
+	// The school's setting operations.school_portal_morning_attendance
+	// decides whether it is unlocked, and the education.class_teachers
+	// assignment decides for which class.
+	ClassDayMorningAttendanceWrite = ResourceClassDay + ":morning_attendance_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

@@ -74,7 +74,7 @@
     "swr": "^2.5.1",
     "tailwind-merge": "^3.7.0",
     "vaul": "^1.1.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -90,7 +90,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^4.1.12",
     "dependency-cruiser": "^18.6.0",
-    "happy-dom": "^20.11.2",
+    "happy-dom": "^21.0.4",
     "knip": "^6.41.0",
     "lint-staged": "^17.6.0",
     "oxlint": "^1.78.0",

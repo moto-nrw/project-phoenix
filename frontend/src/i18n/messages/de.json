@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Ganze Woche abmelden?",
     "unregisterWeekText": "{name} wird an {count, plural, one {# Tag} other {# Tagen}} dieser Woche vom Mittagessen abgemeldet. Wieder anmelden geht nur bis zur Änderungsfrist."
   },
+  "mealAllergens": {
+    "legendTitle": "Allergene",
+    "choose": "Allergene wählen",
+    "marksShort": "Allergene: {letters}",
+    "marksLabel": "Enthält: {names}",
+    "noneThisWeek": "Für diese Woche sind keine Allergene angegeben.",
+    "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die OGS.",
+    "names": {
+      "gluten": "Glutenhaltiges Getreide",
+      "crustaceans": "Krebstiere",
+      "eggs": "Eier",
+      "fish": "Fisch",
+      "peanuts": "Erdnüsse",
+      "soybeans": "Soja",
+      "milk": "Milch (auch Laktose)",
+      "nuts": "Schalenfrüchte (Nüsse)",
+      "celery": "Sellerie",
+      "mustard": "Senf",
+      "sesame": "Sesam",
+      "sulphites": "Schwefeldioxid und Sulfite",
+      "lupin": "Lupinen",
+      "molluscs": "Weichtiere"
+    }
+  },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
@@ -2279,6 +2303,9 @@
         "day_hint_invalid": "Der Hinweis braucht einen Text. Er darf höchstens 500 Zeichen lang sein.",
         "day_hint_not_today": "Einen Hinweis für die OGS können Sie nur für heute schreiben.",
         "day_hint_student_not_in_class": "Dieses Kind ist heute nicht in Ihrer Klasse. Bitte laden Sie die Seite neu.",
+        "morning_attendance_no_school_day": "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
+        "morning_attendance_not_today": "Die Anwesenheit lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+        "morning_attendance_unknown_child": "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
         "school_write_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
       },
       "communication": {
@@ -2544,6 +2571,7 @@
         "wc_not_configured": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
       },
       "meals": {
+        "invalid_allergens": "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
         "invalid_dishes": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_meal_date": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_participation": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",

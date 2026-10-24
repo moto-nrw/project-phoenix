@@ -140,6 +140,39 @@ var (
 // MaxDayHintRunes bounds a day hint.
 const MaxDayHintRunes = 500
 
+// ErrMorningAttendanceNotConfigured is returned by the morning attendance
+// write when the projection was composed without the Student Presence seam.
+var ErrMorningAttendanceNotConfigured = errors.New("morning attendance is not configured")
+
+// Sentinels the HTTP layer classifies for the morning attendance (#4790).
+var (
+	// ErrMorningAttendanceDisabled means the school switched the morning
+	// attendance off (operations.school_portal_morning_attendance).
+	ErrMorningAttendanceDisabled = errors.New("die OGS hat die Anwesenheit am Vormittag ausgeschaltet")
+	// ErrMorningAttendanceNotToday refuses a write for any day but today.
+	ErrMorningAttendanceNotToday = errors.New("morning attendance can only be recorded for today")
+	// ErrMorningAttendanceNoSchoolDay refuses a write on a day without
+	// school (a weekend that does not follow Friday's plan).
+	ErrMorningAttendanceNoSchoolDay = errors.New("morning attendance can only be recorded on a school day")
+	// ErrMorningAttendanceUnknownChild refuses a mark for a child that is
+	// not on the class roster of the day.
+	ErrMorningAttendanceUnknownChild = errors.New("child is not on the class roster of the day")
+	// ErrMorningAttendanceInvalid refuses a mark without a child or with an
+	// unknown status.
+	ErrMorningAttendanceInvalid = errors.New("morning attendance mark is invalid")
+)
+
+// Morning attendance statuses (#4790) and where a row's status comes from:
+// the Lehrkraft marked it, or a reported absence (sick, excused, class trip)
+// fills it in until she does.
+const (
+	MorningAttendancePresent = "present"
+	MorningAttendanceAbsent  = "absent"
+
+	MorningAttendanceSourceTeacher = "teacher"
+	MorningAttendanceSourceReport  = "report"
+)
+
 // ArrivalExceptionOriginSchool marks an entry a Lehrkraft made through the
 // school portal; ArrivalExceptionOriginOGS one the OGS made, and every entry
 // older than the origin stamp.
@@ -193,6 +226,20 @@ type DayRow struct {
 	// DayHints are the Lehrkraft hints of the day for this child alone
 	// (#4795); the hints for the whole class are on the report.
 	DayHints []DayHint `json:"day_hints,omitempty"`
+	// MorningAttendance is the child's school-morning status (#4790): what
+	// the Lehrkraft marked, else "absent" filled in from a reported sick,
+	// excused or class-trip day. Nil when neither exists or on a day without
+	// school.
+	MorningAttendance *DayMorningAttendance `json:"morning_attendance,omitempty"`
+}
+
+// DayMorningAttendance is one child's school-morning status on the wire.
+type DayMorningAttendance struct {
+	// Status is "present" or "absent".
+	Status string `json:"status"`
+	// Source is "teacher" (marked) or "report" (filled in from a reported
+	// absence, not yet marked).
+	Source string `json:"source"`
 }
 
 // DayHint is a Lehrkraft's hint for the OGS for one day (#4795), for one
@@ -269,6 +316,30 @@ type DayReport struct {
 	// this class: the date is today and the school opened it (projection),
 	// and the token holds the permission (HTTP adapter).
 	CanWriteDayHints bool `json:"can_write_day_hints"`
+	// CanRecordMorningAttendance is true when the caller may mark the
+	// morning attendance of this report (#4790): the date is today and a
+	// school day, the school left the setting on, and the token holds
+	// class_day:morning_attendance_write.
+	CanRecordMorningAttendance bool `json:"can_record_morning_attendance"`
+}
+
+// MorningAttendanceMark is one child's mark as the Lehrkraft enters it:
+// StudentID for a child with an OGS record, ListEntryID for a class-list-only
+// entry (#2382); exactly one is set.
+type MorningAttendanceMark struct {
+	StudentID   int64
+	ListEntryID int64
+	Status      string
+}
+
+// MorningAttendanceWrite is the morning attendance of one class and date as
+// the Lehrkraft enters it.
+type MorningAttendanceWrite struct {
+	SchoolClass string
+	Date        Date
+	// RecordedBy is the users.staff_school_memberships row of the Lehrkraft.
+	RecordedBy int64
+	Marks      []MorningAttendanceMark
 }
 
 // ArrivalException is one class-wide arrival day exception.
@@ -295,6 +366,19 @@ type ArrivalExceptionWrite struct {
 	Reason      *string
 	// CreatedBy is the users.staff row the entry is attributed to.
 	CreatedBy int64
+}
+
+// ClassTrips lets a Lehrkraft report a class trip or day outing of an
+// assigned class through moto schule (#4799).
+type ClassTrips interface {
+	// MayReportClassTrips applies operations.school_portal_write_scope to
+	// class trips (#4799).
+	MayReportClassTrips(ctx context.Context) (bool, error)
+	// ReportClassTrip records a class trip or day outing of an assigned
+	// class: the status "Klassenfahrt" for every day through the OGS's
+	// status-day write, or, for one day with a return time, the children's
+	// arrival in the OGS at that time. All or nothing.
+	ReportClassTrip(ctx context.Context, in ClassTripWrite) (*ClassTripResult, error)
 }
 
 // ClassDay is the school-portal capability of the projection: the caller's
@@ -325,17 +409,16 @@ type ClassDay interface {
 	SetArrivalException(ctx context.Context, in ArrivalExceptionWrite) (*ArrivalException, error)
 	// ClearArrivalException deletes the exception of one class and date.
 	ClearArrivalException(ctx context.Context, schoolClass string, date Date) error
+	// RecordMorningAttendance stores the morning marks of one class the
+	// caller may see (#4790): only for today, on a school day, for children
+	// on the class roster of the day, and only while the school leaves the
+	// setting on. It never changes the OGS attendance.
+	RecordMorningAttendance(ctx context.Context, in MorningAttendanceWrite) error
 	// EarliestBlockStart returns the "HH:MM" start of the first block of the
 	// date that addresses the class, "" when there is none.
 	EarliestBlockStart(ctx context.Context, schoolClass string, date Date) (string, error)
-	// MayReportClassTrips applies operations.school_portal_write_scope to
-	// class trips (#4799).
-	MayReportClassTrips(ctx context.Context) (bool, error)
-	// ReportClassTrip records a class trip or day outing of an assigned
-	// class: the status "Klassenfahrt" for every day through the OGS's
-	// status-day write, or, for one day with a return time, the children's
-	// arrival in the OGS at that time. All or nothing.
-	ReportClassTrip(ctx context.Context, in ClassTripWrite) (*ClassTripResult, error)
+	// ClassTrips is the class-trip write of moto schule (#4799).
+	ClassTrips
 	// SupervisionStudentSheet is the per-child pickup and emergency sheet a
 	// supervisor opens from a running block (#2527). It carries guardian
 	// names and phone numbers, which the day report deliberately does not,

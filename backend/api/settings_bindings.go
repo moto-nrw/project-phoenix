@@ -21,6 +21,7 @@ import (
 // day's school-portal writes resolve operations.school_portal_write_scope with.
 type classDayWriteScopeSettings interface {
 	Resolve(ctx context.Context, key string) (any, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
 // ClassDayWriteScope applies operations.school_portal_write_scope: each

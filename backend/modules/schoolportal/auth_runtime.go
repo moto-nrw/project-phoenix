@@ -47,8 +47,9 @@ type LoginResult struct {
 
 // VerifiedChallenge is what a redeemed school challenge hands the portal.
 type VerifiedChallenge struct {
-	AccountID int64
-	TenantID  int64
+	MFAResetGeneration int64
+	AccountID          int64
+	TenantID           int64
 }
 
 // AuthRuntime is the school portal's session port.
@@ -61,7 +62,7 @@ type AuthRuntime struct {
 	LoginAtSchool func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
 	// IssueTokens mints the school-scope pair for an account that proved
 	// its identity through the second factor; the role is re-checked.
-	IssueTokens func(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	IssueTokens func(ctx context.Context, proof VerifiedChallenge, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	// SwitchSchool re-authenticates a school session at another school.
 	SwitchSchool func(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, sourceFamilyID string) (accessToken, refreshToken string, err error)
 
@@ -97,6 +98,8 @@ func (rt *AuthRuntime) complete() bool {
 
 // MFARuntime is the school portal's second-factor port. Every challenge call
 // is bound to the school scope by the composition root.
+type TrustedDeviceIssue func(context.Context) (string, time.Time, error)
+
 type MFARuntime struct {
 	VerifyChallenge func(ctx context.Context, challengeToken, code string) (VerifiedChallenge, error)
 	// VerifyChallengeForOwner additionally pins the challenge to the account
@@ -105,9 +108,9 @@ type MFARuntime struct {
 	// ResendChallenge re-issues the code and answers with the renewed JWT.
 	ResendChallenge func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	// StartChallenge mails the enrollment code and names its row.
-	StartChallenge     func(ctx context.Context, accountID, tenantID int64, ip net.IP) (string, error)
-	Enroll             func(ctx context.Context, accountID int64) error
-	IssueTrustedDevice func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
+	StartChallenge       func(ctx context.Context, accountID, tenantID int64, ip net.IP) (string, error)
+	Enroll               func(ctx context.Context, accountID int64) error
+	PrepareTrustedDevice func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
 
 	// ChallengeUnusable reports an expired, spent, mis-scoped or wrong code.
 	ChallengeUnusable func(error) bool
@@ -122,7 +125,7 @@ type MFARuntime struct {
 func (rt *MFARuntime) complete() bool {
 	return rt != nil && rt.VerifyChallenge != nil && rt.VerifyChallengeForOwner != nil &&
 		rt.ResendChallenge != nil && rt.StartChallenge != nil && rt.Enroll != nil &&
-		rt.IssueTrustedDevice != nil && rt.ChallengeUnusable != nil && rt.Blocked != nil &&
+		rt.PrepareTrustedDevice != nil && rt.ChallengeUnusable != nil && rt.Blocked != nil &&
 		rt.Unavailable != nil && rt.AlreadyEnrolled != nil
 }
 

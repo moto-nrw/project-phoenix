@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Të çregjistrohet për gjithë javën?",
     "unregisterWeekText": "{name} do të çregjistrohet nga dreka për {count, plural, one {# ditë} other {# ditë}} të kësaj jave. Regjistrimi sërish është i mundur vetëm deri në afatin e ndryshimeve."
   },
+  "mealAllergens": {
+    "legendTitle": "Alergjenët",
+    "choose": "Zgjidhni alergjenët",
+    "marksShort": "Alergjenët: {letters}",
+    "marksLabel": "Përmban: {names}",
+    "noneThisWeek": "Për këtë javë nuk janë dhënë alergjenë.",
+    "source": "Këto të dhëna vijnë nga shkolla ose nga furnizuesi i ushqimit. Një gjellë pa shkronjë nuk është patjetër pa alergjenë. Për pyetje drejtohuni te OGS.",
+    "names": {
+      "gluten": "Drithëra me gluten",
+      "crustaceans": "Krustace",
+      "eggs": "Vezë",
+      "fish": "Peshk",
+      "peanuts": "Kikirikë",
+      "soybeans": "Sojë",
+      "milk": "Qumësht (përfshirë laktozën)",
+      "nuts": "Arra",
+      "celery": "Selino",
+      "mustard": "Mustardë",
+      "sesame": "Susam",
+      "sulphites": "Dioksid squfuri dhe sulfite",
+      "lupin": "Lupinë",
+      "molluscs": "Molusqe"
+    }
+  },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
     "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",
@@ -2279,6 +2303,9 @@
         "day_hint_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "day_hint_not_today": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "day_hint_student_not_in_class": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
+        "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
+        "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
         "school_write_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "communication": {
@@ -2544,6 +2571,7 @@
         "wc_not_configured": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
       },
       "meals": {
+        "invalid_allergens": "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",

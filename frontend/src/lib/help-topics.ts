@@ -198,6 +198,7 @@ export const HELP_TOPICS = {
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",
+  teacherMorningAttendance: "anwesenheit-am-vormittag-eintragen",
   teacherChildDetails: "als-lehrkraft-angaben-zu-einem-kind-ansehen",
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
   teacherClassTrip: "ausflug-oder-klassenfahrt-melden",

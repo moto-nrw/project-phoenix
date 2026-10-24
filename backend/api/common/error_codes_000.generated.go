@@ -90,6 +90,9 @@ const (
 	CodeClassdayDayHintInvalid                           = "classday.day_hint_invalid"
 	CodeClassdayDayHintNotToday                          = "classday.day_hint_not_today"
 	CodeClassdayDayHintStudentNotInClass                 = "classday.day_hint_student_not_in_class"
+	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
+	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
+	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
 	CodeClassdaySchoolWriteDisabled                      = "classday.school_write_disabled"
 	CodeCommunicationAnnouncementNotFound                = "communication.announcement_not_found"
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
@@ -299,9 +302,6 @@ const (
 	CodeIdentityUsernameTaken                            = "identity.username_taken"
 	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
 	CodeImportFileMissing                                = "import.file_missing"
-	CodeImportFileNoRows                                 = "import.file_no_rows"
-	CodeImportFileRowInvalid                             = "import.file_row_invalid"
-	CodeImportFileTooLarge                               = "import.file_too_large"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -393,6 +393,9 @@ var errorCodeClasses0 = map[string]string{
 	"classday.day_hint_invalid":                            "input",
 	"classday.day_hint_not_today":                          "input",
 	"classday.day_hint_student_not_in_class":               "business_rejection",
+	"classday.morning_attendance_no_school_day":            "input",
+	"classday.morning_attendance_not_today":                "input",
+	"classday.morning_attendance_unknown_child":            "business_rejection",
 	"classday.school_write_disabled":                       "permission",
 	"communication.announcement_not_found":                 "business_rejection",
 	"communication.announcement_not_published":             "business_rejection",
@@ -602,9 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.username_taken":                              "business_rejection",
 	"import.file_columns_missing":                          "input",
 	"import.file_missing":                                  "input",
-	"import.file_no_rows":                                  "input",
-	"import.file_row_invalid":                              "input",
-	"import.file_too_large":                                "input",
 }
 
 func init() {

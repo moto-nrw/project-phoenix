@@ -523,6 +523,24 @@
       "legacy": "classday.day_hint_student_not_in_class"
     },
     {
+      "code": "classday.morning_attendance_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_no_school_day"
+    },
+    {
+      "code": "classday.morning_attendance_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_not_today"
+    },
+    {
+      "code": "classday.morning_attendance_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_unknown_child"
+    },
+    {
       "code": "classday.school_write_disabled",
       "class": "permission",
       "parameters": [],
@@ -1497,6 +1515,12 @@
       "class": "server",
       "parameters": [],
       "legacy": "iot.wc_not_configured"
+    },
+    {
+      "code": "meals.invalid_allergens",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.invalid_allergens"
     },
     {
       "code": "meals.invalid_dishes",

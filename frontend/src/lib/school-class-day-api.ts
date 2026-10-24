@@ -4,7 +4,7 @@
 // Backend mit dem school-Token unter /school/class-day auf.
 
 import { authFetch } from "./api-helpers";
-import type { ClassDayReport } from "./class-day-api";
+import type { ClassDayReport, MorningAttendanceStatus } from "./class-day-api";
 import type {
   ClassArrivalException,
   ClassArrivalExceptionInput,
@@ -194,4 +194,25 @@ export async function deleteDayHintSchool(
   await authFetch<unknown>(dayHintPath(schoolClass, date, studentId), {
     method: "DELETE",
   });
+}
+
+/**
+ * Eine Markierung der Anwesenheit am Vormittag (#4790): ein Kind mit
+ * OGS-Datensatz über student_id, ein Klassenlisteneintrag über list_entry_id
+ * (String, wie in der Tageszeile).
+ */
+export type MorningAttendanceMark =
+  | { student_id: number; status: MorningAttendanceStatus }
+  | { list_entry_id: string; status: MorningAttendanceStatus };
+
+/** Speichert die Markierungen einer zugewiesenen Klasse für heute. */
+export async function recordMorningAttendanceSchool(
+  schoolClass: string,
+  date: string,
+  marks: readonly MorningAttendanceMark[],
+): Promise<void> {
+  await authFetch<unknown>(
+    `/api/school/class-day/morning-attendance/${encodeURIComponent(schoolClass)}/${encodeURIComponent(date)}`,
+    { method: "PUT", body: { marks } },
+  );
 }

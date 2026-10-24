@@ -147,6 +147,12 @@ export const ERROR_CATALOG = {
         "Einen Hinweis für die OGS können Sie nur für heute schreiben.",
       "classday.day_hint_student_not_in_class":
         "Dieses Kind ist heute nicht in Ihrer Klasse. Bitte laden Sie die Seite neu.",
+      "classday.morning_attendance_no_school_day":
+        "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
+      "classday.morning_attendance_not_today":
+        "Die Anwesenheit lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+      "classday.morning_attendance_unknown_child":
+        "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.school_write_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.announcement_reminder_sent":
@@ -369,6 +375,8 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.invalid_allergens":
+        "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
       "meals.invalid_dishes":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "meals.invalid_meal_date":
@@ -1346,6 +1354,12 @@ export const ERROR_CATALOG = {
         "You can only write a note for the OGS for today.",
       "classday.day_hint_student_not_in_class":
         "This child is not in your class today. Please reload the page.",
+      "classday.morning_attendance_no_school_day":
+        "Today is not a school day. Attendance can only be recorded on school days.",
+      "classday.morning_attendance_not_today":
+        "Attendance can only be recorded for today. Please open today.",
+      "classday.morning_attendance_unknown_child":
+        "A child no longer belongs to this class. Please reload the page.",
       "enrollment.care_offering_day_conflict":
         "Two options that do not go together are chosen for the same day. Please choose only one per day.",
       "enrollment.care_offering_exactly_one":
@@ -1440,6 +1454,8 @@ export const ERROR_CATALOG = {
         "This invitation does not exist. Please check the link in the email.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+      "meals.invalid_allergens":
+        "The allergens could not be saved. Please select them again.",
       "meals.invalid_participation":
         "{object} contains invalid details. Please check your entries.",
       "meals.plan_disabled":
@@ -1651,6 +1667,12 @@ export const ERROR_CATALOG = {
         "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "classday.day_hint_student_not_in_class":
         "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "classday.morning_attendance_no_school_day":
+        "Сегодня не учебный день. Посещаемость можно отмечать только в учебные дни.",
+      "classday.morning_attendance_not_today":
+        "Посещаемость можно отметить только за сегодня. Откройте сегодняшний день.",
+      "classday.morning_attendance_unknown_child":
+        "Один ребёнок больше не относится к этому классу. Обновите страницу.",
       "enrollment.care_offering_day_conflict":
         "На один день выбраны две программы, которые нельзя совмещать. Выберите только одну на день.",
       "enrollment.care_offering_exactly_one":
@@ -1745,6 +1767,8 @@ export const ERROR_CATALOG = {
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+      "meals.invalid_allergens":
+        "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
       "meals.invalid_participation":
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "meals.plan_disabled":
@@ -1942,6 +1966,12 @@ export const ERROR_CATALOG = {
         "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "classday.day_hint_student_not_in_class":
         "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "classday.morning_attendance_no_school_day":
+        "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
+      "classday.morning_attendance_not_today":
+        "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
+      "classday.morning_attendance_unknown_child":
+        "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
       "enrollment.care_offering_day_conflict":
         "Për të njëjtën ditë janë zgjedhur dy oferta që nuk shkojnë bashkë. Ju lutemi zgjidhni vetëm një për ditë.",
       "enrollment.care_offering_exactly_one":
@@ -2038,6 +2068,8 @@ export const ERROR_CATALOG = {
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+      "meals.invalid_allergens":
+        "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
       "meals.invalid_participation":
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "meals.plan_disabled":
@@ -2244,6 +2276,12 @@ export const ERROR_CATALOG = {
         "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "classday.day_hint_student_not_in_class":
         "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "classday.morning_attendance_no_school_day":
+        "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
+      "classday.morning_attendance_not_today":
+        "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
+      "classday.morning_attendance_unknown_child":
+        "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
       "enrollment.care_offering_day_conflict":
         "Na ten sam dzień wybrano dwie oferty, których nie można łączyć. Wybierz tylko jedną na dzień.",
       "enrollment.care_offering_exactly_one":
@@ -2338,6 +2376,8 @@ export const ERROR_CATALOG = {
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+      "meals.invalid_allergens":
+        "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
       "meals.invalid_participation":
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "meals.plan_disabled":
@@ -2535,6 +2575,12 @@ export const ERROR_CATALOG = {
         "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "classday.day_hint_student_not_in_class":
         "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "classday.morning_attendance_no_school_day":
+        "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
+      "classday.morning_attendance_not_today":
+        "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
+      "classday.morning_attendance_unknown_child":
+        "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
       "enrollment.care_offering_day_conflict":
         "Aynı gün için birlikte seçilemeyen iki hizmet seçildi. Lütfen her gün için yalnızca birini seçin.",
       "enrollment.care_offering_exactly_one":
@@ -2629,6 +2675,8 @@ export const ERROR_CATALOG = {
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+      "meals.invalid_allergens":
+        "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
       "meals.invalid_participation":
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "meals.plan_disabled":
@@ -2829,6 +2877,12 @@ export const ERROR_CATALOG = {
         "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "classday.day_hint_student_not_in_class":
         "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "classday.morning_attendance_no_school_day":
+        "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
+      "classday.morning_attendance_not_today":
+        "Присутність можна позначити лише на сьогодні. Відкрийте сьогоднішній день.",
+      "classday.morning_attendance_unknown_child":
+        "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
       "enrollment.care_offering_day_conflict":
         "На один день обрано дві програми, які не можна поєднувати. Оберіть лише одну на день.",
       "enrollment.care_offering_exactly_one":
@@ -2923,6 +2977,8 @@ export const ERROR_CATALOG = {
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+      "meals.invalid_allergens":
+        "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
       "meals.invalid_participation":
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "meals.plan_disabled":

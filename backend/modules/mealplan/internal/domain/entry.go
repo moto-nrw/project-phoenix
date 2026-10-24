@@ -9,10 +9,11 @@ import (
 type Date = calendar.Date
 
 type Entry struct {
-	Date     Date
-	Position int
-	Dish     string
-	Note     *string
+	Date      Date
+	Position  int
+	Dish      string
+	Note      *string
+	Allergens []string
 }
 
 type OperationStats struct {

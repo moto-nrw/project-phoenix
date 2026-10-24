@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetableStartWindowExpired                  = "timetable.start_window_expired"
+	CodeTimetableStudentAlreadyActive                = "timetable.student_already_active"
+	CodeTimetableStudentCareEnded                    = "timetable.student_care_ended"
+	CodeTimetableStudentGraduated                    = "timetable.student_graduated"
 	CodeTimetableStudentNotCheckedIn                 = "timetable.student_not_checked_in"
 	CodeTimetableStudentNotFound                     = "timetable.student_not_found"
 	CodeTimetableStudentsNotPresent                  = "timetable.students_not_present"
@@ -104,6 +108,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.start_window_expired":                    "business_rejection",
+	"timetable.student_already_active":                  "business_rejection",
+	"timetable.student_care_ended":                      "business_rejection",
+	"timetable.student_graduated":                       "business_rejection",
 	"timetable.student_not_checked_in":                  "business_rejection",
 	"timetable.student_not_found":                       "business_rejection",
 	"timetable.students_not_present":                    "business_rejection",

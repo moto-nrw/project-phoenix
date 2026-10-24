@@ -17,6 +17,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 
@@ -30,10 +31,12 @@ import (
 
 // NewClassDay composes the school portal's class-day capability. deps
 // carries the caller, the pickup and arrival times, the care days, the
-// companions, the class arrival exceptions, the block starts and People
-// Directory's day hints (#4795); the remaining ports are bound here over the reports, the status days, the
-// student, person and contact rows, the access log, the write-scope settings
-// and the broadcaster. Without a broadcaster no arrival schedule change is
+// companions, the class arrival exceptions and the block starts; the
+// remaining ports are bound here over the reports, the status days, the
+// student, person and contact rows, the access log, the write-scope and
+// morning attendance settings and the broadcaster. deps also carries
+// Student Presence's morning attendance (#4790) and People Directory's day
+// hints (#4795). Without a broadcaster no arrival schedule change is
 // announced.
 func NewClassDay(
 	deps classdayCompose.ClassDayDependencies, reports enrollmentOwner.Reports, statusDays classDayStatusDayReader,
@@ -41,6 +44,13 @@ func NewClassDay(
 	accessLog owners.AccessLogLedger, settings classDayWriteScopeSettings, broadcaster realtime.Broadcaster, logger *slog.Logger,
 ) classday.ClassDay {
 	deps.WriteScope = newClassDayWriteScope(settings)
+	if settings != nil {
+		// operations.school_portal_morning_attendance (#4790): on unless the
+		// school switched it off.
+		deps.Scope = func(ctx context.Context) (bool, error) {
+			return settings.ResolveBool(ctx, configModels.KeySchoolPortalMorningAttendance)
+		}
+	}
 	deps.Announcer = classDayArrivalAnnouncer{broadcaster: broadcaster, logger: logger}
 	if reports != nil {
 		deps.Rosters = classDayRosters{reports: reports}

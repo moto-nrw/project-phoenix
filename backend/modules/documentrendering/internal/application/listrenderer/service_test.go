@@ -365,7 +365,7 @@ func TestDefaultColumnsForPreset(t *testing.T) {
 		{listrecords.PresetDailyPlanning, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnDailyStatus, listrecords.ColumnPlannedArrival, listrecords.ColumnPlannedPickup, listrecords.ColumnDailyNotes}},
 		{listrecords.PresetAttendanceSnapshot, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnCurrentLocation, listrecords.ColumnPlannedPickup}},
 		{listrecords.PresetPickupList, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnDeparture, listrecords.ColumnPlannedPickup, listrecords.ColumnDailyNotes}},
-		{listrecords.PresetBlankChecklist, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup}},
+		{listrecords.PresetBlankChecklist, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnChecklist}},
 		{listrecords.PresetBirthdayList, []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnBirthday, listrecords.ColumnAge}},
 		{listrecords.Preset("unknown"), []listrecords.ColumnID{listrecords.ColumnName, listrecords.ColumnSchoolClass, listrecords.ColumnGroup, listrecords.ColumnWeeklyMonday, listrecords.ColumnWeeklyTuesday, listrecords.ColumnWeeklyWednesday, listrecords.ColumnWeeklyThursday, listrecords.ColumnWeeklyFriday}},
 	}

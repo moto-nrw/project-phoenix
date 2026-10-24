@@ -30,6 +30,7 @@ type dayReports struct {
 	emergencyContacts EmergencyContacts
 	accessLog         AccessLog
 	hints             dayHints
+	morning           morningAttendance
 }
 
 func newDayReports(deps ClassDayDependencies) *dayReports {
@@ -37,7 +38,7 @@ func newDayReports(deps ClassDayDependencies) *dayReports {
 		rosters: deps.Rosters, statusDays: deps.StatusDays, times: deps.Times, careDays: deps.CareDays,
 		classExceptions: deps.ClassArrivalExceptions, companions: deps.Companions,
 		students: deps.Students, emergencyContacts: deps.EmergencyContacts,
-		accessLog: deps.AccessLog,
+		accessLog: deps.AccessLog, morning: newMorningAttendance(deps),
 	}
 }
 
@@ -142,6 +143,9 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 		}
 	}
 	if err := s.hints.attachDayHints(ctx, report, date, actor.AccountID); err != nil {
+		return nil, err
+	}
+	if err := s.morning.applyMorningAttendance(ctx, report, date); err != nil {
 		return nil, err
 	}
 	if !report.EnrollmentKnown {

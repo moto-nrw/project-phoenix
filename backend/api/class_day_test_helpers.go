@@ -65,11 +65,16 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
+	presence, err := NewCheckinTestPresence(db)
+	if err != nil {
+		return ClassDayTestModule{}, err
+	}
 	hub := deliveryCompose.NewRealtimeHub(slog.Default())
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: activeCaller, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
-		BlockStarts: activeTimetable.TimetableOperations,
+		BlockStarts:                   activeTimetable.TimetableOperations,
+		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
 		TripStatusDays: NewClassDayTripStatusDays(presenceStudentsHTTP.NewSchoolClassTrips(presenceStudentsHTTP.ResourceConfig{
 			Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people,
 			StudentStatusDayService: presenceservice.NewStatusDays(rCare.StudentStatusDay, owners.NewManualPartialAbsenceDates(rCare.CarePlan),
@@ -81,10 +86,18 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	return ClassDayTestModule{ClassDay: classDay}, nil
 }
 
-// clockOrNow is the first injected clock, or the wall clock.
+// clockOrNow is the first clock a test passed, or the wall clock.
 func clockOrNow(clocks []func() time.Time) func() time.Time {
-	if len(clocks) > 0 && clocks[0] != nil {
-		return clocks[0]
+	if clock := classDayTestClock(clocks); clock != nil {
+		return clock
 	}
 	return time.Now
+}
+
+// classDayTestClock is the first clock a test passed, nil for the wall clock.
+func classDayTestClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
 }

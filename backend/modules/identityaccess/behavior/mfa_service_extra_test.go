@@ -33,7 +33,7 @@ func TestMFAService_VerifyCodeForAccount_NoActiveChallenge_ReturnsInvalid(t *tes
 
 	svc, _, accID := newExtraMFAService(t)
 
-	err := svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "123456", identityaccess.MFAChallengeScopeTenant)
+	_, err := svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "123456", identityaccess.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
@@ -47,7 +47,7 @@ func TestMFAService_VerifyCodeForAccount_WrongAccount_ReturnsInvalid(t *testing.
 
 	// Account id 99999999 doesn't exist — FindByID returns sql.ErrNoRows
 	// and the helper must map it to "invalid", not 500.
-	err := svc.VerifyMFACodeForAccount(context.Background(), 99999999, 0, "123456", identityaccess.MFAChallengeScopeTenant)
+	_, err := svc.VerifyMFACodeForAccount(context.Background(), 99999999, 0, "123456", identityaccess.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
@@ -64,7 +64,7 @@ func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInval
 	_, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 
-	err = svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "000000", identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "000000", identityaccess.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)

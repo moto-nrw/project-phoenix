@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	schoolPortalClassTripsVersion     = "1.15.493"
+	schoolPortalClassTripsVersion     = "1.15.502"
 	schoolPortalClassTripsDescription = "class_day:class_trip_write for the lehrkraft role (#4799)"
 )
 

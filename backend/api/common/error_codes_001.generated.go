@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeImportFileNoRows                              = "import.file_no_rows"
+	CodeImportFileRowInvalid                          = "import.file_row_invalid"
+	CodeImportFileTooLarge                            = "import.file_too_large"
 	CodeImportFileTypeInvalid                         = "import.file_type_invalid"
 	CodeImportFileUnreadable                          = "import.file_unreadable"
 	CodeImportImportBatchFailed                       = "import.import_batch_failed"
@@ -41,6 +44,7 @@ const (
 	CodeIotStudentNotPresent                          = "iot.student_not_present"
 	CodeIotWcNeedsStaff                               = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                            = "iot.wc_not_configured"
+	CodeMealsInvalidAllergens                         = "meals.invalid_allergens"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
@@ -298,13 +302,12 @@ const (
 	CodeTimetableStaffNotOnSource                     = "timetable.staff_not_on_source"
 	CodeTimetableStaffPresentAndAbsent                = "timetable.staff_present_and_absent"
 	CodeTimetableStartTooEarly                        = "timetable.start_too_early"
-	CodeTimetableStartWindowExpired                   = "timetable.start_window_expired"
-	CodeTimetableStudentAlreadyActive                 = "timetable.student_already_active"
-	CodeTimetableStudentCareEnded                     = "timetable.student_care_ended"
-	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"import.file_no_rows":                                 "input",
+	"import.file_row_invalid":                             "input",
+	"import.file_too_large":                               "input",
 	"import.file_type_invalid":                            "input",
 	"import.file_unreadable":                              "input",
 	"import.import_batch_failed":                          "server",
@@ -344,6 +347,7 @@ var errorCodeClasses1 = map[string]string{
 	"iot.student_not_present":                             "business_rejection",
 	"iot.wc_needs_staff":                                  "server",
 	"iot.wc_not_configured":                               "server",
+	"meals.invalid_allergens":                             "input",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.staff_not_on_source":                       "input",
 	"timetable.staff_present_and_absent":                  "input",
 	"timetable.start_too_early":                           "business_rejection",
-	"timetable.start_window_expired":                      "business_rejection",
-	"timetable.student_already_active":                    "business_rejection",
-	"timetable.student_care_ended":                        "business_rejection",
-	"timetable.student_graduated":                         "business_rejection",
 }
 
 func init() {

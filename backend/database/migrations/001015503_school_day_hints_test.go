@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSchoolDayHintConstraints pins what 1.15.494 lets users.student_notes
+// TestSchoolDayHintConstraints pins what 1.15.503 lets users.student_notes
 // hold for a Lehrkraft's day hint (#4795): a dated, all-staff journal entry of
 // at most 500 characters without a group reference, one live hint per author,
 // child, day and target, and a class only on a school hint.

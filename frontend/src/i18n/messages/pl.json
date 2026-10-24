@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Wypisać na cały tydzień?",
     "unregisterWeekText": "{name} zostanie wypisane z obiadu na {count, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}} tego tygodnia. Ponowny zapis jest możliwy tylko do terminu zmian."
   },
+  "mealAllergens": {
+    "legendTitle": "Alergeny",
+    "choose": "Wybierz alergeny",
+    "marksShort": "Alergeny: {letters}",
+    "marksLabel": "Zawiera: {names}",
+    "noneThisWeek": "Na ten tydzień nie podano alergenów.",
+    "source": "Te informacje pochodzą od szkoły lub firmy cateringowej. Danie bez litery nie musi być wolne od alergenów. W razie pytań prosimy zwrócić się do OGS.",
+    "names": {
+      "gluten": "Zboża zawierające gluten",
+      "crustaceans": "Skorupiaki",
+      "eggs": "Jaja",
+      "fish": "Ryby",
+      "peanuts": "Orzeszki ziemne",
+      "soybeans": "Soja i produkty sojowe",
+      "milk": "Mleko (także laktoza)",
+      "nuts": "Orzechy",
+      "celery": "Seler",
+      "mustard": "Gorczyca",
+      "sesame": "Sezam",
+      "sulphites": "Dwutlenek siarki i siarczyny",
+      "lupin": "Łubin",
+      "molluscs": "Mięczaki"
+    }
+  },
   "mealParticipantList": {
     "title": "Lista dzienna dla kuchni",
     "description": "Lista pokazuje wszystkie dzieci zapisane na obiad w tym dniu.",
@@ -2279,6 +2303,9 @@
         "day_hint_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "day_hint_not_today": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "day_hint_student_not_in_class": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "morning_attendance_no_school_day": "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
+        "morning_attendance_not_today": "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
+        "morning_attendance_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
         "school_write_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "communication": {
@@ -2544,6 +2571,7 @@
         "wc_not_configured": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
       },
       "meals": {
+        "invalid_allergens": "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
         "invalid_dishes": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_meal_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_participation": "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
