@@ -95,7 +95,7 @@ func TestUploadParentEnrollment_ForwardsDerivedAudienceAccess(t *testing.T) {
 	testpkg.SetupTestDB(t)
 
 	school := &EnrollmentSchool{Active: true}
-	school.ID = 1
+	school.ID = testpkg.Tenant(t)
 	forms := &fakeEnrollmentForms{}
 	rs := &Resource{
 		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
@@ -112,7 +112,7 @@ func TestUploadParentEnrollment_ForwardsDerivedAudienceAccess(t *testing.T) {
 
 	require.Equal(t, http.StatusCreated, w.Code)
 	require.True(t, forms.uploadCalled)
-	assert.Equal(t, int64(1), forms.uploadSchoolID)
+	assert.Equal(t, school.ID, forms.uploadSchoolID)
 	assert.True(t, forms.uploadLinked)
 	assert.True(t, forms.uploadExisting)
 }

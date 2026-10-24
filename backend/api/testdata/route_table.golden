@@ -929,6 +929,7 @@ POST /parent/auth/login
 POST /parent/auth/password-reset
 POST /parent/auth/password-reset/confirm
 POST /parent/enrollments/{tenantSlug}/submit
+POST /parent/enrollments/{tenantSlug}/uploads
 POST /parent/me/calendar/feed/rotate
 POST /parent/me/calendar/recipients/{recipientId}/response
 POST /parent/me/children/{studentId}/care-exception

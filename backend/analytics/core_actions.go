@@ -508,6 +508,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/auth/password-reset"}:                                              notCaptured,
 	{http.MethodPost, "/parent/auth/password-reset/confirm"}:                                      notCaptured,
 	{http.MethodPost, "/parent/enrollments/{tenantSlug}/submit"}:                                  event("enrollment_submitted"),
+	{http.MethodPost, "/parent/enrollments/{tenantSlug}/uploads"}:                                 notCaptured,
 	{http.MethodPost, "/parent/me/calendar/feed/rotate"}:                                          notCaptured,
 	{http.MethodPost, "/parent/me/calendar/recipients/{recipientId}/response"}:                    notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/care-exception"}:                         notCaptured,
