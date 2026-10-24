@@ -284,11 +284,11 @@ func proofSignatureForRendering(proof *parentService.DeclarationProof, sub *pare
 	return s
 }
 
-// proofMethodLabel names the procedure of the proof: the signature
-// procedure as soon as one answer is signed.
+// proofMethodLabel names the procedure of the proof: the signature procedure
+// only when the proof can safely render a signed answer.
 func proofMethodLabel(proof *parentService.DeclarationProof) string {
 	for _, sub := range proof.Submissions {
-		if sub.SignatureID != nil {
+		if proofSignatureForRendering(proof, sub) != nil {
 			return signatureMethodLabel
 		}
 	}

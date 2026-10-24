@@ -71,10 +71,12 @@ func TestDeclarationProofDoesNotRenderAnInvalidSignature(t *testing.T) {
 
 	response := toDeclarationProofResponse(proof, time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC))
 	assert.Nil(t, response.Submissions[0].Signature)
+	assert.Equal(t, methodLabel, response.MethodLabel)
 
 	doc := declarationProofReport(proof, time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC))
 	text := proofTexts(doc)
 	assert.Contains(t, text, "Prüfung=Achtung: Ein gespeicherter Eintrag wurde nachträglich verändert.")
+	assert.Contains(t, text, "Verfahren="+methodLabel)
 	assert.NotContains(t, text, "Unterschrift=")
 	assert.NotContains(t, text, "Name getippt")
 }
