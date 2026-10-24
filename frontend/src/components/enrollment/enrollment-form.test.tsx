@@ -4688,8 +4688,15 @@ describe("EnrollmentForm signature (#4786)", () => {
       await screen.findAllByText("Bitte unterschreiben Sie die Anmeldung."),
     ).not.toHaveLength(0);
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+    expect(document.getElementById("signature-error")).toHaveTextContent(
+      "Bitte unterschreiben Sie die Anmeldung.",
+    );
 
     sign();
+    expect(
+      screen.getByText("Ihre Unterschrift ist bereit."),
+    ).toBeInTheDocument();
+    expect(document.getElementById("signature-error")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     await waitFor(() => {
       expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);

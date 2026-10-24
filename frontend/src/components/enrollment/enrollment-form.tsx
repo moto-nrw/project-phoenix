@@ -2600,7 +2600,8 @@ export function EnrollmentForm({
               value={signature}
               onChange={setSignature}
               disabled={submitting || previewMode}
-              error={fieldError(SIGNATURE_FIELD)}
+              // A confirmed signature answers the missing-signature hint.
+              error={signature ? undefined : fieldError(SIGNATURE_FIELD)}
               signerNameHint={
                 `${guardianFirstName} ${guardianLastName}`.trim() || undefined
               }
