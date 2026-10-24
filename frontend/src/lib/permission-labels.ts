@@ -33,6 +33,7 @@ export const resourceLabels: Record<string, string> = {
   guardians: "Eltern",
   staff_documents: "Personalunterlagen",
   student_documents: "Unterlagen der Kinder",
+  enrollment_uploads: "Nachweise aus Anmeldungen",
   staff_notices: "Tagesinformationen",
   class_day: "Klassenansicht",
   supervision: "Aufsichten",
@@ -229,6 +230,8 @@ const permissionDescriptions: Record<string, string> = {
     "AU-Bescheinigungen von Mitarbeitenden ansehen, hochladen und löschen",
   "student_documents:health":
     "Gesundheitsunterlagen von Kindern ansehen, hochladen und löschen (Attest, Impfnachweis, Medikamentenplan)",
+  "enrollment_uploads:read":
+    "Nachweise aus Anmeldungen ansehen, zum Beispiel Einkommensnachweise",
   "student_documents:legal":
     "Sorgerechtsnachweise von Kindern ansehen, hochladen und löschen",
 

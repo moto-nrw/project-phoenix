@@ -130,6 +130,8 @@
     {"name": "enrollment.request_children", "scope": "tenant", "export": "include", "personKeys": {"reviewed_by": "auth.accounts.id", "created_student_id": "users.student_profiles.id", "matched_student_id": "users.student_profiles.id"}},
     {"name": "enrollment.request_guardians", "scope": "tenant", "export": "include", "personKeys": {"guardian_profile_id": "users.guardian_profiles.id"}},
     {"name": "enrollment.request_reads", "scope": "tenant", "export": "include", "personKeys": {"account_id": "auth.accounts.id"}},
+    {"name": "enrollment.request_upload_cleanup", "scope": "tenant", "export": "include"},
+    {"name": "enrollment.request_uploads", "scope": "tenant", "export": "include", "excludeSecretColumns": {"token_hash": "Fingerprint of the bearer token that claims an unclaimed upload."}, "allowedSensitiveColumns": {"field_key": "Key of the form field the file answers, not a credential."}},
     {"name": "enrollment.requests", "scope": "tenant", "export": "include", "excludeSecretColumns": {"status_token": "Bearer capability for enrollment status.", "status_token_expires": "Metadata of the excluded status credential."}, "personKeys": {"guardian_account_id": "auth.accounts.id"}},
     {"name": "enrollment.submission_rate_limits", "scope": "tenant", "export": "include", "excludeSecretColumns": {"key_type": "Authentication or operational secret/credential material; not customer export content.", "key_value": "Authentication or operational secret/credential material; not customer export content."}},
     {"name": "facilities.rooms", "scope": "tenant", "export": "include"},
@@ -262,6 +264,7 @@
     {"kind": "student-photos", "layout": "tenantPrefix", "export": "include", "reason": "School-prefixed child photos in local public/uploads/student-photos; authenticated serving only, new files 0600 and destination directory 0700. Legacy permissions require the human procedure in docs/operations/private-fotodateien-3840.md. Metadata and orphan cleanup must be reconciled."},
     {"kind": "login-images", "layout": "tenantPrefix", "export": "include", "reason": "School-prefixed login images referenced by settings."},
     {"kind": "enrollment-legal-documents", "layout": "tenantPrefix", "export": "include", "reason": "School-prefixed legal document originals referenced by settings."},
+    {"kind": "enrollment-uploads", "layout": "tenantDir", "export": "include", "reason": "Files parents attach to an enrollment request, such as income proofs, with enrollment.request_uploads metadata and cleanup intents (#4783)."},
     {"kind": "enrollment-form-legal-documents", "layout": "tenantPrefix", "export": "include", "reason": "School-prefixed form-specific legal document originals."},
     {"kind": "avatars", "layout": "account", "export": "include", "reason": "Shared account avatar references in local public/uploads/avatars/global; no tenant prefix. Authenticated serving only, new files 0600 and destination directory 0700; legacy permissions require docs/operations/private-fotodateien-3840.md. Include only authorized account references; remove only when no remaining school needs the account/file."}
   ]

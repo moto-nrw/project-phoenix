@@ -1153,7 +1153,8 @@
       "pickupConfirm": "Please confirm the pickup arrangement (select days or leave empty).",
       "weekdayRequired": "Please select at least one weekday.",
       "weekdayModeConfirm": "Please confirm the departure arrangement.",
-      "weekdayMultiModeRequired": "Please choose at least one way home for each care day."
+      "weekdayMultiModeRequired": "Please choose at least one way home for each care day.",
+      "file": "Please upload at least one file."
     },
     "actions": {
       "addChild": "Add another child",
@@ -1305,6 +1306,23 @@
       "noCare": "No offerings booked.",
       "hint": "Changes for {name} now go through the parents app.",
       "noAccess": "Cannot access the parents app? Please contact the OGS."
+    },
+    "upload": {
+      "errorObject": "the file",
+      "choose": "Choose file",
+      "chooseMore": "Choose another file",
+      "allowed": "Allowed: {types}, at most {max} MB per file.",
+      "upTo": "Up to {count} files.",
+      "camera": "On a phone you can also take a photo.",
+      "uploading": "Uploading …",
+      "remove": "Remove {name}",
+      "wrongType": "This file has the wrong type. Allowed: {types}.",
+      "tooLarge": "This file is too large. At most {max} MB is allowed.",
+      "empty": "This file is empty. Please choose another file.",
+      "onlyOne": "You can only upload one file here.",
+      "tooMany": "You can upload at most {count} files here.",
+      "pendingSubmit": "Please wait until all files are uploaded.",
+      "previewDisabled": "You cannot upload files in the preview."
     }
   },
   "enrollmentStatus": {
@@ -2350,6 +2368,11 @@
         "legal_block_key_invalid": "{object} could not be saved. Please check your entries.",
         "legal_block_required_not_allowed": "{object} could not be saved. Please check your entries.",
         "legal_document_invalid": "{object} could not be saved. Please check your entries.",
+        "form_field_file_options_invalid": "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
+        "upload_invalid": "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
+        "upload_expired": "An uploaded file has expired. Please upload it again.",
+        "upload_rate_limited": "Too many files were uploaded. Please try again later.",
+        "upload_not_found": "This file no longer exists. Please upload it again.",
         "message_required": "Please write a message.",
         "offering_adjustment_invalid": "{object} could not be saved. Please check your entries.",
         "phase_care_offering_conflict": "{object} could not be changed. Please check its current status.",

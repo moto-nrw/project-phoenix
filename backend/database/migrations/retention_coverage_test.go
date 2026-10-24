@@ -211,6 +211,8 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.request_children":                           parent("enrollment.requests"),
 	"enrollment.request_guardians":                          parent("enrollment.requests"),
 	"enrollment.request_reads":                              parent("auth.accounts"),
+	"enrollment.request_upload_cleanup":                     own("nightly retention step enrollment_upload_retention, RequestUploads.DeleteExpiredUploads -> DeleteFinishedUploadCleanups (30 days after cleaned_at); the file store cleanup tick completes the intents"),
+	"enrollment.request_uploads":                            own("nightly retention step enrollment_upload_retention, RequestUploads.DeleteExpiredUploads (unclaimed after 24 hours, a decided request's files after enrollment.upload_retention_days); also go with their request or phase"),
 	"enrollment.requests":                                   own("nightly retention step settled_enrollment_retention (withdrawn and lapsed, CleanupSettledEnrollments) and the rejected cleanup (CleanupRejectedEnrollments); accepted requests go with the child (#3962)"),
 	"enrollment.submission_rate_limits":                     own("nightly retention step submission_rate_limit_retention, DeleteExpiredSubmissionRateLimits -> Store.CleanupExpired (24 hours after window_start)"),
 	"facilities.rooms":                                      notPersonal("room catalog"),

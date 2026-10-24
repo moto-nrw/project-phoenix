@@ -142,6 +142,8 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     enrollment.request_children,
     enrollment.request_guardians,
     enrollment.request_reads,
+    enrollment.request_upload_cleanup,
+    enrollment.request_uploads,
     enrollment.requests,
     enrollment.submission_rate_limits,
     facilities.rooms,
@@ -277,7 +279,7 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-   ) AS edge) <> '0d5fcb957715ac24fa3980ce2012a5a8dbf99cb4d00d02a668a0611e20ce83e5' THEN
+    ) AS edge) <> '35013a7fec9d1763a2712e0cb4ebd1084c916458d44d5a484f3b0f096414a683' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
@@ -407,6 +409,10 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     SELECT 1 FROM enrollment.request_guardians AS c JOIN enrollment.requests AS p ON c."request_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM enrollment.request_reads AS c JOIN enrollment.requests AS p ON c."request_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM enrollment.request_uploads AS c JOIN enrollment.phases AS p ON c."phase_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM enrollment.request_uploads AS c JOIN enrollment.requests AS p ON c."request_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM enrollment.requests AS c JOIN enrollment.phases AS p ON c."phase_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

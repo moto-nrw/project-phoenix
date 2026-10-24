@@ -4361,6 +4361,29 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eltern Dateien hochladen lassen",
+        description:
+          "Mit dem Typ `Datei` laden Eltern im Formular Nachweise hoch, zum Beispiel einen Steuerbescheid.",
+        steps: [
+          "Wählen Sie `+ Freie Zusatzfrage` und schreiben Sie die Frage.",
+          "Stellen Sie bei `Typ` die Option `Datei` ein.",
+          "Wählen Sie bei `Erlaubte Dateiarten` aus `PDF`, `JPG` und `PNG`.",
+          "Wählen Sie bei `Höchstens je Datei` eine Größe von 1 bis 10 MB.",
+          "Sollen Eltern mehrere Dateien schicken? Wählen Sie `Mehrere Dateien erlauben`. Dann sind bis zu 5 Dateien möglich.",
+        ],
+      },
+      {
+        title: "Die Einkommenserklärung hinzufügen",
+        description:
+          "Die Vorlage fragt die Einkommensstufe ab und verlangt einen Nachweis, wenn nicht der volle Beitrag gilt.",
+        steps: [
+          "Wählen Sie `+ Einkommenserklärung`.",
+          "moto fügt zwei Fragen hinzu: `Einkommensstufe` und `Einkommensnachweis`.",
+          "Passen Sie bei `Einkommensstufe` die `Auswahloptionen` an Ihre Beitragsstufen an.",
+          "Der `Einkommensnachweis` erscheint nur, wenn Eltern nicht `Voller Beitrag` wählen.",
+        ],
+      },
+      {
         title: "PDF-Dateien zu einem Hinweis hinzufügen",
         steps: [
           "Wählen Sie `Infotext` und schreiben Sie Ihren Hinweis.",
@@ -4410,6 +4433,9 @@ function enrollmentFormTopic(): HelpTopic {
       "Infotexte und Blöcke mit `Nur Hinweis` brauchen keine Zustimmung.",
       "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
       "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
+      "Eine Frage vom Typ `Datei` gilt immer für die ganze Anmeldung, nicht pro Kind.",
+      "Hochgeladene Nachweise öffnet nur, wer das Recht `Nachweise aus Anmeldungen ansehen` hat. Die Leitung hat es immer.",
+      "Nachweise werden nach einer festen Frist gelöscht. Die Frist legt das moto-Team fest.",
     ],
     differences: [
       "Bei einem `Stammdaten-Vorschlag` können Sie Beschriftung und Typ nicht ändern. Beides ist fest, damit die Antwort beim Kind ankommt.",
@@ -4456,6 +4482,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Die Eltern sehen die Entscheidung bei ihrer Anmeldung. Bei `Bestätigen` wird das Kind übernommen.",
     notes: [
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
+      "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
@@ -4474,6 +4501,8 @@ function enrollmentReviewTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
+      "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
+      "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",
       "Beim Bestätigen erscheint `Das Kinderkontingent Ihrer Schule ist voll`? Dann bleibt die Anmeldung offen. Für weitere Kinder melden Sie sich beim moto-Team.",
       "Kinder, die schon aktiv oder vorgemerkt sind, können Sie auch bei vollem Kinderkontingent verlängern.",
       "Bei einer Anmeldung steht `Wegen Kinderkontingent offen`? Beim Schuljahreswechsel war das Kinderkontingent voll. Das Kind wurde nicht automatisch verlängert. Entscheiden Sie selbst.",
@@ -7047,6 +7076,10 @@ function parentEnrollTopic(): HelpTopic {
       "Mit `Weiteres Kind` melden Sie Geschwister in derselben Anmeldung an.",
       "Bewahren Sie die Bestätigungs-E-Mail auf. Der Link darin führt zum Stand.",
       "Eine Anmeldung gilt für ein `Schuljahr`, eine `Ferienbetreuung` oder `Sonstiges`.",
+      "Fragt das Formular nach einem Nachweis? Tippen Sie auf `Datei auswählen`. Die Datei wird sofort hochgeladen.",
+      "Unter dem Knopf steht, welche Dateien erlaubt sind und wie groß sie sein dürfen. Meist sind es PDF, JPG oder PNG bis 10 MB.",
+      "Auf dem Handy können Sie den Nachweis auch direkt fotografieren.",
+      "Eine falsche Datei entfernen Sie mit dem Kreuz neben dem Dateinamen.",
     ],
     differences: [
       "Manche Anmeldungen sind `Nur bereits angemeldete Kinder`.",
@@ -7056,6 +7089,7 @@ function parentEnrollTopic(): HelpTopic {
     troubleshootingDetails: [
       "moto sagt, aktuell sei keine Anmeldephase geöffnet? Dann wenden Sie sich an die OGS.",
       "moto sagt, die Online-Anmeldung sei nicht freigeschaltet? Dann nimmt diese OGS keine Anmeldungen über moto an.",
+      "moto sagt, eine hochgeladene Datei sei abgelaufen? Dann ist sie älter als einen Tag. Laden Sie sie noch einmal hoch und senden Sie die Anmeldung ab.",
       "Ein roter Hinweis nennt einen Tag und zwei Angebote? Diese Angebote gehen am selben Tag nicht zusammen. Nehmen Sie den Tag bei einem der beiden heraus.",
     ],
     related: [

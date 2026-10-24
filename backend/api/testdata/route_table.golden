@@ -191,6 +191,7 @@ GET /api/enrollment/admin/requests/{id}/
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
 GET /api/enrollment/admin/requests/{id}/delete-impact
+GET /api/enrollment/admin/requests/{id}/uploads/{uploadId}
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
@@ -679,6 +680,7 @@ POST /api/enrollment/requests/{statusToken}/confirm-renewal
 POST /api/enrollment/requests/{statusToken}/withdraw
 POST /api/enrollment/schema/
 POST /api/enrollment/{tenantSlug}/submit
+POST /api/enrollment/{tenantSlug}/uploads
 POST /api/feedback/
 POST /api/feedback/batch
 POST /api/files/folders
@@ -935,6 +937,7 @@ POST /parent/auth/login
 POST /parent/auth/password-reset
 POST /parent/auth/password-reset/confirm
 POST /parent/enrollments/{tenantSlug}/submit
+POST /parent/enrollments/{tenantSlug}/uploads
 POST /parent/me/calendar/feed/rotate
 POST /parent/me/calendar/recipients/{recipientId}/response
 POST /parent/me/children/{studentId}/care-exception
