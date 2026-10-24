@@ -32,6 +32,7 @@ type exportRun struct {
 	models       []organizationtenancy.ExportModelTable
 	references   map[string]bool
 	fingerprints organizationtenancy.ExportFingerprints
+	person       *personSelection
 }
 
 func (e *tenantExporter) Export(ctx context.Context, options organizationtenancy.TenantExportOptions) (err error) {
@@ -55,8 +56,18 @@ func (e *tenantExporter) Export(ctx context.Context, options organizationtenancy
 	if err = run.exportTables(ctx); err != nil {
 		return err
 	}
+	if options.Person != "" {
+		if err = run.selectPerson(ctx); err != nil {
+			return err
+		}
+	}
 	if err = run.exportFiles(ctx); err != nil {
 		return err
+	}
+	if run.person != nil {
+		if err = run.writePersonReview(); err != nil {
+			return err
+		}
 	}
 	if err = run.writeJSON("model.json", run.models); err != nil {
 		return err
@@ -68,6 +79,11 @@ func (e *tenantExporter) Export(ctx context.Context, options organizationtenancy
 }
 
 func validateExportOptions(options organizationtenancy.TenantExportOptions) (organizationtenancy.TenantExportOptions, error) {
+	if options.Person != "" {
+		if _, _, err := parseExportPerson(options.Person); err != nil {
+			return options, err
+		}
+	}
 	if options.SchoolID <= 0 || options.Output == "" || options.Uploads == "" {
 		return options, errors.New("tenant export: school, new output directory and uploads root are required")
 	}
