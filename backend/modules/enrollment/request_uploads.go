@@ -62,16 +62,20 @@ func (u *RequestUpload) Answer() FileAnswer {
 }
 
 // UploadInput is one validated file a parent uploads for a file field. The
-// transport detected ContentType from the bytes and measured SizeBytes.
+// transport detected ContentType from the bytes and measured SizeBytes. The
+// optional authorization tokens are verified by the intake before it reserves
+// storage for the upload.
 type UploadInput struct {
-	TenantID    int64
-	PhaseID     int64
-	FieldKey    string
-	Filename    string
-	ContentType string
-	Extension   string
-	SizeBytes   int64
-	RemoteIP    string
+	TenantID        int64
+	PhaseID         int64
+	FieldKey        string
+	Filename        string
+	ContentType     string
+	Extension       string
+	SizeBytes       int64
+	RemoteIP        string
+	LateInviteToken string
+	StatusToken     string
 }
 
 // PreparedUpload is the stored row of an upload whose bytes still have to be

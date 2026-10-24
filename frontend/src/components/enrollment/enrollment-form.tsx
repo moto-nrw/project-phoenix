@@ -185,6 +185,8 @@ interface Props {
   readonly onSubmitted: (statusURL: string) => void;
   readonly prefetchedData?: EnrollmentFormPrefetchedData;
   readonly lateInviteToken?: string;
+  /** Status-link authorization for file uploads while editing a request. */
+  readonly statusToken?: string;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
@@ -288,6 +290,7 @@ export function EnrollmentForm({
   onSubmitted,
   prefetchedData,
   lateInviteToken,
+  statusToken,
   previewMode = false,
   previewSchema,
   profileFetcher,
@@ -316,6 +319,8 @@ export function EnrollmentForm({
   const { pendingUploads, uploadTarget } = useEnrollmentUploadTarget({
     tenantSlug,
     phaseId: phaseID,
+    lateInviteToken,
+    statusToken,
     locale: contentLocale,
     previewMode,
   });

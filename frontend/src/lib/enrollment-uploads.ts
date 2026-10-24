@@ -173,11 +173,21 @@ export async function uploadEnrollmentFile(params: {
   phaseId: string;
   fieldKey: string;
   file: File;
+  lateInviteToken?: string;
+  statusToken?: string;
   signal?: AbortSignal;
 }): Promise<NewUploadValue> {
+  // The upload endpoint verifies the same authorization context as the form:
+  // public/late-invite submission or a status-link edit.
   const body = new FormData();
   body.append("phase_id", params.phaseId);
   body.append("field_key", params.fieldKey);
+  if (params.lateInviteToken?.trim()) {
+    body.append("late_invite_token", params.lateInviteToken.trim());
+  }
+  if (params.statusToken?.trim()) {
+    body.append("status_token", params.statusToken.trim());
+  }
   body.append("file", params.file);
 
   let response: Response;

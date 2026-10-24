@@ -43,6 +43,8 @@ type Translate = (
 interface EnrollmentUploadTarget {
   readonly tenantSlug: string;
   readonly phaseId?: string;
+  readonly lateInviteToken?: string;
+  readonly statusToken?: string;
   readonly locale: string;
   /** Called with +1 when an upload starts and -1 when it settles. */
   readonly onPendingChange: (delta: number) => void;
@@ -59,6 +61,8 @@ const EnrollmentUploadContext = createContext<EnrollmentUploadTarget | null>(
 export function useEnrollmentUploadTarget(params: {
   tenantSlug: string;
   phaseId?: string;
+  lateInviteToken?: string;
+  statusToken?: string;
   locale: string;
   previewMode: boolean;
 }): { pendingUploads: number; uploadTarget: EnrollmentUploadTarget } {
@@ -67,15 +71,32 @@ export function useEnrollmentUploadTarget(params: {
     (delta: number) => setPendingUploads((count) => Math.max(0, count + delta)),
     [],
   );
-  const { tenantSlug, phaseId, locale, previewMode } = params;
+  const {
+    tenantSlug,
+    phaseId,
+    lateInviteToken,
+    statusToken,
+    locale,
+    previewMode,
+  } = params;
   const uploadTarget = useMemo<EnrollmentUploadTarget>(
     () => ({
       tenantSlug,
       phaseId: previewMode ? undefined : phaseId,
+      lateInviteToken,
+      statusToken,
       locale,
       onPendingChange,
     }),
-    [tenantSlug, phaseId, previewMode, locale, onPendingChange],
+    [
+      tenantSlug,
+      phaseId,
+      lateInviteToken,
+      statusToken,
+      previewMode,
+      locale,
+      onPendingChange,
+    ],
   );
   return { pendingUploads, uploadTarget };
 }
@@ -213,6 +234,8 @@ export function FileUploadInput({
         phaseId: target.phaseId,
         fieldKey: field.key,
         file,
+        lateInviteToken: target.lateInviteToken,
+        statusToken: target.statusToken,
         signal: controller.signal,
       });
       const next = [...latest.current, uploaded];

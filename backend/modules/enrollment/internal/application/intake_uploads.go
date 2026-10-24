@@ -69,17 +69,60 @@ func (s *Intake) prepareUpload(ctx context.Context, input enrollmentNative.Uploa
 	return &enrollmentNative.PreparedUpload{Upload: upload, Token: token}, nil
 }
 
-// uploadField resolves the file field of the phase's pinned form. Any phase
-// of the school may take uploads: an edit through the status link runs after
-// the window closed, and an unclaimed upload expires on its own.
+// uploadField resolves a file field only after the caller has passed the
+// matching form gate. A status token may continue an editable request after
+// its phase window closed; every other upload uses the public/late-invite
+// gate, so a known phase ID alone never reserves storage.
 func (s *Intake) uploadField(ctx context.Context, input enrollmentNative.UploadInput) (*enrollmentNative.FormField, error) {
-	phase, err := s.loadPhaseForSubmission(ctx, input.PhaseID)
-	if err != nil || phase.TenantID != input.TenantID {
+	if strings.TrimSpace(input.StatusToken) != "" {
+		return s.statusUploadField(ctx, input)
+	}
+	phase, err := s.loadPublicPhaseWithLateInvite(ctx, input.PhaseID, time.Now(), input.LateInviteToken)
+	if err != nil {
+		return nil, err
+	}
+	if phase.TenantID != input.TenantID {
 		return nil, enrollmentNative.ErrUploadFieldNotFound
 	}
 	schema, err := s.resolveSubmissionSchema(ctx, phase)
 	if err != nil {
 		return nil, fmt.Errorf("upload: load schema: %w", err)
+	}
+	field := enrollmentNative.FileFieldByKey(schema, strings.TrimSpace(input.FieldKey))
+	if field == nil || field.FileOptions == nil {
+		return nil, enrollmentNative.ErrUploadFieldNotFound
+	}
+	return field, nil
+}
+
+// statusUploadField authorizes an upload through the same status-token edit
+// gate that rendered the request's form. It intentionally resolves the
+// request's pinned schema rather than the phase's current schema.
+func (s *Intake) statusUploadField(ctx context.Context, input enrollmentNative.UploadInput) (*enrollmentNative.FormField, error) {
+	req, err := s.requestByStatusToken(ctx, input.StatusToken, false)
+	if errors.Is(err, enrollmentNative.ErrRequestNotFound) {
+		return nil, enrollmentNative.ErrUploadFieldNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if req.TenantID != input.TenantID || req.PhaseID != input.PhaseID {
+		return nil, enrollmentNative.ErrUploadFieldNotFound
+	}
+	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, false)
+	if err != nil {
+		return nil, fmt.Errorf("upload: load request children: %w", err)
+	}
+	mode, err := s.editModeForStatus(ctx, req, children)
+	if err != nil {
+		return nil, fmt.Errorf("upload: check request edit access: %w", err)
+	}
+	if mode == enrollmentNative.EditModeNone {
+		return nil, enrollmentNative.ErrUploadFieldNotFound
+	}
+	schema, err := s.schemaForEditableRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("upload: load request schema: %w", err)
 	}
 	field := enrollmentNative.FileFieldByKey(schema, strings.TrimSpace(input.FieldKey))
 	if field == nil || field.FileOptions == nil {

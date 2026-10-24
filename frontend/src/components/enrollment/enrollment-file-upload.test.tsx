@@ -53,17 +53,23 @@ function Harness({
   field = fileField,
   phaseId = "7",
   previewMode = false,
+  lateInviteToken,
+  statusToken,
   initial = NO_FILES,
 }: Readonly<{
   field?: FormField;
   phaseId?: string;
   previewMode?: boolean;
+  lateInviteToken?: string;
+  statusToken?: string;
   initial?: UploadValue[];
 }>) {
   const [value, setValue] = useState<UploadValue[]>(initial);
   const { pendingUploads, uploadTarget } = useEnrollmentUploadTarget({
     tenantSlug: "school-a",
     phaseId,
+    lateInviteToken,
+    statusToken,
     locale: "de",
     previewMode,
   });
@@ -160,6 +166,23 @@ describe("FileUploadInput", () => {
       screen.getByText("Diese Datei ist zu groß. Erlaubt sind höchstens 1 MB."),
     ).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards a status token with the upload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ status: "success", data: { token: "tok-1" } }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(<Harness statusToken="status-token" />);
+
+    pick(container, [new File(["%PDF-1.7"], "bescheid.pdf")]);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.body as FormData).get("status_token")).toBe("status-token");
   });
 
   it("rejects a file kind the field does not allow", () => {

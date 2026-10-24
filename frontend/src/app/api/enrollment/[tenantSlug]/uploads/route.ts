@@ -42,10 +42,15 @@ export async function POST(
     return problemResponse(400, "Invalid multipart body", request);
   }
 
-  // Forward only the three parts the backend reads.
+  // Forward only the parts the backend reads.
   const file = incoming.get("file");
   const outgoing = new FormData();
-  for (const name of ["phase_id", "field_key"]) {
+  for (const name of [
+    "phase_id",
+    "field_key",
+    "late_invite_token",
+    "status_token",
+  ]) {
     const value = incoming.get(name);
     if (typeof value === "string") outgoing.append(name, value);
   }

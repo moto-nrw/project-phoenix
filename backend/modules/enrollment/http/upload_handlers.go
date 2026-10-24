@@ -143,6 +143,7 @@ func parseEnrollmentUpload(w http.ResponseWriter, r *http.Request) (*common.Uplo
 		PhaseID: phaseID, FieldKey: r.FormValue("field_key"), Filename: uploaded.Filename,
 		ContentType: normalizeUploadContentType(uploaded.ContentType), Extension: extension,
 		SizeBytes: size, RemoteIP: remoteIPFromRequest(r),
+		LateInviteToken: r.FormValue("late_invite_token"), StatusToken: r.FormValue("status_token"),
 	}, nil
 }
 
@@ -183,7 +184,12 @@ func renderUploadFailure(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.As(err, &rejection):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
 			map[string]any{"max_mb": rejection.MaxMB, "allowed_types": rejection.AllowedTypes}))
-	case errors.Is(err, capability.ErrUploadFieldNotFound), errors.Is(err, capability.ErrEnrollmentDisabled):
+	case errors.Is(err, capability.ErrUploadFieldNotFound),
+		errors.Is(err, capability.ErrInvalidSubmission),
+		errors.Is(err, capability.ErrEnrollmentDisabled),
+		errors.Is(err, capability.ErrEnrollmentWindowClosed),
+		errors.Is(err, capability.ErrLateInviteInvalid),
+		errors.Is(err, capability.ErrPhaseAudienceRestricted):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentFormNotFound))
 	case errors.Is(err, capability.ErrUploadRateLimited):
 		w.Header().Set("Retry-After", "3600")
@@ -223,7 +229,11 @@ func (rs *Resource) openAdminRequestUpload(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	files, err := rs.UploadFiles(capability.RequestUploadStorageKind)
-	if err != nil || !files.ServeInline(w, r, upload.TenantID, upload.StoredName, upload.Filename, upload.ContentType) {
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("enrollment upload storage unavailable: %w", err)))
+		return
+	}
+	if !files.ServeInline(w, r, upload.TenantID, upload.StoredName, upload.Filename, upload.ContentType) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("upload object missing"), common.CodeEnrollmentUploadNotFound))
 	}
 }
