@@ -18,8 +18,8 @@ func init() {
 		Version:     mealAbsenceHistoryVersion,
 		Description: mealAbsenceHistoryDescription,
 		DependsOn: []string{
-			statusDayRetentionPurgeVersion,  // the trigger function this one replaces
-			enrollmentRequestUploadsVersion, // the latest development migration, enrollment request uploads
+			statusDayRetentionPurgeVersion, // the trigger function this one replaces
+			mealPlanAllergensVersion,       // the latest development migration, meal plan allergens
 		},
 	})
 	Migrations.MustRegister(mealAbsenceHistoryUp, mealAbsenceHistoryDown)
