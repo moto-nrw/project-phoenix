@@ -41,6 +41,8 @@ func effectObject(pkg *packages.Package, expression ast.Expr) types.Object {
 		return effectObject(pkg, value.X)
 	case *ast.IndexExpr:
 		return effectObject(pkg, value.X)
+	case *ast.IndexListExpr:
+		return effectObject(pkg, value.X)
 	}
 	return nil
 }
@@ -52,6 +54,7 @@ func (values effectValues) add(pkg *packages.Package, object types.Object, expre
 	if !effectCallableCarrier(object.Type(), map[types.Type]bool{}) {
 		return
 	}
+	object = effectOriginObject(object)
 	values[object] = append(values[object], effectValue{pkg, expression})
 }
 
@@ -75,21 +78,29 @@ func (values effectValues) collect(pkg *packages.Package, node ast.Node) {
 // Follow value aliases and root helpers only. Foreign command bodies remain
 // contract terminals. Normalization excludes comments and source positions.
 func (s *effectScanner) callableTrail(object types.Object, trail []string) []string {
-	evidence := map[string]bool{}
-	s.valueEvidence(object, map[types.Object]bool{}, evidence)
+	evidence, cached := s.callables[object]
+	if !cached {
+		found := map[string]bool{}
+		s.valueEvidence(object, map[types.Object]bool{}, found)
+		for item := range found {
+			evidence = append(evidence, item)
+		}
+		s.callables[object] = evidence
+	}
 	if len(evidence) == 0 {
 		return trail
 	}
-	result := append([]string{}, trail...)
-	for item := range evidence {
-		result = append(result, item)
-	}
+	result := append(append([]string{}, trail...), evidence...)
 	sort.Strings(result)
 	return result
 }
 
 func (s *effectScanner) valueEvidence(object types.Object, seen map[types.Object]bool, evidence map[string]bool) {
-	if object == nil || seen[object] {
+	if object == nil {
+		return
+	}
+	object = effectOriginObject(object)
+	if seen[object] {
 		return
 	}
 	seen[object] = true
@@ -99,7 +110,7 @@ func (s *effectScanner) valueEvidence(object types.Object, seen map[types.Object
 	if fn, ok := object.(*types.Func); ok && fn.Pkg() != nil {
 		evidence[fn.FullName()+":"+effectTypeID(fn.Type())] = true
 		if s.policy[fn.Pkg().Path()].Owner == "root-composition" {
-			if body, ok := s.bodies[fn]; ok {
+			if body, ok := s.bodies[fn.Origin()]; ok {
 				s.nodeEvidence(body.pkg, body.declaration.Body, seen, evidence)
 			}
 		}

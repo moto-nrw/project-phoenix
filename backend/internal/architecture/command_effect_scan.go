@@ -48,6 +48,14 @@ type effectScanner struct {
 	bodies      map[*types.Func]effectBody
 	sites       map[string]commandEffectSite
 	evidence    map[string]map[string]bool
+	callables   map[types.Object][]string
+	// Port-independent summaries of the owner's own functions (M3).
+	ownSummaries map[*types.Func]ownEffectSummary
+	ownClosures  map[*types.Func][]types.Object
+	// Port-independent callable resolutions, replayed for every port.
+	capture        *effectCapture
+	callableSites  map[string]*effectCapture
+	callableActive map[string]bool
 }
 
 func effectTypeID(t types.Type) string {
@@ -76,7 +84,7 @@ func discoverCommandEffects(policy *Policy, loaded []*packages.Package) []comman
 }
 
 func newEffectScanner(policy *Policy, loaded []*packages.Package) *effectScanner {
-	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), values: collectEffectValues(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}}
+	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), values: collectEffectValues(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}, callables: map[types.Object][]string{}, ownSummaries: map[*types.Func]ownEffectSummary{}, ownClosures: map[*types.Func][]types.Object{}, callableSites: map[string]*effectCapture{}, callableActive: map[string]bool{}}
 	for _, owner := range policy.Owners {
 		s.ownerKinds[owner.ID] = owner.Kind
 	}
@@ -124,6 +132,10 @@ func (s *effectScanner) sortedSites() []commandEffectSite {
 }
 
 func (s *effectScanner) record(port, binding, target, owner string, trail []string) {
+	if s.capture != nil {
+		s.capture.add(target, owner, trail)
+		return
+	}
 	site := commandEffectSite{SourceOwner: s.sourceOwner, Port: port, Binding: binding, Target: target, TargetOwner: owner}
 	s.sites[site.key()] = site
 	if s.evidence[site.key()] == nil {
@@ -136,11 +148,9 @@ func (s *effectScanner) record(port, binding, target, owner string, trail []stri
 
 func (s *effectScanner) resolve(port, binding string, receiver types.Type, name string, seen map[string]bool, trail []string) {
 	identity := effectTypeID(receiver) + "." + name
+	// A may-bind union is a least fixpoint: the identity's first visit on this
+	// path already explores every source, so re-entering it adds no target.
 	if seen[identity] {
-		if s.receiverOwner(receiver) == s.sourceOwner {
-			return
-		}
-		s.record(port, binding, "unresolved:cycle:"+identity, "", trail)
 		return
 	}
 	seen[identity] = true
@@ -157,6 +167,8 @@ func (s *effectScanner) resolve(port, binding string, receiver types.Type, name 
 	if owner == s.sourceOwner {
 		if effectInterface(receiver) != nil {
 			s.resolveInterface(port, binding, receiver, name, seen, trail)
+		} else {
+			s.resolveOwnMethod(port, binding, receiver, name, seen, trail)
 		}
 		return
 	}
@@ -174,6 +186,14 @@ func (s *effectScanner) resolve(port, binding string, receiver types.Type, name 
 	s.resolveAdapter(port, binding, receiver, name, seen, trail)
 }
 
+// Unexported methods and fields are only visible from their declaring package.
+func effectTypePackage(receiver types.Type) *types.Package {
+	if named := namedEffectType(receiver); named != nil {
+		return named.Obj().Pkg()
+	}
+	return nil
+}
+
 func (s *effectScanner) receiverOwner(receiver types.Type) string {
 	named := namedEffectType(receiver)
 	if named == nil || named.Obj().Pkg() == nil {
@@ -187,7 +207,7 @@ func (s *effectScanner) recordTerminal(port, binding string, receiver types.Type
 		return
 	}
 	identity := effectTypeID(receiver) + "." + name
-	if obj, _, _ := types.LookupFieldOrMethod(receiver, true, nil, name); obj != nil {
+	if obj, _, _ := types.LookupFieldOrMethod(receiver, true, effectTypePackage(receiver), name); obj != nil {
 		trail = append(trail, identity+":"+effectTypeID(obj.Type()))
 	}
 	s.record(port, binding, identity, owner, trail)
@@ -244,12 +264,15 @@ func distinctEffectSources(receiver types.Type, candidates []types.Type) []types
 
 func (s *effectScanner) resolveAdapter(port, binding string, receiver types.Type, name string, seen map[string]bool, trail []string) {
 	identity := effectTypeID(receiver) + "." + name
-	obj, indexes, _ := types.LookupFieldOrMethod(receiver, true, nil, name)
+	obj, indexes, _ := types.LookupFieldOrMethod(receiver, true, effectTypePackage(receiver), name)
 	if len(indexes) > 1 {
 		s.resolve(port, binding, effectEmbeddedReceiver(receiver, indexes), name, seen, trail)
 		return
 	}
 	fn, _ := obj.(*types.Func)
+	if fn != nil {
+		fn = fn.Origin()
+	}
 	body, ok := s.bodies[fn]
 	if !ok || body.declaration.Body == nil {
 		s.record(port, binding, "unresolved:"+identity, "", trail)
@@ -278,8 +301,12 @@ func effectEmbeddedReceiver(receiver types.Type, indexes []int) types.Type {
 }
 
 func normalizeEffectBody(body effectBody) (string, error) {
+	return normalizeEffectNode(body.declaration.Body)
+}
+
+func normalizeEffectNode(node ast.Node) (string, error) {
 	var normalized bytes.Buffer
-	err := ast.Fprint(&normalized, nil, body.declaration.Body, effectASTField)
+	err := ast.Fprint(&normalized, nil, node, effectASTField)
 	return normalized.String(), err
 }
 
@@ -288,7 +315,7 @@ func (s *effectScanner) walkBody(port, binding string, pkg *packages.Package, bo
 	ast.Inspect(body, func(node ast.Node) bool {
 		switch n := node.(type) {
 		case *ast.CallExpr:
-			s.walkCallable(port, binding, pkg, n, trail, known)
+			s.walkCallable(port, binding, pkg, n, seen, trail, known)
 		case *ast.SelectorExpr:
 			s.walkSelector(port, binding, pkg, n, seen, trail)
 		case *ast.Ident:
@@ -311,8 +338,16 @@ func (s *effectScanner) walkSelector(port, binding string, pkg *packages.Package
 	if _, ok := selection.Obj().(*types.Func); ok {
 		s.resolve(port, binding, pkg.TypesInfo.TypeOf(selector.X), selector.Sel.Name, seen, trail)
 	}
-	if _, ok := selection.Obj().Type().Underlying().(*types.Signature); ok && selection.Kind() == types.FieldVal {
-		s.record(port, binding, "unresolved:function:"+effectTypeID(pkg.TypesInfo.TypeOf(selector.X))+"."+selector.Sel.Name, "", s.callableTrail(selection.Obj(), trail))
+	s.walkCallableField(port, binding, pkg, selector, selection, seen, trail)
+}
+
+func (s *effectScanner) walkCallableField(port, binding string, pkg *packages.Package, selector *ast.SelectorExpr, selection *types.Selection, seen map[string]bool, trail []string) {
+	if _, ok := selection.Obj().Type().Underlying().(*types.Signature); !ok || selection.Kind() != types.FieldVal {
+		return
+	}
+	evidence := s.callableTrail(selection.Obj(), trail)
+	if !s.resolveCallableOnce(port, binding, selection.Obj(), evidence) {
+		s.record(port, binding, "unresolved:function:"+effectTypeID(pkg.TypesInfo.TypeOf(selector.X))+"."+selector.Sel.Name, "", evidence)
 	}
 }
 
@@ -326,18 +361,17 @@ func (s *effectScanner) resolveFunction(port, binding string, fn *types.Func, se
 		return
 	}
 	if classification.Owner != "root-composition" {
-		if s.crossOwnerTarget(classification.Owner) {
+		if s.crossOwnerTarget(classification.Owner) && (s.ownerKinds[classification.Owner] != "platform" || platformProtocolFunction(fn)) {
 			s.record(port, binding, identity, classification.Owner, append(trail, identity+":"+effectTypeID(fn.Type())))
 		}
 		return
 	}
 	if seen[identity] {
-		s.record(port, binding, "unresolved:cycle:"+identity, "", trail)
-		return
+		return // Recursive root helpers: see the fixpoint note in resolve.
 	}
 	seen[identity] = true
 	defer delete(seen, identity)
-	body, ok := s.bodies[fn]
+	body, ok := s.bodies[fn.Origin()]
 	if !ok || body.declaration.Body == nil {
 		s.record(port, binding, "unresolved:"+identity, "", trail)
 		return
@@ -349,6 +383,32 @@ func (s *effectScanner) resolveFunction(port, binding string, fn *types.Func, se
 	}
 	s.walkBody(port, binding, body.pkg, body.declaration.Body, seen, append(trail, identity+":"+normalized.String()))
 
+}
+
+// Platform methods are protocol contracts and always inventoried. A platform
+// package function enters a protocol when it runs or registers a callback
+// (transaction, savepoint, after-commit, retry), can fail (lock acquisition,
+// current-unit lookup) or changes the unit carried by its context (rollback
+// marks). Pure value helpers and context-free metric sinks are not protocol
+// effects (#4836, ADR 0098).
+func platformProtocolFunction(fn *types.Func) bool {
+	signature := fn.Signature()
+	takesContext := false
+	for i := 0; i < signature.Params().Len(); i++ {
+		parameter := signature.Params().At(i).Type()
+		if effectCallableCarrier(parameter, map[types.Type]bool{}) {
+			return true
+		}
+		if named := namedEffectType(parameter); named != nil && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "context" && named.Obj().Name() == "Context" {
+			takesContext = true
+		}
+	}
+	for i := 0; i < signature.Results().Len(); i++ {
+		if types.Identical(signature.Results().At(i).Type(), types.Universe.Lookup("error").Type()) {
+			return true
+		}
+	}
+	return signature.Results().Len() == 0 && takesContext
 }
 
 func commandEffectsEnabled(policy *Policy) bool {
@@ -398,8 +458,16 @@ func validateEffectEntry(entry commandEffectEntry) error {
 	return nil
 }
 
+// Platform protocol effects (#4836, ADR 0098) are reviewed participation in
+// an infrastructure protocol, not a cross-owner command or an exception.
+const platformEffectADR = "0098"
+
 func validateCommandEffectEntry(entry commandEffectEntry) error {
 	switch entry.Classification {
+	case "platform":
+		if entry.ADR != platformEffectADR {
+			return fmt.Errorf("platform effect %s must cite ADR %s", entry.key(), platformEffectADR)
+		}
 	case "debt":
 		if entry.ADR != "0083" {
 			return fmt.Errorf("known debt %s must cite ADR 0083 without granting an exception", entry.key())
@@ -409,7 +477,7 @@ func validateCommandEffectEntry(entry commandEffectEntry) error {
 			return fmt.Errorf("command %s must cite ADR 0067", entry.key())
 		}
 	default:
-		return fmt.Errorf("command %s needs leaf, workflow, known debt or named E1–E5 classification", entry.key())
+		return fmt.Errorf("command %s needs leaf, workflow, platform, known debt or named E1–E5 classification", entry.key())
 	}
 	return nil
 }
@@ -453,7 +521,7 @@ func isEffectInputInterface(object types.Object, classified map[string]Package) 
 
 func (s *effectScanner) crossOwnerTarget(owner string) bool {
 	switch s.ownerKinds[owner] {
-	case "domain", "workflow", "projection":
+	case "domain", "workflow", "projection", "platform":
 		return true
 	}
 	return false
@@ -467,7 +535,7 @@ func effectASTField(name string, value reflect.Value) bool {
 	return value.Type() != reflect.TypeFor[token.Pos]()
 }
 
-func (s *effectScanner) walkCallable(port, binding string, pkg *packages.Package, call *ast.CallExpr, trail []string, known map[*types.Var]bool) {
+func (s *effectScanner) walkCallable(port, binding string, pkg *packages.Package, call *ast.CallExpr, seen map[string]bool, trail []string, known map[*types.Var]bool) {
 	id, ok := call.Fun.(*ast.Ident)
 	if !ok {
 		return
@@ -477,6 +545,9 @@ func (s *effectScanner) walkCallable(port, binding string, pkg *packages.Package
 		return
 	}
 	if _, callable := variable.Type().Underlying().(*types.Signature); callable {
-		s.record(port, binding, "unresolved:callable:"+pkg.PkgPath+"."+id.Name, "", s.callableTrail(variable, trail))
+		evidence := s.callableTrail(variable, trail)
+		if !s.resolveCallableOnce(port, binding, variable, evidence) {
+			s.record(port, binding, "unresolved:callable:"+pkg.PkgPath+"."+id.Name, "", evidence)
+		}
 	}
 }
