@@ -31,9 +31,7 @@ type Assignment = contract.Assignment
 type EndRequest = contract.EndRequest
 type Caller = contract.Caller
 type SubstitutionModule = contract.SubstitutionModule
-type ScheduleAdapter = contract.ScheduleAdapter
 type SubstitutionCaller = contract.SubstitutionCaller
-type ScheduleSubstitutionAdapter = contract.ScheduleSubstitutionAdapter
 type SubstitutionRefusalValues = contract.SubstitutionRefusalValues
 type Module = contract.SubstitutionModule
 

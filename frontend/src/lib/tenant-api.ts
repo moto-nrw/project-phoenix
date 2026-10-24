@@ -500,10 +500,19 @@ export async function performTenantSwitch(
 export async function switchTenant(
   subdomain: string,
 ): Promise<SwitchTenantResponse> {
-  const response = await sessionFetch("/api/auth/switch-tenant", {
-    method: "POST",
-    body: JSON.stringify({ tenant_slug: subdomain }),
-  });
+  const response = await sessionFetch(
+    "/api/auth/switch-tenant",
+    {
+      method: "POST",
+      body: JSON.stringify({ tenant_slug: subdomain }),
+    },
+    {
+      authRefusals: [
+        "identity.tenant_access_denied",
+        "identity.mfa_session_required",
+      ],
+    },
+  );
   if (!response.ok) {
     // The switch UI branches on the code: identity.tenant_access_denied
     // (401, no access to that school) or identity.use_school_portal (a

@@ -211,7 +211,7 @@ func TestLogin(t *testing.T) {
 // loginAsAdmin creates an admin account, assigns it the "admin" role, logs in via the
 // router, and returns a valid JWT access token plus a valid non-admin role ID that can
 // be used as role_id in registration payloads.
-func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, validRoleID int64) {
+func loginAsAdmin(t *testing.T, db *bun.DB, _ chi.Router) (token string, validRoleID int64) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -222,7 +222,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 
 	// 1. Create admin account with known password
 	adminEmail := fmt.Sprintf("registeradmin_%d@example.com", time.Now().UnixNano())
-	adminPassword := "AdminPass123!"
+	adminPassword := testpkg.NewTestPassword()
 	adminAccount := testpkg.CreateTestAccountWithPassword(t, db, adminEmail, adminPassword)
 
 	// Map account to tenant 1 so Login can resolve the tenant for JWT/token creation
@@ -237,18 +237,12 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	// 3. Get or create a "user" role to use as valid role_id in test payloads
 	userRole := testpkg.GetOrCreateTestRole(t, db, "user")
 
-	// 4. Login to get a real JWT token
-	loginBody := map[string]string{
-		"email":    adminEmail,
-		"password": adminPassword,
-	}
-	loginReq := testutil.NewJSONRequest(t, "POST", "/auth/login", loginBody)
-	loginRR := testutil.ExecuteRequest(router, loginReq)
-	require.Equal(t, http.StatusOK, loginRR.Code, "Admin login failed: %s", loginRR.Body.String())
-
-	loginResp := testutil.ParseJSONResponse(t, loginRR.Body.Bytes())
-	accessToken, ok := loginResp["access_token"].(string)
-	require.True(t, ok, "Expected access_token string in login response")
+	// Protected-route tests start after the completed second-factor exchange.
+	// Password-only login now correctly returns an enrollment token, not a
+	// usable admin session. Login/MFA behavior has its own HTTP/behavior tests.
+	module := setupAuthModuleOn(t, db)
+	accessToken, _, err := module.Auth.IssueTokensForAuthenticatedAccount(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
+	require.NoError(t, err)
 
 	return accessToken, userRole.ID
 }

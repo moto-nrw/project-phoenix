@@ -76,7 +76,7 @@ function cells(row: HTMLElement): string[] {
 }
 
 describe("DienstplanHoursCard", () => {
-  it("splits each person's week by Schichtart against the target", () => {
+  it("splits each person's week by Dienstart against the target", () => {
     renderCard([
       summary("7", {
         plannedMinutes: 1290,
@@ -115,7 +115,7 @@ describe("DienstplanHoursCard", () => {
       "Wochenstunden Ganztag",
       "Verfügungsstunden",
       "Vertretungsunterricht",
-      "Ohne Schichtart",
+      "Ohne Dienstart",
       "Gesamt",
       "Soll",
       "Differenz",
@@ -203,7 +203,7 @@ describe("DienstplanHoursCard", () => {
 
   // A Schichtart the list no longer knows (deleted, or the list failed to
   // load) still gets its own column instead of vanishing from the sum.
-  it("keeps minutes of an unknown Schichtart visible", () => {
+  it("keeps minutes of an unknown Dienstart visible", () => {
     renderCard([
       summary("7", {
         plannedMinutes: 60,
@@ -213,7 +213,7 @@ describe("DienstplanHoursCard", () => {
 
     expect(
       within(screen.getByTestId("data-table-table")).getByRole("columnheader", {
-        name: "Unbekannte Schichtart",
+        name: "Unbekannte Dienstart",
       }),
     ).toBeInTheDocument();
   });

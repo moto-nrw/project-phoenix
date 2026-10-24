@@ -34,6 +34,14 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   };
 });
 
+// The occupancy section loads on its own; phase-offering-occupancy.test.tsx
+// covers it.
+vi.mock("~/components/enrollment/phase-offering-occupancy", () => ({
+  PhaseOfferingOccupancy: ({ phaseId }: { phaseId: string }) => (
+    <div data-testid="phase-offering-occupancy">{phaseId}</div>
+  ),
+}));
+
 vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mocks.listPhases,
 }));
@@ -776,5 +784,17 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(
       screen.queryByRole("button", { name: "Trotzdem bestätigen" }),
     ).not.toBeInTheDocument();
+    // Without care offerings there are no places to count (#4782).
+    expect(
+      screen.queryByTestId("phase-offering-occupancy"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the free places of the phase's offerings (#4782)", async () => {
+    await renderPhase();
+
+    expect(screen.getByTestId("phase-offering-occupancy")).toHaveTextContent(
+      phase.id,
+    );
   });
 });

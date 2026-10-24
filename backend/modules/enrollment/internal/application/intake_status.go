@@ -320,6 +320,13 @@ func (s *Intake) writeEditPatch(ctx context.Context, req *Request, consentPatche
 		byKey := buildFieldsByKey(schema)
 		req.CustomData = sanitizeVisibleAnswers(schema, false, req.CustomData,
 			fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey})
+		claims, err := s.resolveFileAnswers(ctx, req.PhaseID, schema, req.ID, req.CustomData)
+		if err != nil {
+			return err
+		}
+		if err := s.claimFileUploads(ctx, claims, req.ID); err != nil {
+			return fmt.Errorf("edit: %w", err)
+		}
 	}
 	if consentPatched {
 		blocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)

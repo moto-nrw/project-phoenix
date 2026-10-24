@@ -46,8 +46,11 @@ type ParentMessage struct {
 	AppliedAt      *time.Time
 	AppliedBy      *int64
 	DecisionReason string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// GroupThreadID names the group thread a guardian's message answers
+	// (#4784). The answer lives in this 1:1 conversation only.
+	GroupThreadID *int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // ParentMessageThread is the single continuous conversation between the OGS

@@ -21,17 +21,37 @@ type PickupExtensionRules interface {
 	ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date string) (int, error)
 }
 
+// PickupExtensions are the Timetable pickup-extension reads and the
+// resolution the decision coordinates.
+type PickupExtensions interface {
+	timetable.PickupExtensionQuery
+	ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (timetable.PickupExtensionResolution, error)
+}
+
+// PickupExtensionDecisions are the later-pickup decisions the Timetable
+// routes serve (#3261): the open tasks and their child are Timetable's reads,
+// the resolution re-applies Student Presence's reported attendance. The root
+// binds them to the routes' own port; no Timetable command calls back into
+// this workflow (#4825).
+type PickupExtensionDecisions interface {
+	FindPickupExtensionStudent(ctx context.Context, taskID int64) (int64, error)
+	ListOpenPickupExtensions(ctx context.Context, studentID int64) ([]timetable.PickupExtensionTask, error)
+	ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (timetable.PickupExtensionResolution, error)
+}
+
 // NewPickupExtensions binds the decision over the Timetable pickup
 // extensions and the Student Presence attendance rules.
-func NewPickupExtensions(extensions timetable.PickupExtensionCapability, rules PickupExtensionRules) (timetable.PickupExtensionCapability, error) {
+func NewPickupExtensions(extensions PickupExtensions, rules PickupExtensionRules) (PickupExtensionDecisions, error) {
 	if extensions == nil || rules == nil {
 		return nil, errors.New("pickup extension workflow: timetable and student presence are required")
 	}
-	return pickupExtensions{PickupExtensionCapability: extensions, rules: rules}, nil
+	return pickupExtensions{PickupExtensions: extensions, rules: rules}, nil
 }
 
+// pickupExtensions serves Timetable's reads unchanged and resolves through
+// both owners.
 type pickupExtensions struct {
-	timetable.PickupExtensionCapability
+	PickupExtensions
 	rules PickupExtensionRules
 }
 
@@ -39,7 +59,7 @@ type pickupExtensions struct {
 // Presence decide the attendance the care plan already reported for those
 // days.
 func (w pickupExtensions) ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (timetable.PickupExtensionResolution, error) {
-	resolution, err := w.PickupExtensionCapability.ResolvePickupExtension(ctx, taskID, blockIDs)
+	resolution, err := w.PickupExtensions.ResolvePickupExtension(ctx, taskID, blockIDs)
 	if err != nil {
 		return resolution, err
 	}

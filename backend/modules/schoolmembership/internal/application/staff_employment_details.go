@@ -45,13 +45,11 @@ func (s *Service) BindSchedule(ctx context.Context, input schoolmembership.BindS
 	})
 }
 
-// WithLiveStaff runs write only for a live membership. Inside the caller's
-// transaction the membership stays locked until it commits.
-func (s *Service) WithLiveStaff(ctx context.Context, staffID int64, write func(context.Context) error) error {
-	if _, err := s.FindStaffForMutation(ctx, staffID); err != nil {
-		return err
-	}
-	return write(ctx)
+// LockLiveStaff locks a live membership. Inside the caller's transaction the
+// membership stays locked until it commits.
+func (s *Service) LockLiveStaff(ctx context.Context, staffID int64) error {
+	_, err := s.FindStaffForMutation(ctx, staffID)
+	return err
 }
 
 // updateEmployment is the unit of work of an employment-only write: the

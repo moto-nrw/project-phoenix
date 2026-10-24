@@ -22,8 +22,8 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: src.StudentRepo,
 		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: src.OutboxEnqueuer,
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
-		ParentChanges: src.ParentChanges,
-		Random:        securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
+		ParentChanges: src.ParentChanges, Uploads: src.Uploads,
+		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
 	})
 }
@@ -152,6 +152,8 @@ type EnrollmentIntakeSources struct {
 	ManualDecider    enrollmentCompose.ManualEnrollmentDecider
 	// ParentChanges makes a request unread again after a parent edit (#3778).
 	ParentChanges enrollmentCompose.RequestParentChanges
+	// Uploads stores the files parents attach (#4783); nil refuses uploads.
+	Uploads enrollmentOwner.RequestUploadRecords
 	// FrontendURL is the base of the staff links, ParentsURL of the
 	// parent-facing ones; it falls back to FrontendURL.
 	FrontendURL string

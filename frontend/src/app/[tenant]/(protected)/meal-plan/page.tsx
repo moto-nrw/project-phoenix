@@ -244,7 +244,7 @@ export default function MealPlanPage() {
       setDrafts({});
       setOriginals({});
       void showLoadError(err, {
-        object: "die Woche im Essensplan",
+        object: "die Woche im Speiseplan",
         retry: () => reloadRef.current(),
       });
     } finally {
@@ -408,7 +408,7 @@ export default function MealPlanPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       void showActionError(err, {
-        object: "die Vorwoche im Essensplan",
+        object: "die Vorwoche im Speiseplan",
         retry: () => retryCopyPrevRef.current(),
       });
     } finally {
@@ -464,7 +464,7 @@ export default function MealPlanPage() {
         );
         persisted[date] = draft;
       }
-      toast.success("Der Essensplan ist gespeichert.");
+      toast.success("Der Speiseplan ist gespeichert.");
       await load();
     } catch (err) {
       logger.error("meal_plan_save_failed", {
@@ -477,7 +477,7 @@ export default function MealPlanPage() {
       // Der Fehler steht über dem Wochenplan (Bauart 2 Regel 5), nicht als
       // Toast: die noch ungespeicherten Tage bleiben sichtbar markiert.
       void saveErrors.show(err, {
-        object: "die Woche im Essensplan",
+        object: "die Woche im Speiseplan",
         retry: () => retrySaveRef.current(),
       });
     } finally {
@@ -524,7 +524,7 @@ export default function MealPlanPage() {
 
   return (
     <TenantPage
-      title="Essensplan"
+      title="Speiseplan"
       stats={statusLine}
       statsLoading={initialLoading}
       loading={initialLoading}

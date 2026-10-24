@@ -147,7 +147,7 @@ describe("OwnDienstplanView", () => {
     state.mutateProjection.mockClear();
   });
 
-  it("shows the own week read-only with sums by Schichtart and the Soll", () => {
+  it("shows the own week read-only with sums by Dienstart and the Soll", () => {
     state.shifts = [
       shift(),
       shift({

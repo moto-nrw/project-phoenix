@@ -1045,6 +1045,15 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/api/enrollment/") && strings.HasSuffix(r.URL.Path, "/uploads") {
+			// The income proof of #4783 is a multipart upload, too.
+			idCounter++
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"token": fmt.Sprintf("upload-token-%d", idCounter)},
+			})
+			return
+		}
 		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter) {
 			return
 		}
@@ -1357,6 +1366,17 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			pickupRequestIDs = append(pickupRequestIDs, idCounter)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter)},
+			})
+			return
+		}
+		// Group threads (#4784): the group's name, then each new thread's id.
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/groups/") {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"name": "Sternengruppe"}})
+			return
+		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/messages/group-threads" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"thread": map[string]any{"id": fmt.Sprintf("%d", idCounter)}},
 			})
 			return
 		}

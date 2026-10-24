@@ -481,6 +481,13 @@ func ErrorServiceUnavailable(err error) render.Renderer {
 	return newErrResponse(http.StatusServiceUnavailable, err)
 }
 
+// ErrorServiceUnavailableWithCode identifies a retryable dependency failure.
+func ErrorServiceUnavailableWithCode(err error, code string) render.Renderer {
+	response := newErrResponse(http.StatusServiceUnavailable, err)
+	response.Code = code
+	return response
+}
+
 // ErrorBadGatewayWrap returns a 502 response with a stable client-facing
 // message for an upstream service that did not take the request. The cause
 // stays in the log.

@@ -193,8 +193,10 @@ func renderParentAnnouncementWriteError(w http.ResponseWriter, r *http.Request, 
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCarePollClosed))
 	case errors.Is(err, parentService.ErrInvalidPollResponse):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareInvalidPollResponse))
-	case errors.Is(err, parentService.ErrChildNotAnswerable):
+	case errors.Is(err, parentService.ErrChildNotAnswerable), errors.Is(err, parentService.ErrGroupThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrGroupThreadClosed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationGroupThreadClosed))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

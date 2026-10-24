@@ -482,6 +482,9 @@ func (m *marketingProfileAPIMock) respondIdentity(r *seedHTTPRequest, body map[s
 		m.staff++
 		return map[string]any{"school_identity": map[string]any{"staff_id": "7400"}}, true
 	case "/auth/switch-tenant":
+		if body["tenant_slug"] == "vollbetrieb" {
+			return marketingMockToken("shared-switched-token"), true
+		}
 		return marketingMockToken(marketingMockDeveloperToken), true
 	case "/auth/account/tenants":
 		return []map[string]any{{"tenant_id": marketingMockSchoolID}}, true

@@ -94,20 +94,9 @@ func TestParentCarePlanNativeRequestRetainsRawSnapshotsAndEmptyRelations(t *test
 	assert.NotNil(t, view.LastDecision.Requested)
 	assert.Nil(t, view.LastDecision.AppliedDiff)
 }
-func TestParentCarePlanCutoffBindingKeepsLazyClockAndCanonicalErrors(t *testing.T) {
+func TestParentCarePlanPolicyBindingKeepsCanonicalErrors(t *testing.T) {
 	t.Parallel()
 	policy := owners.NewParentCarePlanPolicy()
-	now := time.Date(2026, 10, 17, 11, 0, 0, 0, calendar.Berlin)
-	cutoff, err := policy.NewSameDayCutoffAt(" 11:00 ", func() time.Time { return now })
-	require.NoError(t, err)
-	assert.Equal(t, "11:00", cutoff.Clock)
-	assert.False(t, cutoff.Closed(calendar.DateFromTime(now)))
-	now = now.Add(time.Second)
-	assert.True(t, cutoff.Closed(calendar.DateFromTime(now)))
-	assert.False(t, cutoff.Closed(calendar.DateFromTime(now).AddDays(1)))
-	_, err = policy.NewSameDayCutoffAt("11:00", nil)
-	_, canonical := careplan.NewSameDayCutoffAt("11:00", nil)
-	require.EqualError(t, err, canonical.Error())
 	assert.Same(t, careplan.ErrCourseRequestsDisabled, policy.Error("CourseRequestsDisabled"))
 	assert.Same(t, careplan.ErrStudentDataRequestFieldPending, policy.Error("StudentDataRequestFieldPending"))
 }

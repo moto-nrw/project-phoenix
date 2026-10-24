@@ -43,6 +43,9 @@ func (s *Service) finishStaffReply(ctx context.Context, thread *ParentMessageThr
 	// The just-sent message is unread by the guardian (cursor unchanged by our send),
 	// so it correctly stays unstamped.
 	DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
+	if err := s.decorateGroupThreadTitles(ctx, messages); err != nil {
+		return nil, err
+	}
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread, messageID)
 	return messages, nil

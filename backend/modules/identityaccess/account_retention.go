@@ -13,4 +13,5 @@ import (
 // school.
 type AccountRetention interface {
 	EraseUnusedAccounts(ctx context.Context) (int, error)
+	CleanupErasedAccountAvatars(ctx context.Context) (int, error)
 }

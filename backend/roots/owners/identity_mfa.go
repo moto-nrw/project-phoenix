@@ -70,6 +70,9 @@ func (s mfaSettings) MFAModeInTx(ctx context.Context, tenantID int64) (string, e
 
 func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (bool, error) {
 	if tenantID > 0 {
+		if _, inTx := tenant.TransactionFromContext(ctx); inTx {
+			return s.settings.ResolveBoolForTenantInTx(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
+		}
 		return s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
 	}
 	return s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)

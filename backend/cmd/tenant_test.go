@@ -38,3 +38,13 @@ func TestTenantExportCommandFailureExitsNonzero(t *testing.T) {
 	require.FileExists(t, filepath.Join(out, "partial.jsonl"))
 	require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 }
+
+func TestTenantExportEmptyPersonCannotBecomeSchoolExport(t *testing.T) {
+	t.Parallel()
+	command := tenantCommand(func(_ *cobra.Command, _ organizationtenancy.TenantExportOptions) error {
+		t.Fatal("explicitly empty person selection must not run a school-wide export")
+		return nil
+	})
+	command.SetArgs([]string{"export", "--person", ""})
+	require.ErrorContains(t, command.Execute(), "--person must not be empty")
+}

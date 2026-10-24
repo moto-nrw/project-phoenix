@@ -96,6 +96,8 @@ const (
 	CodeCommunicationAnnouncementPublishedImmutable      = "communication.announcement_published_immutable"
 	CodeCommunicationAnnouncementReminderSent            = "communication.announcement_reminder_sent"
 	CodeCommunicationDeclarationHasSubmissions           = "communication.declaration_has_submissions"
+	CodeCommunicationGroupThreadClosed                   = "communication.group_thread_closed"
+	CodeCommunicationGroupThreadNoRecipients             = "communication.group_thread_no_recipients"
 	CodeCommunicationNotificationsDisabled               = "communication.notifications_disabled"
 	CodeCommunicationParentNewsDisabled                  = "communication.parent_news_disabled"
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
@@ -166,6 +168,7 @@ const (
 	CodeEnrollmentFormAttachmentInvalid                  = "enrollment.form_attachment_invalid"
 	CodeEnrollmentFormFieldAllowedTimesInvalid           = "enrollment.form_field_allowed_times_invalid"
 	CodeEnrollmentFormFieldContentRequired               = "enrollment.form_field_content_required"
+	CodeEnrollmentFormFieldFileOptionsInvalid            = "enrollment.form_field_file_options_invalid"
 	CodeEnrollmentFormFieldKeyDuplicate                  = "enrollment.form_field_key_duplicate"
 	CodeEnrollmentFormFieldKeyInvalid                    = "enrollment.form_field_key_invalid"
 	CodeEnrollmentFormFieldLabelRequired                 = "enrollment.form_field_label_required"
@@ -216,6 +219,10 @@ const (
 	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
 	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
+	CodeEnrollmentUploadExpired                          = "enrollment.upload_expired"
+	CodeEnrollmentUploadInvalid                          = "enrollment.upload_invalid"
+	CodeEnrollmentUploadNotFound                         = "enrollment.upload_not_found"
+	CodeEnrollmentUploadRateLimited                      = "enrollment.upload_rate_limited"
 	CodeEnrollmentWaitlistDisabled                       = "enrollment.waitlist_disabled"
 	CodeEnrollmentWindowClosed                           = "enrollment.window_closed"
 	CodeEnrollmentWithdrawNotAllowed                     = "enrollment.withdraw_not_allowed"
@@ -268,6 +275,8 @@ const (
 	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
 	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
 	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
+	CodeIdentityMfaSessionRequired                       = "identity.mfa_session_required"
+	CodeIdentityMfaStatusUnavailable                     = "identity.mfa_status_unavailable"
 	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
 	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
 	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
@@ -293,15 +302,6 @@ const (
 	CodeImportFileNoRows                                 = "import.file_no_rows"
 	CodeImportFileRowInvalid                             = "import.file_row_invalid"
 	CodeImportFileTooLarge                               = "import.file_too_large"
-	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
-	CodeImportFileUnreadable                             = "import.file_unreadable"
-	CodeImportImportBatchFailed                          = "import.import_batch_failed"
-	CodeImportModeForbidden                              = "import.mode_forbidden"
-	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
-	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
-	CodeIotDeviceApiKeyFormatInvalid                     = "iot.device_api_key_format_invalid"
-	CodeIotDeviceApiKeyInvalid                           = "iot.device_api_key_invalid"
-	CodeIotDeviceApiKeyRequired                          = "iot.device_api_key_required"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -399,6 +399,8 @@ var errorCodeClasses0 = map[string]string{
 	"communication.announcement_published_immutable":       "business_rejection",
 	"communication.announcement_reminder_sent":             "business_rejection",
 	"communication.declaration_has_submissions":            "business_rejection",
+	"communication.group_thread_closed":                    "business_rejection",
+	"communication.group_thread_no_recipients":             "business_rejection",
 	"communication.notifications_disabled":                 "business_rejection",
 	"communication.parent_news_disabled":                   "permission",
 	"communication.poll_not_open":                          "business_rejection",
@@ -469,6 +471,7 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.form_attachment_invalid":                   "input",
 	"enrollment.form_field_allowed_times_invalid":          "input",
 	"enrollment.form_field_content_required":               "input",
+	"enrollment.form_field_file_options_invalid":           "input",
 	"enrollment.form_field_key_duplicate":                  "input",
 	"enrollment.form_field_key_invalid":                    "input",
 	"enrollment.form_field_label_required":                 "input",
@@ -519,6 +522,10 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
 	"enrollment.submission_rate_limited":                   "unavailable",
+	"enrollment.upload_expired":                            "input",
+	"enrollment.upload_invalid":                            "input",
+	"enrollment.upload_not_found":                          "business_rejection",
+	"enrollment.upload_rate_limited":                       "unavailable",
 	"enrollment.waitlist_disabled":                         "business_rejection",
 	"enrollment.window_closed":                             "business_rejection",
 	"enrollment.withdraw_not_allowed":                      "permission",
@@ -571,6 +578,8 @@ var errorCodeClasses0 = map[string]string{
 	"identity.mfa_blocked":                                 "unavailable",
 	"identity.mfa_code_invalid":                            "input",
 	"identity.mfa_not_enrolled":                            "business_rejection",
+	"identity.mfa_session_required":                        "permission",
+	"identity.mfa_status_unavailable":                      "unavailable",
 	"identity.operator_invitation_invalid":                 "business_rejection",
 	"identity.operator_self_deactivation":                  "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
@@ -596,15 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"import.file_no_rows":                                  "input",
 	"import.file_row_invalid":                              "input",
 	"import.file_too_large":                                "input",
-	"import.file_type_invalid":                             "input",
-	"import.file_unreadable":                               "input",
-	"import.import_batch_failed":                           "server",
-	"import.mode_forbidden":                                "permission",
-	"iot.activity_capacity_exceeded":                       "business_rejection",
-	"iot.deviation_reason_required":                        "input",
-	"iot.device_api_key_format_invalid":                    "permission",
-	"iot.device_api_key_invalid":                           "permission",
-	"iot.device_api_key_required":                          "permission",
 }
 
 func init() {

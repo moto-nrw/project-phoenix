@@ -133,7 +133,7 @@ export function TemplateCard({
                   backgroundColor: `${shiftTypeColor}1A`,
                   color: shiftTypeColor,
                 }}
-                title={`Schichtart: ${template.shiftTypeName}`}
+                title={`Dienstart: ${template.shiftTypeName}`}
               >
                 <span
                   className="h-2 w-2 rounded-full"

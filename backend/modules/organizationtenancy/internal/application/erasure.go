@@ -14,15 +14,16 @@ import (
 )
 
 type Erasure struct {
-	store ports.ErasureStore
-	files organizationtenancy.ErasureFiles
+	store  ports.ErasureStore
+	files  organizationtenancy.ErasureFiles
+	ledger organizationtenancy.ErasureLedger
 }
 
-func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles) (*Erasure, error) {
-	if store == nil || files == nil {
-		return nil, errors.New("erasure: database and file store required")
+func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles, ledger organizationtenancy.ErasureLedger) (*Erasure, error) {
+	if store == nil || files == nil || ledger == nil {
+		return nil, errors.New("erasure: database, file store and external ledger required")
 	}
-	return &Erasure{store: store, files: files}, nil
+	return &Erasure{store: store, files: files, ledger: ledger}, nil
 }
 
 var orderReferencePattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]{2,39}$`)
@@ -77,6 +78,36 @@ func erasureSchoolIDs(ctx context.Context, store ports.ErasureStore, r organizat
 	return ids, nil
 }
 
+func (s *Erasure) checkLedger(r organizationtenancy.ErasureRequest, ids []int64) error {
+	if r.DryRun {
+		return nil
+	}
+	return s.ledger.Check(ids, r.OrderReference)
+}
+
+func (s *Erasure) runSchool(ctx context.Context, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
+	var proof json.RawMessage
+	err := s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
+		// Recheck after acquiring the school lock: another erasure may have
+		// completed between the all-school preflight and this lock.
+		if err := s.checkLedger(r, []int64{id}); err != nil {
+			return err
+		}
+		var err error
+		proof, err = s.eraseSchool(lockCtx, s.store, r, id, kinds)
+		if err != nil || r.DryRun {
+			return err
+		}
+		if err = s.ledger.Record(proof); err != nil {
+			// DB completion alone is not overall success. A retry repairs the
+			// external record; never emit completed evidence before it is durable.
+			proof = nil
+		}
+		return err
+	})
+	return proof, err
+}
+
 func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest) ([]json.RawMessage, error) {
 	if err := validateErasureRequest(r); err != nil {
 		return nil, err
@@ -96,15 +127,15 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 	if err != nil {
 		return nil, err
 	}
+	if err := s.checkLedger(r, ids); err != nil {
+		return nil, err
+	}
 	var results []json.RawMessage
 	for _, id := range ids {
-		err = s.store.WithSchoolLock(ctx, id, func(lockCtx context.Context) error {
-			proof, err := s.eraseSchool(lockCtx, s.store, r, id, kinds)
-			if proof != nil {
-				results = append(results, proof)
-			}
-			return err
-		})
+		proof, err := s.runSchool(ctx, r, id, kinds)
+		if proof != nil {
+			results = append(results, proof)
+		}
 		if err != nil {
 			return results, err
 		}
@@ -119,7 +150,7 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 // destructive interpretation. Avatars retain global objects but erase legacy
 // school directories. This is an execution guard, not another data catalog.
 func validateErasureFiles(kinds []organizationtenancy.LifecycleFileKind) error {
-	supported := map[string]string{"files": "tenantDir", "announcement-attachments": "tenantDir", "student-documents": "tenantDir", "staff-documents": "tenantDir", "student-photos": "tenantPrefix", "login-images": "tenantPrefix", "enrollment-legal-documents": "tenantPrefix", "enrollment-form-legal-documents": "tenantPrefix", "avatars": "account"}
+	supported := map[string]string{"files": "tenantDir", "announcement-attachments": "tenantDir", "student-documents": "tenantDir", "staff-documents": "tenantDir", "enrollment-uploads": "tenantDir", "student-photos": "tenantPrefix", "login-images": "tenantPrefix", "enrollment-legal-documents": "tenantPrefix", "enrollment-form-legal-documents": "tenantPrefix", "avatars": "account"}
 	if len(kinds) != len(supported) {
 		return errors.New("erasure: file catalog needs reviewed deletion paths")
 	}
@@ -227,8 +258,16 @@ func (s *Erasure) eraseSchool(ctx context.Context, store ports.ErasureStore, r o
 		return s.previewSchool(ctx, store, r, id, kinds)
 	}
 	proof, raw, err := s.prepareSchoolErasure(ctx, store, r, id, kinds)
-	if err != nil || proof.Status == "completed" {
+	if err != nil {
 		return raw, err
+	}
+	if proof.Status == "completed" {
+		// A non-atomic DB/upload backup may restore files after a completed
+		// DB receipt. Recheck/remove namespaces even on an idempotent retry.
+		if err := s.removeAndVerifyFiles(ctx, id, kinds); err != nil {
+			return nil, err
+		}
+		return raw, nil
 	}
 	if proof.DBDoneAt == nil {
 		raw, err = eraseSchoolDatabase(ctx, store, r, id, proof.ID)

@@ -62,6 +62,9 @@ type AdminRequestDetail struct {
 	StatusToken             string `json:"status_token"`
 	LateInviteGuardianEmail string `json:"late_invite_guardian_email,omitempty"`
 	LateInviteEmailMismatch bool   `json:"late_invite_email_mismatch,omitempty"`
+	// CanViewUploads and Uploads carry the files parents attached (#4783).
+	CanViewUploads bool                 `json:"can_view_uploads"`
+	Uploads        []AdminRequestUpload `json:"uploads"`
 }
 
 // AdminRequestGuardian is one additional guardian (co-guardian) within an
@@ -315,7 +318,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		detail = rs.toAdminRequestDetail(ctx, s)
-		return nil
+		return rs.attachAdminUploads(ctx, &detail, id)
 	})
 	if err != nil {
 		if errors.Is(err, capability.ErrDecisionRequestNotFound) {

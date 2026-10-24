@@ -8,6 +8,8 @@ process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 export default defineConfig({
   testDir: "./e2e/network",
   testMatch: "*.spec.ts",
+  // The shared-cookie scenario needs its own domain and fixture server mode.
+  testIgnore: "tenant-mfa-switch.spec.ts",
   workers: 1,
   retries: 0,
   timeout: 90_000,

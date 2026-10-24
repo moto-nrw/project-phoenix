@@ -28,6 +28,18 @@ type AdminCapabilities struct {
 	Overview           workforce.StaffOverview
 	AuditLog           workforce.TimeTrackingAuditLog
 	TimeExport         workforce.StaffTimeExport
+	// AbsenceWrites are the sick-report writes the root routes through the
+	// shift-plan-sync workflow's entry with the real cascade (#4825).
+	AbsenceWrites AbsenceWrites
+}
+
+// AbsenceWrites are the absence writes that may cascade a sick report.
+type AbsenceWrites interface {
+	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
+	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
+	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
+	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
+	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
 }
 
 // Rows read back the native values the route suites assert on: the staff

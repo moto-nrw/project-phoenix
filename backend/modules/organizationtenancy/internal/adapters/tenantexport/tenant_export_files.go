@@ -85,6 +85,10 @@ func (r *exportRun) exportFileKind(ctx context.Context, root *os.Root, kind orga
 		return err
 	}
 	for _, key := range keys {
+		if r.person != nil && !r.references[key] {
+			r.person.unassignedObjects++
+			continue
+		}
 		if err := r.copyObject(ctx, root, key, mapping); err != nil {
 			return err
 		}

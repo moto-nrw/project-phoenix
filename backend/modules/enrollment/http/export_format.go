@@ -164,9 +164,27 @@ func formatCustomValue(field enrollmentCapability.FormField, raw any) string {
 		return formatPhoneList(raw)
 	case enrollmentCapability.FormFieldContactList:
 		return formatContactList(raw)
+	case enrollmentCapability.FormFieldFile:
+		return formatFileAnswer(raw)
 	default:
 		return stringifyValue(raw)
 	}
+}
+
+// formatFileAnswer lists the file names of a file answer (#4783). The export
+// never carries the files themselves.
+func formatFileAnswer(raw any) string {
+	var items []enrollmentCapability.FileAnswer
+	if !decodeComposite(raw, &items) {
+		return stringifyValue(raw)
+	}
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		if name := strings.TrimSpace(item.Filename); name != "" {
+			names = append(names, name)
+		}
+	}
+	return strings.Join(names, "; ")
 }
 
 func formatWeekdayBoolean(raw any) string {

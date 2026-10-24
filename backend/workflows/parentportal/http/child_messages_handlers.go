@@ -34,6 +34,10 @@ type MessageResponse struct {
 	AppliedAt      *time.Time                 `json:"applied_at,omitempty"`
 	DecisionReason string                     `json:"decision_reason,omitempty"`
 	ReadByStaff    bool                       `json:"read_by_staff,omitempty"`
+	// GroupThreadID and GroupThreadTitle name the group thread this answer
+	// refers to (#4784).
+	GroupThreadID    string `json:"group_thread_id,omitempty"`
+	GroupThreadTitle string `json:"group_thread_title,omitempty"`
 }
 
 // ThreadSummaryResponse is one row on the parent thread list. counterpart_name
@@ -99,6 +103,8 @@ type ThreadViewResponse struct {
 // PostMessageRequest is the wire shape for POST .../children/{studentId}.
 type PostMessageRequest struct {
 	Body string `json:"body"`
+	// GroupThreadID names the group thread this message answers (#4784).
+	GroupThreadID string `json:"group_thread_id,omitempty"`
 }
 
 // ogsLabel is the parent-facing name of the OGS counterpart for a school.
@@ -151,21 +157,23 @@ func toMessageResponses(messages []*parentService.ParentMessage, counterpart str
 			refID = strconv.FormatInt(*m.RefID, 10)
 		}
 		out = append(out, MessageResponse{
-			ID:             strconv.FormatInt(m.ID, 10),
-			SenderKind:     m.SenderKind,
-			SenderName:     senderName,
-			Body:           m.Body,
-			CreatedAt:      m.CreatedAt,
-			Kind:           m.Kind,
-			EventType:      m.EventType,
-			RequestType:    m.RequestType,
-			RequestStatus:  m.RequestStatus,
-			Payload:        m.Payload,
-			RefTable:       m.RefTable,
-			RefID:          refID,
-			AppliedAt:      m.AppliedAt,
-			DecisionReason: m.DecisionReason,
-			ReadByStaff:    m.ReadByStaff,
+			ID:               strconv.FormatInt(m.ID, 10),
+			SenderKind:       m.SenderKind,
+			SenderName:       senderName,
+			Body:             m.Body,
+			CreatedAt:        m.CreatedAt,
+			Kind:             m.Kind,
+			EventType:        m.EventType,
+			RequestType:      m.RequestType,
+			RequestStatus:    m.RequestStatus,
+			Payload:          m.Payload,
+			RefTable:         m.RefTable,
+			RefID:            refID,
+			AppliedAt:        m.AppliedAt,
+			DecisionReason:   m.DecisionReason,
+			ReadByStaff:      m.ReadByStaff,
+			GroupThreadID:    groupThreadIDString(m.GroupThreadID),
+			GroupThreadTitle: m.GroupThreadTitle,
 		})
 	}
 	return out
@@ -285,7 +293,12 @@ func (rs *Resource) postChildMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	view, err := rs.ParentService.PostChildMessage(r.Context(), accountID, studentID, req.Body)
+	groupThreadID, err := parseOptionalGroupThreadID(req.GroupThreadID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	view, err := rs.ParentService.PostChildReply(r.Context(), accountID, studentID, req.Body, groupThreadID)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

@@ -20,13 +20,12 @@ import (
 // work-session repositories and the tenant settings to compose the Workforce
 // time-tracking side the way the service graph composes it (#3413).
 type timeTrackingTestGraph struct {
-	Audits        owners.TimeTrackingAudits
-	People        owners.TimeTrackingStaffLookup
-	Holidays      workforceCompose.HolidayDatesReader
-	Events        workforceCompose.EventPublisher
-	ShiftPlanSync workforceCompose.ShiftPlanSyncer
-	Logger        *slog.Logger
-	Today         func() timezone.Date
+	Audits   owners.TimeTrackingAudits
+	People   owners.TimeTrackingStaffLookup
+	Holidays workforceCompose.HolidayDatesReader
+	Events   workforceCompose.EventPublisher
+	Logger   *slog.Logger
+	Today    func() timezone.Date
 }
 
 func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSessionTestRepositories, staffRows peoplePorts.StaffRepository, presence TimetablePresenceRows, settings settingsCompose.SettingsService, graph timeTrackingTestGraph, mail ...*workforceCompose.AbsenceEmailDeps) (*workforceCompose.TimeTracking, error) {
@@ -63,26 +62,8 @@ func newTimeTrackingTestModule(db transactionruntime.Database, repos WorkSession
 	if err != nil {
 		return nil, err
 	}
-	return side.WithSickCascade(graph.ShiftPlanSync)
+	return side.TimeTracking()
 }
-
-// noSickCascade is the sick cascade of a test graph that composes no shift
-// plans: a sick report leaves the plans untouched.
-type noSickCascade struct{}
-
-func (noSickCascade) MarkSickForRange(context.Context, workforceModule.SickCascadeInput) error {
-	return nil
-}
-
-func (noSickCascade) ClearSickForRange(context.Context, workforceModule.SickCascadeInput) error {
-	return nil
-}
-
-func (noSickCascade) ReconcileSickRange(context.Context, workforceModule.SickCascadeInput, workforceModule.SickCascadeInput) error {
-	return nil
-}
-
-func (noSickCascade) ReassignSickStamps(context.Context, int64, int64) error { return nil }
 
 // noHolidays is the calendar of a test graph that composes no School
 // Calendar: no day loses its Soll.
