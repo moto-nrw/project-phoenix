@@ -6116,10 +6116,6 @@ function infoDisplaysTopic(): HelpTopic {
 }
 
 /**
- * Der Problemartikel der Leitung. Bewusst getrennt vom Betreuer-Thema
- * `missingMenu`: dort fehlt einem selbst etwas, hier einer anderen Person.
- */
-/**
  * Gebuchte Module (#4894). Der Reiter `Module` unter Einstellungen zeigt sie
  * lesend (#4892); Navigation, Startseite und Seiten folgen dem Modul-Register
  * (lib/module-register.ts). Das Schloss sieht nur, wer die Schule leitet.
@@ -6162,6 +6158,10 @@ function modulesTopic(): HelpTopic {
   };
 }
 
+/**
+ * Der Problemartikel der Leitung. Bewusst getrennt vom Betreuer-Thema
+ * `missingMenu`: dort fehlt einem selbst etwas, hier einer anderen Person.
+ */
 function leadMissingMenuTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadMissingMenu,
