@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// active.class_handovers and active.class_handover_absences (#4794) are
+// active.class_handovers and active.class_handover_children (#4794) are
 // tenant tables younger than the erasure phases 1.15.491 froze (ADR 0092).
 // 1.15.492 installs the five functions frozen anew with both tables; its down
 // migration reinstalls those of 1.15.491. Against them the functions add

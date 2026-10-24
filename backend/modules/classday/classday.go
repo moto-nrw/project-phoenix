@@ -235,10 +235,11 @@ type ClassHandoverChange struct {
 	// HandedOverBy is the users.staff_school_memberships row of the
 	// Lehrkraft.
 	HandedOverBy int64
-	// AbsentStudentIDs are the children with an OGS record she marked "nicht
-	// da"; the others are handed over as there.
-	AbsentStudentIDs []int64
-	// Withdraw takes the handover back instead; AbsentStudentIDs is ignored.
+	// PresentStudentIDs and AbsentStudentIDs are the children with an OGS
+	// record she handed over "da" and "nicht da".
+	PresentStudentIDs []int64
+	AbsentStudentIDs  []int64
+	// Withdraw takes the handover back instead; the children are ignored.
 	Withdraw bool
 }
 

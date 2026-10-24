@@ -7,7 +7,7 @@ import (
 )
 
 // The 1.15.491 residual phase with active.class_handovers and
-// active.class_handover_absences (#4794), installed by 1.15.492. Frozen like
+// active.class_handover_children (#4794), installed by 1.15.492. Frozen like
 // its predecessor; see school_erasure_class_handover.go.
 func installClassHandoverErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, classHandoverErasureResidualSQL)
@@ -26,7 +26,7 @@ const classHandoverErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.sch
     UNION ALL
     SELECT 1 FROM active.attendance AS r WHERE r.tenant_id = p_school_id
     UNION ALL
-    SELECT 1 FROM active.class_handover_absences AS r WHERE r.tenant_id = p_school_id
+    SELECT 1 FROM active.class_handover_children AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.class_handovers AS r WHERE r.tenant_id = p_school_id
     UNION ALL

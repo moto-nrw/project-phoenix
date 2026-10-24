@@ -3,7 +3,7 @@
 // GET /api/ogs-group-live returns everything the OGS-Gruppen page renders for
 // one supervised group in a single backend request. The wire DTO is minimal by
 // contract — it must never grow personal fields the page does not display.
-import type { ClassHandoverAbsence } from "~/lib/class-handover";
+import type { ClassHandover } from "~/lib/class-handover";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { DepartureMode } from "~/lib/student-helpers";
@@ -37,9 +37,9 @@ export interface OgsLiveWireStudent {
   day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
-  // Übergabe nach dem Unterricht (#4794): bei der heutigen Übergabe der
-  // Klasse als „nicht da“ markiert.
-  handover_absent?: ClassHandoverAbsence;
+  // Übergabe nach dem Unterricht (#4794): heute mit der Klasse an die OGS
+  // übergeben, „da“ oder „nicht da“.
+  class_handover?: ClassHandover;
   arrival_time?: string;
   arrival_is_exception?: boolean;
   arrival_notes?: string;

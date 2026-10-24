@@ -21,13 +21,14 @@ type classHandoverRow struct {
 	HandedOverByStaffID int64      `bun:"handed_over_by_staff_id,nullzero"`
 }
 
-// classHandoverAbsenceRow is one row of active.class_handover_absences.
-type classHandoverAbsenceRow struct {
-	bun.BaseModel `bun:"table:active.class_handover_absences,alias:class_handover_absence"`
+// classHandoverChildRow is one row of active.class_handover_children.
+type classHandoverChildRow struct {
+	bun.BaseModel `bun:"table:active.class_handover_children,alias:class_handover_child"`
 	ID            int64 `bun:"id,pk,autoincrement"`
 	TenantID      int64 `bun:"tenant_id,notnull"`
 	HandoverID    int64 `bun:"handover_id,notnull"`
 	StudentID     int64 `bun:"student_id,notnull"`
+	Absent        bool  `bun:"absent,notnull"`
 }
 
 // classHandoverClassMatch is the predicate the unique index matches a class
@@ -59,27 +60,33 @@ func (s *Store) ListClassHandovers(ctx context.Context, date ports.Date) ([]port
 	return records, stats, nil
 }
 
-func (s *Store) ListClassHandoverAbsences(ctx context.Context, handoverIDs []int64) (map[int64][]int64, ports.Stats, error) {
+func (s *Store) ListClassHandoverChildren(ctx context.Context, handoverIDs []int64) (map[int64]ports.ClassHandoverChildren, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	var rows []classHandoverAbsenceRow
+	var rows []classHandoverChildRow
 	started := time.Now()
 	err = db.NewSelect().Model(&rows).
-		Where("class_handover_absence.tenant_id = ?", tenantID).
-		Where("class_handover_absence.handover_id IN (?)", bun.List(handoverIDs)).
-		OrderExpr("class_handover_absence.student_id ASC").
+		Where("class_handover_child.tenant_id = ?", tenantID).
+		Where("class_handover_child.handover_id IN (?)", bun.List(handoverIDs)).
+		OrderExpr("class_handover_child.student_id ASC").
 		Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
-		return nil, stats, fmt.Errorf("list class handover absences: %w", err)
+		return nil, stats, fmt.Errorf("list class handover children: %w", err)
 	}
-	absent := make(map[int64][]int64, len(handoverIDs))
+	children := make(map[int64]ports.ClassHandoverChildren, len(handoverIDs))
 	for _, row := range rows {
-		absent[row.HandoverID] = append(absent[row.HandoverID], row.StudentID)
+		of := children[row.HandoverID]
+		if row.Absent {
+			of.Absent = append(of.Absent, row.StudentID)
+		} else {
+			of.Present = append(of.Present, row.StudentID)
+		}
+		children[row.HandoverID] = of
 	}
-	return absent, stats, nil
+	return children, stats, nil
 }
 
 func (s *Store) ReplaceClassHandover(ctx context.Context, in studentpresence.ClassHandoverChange, normalizedClass string, at time.Time) (bool, ports.Stats, error) {
@@ -103,25 +110,28 @@ func (s *Store) ReplaceClassHandover(ctx context.Context, in studentpresence.Cla
 		return false, stats, fmt.Errorf("insert class handover: %w", err)
 	}
 	stats.Rows++
-	if len(in.AbsentStudentIDs) == 0 {
+	children := make([]classHandoverChildRow, 0, len(in.PresentStudentIDs)+len(in.AbsentStudentIDs))
+	for _, studentID := range in.PresentStudentIDs {
+		children = append(children, classHandoverChildRow{TenantID: tenantID, HandoverID: row.ID, StudentID: studentID})
+	}
+	for _, studentID := range in.AbsentStudentIDs {
+		children = append(children, classHandoverChildRow{TenantID: tenantID, HandoverID: row.ID, StudentID: studentID, Absent: true})
+	}
+	if len(children) == 0 {
 		return replaced, stats, nil
 	}
-	absences := make([]classHandoverAbsenceRow, 0, len(in.AbsentStudentIDs))
-	for _, studentID := range in.AbsentStudentIDs {
-		absences = append(absences, classHandoverAbsenceRow{TenantID: tenantID, HandoverID: row.ID, StudentID: studentID})
-	}
 	started = time.Now()
-	_, err = db.NewInsert().Model(&absences).ExcludeColumn("id").Returning("NULL").Exec(ctx)
+	_, err = db.NewInsert().Model(&children).ExcludeColumn("id").Returning("NULL").Exec(ctx)
 	stats.Queries++
 	stats.StatementDuration += time.Since(started)
 	if err != nil {
-		return false, stats, fmt.Errorf("insert class handover absences: %w", err)
+		return false, stats, fmt.Errorf("insert class handover children: %w", err)
 	}
-	stats.Rows += int64(len(absences))
+	stats.Rows += int64(len(children))
 	return replaced, stats, nil
 }
 
-// DeleteClassHandover deletes the handover; its absences go with it through
+// DeleteClassHandover deletes the handover; its children go with it through
 // ON DELETE CASCADE.
 func (s *Store) DeleteClassHandover(ctx context.Context, normalizedClass string, date ports.Date) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
@@ -154,7 +164,7 @@ func (s *Store) DeleteClassHandover(ctx context.Context, normalizedClass string,
 }
 
 // DeleteClassHandoversBefore deletes the tenant's handovers dated before
-// cutoff; their absences go with them through ON DELETE CASCADE.
+// cutoff; their children go with them through ON DELETE CASCADE.
 func (s *Store) DeleteClassHandoversBefore(ctx context.Context, cutoff ports.Date) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

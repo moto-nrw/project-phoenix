@@ -11,13 +11,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The OGS views (Gruppe, Kindersuche, Aufsicht) show which children the
-// Lehrkraft marked "nicht da" when she handed her class over (#4794). Each
-// view owns its port and wire type; the root reads Student Presence's
-// absences once and names the staff members in one People Directory read.
+// The OGS views (Gruppe, Kindersuche, Aufsicht) show today's handover of a
+// child (#4794): when and by whom the Lehrkraft handed its class over, and
+// whether she marked the child "da" or "nicht da". Each view owns its port
+// and wire type; the root reads Student Presence's handovers once and names
+// the staff members in one People Directory read.
 
-// classHandoverAbsenceSource is Student Presence's read of the handovers.
-type classHandoverAbsenceSource interface {
+// classHandoverSource is Student Presence's read of the handovers.
+type classHandoverSource interface {
 	ClassHandoversOn(ctx context.Context, date calendar.Date) ([]studentpresence.ClassHandover, error)
 }
 
@@ -26,113 +27,125 @@ type classHandoverStaffNamer interface {
 	StaffNames(ctx context.Context, staffIDs []int64) (map[int64]string, error)
 }
 
-// classHandoverAbsence is one named absence before it takes a view's type.
-type classHandoverAbsence struct {
+// childClassHandover is one child's handover before it takes a view's type.
+type childClassHandover struct {
 	schoolClass  string
 	handedOverAt time.Time
 	handedOverBy string
+	absent       bool
 }
 
-// classHandoverAbsenceReads are the handovers and the staff names the
-// absences are joined from.
-type classHandoverAbsenceReads struct {
-	absences classHandoverAbsenceSource
-	staff    classHandoverStaffNamer
+// classHandoverReads are the handovers and the staff names the views' rows
+// are joined from.
+type classHandoverReads struct {
+	handovers classHandoverSource
+	staff     classHandoverStaffNamer
 }
 
-// loadClassHandoverAbsences maps each of studentIDs a handover on day marked
-// "nicht da" to its class, moment and staff name. The name read runs only
-// when a handover marked one of the children.
-func loadClassHandoverAbsences(ctx context.Context, r classHandoverAbsenceReads, studentIDs []int64, day calendar.Date) (map[int64]classHandoverAbsence, error) {
-	result := map[int64]classHandoverAbsence{}
+// loadClassHandovers maps each of studentIDs a handover on day named "da"
+// or "nicht da" to its class, moment, staff name and mark. The name read
+// runs only when a handover named one of the children.
+func loadClassHandovers(ctx context.Context, r classHandoverReads, studentIDs []int64, day calendar.Date) (map[int64]childClassHandover, error) {
+	result := map[int64]childClassHandover{}
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
-	handovers, err := r.absences.ClassHandoversOn(ctx, day)
+	handovers, err := r.handovers.ClassHandoversOn(ctx, day)
 	if err != nil || len(handovers) == 0 {
 		return result, err
 	}
-	marked, staffIDs := markedClassHandovers(handovers, studentIDs)
+	matched, staffIDs := matchClassHandovers(handovers, studentIDs)
 	names := map[int64]string{}
 	if len(staffIDs) > 0 && r.staff != nil {
 		if names, err = r.staff.StaffNames(ctx, staffIDs); err != nil {
 			return nil, err
 		}
 	}
-	for id, handover := range marked {
-		result[id] = classHandoverAbsence{
-			schoolClass: handover.SchoolClass, handedOverAt: handover.HandedOverAt.In(calendar.Berlin), handedOverBy: names[handover.HandedOverByStaffID],
+	for id, m := range matched {
+		result[id] = childClassHandover{
+			schoolClass: m.handover.SchoolClass, handedOverAt: m.handover.HandedOverAt.In(calendar.Berlin),
+			handedOverBy: names[m.handover.HandedOverByStaffID], absent: m.absent,
 		}
 	}
 	return result, nil
 }
 
-// markedClassHandovers maps each of studentIDs a handover marked "nicht da"
-// to that handover and lists the staff members of those handovers.
-func markedClassHandovers(handovers []studentpresence.ClassHandover, studentIDs []int64) (map[int64]studentpresence.ClassHandover, []int64) {
-	wanted := make(map[int64]bool, len(studentIDs))
-	for _, id := range studentIDs {
-		wanted[id] = true
-	}
-	marked := map[int64]studentpresence.ClassHandover{}
-	named := map[int64]bool{}
-	var staffIDs []int64
+// matchedClassHandover is the handover that named a child, and how.
+type matchedClassHandover struct {
+	handover studentpresence.ClassHandover
+	absent   bool
+}
+
+// matchClassHandovers maps each of studentIDs a handover named to that
+// handover and lists the staff members of those handovers once each.
+func matchClassHandovers(handovers []studentpresence.ClassHandover, studentIDs []int64) (map[int64]matchedClassHandover, []int64) {
+	named := map[int64]matchedClassHandover{}
 	for _, handover := range handovers {
+		for _, id := range handover.PresentStudentIDs {
+			named[id] = matchedClassHandover{handover: handover}
+		}
 		for _, id := range handover.AbsentStudentIDs {
-			if !wanted[id] {
-				continue
-			}
-			marked[id] = handover
-			if staff := handover.HandedOverByStaffID; staff > 0 && !named[staff] {
-				named[staff] = true
-				staffIDs = append(staffIDs, staff)
-			}
+			named[id] = matchedClassHandover{handover: handover, absent: true}
 		}
 	}
-	return marked, staffIDs
+	matched := map[int64]matchedClassHandover{}
+	seenStaff := map[int64]bool{}
+	var staffIDs []int64
+	for _, id := range studentIDs {
+		m, ok := named[id]
+		if !ok {
+			continue
+		}
+		matched[id] = m
+		if staff := m.handover.HandedOverByStaffID; staff > 0 && !seenStaff[staff] {
+			seenStaff[staff] = true
+			staffIDs = append(staffIDs, staff)
+		}
+	}
+	return matched, staffIDs
 }
 
 // groupLiveHandovers serves the live group view's handover port.
-type groupLiveHandovers struct{ reads classHandoverAbsenceReads }
+type groupLiveHandovers struct{ reads classHandoverReads }
 
-func (h groupLiveHandovers) HandoverAbsences(ctx context.Context, studentIDs []int64, day grouplive.Date) (map[int64]grouplive.HandoverAbsence, error) {
-	loaded, err := loadClassHandoverAbsences(ctx, h.reads, studentIDs, calendar.Date(day))
+func (h groupLiveHandovers) ClassHandovers(ctx context.Context, studentIDs []int64, day grouplive.Date) (map[int64]grouplive.ClassHandover, error) {
+	loaded, err := loadClassHandovers(ctx, h.reads, studentIDs, calendar.Date(day))
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]grouplive.HandoverAbsence, len(loaded))
-	for id, absence := range loaded {
-		result[id] = grouplive.HandoverAbsence{SchoolClass: absence.schoolClass, HandedOverAt: absence.handedOverAt, HandedOverBy: absence.handedOverBy}
+	result := make(map[int64]grouplive.ClassHandover, len(loaded))
+	for id, c := range loaded {
+		result[id] = grouplive.ClassHandover{SchoolClass: c.schoolClass, HandedOverAt: c.handedOverAt, HandedOverBy: c.handedOverBy, Absent: c.absent}
 	}
 	return result, nil
 }
 
 // studentListHandovers serves the Kindersuche's handover port.
-type studentListHandovers struct{ reads classHandoverAbsenceReads }
+type studentListHandovers struct{ reads classHandoverReads }
 
-func (h studentListHandovers) HandoverAbsences(ctx context.Context, studentIDs []int64, day calendar.Date) (map[int64]presenceprojectionhttp.ClassHandoverAbsence, error) {
-	loaded, err := loadClassHandoverAbsences(ctx, h.reads, studentIDs, day)
+func (h studentListHandovers) ClassHandovers(ctx context.Context, studentIDs []int64, day calendar.Date) (map[int64]presenceprojectionhttp.ClassHandover, error) {
+	loaded, err := loadClassHandovers(ctx, h.reads, studentIDs, day)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]presenceprojectionhttp.ClassHandoverAbsence, len(loaded))
-	for id, absence := range loaded {
-		result[id] = presenceprojectionhttp.ClassHandoverAbsence{SchoolClass: absence.schoolClass, HandedOverAt: absence.handedOverAt, HandedOverBy: absence.handedOverBy}
+	result := make(map[int64]presenceprojectionhttp.ClassHandover, len(loaded))
+	for id, c := range loaded {
+		result[id] = presenceprojectionhttp.ClassHandover{SchoolClass: c.schoolClass, HandedOverAt: c.handedOverAt, HandedOverBy: c.handedOverBy, Absent: c.absent}
 	}
 	return result, nil
 }
 
 // supervisionHandovers serves the supervision dashboard's handover port.
-type supervisionHandovers struct{ reads classHandoverAbsenceReads }
+type supervisionHandovers struct{ reads classHandoverReads }
 
-func (h supervisionHandovers) HandoverAbsences(ctx context.Context, studentIDs []int64, day supervisiondashboard.Date) (map[int64]supervisiondashboard.HandoverAbsence, error) {
-	loaded, err := loadClassHandoverAbsences(ctx, h.reads, studentIDs, calendar.Date(day))
+func (h supervisionHandovers) ClassHandovers(ctx context.Context, studentIDs []int64, day supervisiondashboard.Date) (map[int64]supervisiondashboard.ClassHandover, error) {
+	loaded, err := loadClassHandovers(ctx, h.reads, studentIDs, calendar.Date(day))
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]supervisiondashboard.HandoverAbsence, len(loaded))
-	for id, absence := range loaded {
-		result[id] = supervisiondashboard.HandoverAbsence{SchoolClass: absence.schoolClass, HandedOverAt: absence.handedOverAt, HandedOverBy: absence.handedOverBy}
+	result := make(map[int64]supervisiondashboard.ClassHandover, len(loaded))
+	for id, c := range loaded {
+		result[id] = supervisiondashboard.ClassHandover{SchoolClass: c.schoolClass, HandedOverAt: c.handedOverAt, HandedOverBy: c.handedOverBy, Absent: c.absent}
 	}
 	return result, nil
 }

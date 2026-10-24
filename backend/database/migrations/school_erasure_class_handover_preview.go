@@ -7,7 +7,7 @@ import (
 )
 
 // The 1.15.491 erasure preview with active.class_handovers and
-// active.class_handover_absences (#4794), installed by 1.15.492. Frozen like
+// active.class_handover_children (#4794), installed by 1.15.492. Frozen like
 // its predecessor; see school_erasure_class_handover.go.
 func installClassHandoverErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, classHandoverErasurePreviewSQL)
@@ -26,7 +26,7 @@ const classHandoverErasurePreviewSQL = ` CREATE OR REPLACE FUNCTION platform.sch
  v_counts := v_counts || jsonb_build_object('active.activity_session_attendance',(SELECT count(*) FROM active.activity_session_attendance AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.activity_sessions',(SELECT count(*) FROM active.activity_sessions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.attendance',(SELECT count(*) FROM active.attendance AS r WHERE r.tenant_id = p_school));
- v_counts := v_counts || jsonb_build_object('active.class_handover_absences',(SELECT count(*) FROM active.class_handover_absences AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('active.class_handover_children',(SELECT count(*) FROM active.class_handover_children AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.class_handovers',(SELECT count(*) FROM active.class_handovers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.combined_groups',(SELECT count(*) FROM active.combined_groups AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.excused_absence_requests',(SELECT count(*) FROM active.excused_absence_requests AS r WHERE r.tenant_id = p_school));

@@ -7429,7 +7429,8 @@ function teacherMorningAttendanceTopic(): HelpTopic {
 /**
  * Übergabe nach dem Unterricht (#4794): die Lehrkraft übergibt ihre Klasse
  * heute an die OGS und markiert Kinder, die nicht da sind. Die OGS sieht sie
- * in Aufsicht, Gruppe und Kindersuche als „Nach dem Unterricht nicht da“.
+ * in Aufsicht, Gruppe und Kindersuche als „Nach dem Unterricht da“ oder
+ * „Nach dem Unterricht nicht da“.
  */
 function teacherClassHandoverTopic(): HelpTopic {
   return {
@@ -7448,7 +7449,7 @@ function teacherClassHandoverTopic(): HelpTopic {
       "Tippen Sie auf `Übergeben`.",
     ],
     result:
-      "Oben steht, wann Sie übergeben haben. Die OGS sieht sofort, welche Kinder nicht da sind.",
+      "Oben steht, wann Sie übergeben haben. Die OGS sieht sofort bei jedem Kind, ob es da ist.",
     notes: [
       "In der Liste stehen nur die Kinder, die heute in die OGS gehen.",
       "Kinder, die am Morgen als `Fehlt` eingetragen sind, stehen schon auf `Nicht da`.",

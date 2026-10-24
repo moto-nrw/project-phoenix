@@ -7,7 +7,7 @@ import (
 )
 
 // The 1.15.491 preflight phase with active.class_handovers and
-// active.class_handover_absences (#4794), installed by 1.15.492. Frozen like
+// active.class_handover_children (#4794), installed by 1.15.492. Frozen like
 // its predecessor; see school_erasure_class_handover.go.
 func installClassHandoverErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, classHandoverErasurePreflightSQL)
@@ -24,7 +24,7 @@ const classHandoverErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.sc
     active.activity_session_attendance,
     active.activity_sessions,
     active.attendance,
-    active.class_handover_absences,
+    active.class_handover_children,
     active.class_handovers,
     active.combined_groups,
     active.excused_absence_requests,
@@ -277,7 +277,7 @@ const classHandoverErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.sc
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'a7419d072dde598e27fe0fbe120d2054c0c9454c13b26ea34425768573bc6134' THEN
+    ) AS edge) <> '25c121fb88537bf83fa47e443df05e5e8bad1d97a3e27e2b3ac387642d6815e2' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

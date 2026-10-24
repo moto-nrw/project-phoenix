@@ -8,25 +8,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ClassHandoverAbsence is a child the Lehrkraft marked "nicht da" when she
-// handed her class over to the OGS (#4794): the class, the moment and her
-// name (empty when she was removed since).
-type ClassHandoverAbsence struct {
+// ClassHandover is the handover of a child to the OGS with its class
+// (#4794): the class, the moment, the Lehrkraft's name (empty when she was
+// removed since) and whether she marked the child "nicht da".
+type ClassHandover struct {
 	SchoolClass  string    `json:"school_class"`
 	HandedOverAt time.Time `json:"handed_over_at"`
 	HandedOverBy string    `json:"handed_over_by,omitempty"`
+	Absent       bool      `json:"absent"`
 }
 
-// ClassHandoverReader returns the children among studentIDs a class handover
-// on day marked "nicht da", in one read.
+// ClassHandoverReader returns, in one read, the handover on day of each
+// child among studentIDs the Lehrkraft handed over to the OGS.
 type ClassHandoverReader interface {
-	HandoverAbsences(ctx context.Context, studentIDs []int64, day calendar.Date) (map[int64]ClassHandoverAbsence, error)
+	ClassHandovers(ctx context.Context, studentIDs []int64, day calendar.Date) (map[int64]ClassHandover, error)
 }
 
-// enrichWithHandoverAbsences marks the page's children a class handover
-// marked "nicht da" on day (#4794). Like the status days it needs users:read;
-// without a reader nothing is marked.
-func (rs *Resource) enrichWithHandoverAbsences(ctx context.Context, responses []StudentResponse, day calendar.Date) error {
+// enrichWithClassHandovers marks the page's children the Lehrkraft handed
+// over on day (#4794). Like the status days it needs users:read; without a
+// reader nothing is marked.
+func (rs *Resource) enrichWithClassHandovers(ctx context.Context, responses []StudentResponse, day calendar.Date) error {
 	if rs.ClassHandovers == nil || len(responses) == 0 || !canReadSensitiveStudentData(ctx) {
 		return nil
 	}
@@ -34,13 +35,13 @@ func (rs *Resource) enrichWithHandoverAbsences(ctx context.Context, responses []
 	for i := range responses {
 		ids = append(ids, responses[i].ID)
 	}
-	absences, err := rs.ClassHandovers.HandoverAbsences(ctx, ids, day)
+	handovers, err := rs.ClassHandovers.ClassHandovers(ctx, ids, day)
 	if err != nil {
-		return fmt.Errorf("load class handover absences: %w", err)
+		return fmt.Errorf("load class handovers: %w", err)
 	}
 	for i := range responses {
-		if absence, ok := absences[responses[i].ID]; ok {
-			responses[i].HandoverAbsent = &absence
+		if handover, ok := handovers[responses[i].ID]; ok {
+			responses[i].ClassHandover = &handover
 		}
 	}
 	return nil

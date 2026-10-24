@@ -233,7 +233,7 @@ func mountStudentRoutes(
 			ActiveService:          active,
 			ArrivalScheduleService: schedules.Arrivals,
 			CareDayService:         schedules.CareDay,
-			CareLifecycleService:   schedules.Lifecycle, ClassHandovers: studentListHandovers{reads: classHandoverAbsenceReads{absences: presence, staff: NewTimetablePeople(services.Users)}},
+			CareLifecycleService:   schedules.Lifecycle, ClassHandovers: studentListHandovers{reads: classHandoverReads{handovers: presence, staff: NewTimetablePeople(services.Users)}},
 			ClassListEntries:        classListEntryStudentsReader{entries: membership},
 			CompanionService:        companions,
 			ExcusedRequestService:   requests.Excused,

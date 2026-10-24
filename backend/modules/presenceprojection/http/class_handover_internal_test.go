@@ -15,45 +15,47 @@ import (
 
 // classHandoverFake answers the Kindersuche's class handover port (#4794).
 type classHandoverFake struct {
-	absences map[int64]ClassHandoverAbsence
-	err      error
-	asked    []int64
-	day      calendar.Date
-	calls    int
+	handovers map[int64]ClassHandover
+	err       error
+	asked     []int64
+	day       calendar.Date
+	calls     int
 }
 
-func (f *classHandoverFake) HandoverAbsences(_ context.Context, ids []int64, day calendar.Date) (map[int64]ClassHandoverAbsence, error) {
+func (f *classHandoverFake) ClassHandovers(_ context.Context, ids []int64, day calendar.Date) (map[int64]ClassHandover, error) {
 	f.calls++
 	f.asked, f.day = ids, day
-	return f.absences, f.err
+	return f.handovers, f.err
 }
 
-// TestKindersucheMarksChildrenAbsentAtTheHandover pins that the page's
-// children carry today's handover absence, read once and only with
-// users:read.
-func TestKindersucheMarksChildrenAbsentAtTheHandover(t *testing.T) {
+// TestKindersucheCarriesTheClassHandover pins that the page's children carry
+// today's handover, "da" or "nicht da", read once and only with users:read.
+func TestKindersucheCarriesTheClassHandover(t *testing.T) {
 	t.Parallel()
 	day := calendar.NewDate(2026, 8, 19)
-	absence := ClassHandoverAbsence{SchoolClass: "2b", HandedOverAt: time.Date(2026, 8, 19, 11, 45, 0, 0, time.UTC), HandedOverBy: "Petra Lehrkraft"}
+	at := time.Date(2026, 8, 19, 11, 45, 0, 0, time.UTC)
+	absent := ClassHandover{SchoolClass: "2b", HandedOverAt: at, HandedOverBy: "Petra Lehrkraft", Absent: true}
+	present := ClassHandover{SchoolClass: "2b", HandedOverAt: at, HandedOverBy: "Petra Lehrkraft"}
 	staff := testpkg.WithPermissionsContext(context.Background(), []string{"users:read"})
 
-	reader := &classHandoverFake{absences: map[int64]ClassHandoverAbsence{2: absence}}
-	responses := []StudentResponse{{ID: 1}, {ID: 2}}
-	require.NoError(t, (&Resource{ResourceConfig{ClassHandovers: reader}}).enrichWithHandoverAbsences(staff, responses, day))
-	assert.Equal(t, []int64{1, 2}, reader.asked)
+	reader := &classHandoverFake{handovers: map[int64]ClassHandover{2: absent, 3: present}}
+	responses := []StudentResponse{{ID: 1, SchoolClass: "1a"}, {ID: 2, SchoolClass: "2b"}, {ID: 3, SchoolClass: "2b"}}
+	require.NoError(t, (&Resource{ResourceConfig{ClassHandovers: reader}}).enrichWithClassHandovers(staff, responses, day))
+	assert.Equal(t, []int64{1, 2, 3}, reader.asked)
 	assert.Equal(t, day, reader.day)
-	assert.Nil(t, responses[0].HandoverAbsent)
-	assert.Equal(t, &absence, responses[1].HandoverAbsent)
-	assert.Equal(t, &absence, slimStudentResponses(responses, day)[1].HandoverAbsent, "the slim list carries it")
+	assert.Nil(t, responses[0].ClassHandover)
+	assert.Equal(t, &absent, responses[1].ClassHandover)
+	assert.Equal(t, &present, responses[2].ClassHandover)
+	assert.Equal(t, &absent, slimStudentResponses(responses, day)[1].ClassHandover, "the slim list carries it")
 
-	guest := &classHandoverFake{absences: reader.absences}
+	guest := &classHandoverFake{handovers: reader.handovers}
 	responses = []StudentResponse{{ID: 2}}
-	require.NoError(t, (&Resource{ResourceConfig{ClassHandovers: guest}}).enrichWithHandoverAbsences(
+	require.NoError(t, (&Resource{ResourceConfig{ClassHandovers: guest}}).enrichWithClassHandovers(
 		testpkg.WithPermissionsContext(context.Background(), []string{"students:read"}), responses, day))
 	assert.Zero(t, guest.calls, "like sick and excused, only with users:read")
-	assert.Nil(t, responses[0].HandoverAbsent)
+	assert.Nil(t, responses[0].ClassHandover)
 
 	failing := &classHandoverFake{err: errors.New("presence unavailable")}
-	err := (&Resource{ResourceConfig{ClassHandovers: failing}}).enrichWithHandoverAbsences(staff, []StudentResponse{{ID: 2}}, day)
-	require.ErrorContains(t, err, "load class handover absences")
+	err := (&Resource{ResourceConfig{ClassHandovers: failing}}).enrichWithClassHandovers(staff, []StudentResponse{{ID: 2}}, day)
+	require.ErrorContains(t, err, "load class handovers")
 }

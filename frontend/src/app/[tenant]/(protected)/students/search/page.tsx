@@ -2,7 +2,8 @@
 
 import {
   HANDOVER_ABSENT_WORDING,
-  handoverAbsenceDetail,
+  handoverDetail,
+  handoverLine,
 } from "~/lib/class-handover";
 import {
   Suspense,
@@ -3612,14 +3613,17 @@ function SearchPageContent() {
                               />
                             )}
                           {student.has_full_access !== false &&
-                            student.handover_absent && (
+                            student.class_handover &&
+                            (student.class_handover.absent ? (
                               <StudentAbsenceRow
                                 wording={HANDOVER_ABSENT_WORDING}
-                                label={handoverAbsenceDetail(
-                                  student.handover_absent,
-                                )}
+                                label={handoverDetail(student.class_handover)}
                               />
-                            )}
+                            ) : (
+                              <StudentInfoRow icon={<SchoolClassIcon />}>
+                                {handoverLine(student.class_handover)}
+                              </StudentInfoRow>
+                            ))}
                           {student.has_full_access !== false &&
                             (() => {
                               const absence = getStudentAbsence({

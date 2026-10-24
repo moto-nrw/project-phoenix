@@ -31,10 +31,11 @@ func init() {
 //     withdrawal on the same day deletes the row. The class is free text
 //     like users.student_profiles.school_class and matches trimmed and
 //     lowercased.
-//   - active.class_handover_absences names the children with an OGS record
-//     the Lehrkraft marked "nicht da" at the handover. Both keys carry the
-//     tenant, so a row can neither name another school's handover nor
-//     another school's child; it goes with either through ON DELETE CASCADE.
+//   - active.class_handover_children names the children with an OGS record
+//     the Lehrkraft handed over, each "da" or "nicht da" (absent). Both keys
+//     carry the tenant, so a row can neither name another school's handover
+//     nor another school's child; it goes with either through ON DELETE
+//     CASCADE.
 //   - handed_over_by_staff_id keeps who handed over; a removed staff member
 //     leaves the handover without a name.
 //
@@ -72,29 +73,30 @@ const classHandoverUpSQL = `
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 
-		CREATE TABLE IF NOT EXISTS active.class_handover_absences (
+		CREATE TABLE IF NOT EXISTS active.class_handover_children (
 			id          BIGSERIAL PRIMARY KEY,
 			tenant_id   BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
 			handover_id BIGINT NOT NULL,
 			student_id  BIGINT NOT NULL,
+			absent      BOOLEAN NOT NULL,
 			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_class_handover_absences_handover FOREIGN KEY (tenant_id, handover_id)
+			CONSTRAINT fk_class_handover_children_handover FOREIGN KEY (tenant_id, handover_id)
 				REFERENCES active.class_handovers(tenant_id, id) ON DELETE CASCADE,
-			CONSTRAINT fk_class_handover_absences_student FOREIGN KEY (tenant_id, student_id)
+			CONSTRAINT fk_class_handover_children_student FOREIGN KEY (tenant_id, student_id)
 				REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE,
-			CONSTRAINT uniq_class_handover_absences_student UNIQUE (handover_id, student_id)
+			CONSTRAINT uniq_class_handover_children_student UNIQUE (handover_id, student_id)
 		);
 
-		COMMENT ON TABLE active.class_handover_absences IS
-			'Children the Lehrkraft marked "nicht da" when she handed her class over to the OGS (#4794)';
+		COMMENT ON TABLE active.class_handover_children IS
+			'Children the Lehrkraft handed over to the OGS with her class, each "da" or "nicht da" (#4794)';
 
-		CREATE INDEX IF NOT EXISTS idx_class_handover_absences_tenant_student
-			ON active.class_handover_absences (tenant_id, student_id);
+		CREATE INDEX IF NOT EXISTS idx_class_handover_children_tenant_student
+			ON active.class_handover_children (tenant_id, student_id);
 
 		GRANT SELECT, INSERT, UPDATE, DELETE ON active.class_handovers TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE active.class_handovers_id_seq TO phoenix_tenant;
-		GRANT SELECT, INSERT, UPDATE, DELETE ON active.class_handover_absences TO phoenix_tenant;
-		GRANT USAGE ON SEQUENCE active.class_handover_absences_id_seq TO phoenix_tenant;
+		GRANT SELECT, INSERT, UPDATE, DELETE ON active.class_handover_children TO phoenix_tenant;
+		GRANT USAGE ON SEQUENCE active.class_handover_children_id_seq TO phoenix_tenant;
 `
 
 // classHandoverWriteScopeUpSQL turns operations.school_portal_write_scope
@@ -117,7 +119,7 @@ const classHandoverWriteScopeDownSQL = `
 `
 
 const classHandoverDownSQL = `
-		DROP TABLE IF EXISTS active.class_handover_absences;
+		DROP TABLE IF EXISTS active.class_handover_children;
 		DROP TABLE IF EXISTS active.class_handovers;
 `
 
@@ -145,7 +147,7 @@ func classHandoverUp(ctx context.Context, db *bun.DB) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	if err := provisionTenantRLS(ctx, db, "active.class_handovers", "active.class_handover_absences"); err != nil {
+	if err := provisionTenantRLS(ctx, db, "active.class_handovers", "active.class_handover_children"); err != nil {
 		return err
 	}
 	return grantPermissionToRoles(ctx, db, permissionSpec{

@@ -1,7 +1,7 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
-import type { ClassHandoverAbsence } from "~/lib/class-handover";
+import type { ClassHandover } from "~/lib/class-handover";
 import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
@@ -467,9 +467,9 @@ export interface BackendStudent {
   // NOT change day_planning_status; the child stays "expected" until the OGS
   // confirms. Absent when there is no pending absence request for today.
   pending_excused_note?: string;
-  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind
-  // heute beim Übergeben als „nicht da“ markiert.
-  handover_absent?: ClassHandoverAbsence;
+  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
+  // mit der Klasse übergeben, „da“ oder „nicht da“.
+  class_handover?: ClassHandover;
   group_id?: number;
   group_name?: string;
   address_street?: string;
@@ -552,9 +552,9 @@ export interface BackendSlimStudent {
   day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
-  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind
-  // heute beim Übergeben als „nicht da“ markiert.
-  handover_absent?: ClassHandoverAbsence;
+  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
+  // mit der Klasse übergeben, „da“ oder „nicht da“.
+  class_handover?: ClassHandover;
   departure_modes?: DepartureMode[];
   departure_label?: string;
   departure_is_exception?: boolean;
@@ -682,9 +682,9 @@ export interface Student {
   // Informational only — the child stays "expected" (day_planning_status
   // unchanged) until an office/admin confirms the request.
   pending_excused_note?: string;
-  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind
-  // heute beim Übergeben als „nicht da“ markiert.
-  handover_absent?: ClassHandoverAbsence;
+  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
+  // mit der Klasse übergeben, „da“ oder „nicht da“.
+  class_handover?: ClassHandover;
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -814,7 +814,7 @@ export function mapStudentResponse(
     care_ended: backendStudent.care_ended ?? false,
     care_exit_recorded: backendStudent.care_exit_recorded ?? false,
     pending_excused_note: backendStudent.pending_excused_note,
-    handover_absent: backendStudent.handover_absent,
+    class_handover: backendStudent.class_handover,
     address_street: backendStudent.address_street,
     address_city: backendStudent.address_city,
     address_postal_code: backendStudent.address_postal_code,
@@ -892,7 +892,7 @@ export function mapSlimStudentResponse(
     day_planning_reason: backendStudent.day_planning_reason,
     day_planning_label: backendStudent.day_planning_label,
     pending_excused_note: backendStudent.pending_excused_note,
-    handover_absent: backendStudent.handover_absent,
+    class_handover: backendStudent.class_handover,
     departure_modes: backendStudent.departure_modes,
     departure_label: backendStudent.departure_label,
     departure_is_exception: backendStudent.departure_is_exception,

@@ -16,9 +16,9 @@ import (
 )
 
 // TestClassHandoverReplacesAndWithdraws pins the class handover store
-// (#4794): one handover per class and day, matched trimmed and lowercased; a
-// second one replaces the first with its children; a withdrawal reports
-// whether there was one.
+// (#4794): one handover per class and day, matched trimmed and lowercased,
+// with its children "da" and "nicht da"; a second one replaces the first with
+// its children; a withdrawal reports whether there was one.
 func TestClassHandoverReplacesAndWithdraws(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -31,7 +31,8 @@ func TestClassHandoverReplacesAndWithdraws(t *testing.T) {
 	day := calendar.NewDate(2099, 3, 2)
 
 	existed, err := module.ChangeClassHandover(ctx, studentpresence.ClassHandoverChange{
-		SchoolClass: " 3c ", Date: day, HandedOverBy: staff.ID, AbsentStudentIDs: []int64{first.ID, first.ID},
+		SchoolClass: " 3c ", Date: day, HandedOverBy: staff.ID,
+		PresentStudentIDs: []int64{second.ID}, AbsentStudentIDs: []int64{first.ID, first.ID},
 	})
 	require.NoError(t, err)
 	assert.False(t, existed)
@@ -42,6 +43,7 @@ func TestClassHandoverReplacesAndWithdraws(t *testing.T) {
 	assert.Equal(t, "3c", handovers[0].SchoolClass, "stored trimmed")
 	assert.Equal(t, staff.ID, handovers[0].HandedOverByStaffID)
 	assert.Equal(t, []int64{first.ID}, handovers[0].AbsentStudentIDs, "a child named twice is absent once")
+	assert.Equal(t, []int64{second.ID}, handovers[0].PresentStudentIDs)
 
 	existed, err = module.ChangeClassHandover(ctx, studentpresence.ClassHandoverChange{
 		SchoolClass: "3C", Date: day, HandedOverBy: staff.ID, AbsentStudentIDs: []int64{second.ID},
@@ -52,6 +54,7 @@ func TestClassHandoverReplacesAndWithdraws(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, handovers, 1)
 	assert.Equal(t, []int64{second.ID}, handovers[0].AbsentStudentIDs)
+	assert.Empty(t, handovers[0].PresentStudentIDs, "the replacement's children only")
 
 	other, err := module.ClassHandoversOn(ctx, day.AddDays(1))
 	require.NoError(t, err)
@@ -64,16 +67,18 @@ func TestClassHandoverReplacesAndWithdraws(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, existed)
 	var absences int
-	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM active.class_handover_absences WHERE student_id IN (?, ?)`,
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM active.class_handover_children WHERE student_id IN (?, ?)`,
 		first.ID, second.ID).Scan(ctx, &absences))
-	assert.Zero(t, absences, "the absences go with the handover")
+	assert.Zero(t, absences, "the children go with the handover")
 
 	for name, change := range map[string]studentpresence.ClassHandoverChange{
-		"no class":       {SchoolClass: " ", Date: day, HandedOverBy: staff.ID},
-		"no staff":       {SchoolClass: "3c", Date: day},
-		"no date":        {SchoolClass: "3c", HandedOverBy: staff.ID},
-		"bad child":      {SchoolClass: "3c", Date: day, HandedOverBy: staff.ID, AbsentStudentIDs: []int64{0}},
-		"withdraw blank": {SchoolClass: "", Date: day, Withdraw: true},
+		"no class":        {SchoolClass: " ", Date: day, HandedOverBy: staff.ID},
+		"no staff":        {SchoolClass: "3c", Date: day},
+		"no date":         {SchoolClass: "3c", HandedOverBy: staff.ID},
+		"bad child":       {SchoolClass: "3c", Date: day, HandedOverBy: staff.ID, AbsentStudentIDs: []int64{0}},
+		"bad present":     {SchoolClass: "3c", Date: day, HandedOverBy: staff.ID, PresentStudentIDs: []int64{-1}},
+		"da and nicht da": {SchoolClass: "3c", Date: day, HandedOverBy: staff.ID, PresentStudentIDs: []int64{first.ID}, AbsentStudentIDs: []int64{first.ID}},
+		"withdraw blank":  {SchoolClass: "", Date: day, Withdraw: true},
 	} {
 		_, err := module.ChangeClassHandover(ctx, change)
 		assert.ErrorIs(t, err, studentpresence.ErrClassHandoverInvalid, name)
@@ -201,4 +206,5 @@ func TestClassHandoverConcurrentReplacement(t *testing.T) {
 	require.Len(t, handovers, 1)
 	assert.Equal(t, secondStaff.ID, handovers[0].HandedOverByStaffID)
 	assert.Equal(t, []int64{second.ID}, handovers[0].AbsentStudentIDs)
+	assert.Empty(t, handovers[0].PresentStudentIDs, "the replacement's children only")
 }

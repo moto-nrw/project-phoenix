@@ -38,6 +38,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type {
   ClassDayClasses,
+  ClassHandoverChildren,
   MorningAttendanceMark,
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
@@ -128,7 +129,7 @@ export interface ClassDayClassProps {
   readonly handOverClass?: (
     schoolClass: string,
     date: string,
-    absentStudentIds: readonly number[],
+    children: ClassHandoverChildren,
   ) => Promise<void>;
   /** Nimmt die heutige Übergabe zurück (#4794). */
   readonly withdrawClassHandover?: (
@@ -351,13 +352,14 @@ export function ClassDayClass({
     handoverErrors.clear();
     setSavingHandover(true);
     try {
-      await handOverClass(
-        schoolClass,
-        dateISO,
-        ogsRows
+      await handOverClass(schoolClass, dateISO, {
+        present: ogsRows
+          .filter((row) => !handoverAbsent.has(row.student_id))
+          .map((row) => row.student_id),
+        absent: ogsRows
           .filter((row) => handoverAbsent.has(row.student_id))
           .map((row) => row.student_id),
-      );
+      });
       await refetchReport();
       setHandoverOpen(false);
     } catch (cause) {

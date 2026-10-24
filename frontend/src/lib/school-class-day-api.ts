@@ -135,18 +135,24 @@ function classHandoverPath(schoolClass: string, date: string): string {
   return `/api/school/class-day/handover/${encodeURIComponent(schoolClass)}/${encodeURIComponent(date)}`;
 }
 
-/**
- * Übergibt eine zugewiesene Klasse heute an die OGS (#4794). Die übrigen
- * Kinder, die in die OGS gehen, gelten als „da“.
- */
+/** Die übergebenen Kinder, die in die OGS gehen: „da“ und „nicht da“. */
+export interface ClassHandoverChildren {
+  readonly present: readonly number[];
+  readonly absent: readonly number[];
+}
+
+/** Übergibt eine zugewiesene Klasse heute an die OGS (#4794). */
 export async function handOverClassSchool(
   schoolClass: string,
   date: string,
-  absentStudentIds: readonly number[],
+  children: ClassHandoverChildren,
 ): Promise<void> {
   await authFetch<unknown>(classHandoverPath(schoolClass, date), {
     method: "PUT",
-    body: { absent_student_ids: absentStudentIds },
+    body: {
+      present_student_ids: children.present,
+      absent_student_ids: children.absent,
+    },
   });
 }
 

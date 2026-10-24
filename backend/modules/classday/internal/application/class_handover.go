@@ -83,7 +83,7 @@ func (h classHandover) mayHandOver(ctx context.Context) (bool, error) {
 
 // ChangeClassHandover hands the class over or takes today's handover back
 // after the write scope, date and school-day checks; a handover also checks
-// every absent child against the roster of the day.
+// every child against the roster of the day.
 func (h classHandover) ChangeClassHandover(ctx context.Context, in classday.ClassHandoverChange) error {
 	if h.store == nil || h.scope == nil || h.rosters == nil {
 		return classday.ErrClassHandoverNotConfigured
@@ -102,11 +102,12 @@ func (h classHandover) ChangeClassHandover(ctx context.Context, in classday.Clas
 	if err != nil {
 		return err
 	}
-	if err := checkHandoverChildren(roster, in.AbsentStudentIDs); err != nil {
+	if err := checkHandoverChildren(roster, in.PresentStudentIDs, in.AbsentStudentIDs); err != nil {
 		return err
 	}
 	_, err = h.store.ChangeClassHandover(ctx, studentpresence.ClassHandoverChange{
-		SchoolClass: in.SchoolClass, Date: date, HandedOverBy: in.HandedOverBy, AbsentStudentIDs: in.AbsentStudentIDs,
+		SchoolClass: in.SchoolClass, Date: date, HandedOverBy: in.HandedOverBy,
+		PresentStudentIDs: in.PresentStudentIDs, AbsentStudentIDs: in.AbsentStudentIDs,
 	})
 	if errors.Is(err, studentpresence.ErrClassHandoverInvalid) {
 		return fmt.Errorf("%w: %w", classday.ErrClassHandoverInvalid, err)
@@ -164,9 +165,9 @@ func (h classHandover) announce(ctx context.Context) {
 	}
 }
 
-// checkHandoverChildren refuses an absent child without an OGS record on the
-// roster of the day.
-func checkHandoverChildren(roster *DayRoster, absent []int64) error {
+// checkHandoverChildren refuses a child without an OGS record on the roster
+// of the day.
+func checkHandoverChildren(roster *DayRoster, present, absent []int64) error {
 	onRoster := map[int64]bool{}
 	if roster != nil {
 		for _, row := range roster.Rows {
@@ -175,7 +176,7 @@ func checkHandoverChildren(roster *DayRoster, absent []int64) error {
 			}
 		}
 	}
-	for _, id := range absent {
+	for _, id := range append(append([]int64{}, present...), absent...) {
 		if id <= 0 {
 			return classday.ErrClassHandoverInvalid
 		}

@@ -19,24 +19,25 @@ import (
 // projection then checks the write scope, today, the school day and the
 // class roster.
 
-// maxHandoverAbsences bounds one request; a class is far smaller.
-const maxHandoverAbsences = 200
+// maxHandoverChildren bounds one request; a class is far smaller.
+const maxHandoverChildren = 200
 
 // ClassHandoverRequest is the body of
-// PUT /school/class-day/handover/{schoolClass}/{date}: the children marked
-// "nicht da", possibly none.
+// PUT /school/class-day/handover/{schoolClass}/{date}: the children handed
+// over "da" and "nicht da", either list possibly empty.
 type ClassHandoverRequest struct {
-	AbsentStudentIDs []int64 `json:"absent_student_ids"`
+	PresentStudentIDs []int64 `json:"present_student_ids"`
+	AbsentStudentIDs  []int64 `json:"absent_student_ids"`
 }
 
 // Bind implements render.Binder.
 func (r *ClassHandoverRequest) Bind(_ *http.Request) error {
-	if len(r.AbsentStudentIDs) > maxHandoverAbsences {
-		return errors.New("too many absent children")
+	if len(r.PresentStudentIDs)+len(r.AbsentStudentIDs) > maxHandoverChildren {
+		return errors.New("too many children")
 	}
-	for _, id := range r.AbsentStudentIDs {
+	for _, id := range append(append([]int64{}, r.PresentStudentIDs...), r.AbsentStudentIDs...) {
 		if id <= 0 {
-			return errors.New("absent_student_ids must be positive")
+			return errors.New("student ids must be positive")
 		}
 	}
 	return nil
@@ -68,7 +69,7 @@ func (rs *Resource) putClassHandover(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	rs.changeClassHandover(w, r, classday.ClassHandoverChange{AbsentStudentIDs: req.AbsentStudentIDs})
+	rs.changeClassHandover(w, r, classday.ClassHandoverChange{PresentStudentIDs: req.PresentStudentIDs, AbsentStudentIDs: req.AbsentStudentIDs})
 }
 
 // deleteClassHandover handles DELETE /school/class-day/handover/{schoolClass}/{date}.

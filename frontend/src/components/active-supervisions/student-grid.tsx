@@ -2,7 +2,8 @@
 
 import {
   HANDOVER_ABSENT_WORDING,
-  handoverAbsenceDetail,
+  handoverDetail,
+  handoverLine,
 } from "~/lib/class-handover";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
@@ -301,12 +302,17 @@ export function SupervisionStudentGrid({
                       note={student.pending_excused_note}
                     />
                   )}
-                  {student.handover_absent && (
-                    <StudentAbsenceRow
-                      wording={HANDOVER_ABSENT_WORDING}
-                      label={handoverAbsenceDetail(student.handover_absent)}
-                    />
-                  )}
+                  {student.class_handover &&
+                    (student.class_handover.absent ? (
+                      <StudentAbsenceRow
+                        wording={HANDOVER_ABSENT_WORDING}
+                        label={handoverDetail(student.class_handover)}
+                      />
+                    ) : (
+                      <StudentInfoRow icon={<SchoolClassIcon />}>
+                        {handoverLine(student.class_handover)}
+                      </StudentInfoRow>
+                    ))}
                   {(() => {
                     const absence = getStudentAbsence({
                       sick: presentStudent.sick,

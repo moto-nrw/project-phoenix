@@ -599,7 +599,10 @@ describe("ClassDayClass", () => {
       fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
 
       await waitFor(() =>
-        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), [1]),
+        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), {
+          present: [2],
+          absent: [1],
+        }),
       );
       expect(
         await screen.findByText(
@@ -644,7 +647,10 @@ describe("ClassDayClass", () => {
       ).toHaveAttribute("aria-pressed", "true");
       fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
       await waitFor(() =>
-        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), [1]),
+        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), {
+          present: [2],
+          absent: [1],
+        }),
       );
     });
 

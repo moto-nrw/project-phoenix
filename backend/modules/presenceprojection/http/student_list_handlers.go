@@ -193,7 +193,7 @@ func (rs *Resource) finishStudentListPage(ctx context.Context, page studentListP
 		return nil, 0, err
 	}
 	if plan.isToday {
-		if err := rs.enrichWithHandoverAbsences(ctx, responses, plan.planningDate); err != nil {
+		if err := rs.enrichWithClassHandovers(ctx, responses, plan.planningDate); err != nil {
 			return nil, 0, err
 		}
 	}

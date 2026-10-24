@@ -54,7 +54,7 @@ var seedCoverageExemptions = map[string]string{
 	// The class handover (#4794) is written the same way: only a Lehrkraft
 	// through moto schule, for today and an assigned class.
 	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
-	"active.class_handover_absences":       "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
+	"active.class_handover_children":       "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",

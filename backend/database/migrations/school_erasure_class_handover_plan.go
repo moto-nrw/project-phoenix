@@ -7,7 +7,7 @@ import (
 )
 
 // The 1.15.491 plan phase with active.class_handovers and
-// active.class_handover_absences (#4794), installed by 1.15.492. Frozen like
+// active.class_handover_children (#4794), installed by 1.15.492. Frozen like
 // its predecessor; see school_erasure_class_handover.go.
 func installClassHandoverErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, classHandoverErasurePlanSQL)
@@ -20,7 +20,7 @@ const classHandoverErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_
   {"name": "active.activity_session_attendance","predicate": "r.tenant_id = $1"},
   {"name": "active.activity_sessions","predicate": "r.tenant_id = $1"},
   {"name": "active.attendance","predicate": "r.tenant_id = $1"},
-  {"name": "active.class_handover_absences","predicate": "r.tenant_id = $1"},
+  {"name": "active.class_handover_children","predicate": "r.tenant_id = $1"},
   {"name": "active.class_handovers","predicate": "r.tenant_id = $1"},
   {"name": "active.combined_groups","predicate": "r.tenant_id = $1"},
   {"name": "active.excused_absence_requests","predicate": "r.tenant_id = $1"},

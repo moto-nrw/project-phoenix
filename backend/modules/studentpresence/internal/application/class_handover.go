@@ -11,7 +11,7 @@ import (
 )
 
 // ClassHandoversOn returns the handovers of date (#4794), each assembled with
-// its absent children. Without a handover the absences are not read.
+// its children. Without a handover the children are not read.
 func (s *Service) ClassHandoversOn(ctx context.Context, date calendar.Date) (result []studentpresence.ClassHandover, err error) {
 	if _, err := calendar.ParseDate(date.String()); err != nil {
 		return nil, fmt.Errorf("%w: %w", studentpresence.ErrClassHandoverInvalid, err)
@@ -26,17 +26,16 @@ func (s *Service) ClassHandoversOn(ctx context.Context, date calendar.Date) (res
 		for _, record := range records {
 			ids = append(ids, record.ID)
 		}
-		absent, absenceStats, err := s.store.ListClassHandoverAbsences(txCtx, ids)
-		stats.Queries += absenceStats.Queries
-		stats.Rows += absenceStats.Rows
-		stats.StatementDuration += absenceStats.StatementDuration
+		children, childStats, err := s.store.ListClassHandoverChildren(txCtx, ids)
+		stats.Queries += childStats.Queries
+		stats.Rows += childStats.Rows
+		stats.StatementDuration += childStats.StatementDuration
 		result = make([]studentpresence.ClassHandover, 0, len(records))
 		for _, record := range records {
 			handover := record.ClassHandover
-			handover.AbsentStudentIDs = absent[record.ID]
-			if handover.AbsentStudentIDs == nil {
-				handover.AbsentStudentIDs = []int64{}
-			}
+			of := children[record.ID]
+			handover.PresentStudentIDs = append([]int64{}, of.Present...)
+			handover.AbsentStudentIDs = append([]int64{}, of.Absent...)
 			result = append(result, handover)
 		}
 		return stats, err
@@ -53,11 +52,12 @@ func (s *Service) ChangeClassHandover(ctx context.Context, in studentpresence.Cl
 	if _, dateErr := calendar.ParseDate(in.Date.String()); class == "" || dateErr != nil {
 		return false, studentpresence.ErrClassHandoverInvalid
 	}
-	if !in.Withdraw && (in.HandedOverBy <= 0 || !validIDs(in.AbsentStudentIDs)) {
+	in.PresentStudentIDs = distinctIDs(in.PresentStudentIDs)
+	in.AbsentStudentIDs = distinctIDs(in.AbsentStudentIDs)
+	if !in.Withdraw && (in.HandedOverBy <= 0 || !validHandoverChildren(in.PresentStudentIDs, in.AbsentStudentIDs)) {
 		return false, studentpresence.ErrClassHandoverInvalid
 	}
 	in.SchoolClass = strings.TrimSpace(in.SchoolClass)
-	in.AbsentStudentIDs = distinctIDs(in.AbsentStudentIDs)
 	err = s.runWrite(ctx, "change_class_handover", func(txCtx context.Context) (ports.Stats, error) {
 		if in.Withdraw {
 			stats, err := s.store.DeleteClassHandover(txCtx, class, in.Date)
@@ -69,6 +69,24 @@ func (s *Service) ChangeClassHandover(ctx context.Context, in studentpresence.Cl
 		return stats, err
 	})
 	return existed, err
+}
+
+// validHandoverChildren accepts positive IDs, each child either "da" or
+// "nicht da".
+func validHandoverChildren(present, absent []int64) bool {
+	if !validIDs(present) || !validIDs(absent) {
+		return false
+	}
+	isPresent := make(map[int64]bool, len(present))
+	for _, id := range present {
+		isPresent[id] = true
+	}
+	for _, id := range absent {
+		if isPresent[id] {
+			return false
+		}
+	}
+	return true
 }
 
 // distinctIDs keeps the first occurrence of each ID.

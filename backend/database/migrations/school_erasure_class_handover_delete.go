@@ -7,7 +7,7 @@ import (
 )
 
 // The 1.15.491 delete phase with active.class_handovers and
-// active.class_handover_absences (#4794), installed by 1.15.492. Frozen like
+// active.class_handover_children (#4794), installed by 1.15.492. Frozen like
 // its predecessor; see school_erasure_class_handover.go.
 func installClassHandoverErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, classHandoverErasureDeleteSQL)
@@ -105,9 +105,9 @@ const classHandoverErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.schoo
    SELECT count(*) INTO v_count FROM active.morning_attendance AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.morning_attendance AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.morning_attendance', v_count);
-   SELECT count(*) INTO v_count FROM active.class_handover_absences AS r WHERE r.tenant_id = p_school_id;
-   DELETE FROM active.class_handover_absences AS r WHERE r.tenant_id = p_school_id;
-   v_counts := v_counts || jsonb_build_object('active.class_handover_absences', v_count);
+   SELECT count(*) INTO v_count FROM active.class_handover_children AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM active.class_handover_children AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('active.class_handover_children', v_count);
    SELECT count(*) INTO v_count FROM active.class_handovers AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.class_handovers AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.class_handovers', v_count);

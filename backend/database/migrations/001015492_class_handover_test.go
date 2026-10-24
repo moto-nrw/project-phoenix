@@ -28,7 +28,7 @@ func TestClassHandoverRollsBack(t *testing.T) {
 	tablesExist := func() bool {
 		var exists bool
 		require.NoError(t, db.NewRaw(`SELECT to_regclass('active.class_handovers') IS NOT NULL
-			AND to_regclass('active.class_handover_absences') IS NOT NULL`).Scan(ctx, &exists))
+			AND to_regclass('active.class_handover_children') IS NOT NULL`).Scan(ctx, &exists))
 		return exists
 	}
 	lehrkraftHolds := func() bool {
@@ -43,7 +43,7 @@ func TestClassHandoverRollsBack(t *testing.T) {
 	inErasurePlan := func() int {
 		found := 0
 		for _, entry := range readErasurePlan(t, db) {
-			if entry.Name == "active.class_handovers" || entry.Name == "active.class_handover_absences" {
+			if entry.Name == "active.class_handovers" || entry.Name == "active.class_handover_children" {
 				found++
 			}
 		}
@@ -77,7 +77,7 @@ func TestClassHandoverRollsBack(t *testing.T) {
 	assert.JSONEq(t, `["class_arrival_exceptions"]`, scope(school), "a stored write stays ticked")
 	assert.JSONEq(t, `[]`, scope(other), `"none" ticks nothing`)
 
-	for _, table := range []string{"active.class_handovers", "active.class_handover_absences"} {
+	for _, table := range []string{"active.class_handovers", "active.class_handover_children"} {
 		var enabled, forced bool
 		require.NoError(t, db.NewRaw(`SELECT relrowsecurity, relforcerowsecurity FROM pg_class
 			WHERE oid = ?::regclass`, table).Scan(ctx, &enabled, &forced))
@@ -98,20 +98,23 @@ func TestClassHandoverRollsBack(t *testing.T) {
 	_, err = handOver("  ")
 	assert.ErrorContains(t, err, "chk_class_handovers_school_class")
 
-	absent := func(tenantID, studentID int64) error {
-		_, err := db.ExecContext(ctx, `INSERT INTO active.class_handover_absences (tenant_id, handover_id, student_id)
-			VALUES (?, ?, ?)`, tenantID, handover, studentID)
+	child := func(tenantID, studentID int64) error {
+		_, err := db.ExecContext(ctx, `INSERT INTO active.class_handover_children (tenant_id, handover_id, student_id, absent)
+			VALUES (?, ?, ?, true)`, tenantID, handover, studentID)
 		return err
 	}
-	require.NoError(t, absent(school, student.ID))
-	assert.ErrorContains(t, absent(school, student.ID), "uniq_class_handover_absences_student", "a child is absent once per handover")
-	assert.ErrorContains(t, absent(school, foreign.ID), "fk_class_handover_absences_student", "no child of another school")
-	assert.ErrorContains(t, absent(other, foreign.ID), "fk_class_handover_absences_handover", "no handover of another school")
+	require.NoError(t, child(school, student.ID))
+	assert.ErrorContains(t, child(school, student.ID), "uniq_class_handover_children_student", "a child is handed over once per handover")
+	assert.ErrorContains(t, child(school, foreign.ID), "fk_class_handover_children_student", "no child of another school")
+	assert.ErrorContains(t, child(other, foreign.ID), "fk_class_handover_children_handover", "no handover of another school")
+	_, err = db.ExecContext(ctx, `INSERT INTO active.class_handover_children (tenant_id, handover_id, student_id)
+		VALUES (?, ?, ?)`, school, handover, student.ID)
+	assert.ErrorContains(t, err, "absent", "every child is marked da or nicht da")
 
 	_, err = db.ExecContext(ctx, `DELETE FROM active.class_handovers WHERE id = ?`, handover)
 	require.NoError(t, err)
 	var left int
-	require.NoError(t, db.NewRaw(`SELECT count(*) FROM active.class_handover_absences WHERE handover_id = ?`, handover).Scan(ctx, &left))
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM active.class_handover_children WHERE handover_id = ?`, handover).Scan(ctx, &left))
 	assert.Zero(t, left, "a withdrawn handover takes its absences along")
 
 	setScope(other, `["class_handover"]`)
@@ -131,12 +134,12 @@ func TestSchoolErasureDeletesClassHandovers(t *testing.T) {
 	var handover int64
 	require.NoError(t, db.NewRaw(`INSERT INTO active.class_handovers (tenant_id, school_class, date)
 		VALUES (?, '2b', '2026-10-21') RETURNING id`, school).Scan(t.Context(), &handover))
-	erasureExec(t, db, `INSERT INTO active.class_handover_absences (tenant_id, handover_id, student_id) VALUES (?, ?, ?)`,
+	erasureExec(t, db, `INSERT INTO active.class_handover_children (tenant_id, handover_id, student_id, absent) VALUES (?, ?, ?, false)`,
 		school, handover, student.ID)
 
 	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, school, beginErasure(t, db, school)).Status)
 	var left int
 	require.NoError(t, db.NewRaw(`SELECT (SELECT count(*) FROM active.class_handovers WHERE tenant_id = ?)
-		+ (SELECT count(*) FROM active.class_handover_absences WHERE tenant_id = ?)`, school, school).Scan(t.Context(), &left))
+		+ (SELECT count(*) FROM active.class_handover_children WHERE tenant_id = ?)`, school, school).Scan(t.Context(), &left))
 	assert.Zero(t, left)
 }

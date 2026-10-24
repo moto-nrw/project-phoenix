@@ -87,8 +87,19 @@ func TestClassHandoverRoundTrip(t *testing.T) {
 	assert.Nil(t, report.Handover, "not handed over yet")
 
 	before := time.Now()
-	code := f.handOver(t, morningMonday, fmt.Sprintf(`{"absent_student_ids":[%d]}`, f.present), classHandoverPermission)
+	code := f.handOver(t, morningMonday, fmt.Sprintf(`{"present_student_ids":[%d],"absent_student_ids":[%d]}`, f.sick, f.present), classHandoverPermission)
 	require.Equal(t, http.StatusNoContent, code)
+	var stored []struct {
+		StudentID int64 `bun:"student_id"`
+		Absent    bool  `bun:"absent"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT student_id, absent FROM active.class_handover_children WHERE tenant_id = ? ORDER BY absent`, f.tenantID).
+		Scan(testpkg.Ctx(t), &stored))
+	require.Len(t, stored, 2, "every handed-over child is stored, da and nicht da")
+	assert.Equal(t, f.sick, stored[0].StudentID)
+	assert.False(t, stored[0].Absent)
+	assert.Equal(t, f.present, stored[1].StudentID)
+	assert.True(t, stored[1].Absent)
 
 	report = f.handoverReport(t, morningMonday, classDayReadPermission, classHandoverPermission)
 	require.NotNil(t, report.Handover)
@@ -157,11 +168,16 @@ func TestClassHandoverGates(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, f.withdrawHandover(t, morningTuesday, classHandoverPermission))
 	assert.False(t, f.handoverReport(t, morningTuesday, classDayReadPermission, classHandoverPermission).CanHandOver)
 
-	// Only children with an OGS record on the class roster.
+	// Only children with an OGS record on the class roster, da or nicht da.
 	rec = f.do(t, http.MethodPut, fmt.Sprintf("/handover/%s/%s", f.class, morningMonday),
 		fmt.Sprintf(`{"absent_student_ids":[%d]}`, f.other), classHandoverPermission)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "classday.class_handover_unknown_child")
+	assert.Equal(t, http.StatusConflict, f.handOver(t, morningMonday,
+		fmt.Sprintf(`{"present_student_ids":[%d]}`, f.other), classHandoverPermission))
+	assert.Equal(t, http.StatusBadRequest, f.handOver(t, morningMonday,
+		fmt.Sprintf(`{"present_student_ids":[%d],"absent_student_ids":[%d]}`, f.present, f.present), classHandoverPermission),
+		"a child is either da or nicht da")
 	// List entries number apart from students; skip one whose ID a roster
 	// child happens to share.
 	entry := f.listEntry

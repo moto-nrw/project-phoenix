@@ -213,8 +213,8 @@ type RosterRow struct {
 	Warnings          []RosterWarning   `json:"warnings,omitempty"`
 	ParallelPresentIn *ParallelPresence `json:"parallel_present_in,omitempty"`
 	CareDayStatus     string            `json:"care_day_status"`
-	// HandoverAbsent: marked "nicht da" at today's class handover (#4794).
-	HandoverAbsent *HandoverAbsence `json:"handover_absent,omitempty"`
+	// ClassHandover: today's handover of the child to the OGS (#4794).
+	ClassHandover *ClassHandover `json:"class_handover,omitempty"`
 }
 
 // RosterWarning is one arrival or group warning on a roster row.
@@ -266,8 +266,8 @@ type Visit struct {
 	Excused           bool       `json:"excused"`
 	ExcusedSince      *time.Time `json:"excused_since,omitempty"`
 	PhotoURL          string     `json:"photo_url,omitempty"`
-	// HandoverAbsent: marked "nicht da" at today's class handover (#4794).
-	HandoverAbsent *HandoverAbsence `json:"handover_absent,omitempty"`
+	// ClassHandover: today's handover of the child to the OGS (#4794).
+	ClassHandover *ClassHandover `json:"class_handover,omitempty"`
 }
 
 type TrackingIndicators struct {
@@ -647,7 +647,7 @@ func (s *service) loadPresenceSections(ctx context.Context, projection *Projecti
 	if err := s.loadPlanningTimes(ctx, projection, caller, studentIDs, fullAccess, businessDay); err != nil {
 		return err
 	}
-	return s.applyHandoverAbsences(ctx, projection, caller, businessDay)
+	return s.applyClassHandovers(ctx, projection, caller, businessDay)
 }
 
 func unionStudentIDs(selected []VisitRecord, openRoomStudents []int64) []int64 {

@@ -5,10 +5,10 @@ import (
 	"fmt"
 )
 
-// applyHandoverAbsences marks the children of the dashboard a class handover
-// marked "nicht da" today (#4794): the open visits, the released rooms and
-// the planned blocks' rosters. Like sick and excused it needs users:read.
-func (s *service) applyHandoverAbsences(ctx context.Context, projection *Projection, caller Caller, day Date) error {
+// applyClassHandovers marks the children of the dashboard the Lehrkraft
+// handed over today (#4794): the open visits, the released rooms and the
+// planned blocks' rosters. Like sick and excused it needs users:read.
+func (s *service) applyClassHandovers(ctx context.Context, projection *Projection, caller Caller, day Date) error {
 	if s.deps.Handovers == nil || !caller.CanReadStudents {
 		return nil
 	}
@@ -16,32 +16,32 @@ func (s *service) applyHandoverAbsences(ctx context.Context, projection *Project
 	if len(ids) == 0 {
 		return nil
 	}
-	absences, err := s.deps.Handovers.HandoverAbsences(ctx, ids, day)
+	handovers, err := s.deps.Handovers.ClassHandovers(ctx, ids, day)
 	if err != nil {
-		return fmt.Errorf("load class handover absences: %w", err)
+		return fmt.Errorf("load class handovers: %w", err)
 	}
-	if len(absences) == 0 {
+	if len(handovers) == 0 {
 		return nil
 	}
-	mark := func(studentID int64) *HandoverAbsence {
-		if absence, ok := absences[studentID]; ok {
-			return &absence
+	mark := func(studentID int64) *ClassHandover {
+		if handover, ok := handovers[studentID]; ok {
+			return &handover
 		}
 		return nil
 	}
 	for i := range projection.Visits {
-		projection.Visits[i].HandoverAbsent = mark(projection.Visits[i].StudentID)
+		projection.Visits[i].ClassHandover = mark(projection.Visits[i].StudentID)
 	}
 	for i := range projection.OpenRooms {
 		for j := range projection.OpenRooms[i].Students {
 			visit := &projection.OpenRooms[i].Students[j].Visit
-			visit.HandoverAbsent = mark(visit.StudentID)
+			visit.ClassHandover = mark(visit.StudentID)
 		}
 	}
 	for i := range projection.PlannedNow {
 		for j := range projection.PlannedNow[i].RosterPreview {
 			row := &projection.PlannedNow[i].RosterPreview[j]
-			row.HandoverAbsent = mark(row.StudentID)
+			row.ClassHandover = mark(row.StudentID)
 		}
 	}
 	return nil
