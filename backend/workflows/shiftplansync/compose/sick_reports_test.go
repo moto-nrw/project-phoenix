@@ -9,14 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
-func newSickReports(t *testing.T, calls *sickReportCalls) shiftplansync.SickReports {
+// inTx records that the entry ran its write inside the unit of work.
+func inTx(calls *sickReportCalls) func(context.Context, func(context.Context) error) error {
+	return func(ctx context.Context, fn func(context.Context) error) error {
+		calls.calls = append(calls.calls, "tx")
+		return fn(ctx)
+	}
+}
+
+func newSickReports(t *testing.T, calls *sickReportCalls) *shiftplansync.SickReports {
 	t.Helper()
-	reports, err := compose.NewSickReports(calls, calls)
+	reports, err := shiftplansync.NewSickReports(calls, calls, inTx(calls))
 	require.NoError(t, err)
 	return reports
 }
@@ -81,9 +87,7 @@ func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, int64) erro
 	return c.cascadeErr
 }
 
-func inSickReportTx() context.Context {
-	return tenant.WithTransactionForTest(context.Background(), struct{}{})
-}
+func inSickReportTx() context.Context { return context.Background() }
 
 func TestSickReportsApplyThePlanInOrderAfterTheWrite(t *testing.T) {
 	t.Parallel()
@@ -96,20 +100,20 @@ func TestSickReportsApplyThePlanInOrderAfterTheWrite(t *testing.T) {
 	created, err := reports.CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(42), created.ID)
-	assert.Equal(t, []string{"create for", "reassign", "mark", "2026-02-10"}, calls.calls)
+	assert.Equal(t, []string{"tx", "create for", "reassign", "mark", "2026-02-10"}, calls.calls, "the write and its plan run in one unit of work")
 
 	calls.calls, calls.plan = nil, workforce.SickCascadePlan{{Kind: workforce.SickCascadeReconcile,
 		Before: workforce.SickCascadeInput{DateEnd: "2026-02-11"}, Report: workforce.SickCascadeInput{DateEnd: "2026-02-13"}}}
 	_, err = reports.UpdateAbsence(inSickReportTx(), 11, nil, 42, workforce.UpdateAbsenceRequest{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"update", "reconcile", "2026-02-11", "2026-02-13"}, calls.calls)
+	assert.Equal(t, []string{"tx", "update", "reconcile", "2026-02-11", "2026-02-13"}, calls.calls)
 
 	calls.calls, calls.plan = nil, workforce.SickCascadePlan{{Kind: workforce.SickCascadeClear, Report: workforce.SickCascadeInput{DateStart: "2026-02-10"}}}
 	require.NoError(t, reports.DeleteAbsenceFor(inSickReportTx(), 11, 12, nil, 42))
 	require.NoError(t, reports.DeleteOwnAbsence(inSickReportTx(), 11, nil, 42))
 	_, err = reports.CreateOwnAbsence(inSickReportTx(), 11, nil, workforce.CreateAbsenceRequest{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"delete for", "clear", "2026-02-10", "delete own", "clear", "2026-02-10", "create own", "clear", "2026-02-10"}, calls.calls)
+	assert.Equal(t, []string{"tx", "delete for", "clear", "2026-02-10", "tx", "delete own", "clear", "2026-02-10", "tx", "create own", "clear", "2026-02-10"}, calls.calls)
 }
 
 func TestSickReportsFailClosed(t *testing.T) {
@@ -120,7 +124,7 @@ func TestSickReportsFailClosed(t *testing.T) {
 	_, err := reports.CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
 	require.ErrorIs(t, err, refused)
 	require.ErrorIs(t, reports.DeleteAbsenceFor(inSickReportTx(), 11, 12, nil, 42), refused)
-	assert.Equal(t, []string{"create for", "delete for"}, calls.calls, "a refused write applies no plan")
+	assert.Equal(t, []string{"tx", "create for", "tx", "delete for"}, calls.calls, "a refused write applies no plan")
 
 	broken := errors.New("plan write failed")
 	for _, tc := range []struct {
@@ -136,7 +140,7 @@ func TestSickReportsFailClosed(t *testing.T) {
 		_, err := newSickReports(t, calls).CreateAbsenceFor(inSickReportTx(), 11, 12, nil, workforce.CreateAbsenceRequest{})
 		require.ErrorIs(t, err, broken)
 		assert.EqualError(t, err, tc.message)
-		assert.Len(t, calls.calls, 1+map[workforce.SickCascadeStepKind]int{
+		assert.Len(t, calls.calls, 2+map[workforce.SickCascadeStepKind]int{
 			workforce.SickCascadeMark: 2, workforce.SickCascadeClear: 2, workforce.SickCascadeReconcile: 3, workforce.SickCascadeReassign: 1,
 		}[tc.kind], "the first failed step stops the plan")
 	}
@@ -146,10 +150,13 @@ func TestSickReportsFailClosed(t *testing.T) {
 	require.EqualError(t, err, `sick cascade: unknown plan step "unknown"`)
 }
 
-func TestNewSickReportsRequiresTheWritesAndTheCascade(t *testing.T) {
+func TestNewSickReportsRequiresTheWritesTheCascadeAndTheUnitOfWork(t *testing.T) {
 	t.Parallel()
-	_, err := compose.NewSickReports(nil, &sickReportCalls{})
+	calls := &sickReportCalls{}
+	_, err := shiftplansync.NewSickReports(nil, calls, inTx(calls))
 	require.Error(t, err)
-	_, err = compose.NewSickReports(&sickReportCalls{}, nil)
+	_, err = shiftplansync.NewSickReports(calls, nil, inTx(calls))
+	require.Error(t, err)
+	_, err = shiftplansync.NewSickReports(calls, calls, nil)
 	require.Error(t, err)
 }

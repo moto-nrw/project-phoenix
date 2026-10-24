@@ -30,7 +30,6 @@ import (
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -106,7 +105,15 @@ type SubstitutionOperations interface {
 // entry keeps its own authorization, transaction and refusals.
 type SubstitutionEntries struct {
 	Groups   education.SubstitutionModule
-	Schedule shiftplansync.ScheduleSubstitution
+	Schedule ScheduleSubstitutionEntry
+}
+
+// ScheduleSubstitutionEntry is the Terminvertretung entry the schedule target
+// is routed to.
+type ScheduleSubstitutionEntry interface {
+	Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error)
+	Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error)
+	End(ctx context.Context, caller education.Caller, request education.EndRequest) error
 }
 
 func (e SubstitutionEntries) Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error) {

@@ -27,9 +27,6 @@ type TimetableRows = application.TimetableRows
 // cascade lists and releases; the composition root binds them.
 type SickStamps = application.SickStamps
 
-// SickCascade is the #1843 cascade the sick-report entry applies.
-type SickCascade = application.SickCascade
-
 // ScheduleInstances and ScheduleInstanceStaff are the appointment and
 // assignment reads of a Terminvertretung, in the Timetable owner's public
 // vocabulary; the composition root binds them.
@@ -62,7 +59,7 @@ type SickCascadeDependencies struct {
 // dependency but the optional ones below is required: the cascade is
 // fail-closed, so a half-wired composition must fail here instead of letting a
 // sick report commit without its plan effects.
-func NewSickCascade(deps SickCascadeDependencies) (SickCascade, error) {
+func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, error) {
 	if missing := application.MissingNames(map[string]bool{
 		"Planning":        deps.Planning != nil,
 		"Workforce":       deps.Workforce != nil,
@@ -85,16 +82,6 @@ func NewSickCascade(deps SickCascadeDependencies) (SickCascade, error) {
 	}), nil
 }
 
-// NewSickReports binds the entry of the absence writes that may cascade a
-// sick report: Workforce's sick-report writes and the cascade, run in one
-// tenant transaction (#4825).
-func NewSickReports(absences workforce.SickReportWrites, cascade SickCascade) (shiftplansync.SickReports, error) {
-	if absences == nil || cascade == nil {
-		return nil, fmt.Errorf("shift plan sync compose: sick reports need the absence writes and the cascade")
-	}
-	return application.NewSickReports(absences, cascade), nil
-}
-
 // SubstitutionDependencies are the Betreuungsplan surfaces a Terminvertretung
 // reads and writes, and the request's tenant transaction.
 type SubstitutionDependencies struct {
@@ -108,14 +95,11 @@ type SubstitutionDependencies struct {
 
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
-	// Runtime is the request's tenant transaction the writes join.
-	Runtime application.ScheduleRuntime
+	Runtime     application.ScheduleRuntime
 }
 
-// NewSubstitution binds the Terminvertretung entry of /api/substitutions
-// (#4825). It serves the schedule target in School Structure's substitution
-// vocabulary; the root routes that target here, the module serves the group
-// targets.
+// NewSubstitution binds the Terminvertretung entry the root routes the
+// schedule target of /api/substitutions to (#4825).
 func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubstitution, error) {
 	if missing := application.MissingNames(map[string]bool{
 		"Deviations":        deps.Deviations != nil,
@@ -136,7 +120,5 @@ func NewSubstitution(deps SubstitutionDependencies) (shiftplansync.ScheduleSubst
 	}), deps.Runtime), nil
 }
 
-var (
-	_ ports.Shifts                       = application.Shifts{}
-	_ shiftplansync.ScheduleSubstitution = (*application.ScheduleSubstitutions)(nil)
-)
+var _ ports.Shifts = application.Shifts{}
+var _ shiftplansync.ScheduleSubstitution = (*application.ScheduleSubstitutions)(nil)

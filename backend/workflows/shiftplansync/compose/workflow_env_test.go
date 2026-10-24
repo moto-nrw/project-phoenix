@@ -34,7 +34,7 @@ type planSyncEnv struct {
 	Lock       func(context.Context, int64) error
 	// cascade and substitution are the workflow's two halves, bound the way
 	// the composition root binds them.
-	cascade      compose.SickCascade
+	cascade      shiftplansync.SickCascade
 	substitution shiftplansync.ScheduleSubstitution
 }
 

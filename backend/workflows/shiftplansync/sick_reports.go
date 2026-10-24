@@ -1,38 +1,12 @@
-package application
+package shiftplansync
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// SickCascade is the #1843 cascade: it fans a sick report out into the
-// Dienstplan and the Betreuungsplan and reverses exactly what it stamped.
-// Every method runs inside the caller's tenant transaction.
-type SickCascade interface {
-	// MarkSickForRange cancels the subject's own shifts (ChangeReason
-	// "Krankheit", provenance-stamped) and marks their care-block rows absent
-	// for the range. Idempotent: already-cancelled shifts and already-absent
-	// rows are left untouched.
-	MarkSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
-	// ClearSickForRange reverses exactly what MarkSickForRange stamped for
-	// this absence id. Shifts that meanwhile received replacements and blocks
-	// that received substitutes are skipped (never destroy admin work); their
-	// stamps are released so the deleted report stops owning them.
-	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
-	// ReconcileSickRange applies only the calendar-day difference between an
-	// existing full-day sick report and its edited range. Days that remain
-	// sick are not cleared and re-applied, so their provenance and audit
-	// history stay stable. Both inputs refer to the same absence and subject.
-	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
-	// ReassignSickStamps re-points every provenance stamp from one absence id
-	// to another. Merging sick reports deletes the secondary absence rows,
-	// and their stamps must transfer to the surviving primary or the
-	// eventual reversal will miss those rows.
-	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
-}
 
 // SickReports is the entry of the absence writes that may cascade a sick
 // report (#1843, #4825). Each write runs Workforce's absence command and the
@@ -42,11 +16,17 @@ type SickCascade interface {
 type SickReports struct {
 	absences workforce.SickReportWrites
 	cascade  SickCascade
+	runInTx  func(context.Context, func(context.Context) error) error
 }
 
-// NewSickReports binds the absence writes to the cascade.
-func NewSickReports(absences workforce.SickReportWrites, cascade SickCascade) *SickReports {
-	return &SickReports{absences: absences, cascade: cascade}
+// NewSickReports binds Workforce's sick-report writes to the cascade, run in
+// the unit of work runInTx: the caller's tenant transaction, or one for the
+// context's school (#4825).
+func NewSickReports(absences workforce.SickReportWrites, cascade SickCascade, runInTx func(context.Context, func(context.Context) error) error) (*SickReports, error) {
+	if absences == nil || cascade == nil || runInTx == nil {
+		return nil, errors.New("shift plan sync: sick reports need the absence writes, the cascade and the unit of work")
+	}
+	return &SickReports{absences: absences, cascade: cascade, runInTx: runInTx}, nil
 }
 
 // CreateOwnAbsence files the staff member's own absence.
@@ -91,7 +71,7 @@ func (r *SickReports) DeleteAbsenceFor(ctx context.Context, subjectStaffID, acto
 
 func (r *SickReports) absence(ctx context.Context, write func(context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error)) (*workforce.StaffAbsenceResponse, error) {
 	var result *workforce.StaffAbsenceResponse
-	err := tenant.NewTransactionRunner().RunInTx(ctx, func(ctx context.Context) error {
+	err := r.runInTx(ctx, func(ctx context.Context) error {
 		value, plan, err := write(ctx)
 		if err != nil {
 			return err
@@ -109,7 +89,7 @@ func (r *SickReports) absence(ctx context.Context, write func(context.Context) (
 }
 
 func (r *SickReports) deletion(ctx context.Context, write func(context.Context) (workforce.SickCascadePlan, error)) error {
-	return tenant.NewTransactionRunner().RunInTx(ctx, func(ctx context.Context) error {
+	return r.runInTx(ctx, func(ctx context.Context) error {
 		plan, err := write(ctx)
 		if err != nil {
 			return err

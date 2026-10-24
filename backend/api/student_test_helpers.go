@@ -363,12 +363,10 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	substitutionRuntime := schoolStructure.NewLegacyRepositoryRuntime(db.Pool())
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: liveTimetable.Deviations, Staff: owners.NewPlanStaffDirectory(repos.Staff), Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
-		Runtime:           substitutionRuntime,
-		ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance.Reads),
-		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(reposTimetable.InstanceStaff),
+		Runtime: schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance.Reads),
+		InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(reposTimetable.InstanceStaff),
 	})
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -380,7 +378,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   NewEducationSubstitutionAudit(studentAudits.SubstitutionChange),
-		Runtime:                 substitutionRuntime, Broadcaster: NewGroupEvents(realtimeHub, logger),
+		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
 		Logger: logger.With("service", "substitution"),
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
 			if assignmentBound {

@@ -1,6 +1,7 @@
 package owners
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -21,7 +22,8 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -87,8 +89,19 @@ type WorkforcePlanning struct {
 	Shifts              *workforceCompose.ShiftPlanning
 	StaffShifts         workforceModule.StaffShiftPlanning
 	TimeTracking        *workforceCompose.TimeTracking
-	SickReports         timeTrackingHTTP.AbsenceWrites
+	SickReports         WorkforceAbsenceWrites
 	TimeTrackingCleanup workforceCompose.TimeTrackingCleanupService
+}
+
+// WorkforceAbsenceWrites are the absence writes that may cascade a sick
+// report, as the Workforce routes consume them; the root binds the
+// shift-plan-sync entry (#4825).
+type WorkforceAbsenceWrites interface {
+	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforceModule.CreateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)
+	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforceModule.CreateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)
+	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforceModule.UpdateAbsenceRequest) (*workforceModule.StaffAbsenceResponse, error)
+	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
+	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
 }
 
 // BuildWorkforcePlanning completes the time tracking and binds its
@@ -115,7 +128,7 @@ func BuildWorkforcePlanning(
 	if err != nil {
 		return WorkforcePlanning{}, fmt.Errorf("compose time tracking: %w", err)
 	}
-	sickReports, err := shiftplansyncCompose.NewSickReports(timeTracking.StaffAbsences, cascade)
+	sickReports, err := shiftplansync.NewSickReports(timeTracking.StaffAbsences, cascade, tenant.NewTransactionRunner().RunInTx)
 	if err != nil {
 		return WorkforcePlanning{}, err
 	}

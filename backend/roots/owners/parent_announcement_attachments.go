@@ -17,7 +17,15 @@ type ParentAttachmentReads = parentportal.AttachmentFiles[filestorageModule.Atta
 // audience and reads through File Storage's tenant-scoped capability; this
 // binding only answers the entry's refusal with File Storage's not-found.
 type ParentGuardianAttachments struct {
-	entry *parentportal.AnnouncementAttachments[filestorageModule.Attachment, filestorageModule.Content]
+	entry parentAttachmentEntry
+}
+
+// parentAttachmentEntry is the portal's attachment entry in File Storage's
+// values.
+type parentAttachmentEntry interface {
+	ListGuardianAttachments(ctx context.Context, accountID, announcementID int64) ([]filestorageModule.Attachment, error)
+	OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (filestorageModule.Content, error)
+	OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (filestorageModule.Content, error)
 }
 
 // NewParentGuardianAttachments binds the portal's audience gate to the file

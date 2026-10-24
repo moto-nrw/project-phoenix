@@ -71,7 +71,7 @@ func (s *ScheduleSubstitutions) Assign(ctx context.Context, caller education.Cal
 			s.runtime.MarkRollback(ctx)
 			return err
 		}
-		afterScheduleChange(ctx, written)
+		notifyScheduleChange(ctx, written)
 		result = &education.AssignmentResult{ScheduleSubstitution: written}
 		return nil
 	})
@@ -92,7 +92,7 @@ func (s *ScheduleSubstitutions) End(ctx context.Context, caller education.Caller
 			s.runtime.MarkRollback(ctx)
 			return err
 		}
-		afterScheduleChange(ctx, written)
+		notifyScheduleChange(ctx, written)
 		return nil
 	})
 }
@@ -110,7 +110,7 @@ func (s *ScheduleSubstitutions) authorize(ctx context.Context, caller education.
 	return nil
 }
 
-func afterScheduleChange(ctx context.Context, result *education.ScheduleSubstitutionResult) {
+func notifyScheduleChange(ctx context.Context, result *education.ScheduleSubstitutionResult) {
 	if result != nil && result.AfterCommit != nil {
 		result.AfterCommit(ctx)
 	}

@@ -87,6 +87,15 @@ type sickCascade struct {
 	today         func() calendar.Date
 }
 
+// SickCascade is the cascade's method set; shiftplansync.SickCascade documents
+// it.
+type SickCascade interface {
+	MarkSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
+	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
+	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
+	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
+}
+
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
 // binds the result into the sick-report entry.
 func NewSickCascade(deps SickCascadeDependencies) SickCascade {

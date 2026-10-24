@@ -23,18 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// SickReports is the entry of the absence writes that may cascade a sick
-// report: Workforce's write and its returned plan run in one tenant
-// transaction. The Workforce HTTP routes reach it through their absence
-// write ports.
-type SickReports interface {
-	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
-	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
-	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
-	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
-	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
-}
-
 // ScheduleSubstitution is the Terminvertretung entry of /api/substitutions in
 // School Structure's substitution vocabulary: the root routes the schedule
 // target to it (#4825).
@@ -42,4 +30,30 @@ type ScheduleSubstitution interface {
 	Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error)
 	Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error)
 	End(ctx context.Context, caller education.Caller, request education.EndRequest) error
+}
+
+// SickCascade is the #1843 cascade: it fans a sick report out into the
+// Dienstplan and the Betreuungsplan and reverses exactly what it stamped.
+// Every method runs inside the caller's tenant transaction.
+type SickCascade interface {
+	// MarkSickForRange cancels the subject's own shifts (ChangeReason
+	// "Krankheit", provenance-stamped) and marks their care-block rows absent
+	// for the range. Idempotent: already-cancelled shifts and already-absent
+	// rows are left untouched.
+	MarkSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
+	// ClearSickForRange reverses exactly what MarkSickForRange stamped for
+	// this absence id. Shifts that meanwhile received replacements and blocks
+	// that received substitutes are skipped (never destroy admin work); their
+	// stamps are released so the deleted report stops owning them.
+	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
+	// ReconcileSickRange applies only the calendar-day difference between an
+	// existing full-day sick report and its edited range. Days that remain
+	// sick are not cleared and re-applied, so their provenance and audit
+	// history stay stable. Both inputs refer to the same absence and subject.
+	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
+	// ReassignSickStamps re-points every provenance stamp from one absence id
+	// to another. Merging sick reports deletes the secondary absence rows,
+	// and their stamps must transfer to the surviving primary or the
+	// eventual reversal will miss those rows.
+	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
 }
