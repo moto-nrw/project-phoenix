@@ -31,9 +31,6 @@ const (
 	ModuleElternbeitraege     = configModel.ModuleElternbeitraege
 )
 
-// Modules returns the central module list in catalog order.
-func Modules() []ModuleDefinition { return configModel.Modules() }
-
 // LookupModule returns the definition of a module key.
 func LookupModule(key ModuleKey) (ModuleDefinition, bool) { return configModel.LookupModule(key) }
 

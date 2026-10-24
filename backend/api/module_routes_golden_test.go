@@ -18,6 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	settings "github.com/moto-nrw/project-phoenix/modules/settings"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -120,7 +121,7 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 	}
 	table.WriteString("# Each heading is a module key (basis = moto Basis); the routes below it belong to it.\n")
 	keys := []settings.ModuleKey{moduleRouteBasis}
-	for _, module := range settings.Modules() {
+	for _, module := range configModels.Modules() {
 		keys = append(keys, module.Key)
 	}
 	for _, key := range keys {
@@ -201,7 +202,7 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 		setBooked(cancelled, tc.module, false)
 	}
 	t.Cleanup(func() {
-		for _, module := range settings.Modules() {
+		for _, module := range configModels.Modules() {
 			setBooked(cancelled, module.Key, true)
 		}
 	})
