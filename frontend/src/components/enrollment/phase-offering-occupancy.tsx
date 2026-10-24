@@ -86,7 +86,7 @@ export function PhaseOfferingOccupancy({
         )
       }
       description={
-        "Hier sehen Sie nur die freien Plätze. „Belegt“ zählt die Kinder am vollsten Tag bis zum Ende der Phase. Anmeldungen prüfen Sie in der Liste darunter."
+        "Hier sehen Sie Kapazität, Belegung, freie Plätze und Status je Angebot. „Belegt“ zählt die Kinder am vollsten Tag bis zum Ende der Phase. Anmeldungen prüfen Sie in der Liste darunter."
       }
     >
       <DataTable

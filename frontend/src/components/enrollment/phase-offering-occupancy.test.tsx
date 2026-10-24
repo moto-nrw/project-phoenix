@@ -87,6 +87,11 @@ describe("PhaseOfferingOccupancy (#4782)", () => {
     expect(
       await screen.findByText("Freie Plätze je Angebot"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Hier sehen Sie Kapazität, Belegung, freie Plätze und Status je Angebot\./,
+      ),
+    ).toBeInTheDocument();
     expect(mocks.listCareOfferings).toHaveBeenCalledWith("7");
     expect(mocks.fetchCareOfferingBookingStats).toHaveBeenCalledWith("7");
 
