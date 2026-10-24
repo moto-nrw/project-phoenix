@@ -51,8 +51,9 @@ const EMPTY_SHIFTS: readonly StaffShift[] = [];
 
 export function OwnDienstplanView() {
   const { isReady } = useRequirePermission("time_tracking:own");
+  const dienstplanBooked = useModuleBooked("dienstplan");
 
-  if (!isReady) {
+  if (!isReady || !dienstplanBooked) {
     return (
       <TenantPage
         title="Mein Dienstplan"
@@ -66,9 +67,9 @@ export function OwnDienstplanView() {
 
 function OwnDienstplanContent() {
   // Die Seite gehört zum Modul Dienstplan und hängt nicht mehr am
-  // Betreuungsplan (#4812): ohne das Modul erklärt sich die Seite über das
-  // Modul-Register (#4894). Das Soll kommt aus der Zeiterfassung und fehlt
-  // ohne dieses Modul.
+  // Betreuungsplan (#4812). Diese Datenkomponente erreicht React erst nach
+  // der Modulprüfung; das Soll kommt aus der Zeiterfassung und fehlt ohne
+  // dieses Modul.
   const zeiterfassungBooked = useModuleBooked("zeiterfassung");
   const today = useBerlinToday();
   const { params, updateParams } = useUrlParams(ALLOWED_URL_PARAMS);

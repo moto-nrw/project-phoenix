@@ -139,18 +139,20 @@ interface NavItem {
 
 /**
  * Regel des Modul-Registers (#4894) für einen Eintrag: `hidden` fällt weg,
- * `locked` braucht nur das Recht der Seite (die Schuleinstellung des Moduls
- * zählt erst, wenn es gebucht ist), `open` braucht Recht und Einstellung.
+ * `locked` ist für die Leitung sichtbar, unabhängig vom Recht der Zielseite:
+ * die Erklärung zeigt, dass die Schule das Modul zuerst buchen muss. `open`
+ * braucht Recht und Einstellung.
  */
 function moduleGate(
   visibility: ModuleVisibility,
   permitted: boolean,
   settingOn: boolean,
 ): { readonly show: boolean; readonly locked: boolean } {
-  if (visibility === "hidden" || !permitted) {
+  if (visibility === "hidden") {
     return { show: false, locked: false };
   }
   if (visibility === "locked") return { show: true, locked: true };
+  if (!permitted) return { show: false, locked: false };
   return { show: settingOn, locked: false };
 }
 
@@ -867,9 +869,12 @@ function SidebarContent({
   // Filter flat navigation items based on permissions. Das Modul der Seite
   // entscheidet zuerst (#4894): nicht gebucht heißt weg oder Schloss.
   const filteredNavItems = NAV_ITEMS.flatMap((item) => {
-    const visibility = moduleNav.page(item.href);
-    if (visibility === "hidden" || !isNavItemPermitted(item)) return [];
-    return visibility === "locked" ? [{ ...item, locked: true }] : [item];
+    const gate = moduleGate(
+      moduleNav.page(item.href),
+      isNavItemPermitted(item),
+      true,
+    );
+    return gate.show ? [{ ...item, locked: gate.locked }] : [];
   });
 
   function isNavItemPermitted(item: NavItem): boolean {

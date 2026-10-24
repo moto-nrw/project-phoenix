@@ -20,8 +20,10 @@ const state = vi.hoisted(() => ({
   projection: undefined as ReadonlyMap<string, DayProjection> | undefined,
   projectionError: undefined as Error | undefined,
   permissionReady: true,
+  dienstplanBooked: true,
   // Gebucht ist die Zeiterfassung, aus der das Soll kommt (#4894).
   zeiterfassungBooked: true,
+  closingDaysCalls: [] as [string, string][],
   day: null as string | null,
   keys: [] as (string | null)[],
   updateParams: vi.fn(),
@@ -72,16 +74,23 @@ vi.mock("~/lib/hooks/use-url-params", () => ({
   }),
 }));
 vi.mock("~/lib/hooks/use-closing-days", () => ({
-  useClosingDaysState: () => ({
-    closingDays: new Map([["2026-09-11", "Brückentag"]]),
-    closingDayRanges: [],
-    isLoading: false,
-  }),
+  useClosingDaysState: (from: string, to: string) => {
+    state.closingDaysCalls.push([from, to]);
+    return {
+      closingDays: new Map([["2026-09-11", "Brückentag"]]),
+      closingDayRanges: [],
+      isLoading: false,
+    };
+  },
 }));
 vi.mock("~/lib/tenant-context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
   useModuleBooked: (module: string) =>
-    module === "zeiterfassung" ? state.zeiterfassungBooked : true,
+    module === "dienstplan"
+      ? state.dienstplanBooked
+      : module === "zeiterfassung"
+        ? state.zeiterfassungBooked
+        : true,
 }));
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -141,7 +150,9 @@ describe("OwnDienstplanView", () => {
     state.projection = undefined;
     state.projectionError = undefined;
     state.permissionReady = true;
+    state.dienstplanBooked = true;
     state.zeiterfassungBooked = true;
+    state.closingDaysCalls = [];
     state.day = null;
     state.keys = [];
     state.updateParams.mockClear();
@@ -300,6 +311,19 @@ describe("OwnDienstplanView", () => {
     ).toBeInTheDocument();
     expect(state.keys).toEqual([]);
     expect(screen.queryByText("geplant")).not.toBeInTheDocument();
+  });
+
+  it("waits for the Dienstplan booking before loading data", () => {
+    state.dienstplanBooked = false;
+
+    render(<OwnDienstplanView />);
+
+    // Anker: Die Seite wartet sichtbar auf die Modulprüfung.
+    expect(
+      screen.getByRole("status", { name: /Mein Dienstplan.*wird geladen/ }),
+    ).toBeInTheDocument();
+    expect(state.keys).toEqual([]);
+    expect(state.closingDaysCalls).toEqual([]);
   });
 
   it("offers a retry when the shifts fail to load", () => {

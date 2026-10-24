@@ -2275,6 +2275,27 @@ describe("Sidebar", () => {
       expect(link).toHaveAttribute("href", "/time-tracking");
     });
 
+    it("zeigt der Leitung gesperrte Datenverwaltung ohne Routenrecht", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockHasEffectiveAdminScope.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage",
+      );
+      mockUseBookedModules.mockReturnValue(bookedWithout("nfc_anwesenheit"));
+      try {
+        render(<Sidebar />);
+
+        expect(
+          screen.getByRole("link", { name: "Geräte , nicht gebucht" }),
+        ).toHaveAttribute("href", "/test-tenant/database/devices");
+      } finally {
+        restoreDefaultHasPermission();
+        mockHasEffectiveAdminScope.mockReturnValue(false);
+      }
+    });
+
     it("blendet ein nicht gebuchtes Modul für Betreuungskräfte aus", () => {
       // Standardsitzung: Betreuungskraft mit time_tracking:own.
       mockUseBookedModules.mockReturnValue(bookedWithout("zeiterfassung"));
