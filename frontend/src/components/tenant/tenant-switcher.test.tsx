@@ -464,7 +464,7 @@ describe("BrandTenantSwitcher", () => {
     fireEvent.click(screen.getByText("School B"));
 
     expect(
-      await screen.findByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+      await screen.findByText(/Dieses Konto gehört zu moto schule/),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Jetzt zu moto schule" }),

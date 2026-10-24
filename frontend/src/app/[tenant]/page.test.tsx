@@ -653,7 +653,7 @@ describe("HomePage (Login)", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+          screen.getByText(/Dieses Konto gehört zu moto schule/),
         ).toBeInTheDocument();
       });
       expect(
@@ -720,7 +720,7 @@ describe("HomePage (Login)", () => {
       });
 
       expect(
-        await screen.findByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+        await screen.findByText(/Dieses Konto gehört zu moto schule/),
       ).toBeInTheDocument();
     });
   });
@@ -743,7 +743,7 @@ describe("HomePage (Login)", () => {
     });
 
     expect(
-      await screen.findByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+      await screen.findByText(/Dieses Konto gehört zu moto schule/),
     ).toBeInTheDocument();
     expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
       reason: "use_school_portal",
