@@ -649,6 +649,7 @@ basis
 	PUT /api/timetable/closing-days/{id}
 	PUT /api/timetable/conflict-acks/{fingerprint}
 	PUT /api/timetable/instances/{id}
+	PUT /api/timetable/operations/instances/{id}/students/{student_id}/homework-feedback
 	PUT /api/timetable/periods/{id}
 	PUT /api/timetable/planning-tracks/order
 	PUT /api/timetable/planning-tracks/{id}
@@ -967,6 +968,7 @@ unterricht_vormittag
 	DELETE /school/calendar/appointments/{appointmentId}  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
+	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/notifications/preferences/  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/notifications/push/subscriptions  (#4895 Schulportal, an der Schul-Sitzung)
 	GET /school-sse/events  (#4895 Schulportal, an der Schul-Sitzung)
@@ -999,6 +1001,7 @@ unterricht_vormittag
 	POST /school/calendar/feed/rotate  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/calendar/recipients/{recipientId}/response  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/class-day/class-trips/{schoolClass}  (#4895 Schulportal, an der Schul-Sitzung)
+	POST /school/class-day/homework/{schoolClass}  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/notifications/push/subscriptions  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/notifications/test  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/staff-messages/threads/open  (#4895 Schulportal, an der Schul-Sitzung)
@@ -1011,8 +1014,10 @@ unterricht_vormittag
 	PUT /school/calendar/appointments/{appointmentId}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
+	PUT /school/class-day/homework/{schoolClass}/{homeworkId}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/morning-attendance/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/notifications/preferences/{type}  (#4895 Schulportal, an der Schul-Sitzung)
+	PUT /school/supervisions/{id}/students/{student_id}/homework-feedback  (#4895 Schulportal, an der Schul-Sitzung)
 
 dienstplan
 	DELETE /api/shift-types/{id}
