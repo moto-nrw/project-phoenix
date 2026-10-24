@@ -32,6 +32,7 @@ import {
   type PhaseResponseOverview,
 } from "~/lib/enrollment-phase-api";
 import { PhaseResponseOverview as PhaseResponseOverviewPanel } from "~/components/enrollment/phase-response-overview";
+import { PhaseOfferingOccupancy } from "~/components/enrollment/phase-offering-occupancy";
 import {
   type EnrollmentExportFormat,
   exportPhaseRegistrations,
@@ -982,6 +983,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               value={stats.rejected}
             />
           </div>
+
+          {careOfferingsEnabled ? (
+            <PhaseOfferingOccupancy phaseId={phaseId} />
+          ) : null}
 
           <ClassRosterExportPanel
             schoolClassOptions={schoolClassOptions}

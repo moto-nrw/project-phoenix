@@ -16,7 +16,9 @@ import (
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
 	Description string
-	Run         func(context.Context) (int, error)
+	// OwnTransactions is for commands that must commit partial progress before returning an error.
+	OwnTransactions bool
+	Run             func(context.Context) (int, error)
 }
 
 var errWorkerTraceStart = errors.New("start worker trace")

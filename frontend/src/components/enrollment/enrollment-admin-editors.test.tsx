@@ -1027,6 +1027,121 @@ describe("CareOfferingsEditor", () => {
     expect(screen.queryByText(/^Nicht für Klasse/)).not.toBeInTheDocument();
   });
 
+  // #4782: free places per offering at a glance.
+  it("shows occupancy, free places and the full status in the list", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "Regelbetreuung", capacity: 10 }),
+      offering({ id: "offer-2", name: "Randstunde", capacity: 5 }),
+      offering({ id: "offer-3", name: "Frühbetreuung", capacity: null }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 10,
+        booked: 7,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+      "offer-2": {
+        offering_id: "offer-2",
+        capacity: 5,
+        booked: 5,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+      "offer-3": {
+        offering_id: "offer-3",
+        capacity: null,
+        booked: 4,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+
+    const regular = within(
+      (await screen.findByText("7 von 10")).closest("tr") as HTMLElement,
+    );
+    expect(screen.getByRole("button", { name: /^Belegt/ })).toBeInTheDocument();
+    expect(regular.getByText("Regelbetreuung")).toBeInTheDocument();
+    expect(regular.getByText("3 frei")).toBeInTheDocument();
+    expect(regular.queryByText("Voll")).not.toBeInTheDocument();
+
+    const full = within(
+      screen.getByText("5 von 5").closest("tr") as HTMLElement,
+    );
+    expect(full.getByText("Randstunde")).toBeInTheDocument();
+    expect(full.getByText("Keine frei")).toBeInTheDocument();
+    expect(full.getByText("Voll")).toBeInTheDocument();
+
+    // Without a capacity limit only the occupancy.
+    const unlimited = within(
+      screen.getByText("Frühbetreuung").closest("tr") as HTMLElement,
+    );
+    expect(unlimited.getByText("4")).toBeInTheDocument();
+    expect(unlimited.getByText("Unbegrenzt")).toBeInTheDocument();
+
+    // The capacity tile labels the free places as active offers: 3 + 0.
+    expect(screen.getByText("· 3 frei (aktive Angebote)")).toBeInTheDocument();
+    expect(
+      screen.getByText("· 3 frei (aktive Angebote)").parentElement,
+    ).toHaveTextContent("15 · 3 frei (aktive Angebote)");
+  });
+
+  it("shows a zero capacity instead of treating it as unlimited", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", capacity: 0 }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offer-1": {
+        offering_id: "offer-1",
+        capacity: 0,
+        booked: 0,
+        grade_levels: {},
+        unknown_grade_count: 0,
+      },
+    });
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("0 von 0")).toBeInTheDocument();
+    const freePlaces = screen.getByText("· 0 frei (aktive Angebote)");
+    expect(freePlaces.parentElement).toHaveTextContent(
+      "0 · 0 frei (aktive Angebote)",
+    );
+  });
+
+  it("hides the occupancy when it fails to load and keeps the list usable", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "Regelbetreuung", capacity: 10 }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockRejectedValue(
+      new Error("stats down"),
+    );
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.fetchCareOfferingBookingStats).toHaveBeenCalled(),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /^Belegt/ }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: /^Preis/ })).toBeInTheDocument();
+    expect(screen.getByText("10 Plätze")).toBeInTheDocument();
+    expect(screen.queryByText(/frei$/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    ).toBeEnabled();
+  });
+
   // #2186: tightening a rule leaves contradicting bookings in place
   // (Bestandsschutz). Without this hint the data just looks inconsistent.
   it("warns how many existing bookings a rule contradicts", async () => {
