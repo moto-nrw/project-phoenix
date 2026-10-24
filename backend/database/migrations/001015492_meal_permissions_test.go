@@ -144,3 +144,62 @@ func TestMealPermissionsMoveStoredLeadDaysWithoutReplacingExplicitValues(t *test
 	assert.Equal(t, want, values("operations.meal_registration_cutoff_lead_days"))
 	assert.Empty(t, values("operations.meal_registration_lead_days"))
 }
+
+// The cutoffs of #3164 carry over into the ordering rules: a weekday of the
+// previous week, a separate cancellation cutoff with its lead days, and an
+// explicit ordering rule wins.
+func TestMealPermissionsAdoptTheCutoffSettingsOfDevelopment(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	weekly, _ := testpkg.CreateTestTenant(t, db)
+	separate, _ := testpkg.CreateTestTenant(t, db)
+	explicit, _ := testpkg.CreateTestTenant(t, db)
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES
+			(?, 'operations.meal_registration_cutoff_weekday', '3'::jsonb),
+			(?, 'operations.meal_cancellation_cutoff_separate', 'true'::jsonb),
+			(?, 'operations.meal_cancellation_cutoff_lead_days', '1'::jsonb),
+			(?, 'operations.meal_registration_cutoff_weekday', '0'::jsonb),
+			(?, 'operations.meal_cancellation_cutoff_separate', 'true'::jsonb),
+			(?, 'operations.meal_registration_model', '"annual"'::jsonb)
+	`, weekly, separate, separate, separate, explicit, explicit).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, mealPermissionsUp(ctx, db))
+	require.NoError(t, mealPermissionsUp(ctx, db), "a rerun preserves the adopted values")
+	settings := func(tenantID int64) map[string]string {
+		t.Helper()
+		var rows []struct {
+			SettingKey string
+			Value      string
+		}
+		require.NoError(t, db.NewRaw(`
+			SELECT setting_key, value #>> '{}' AS value FROM config.setting_values
+			WHERE tenant_id = ? AND setting_key LIKE 'operations.meal_%'
+		`, tenantID).Scan(ctx, &rows))
+		result := make(map[string]string, len(rows))
+		for _, row := range rows {
+			result[row.SettingKey] = row.Value
+		}
+		return result
+	}
+	assert.Equal(t, map[string]string{
+		"operations.meal_registration_deadline_kind":    "previous_week",
+		"operations.meal_registration_deadline_weekday": "wednesday",
+	}, settings(weekly))
+	assert.Equal(t, map[string]string{
+		"operations.meal_registration_model":         "ongoing_split",
+		"operations.meal_cancellation_deadline_kind": "days_before",
+		"operations.meal_cancellation_lead_days":     "1",
+	}, settings(separate), "a weekday of 0 was no weekly cutoff")
+	assert.Equal(t, map[string]string{
+		"operations.meal_registration_model":         "annual",
+		"operations.meal_cancellation_deadline_kind": "days_before",
+	}, settings(explicit), "the explicit model wins")
+
+	require.NoError(t, mealPermissionsDown(ctx, db))
+	assert.Equal(t, "3", settings(weekly)["operations.meal_registration_cutoff_weekday"])
+	assert.Equal(t, "true", settings(separate)["operations.meal_cancellation_cutoff_separate"])
+	assert.Equal(t, "1", settings(separate)["operations.meal_cancellation_cutoff_lead_days"])
+}

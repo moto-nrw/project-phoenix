@@ -39,6 +39,9 @@ func mealPermissionsUp(ctx context.Context, db *bun.DB) error {
 		if err := renameMealLeadDays(ctx, tx, "operations.meal_registration_cutoff_lead_days", "operations.meal_registration_lead_days"); err != nil {
 			return err
 		}
+		if err := adoptMealCutoffSettings(ctx, tx); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO auth.permissions (name, description, resource, action, is_system) VALUES
 				('meals:read', 'View the meal plan and the number of meals ordered', 'meals', 'read', TRUE),
@@ -64,8 +67,73 @@ func mealPermissionsDown(ctx context.Context, db *bun.DB) error {
 			return err
 		}
 	}
+	if err := restoreMealCutoffSettings(ctx, db); err != nil {
+		return err
+	}
 	return renameMealLeadDays(ctx, db, "operations.meal_registration_lead_days", "operations.meal_registration_cutoff_lead_days")
 }
+
+// adoptMealCutoffSettings carries the cutoffs of #3164 into the ordering
+// rules: a weekday of the previous week becomes a registration deadline of
+// that kind, and a separate cancellation cutoff the model with its own
+// cancellation deadline, keeping its lead days. The cancellation clock time
+// already has its key. An explicit value of the ordering rules wins; a rerun
+// changes nothing.
+func adoptMealCutoffSettings(ctx context.Context, db bun.IDB) error {
+	if _, err := db.ExecContext(ctx, adoptMealCutoffSettingsSQL); err != nil {
+		return fmt.Errorf("adopt the meal cutoff settings: %w", err)
+	}
+	return renameMealLeadDays(ctx, db, "operations.meal_cancellation_cutoff_lead_days", "operations.meal_cancellation_lead_days")
+}
+
+func restoreMealCutoffSettings(ctx context.Context, db bun.IDB) error {
+	if _, err := db.ExecContext(ctx, restoreMealCutoffSettingsSQL); err != nil {
+		return fmt.Errorf("restore the meal cutoff settings: %w", err)
+	}
+	return renameMealLeadDays(ctx, db, "operations.meal_cancellation_lead_days", "operations.meal_cancellation_cutoff_lead_days")
+}
+
+const adoptMealCutoffSettingsSQL = `
+	INSERT INTO config.setting_values (tenant_id, setting_key, value)
+	SELECT tenant_id, key, value FROM (
+		SELECT tenant_id, 'operations.meal_registration_deadline_kind' AS key, to_jsonb('previous_week'::text) AS value
+		FROM config.setting_values
+		WHERE setting_key = 'operations.meal_registration_cutoff_weekday' AND value #>> '{}' IN ('1', '2', '3', '4', '5')
+		UNION ALL
+		SELECT tenant_id, 'operations.meal_registration_deadline_weekday',
+			to_jsonb((ARRAY['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])[(value #>> '{}')::int])
+		FROM config.setting_values
+		WHERE setting_key = 'operations.meal_registration_cutoff_weekday' AND value #>> '{}' IN ('1', '2', '3', '4', '5')
+		UNION ALL
+		SELECT tenant_id, 'operations.meal_registration_model', to_jsonb('ongoing_split'::text)
+		FROM config.setting_values
+		WHERE setting_key = 'operations.meal_cancellation_cutoff_separate' AND value = 'true'::jsonb
+		UNION ALL
+		SELECT tenant_id, 'operations.meal_cancellation_deadline_kind', to_jsonb('days_before'::text)
+		FROM config.setting_values
+		WHERE setting_key = 'operations.meal_cancellation_cutoff_separate' AND value = 'true'::jsonb
+	) AS adopted
+	ON CONFLICT (tenant_id, setting_key) DO NOTHING;
+	DELETE FROM config.setting_values
+	WHERE setting_key IN ('operations.meal_registration_cutoff_weekday', 'operations.meal_cancellation_cutoff_separate');
+`
+
+const restoreMealCutoffSettingsSQL = `
+	INSERT INTO config.setting_values (tenant_id, setting_key, value)
+	SELECT kind.tenant_id, 'operations.meal_registration_cutoff_weekday',
+		to_jsonb(array_position(ARRAY['monday', 'tuesday', 'wednesday', 'thursday', 'friday'], weekday.value #>> '{}'))
+	FROM config.setting_values AS kind
+	JOIN config.setting_values AS weekday ON weekday.tenant_id = kind.tenant_id
+		AND weekday.setting_key = 'operations.meal_registration_deadline_weekday'
+	WHERE kind.setting_key = 'operations.meal_registration_deadline_kind' AND kind.value = '"previous_week"'::jsonb
+		AND weekday.value #>> '{}' IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday')
+	ON CONFLICT (tenant_id, setting_key) DO NOTHING;
+	INSERT INTO config.setting_values (tenant_id, setting_key, value)
+	SELECT tenant_id, 'operations.meal_cancellation_cutoff_separate', 'true'::jsonb
+	FROM config.setting_values
+	WHERE setting_key = 'operations.meal_registration_model' AND value = '"ongoing_split"'::jsonb
+	ON CONFLICT (tenant_id, setting_key) DO NOTHING;
+`
 
 // Keep stored lead counts when moving to the ordering rules. An explicit
 // value at the destination wins, including zero; a rerun changes nothing.
