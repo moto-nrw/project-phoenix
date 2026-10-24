@@ -87,9 +87,9 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
           weekdays={schedule.weekdays}
           capabilities={schedule.request_capabilities}
           onClose={() => setRequestOpen(false)}
-          onSubmit={async (payload) =>
+          onSubmit={async (payload, signature) =>
             props.onScheduleChange(
-              await submitCareScheduleRequest(studentId, payload),
+              await submitCareScheduleRequest(studentId, payload, signature),
             )
           }
         />

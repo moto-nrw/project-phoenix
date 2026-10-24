@@ -16,6 +16,11 @@ import {
   type CareScheduleRequestInput,
   type ChildCareSchedule,
 } from "~/lib/parent-api";
+import type { SignatureValue } from "~/lib/signature";
+import {
+  PickupSignatureField,
+  useWeekdayList,
+} from "~/components/parent/pickup-permission-fields";
 
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
   1: "mon",
@@ -45,7 +50,19 @@ interface RequestedDayResult {
 
 type Capabilities = ChildCareSchedule["request_capabilities"];
 type Weekdays = ChildCareSchedule["weekdays"];
-type SubmitRequest = (payload: CareScheduleRequestInput) => Promise<void>;
+type SubmitRequest = (
+  payload: CareScheduleRequestInput,
+  signature: SignatureValue | null,
+) => Promise<void>;
+
+const ALONE_SIGNATURE_FIELD = "care-schedule-alone-signature";
+
+/** Die Wochentage, an denen die Anfrage das Kind allein gehen lässt (#4780). */
+function aloneWeekdays(payload: CareScheduleRequestInput): number[] {
+  return payload.weekdays
+    .filter((day) => day.mode === "alone")
+    .map((day) => day.weekday);
+}
 
 /**
  * The OGS rules this form knows better than the shared catalog: each one
@@ -260,9 +277,21 @@ function useRequestForm(
   onClose: () => void,
 ) {
   const t = useTranslations("parentMasterData.careSchedule");
+  const tPermission = useTranslations("parentPickupPermission");
+  const weekdayList = useWeekdayList();
   const [drafts, setDrafts] = useState(() => draftsFromWeekdays(weekdays));
+  const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const form = useApiFormError();
+  // Geht das Kind an Wochentagen allein nach Hause, unterschreiben die Eltern
+  // die Erlaubnis (#4780).
+  const alone = aloneWeekdays(
+    requestPayload(weekdays, drafts, capabilities).payload,
+  );
+  const aloneStatement =
+    alone.length > 0
+      ? tPermission("statement.aloneWeekly", { days: weekdayList(alone) })
+      : "";
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const submit = async () => {
     const { payload, missingPlan } = requestPayload(
@@ -274,10 +303,15 @@ function useRequestForm(
     if (payload.weekdays.length === 0) {
       return form.invalid(t("requestNoChange"));
     }
+    if (aloneStatement && !signature) {
+      return form.invalid(tPermission("signature.missing"), {
+        [ALONE_SIGNATURE_FIELD]: tPermission("signature.missing"),
+      });
+    }
     setSubmitting(true);
     form.clear();
     try {
-      await onSubmit(payload);
+      await onSubmit(payload, aloneStatement ? signature : null);
       onClose();
     } catch (submitError) {
       const known = knownRequestErrorKey(submitError);
@@ -297,7 +331,17 @@ function useRequestForm(
   useLayoutEffect(() => {
     latestSubmitRef.current = () => void submit();
   });
-  return { drafts, setDrafts, submitting, error: form.error, submit };
+  return {
+    drafts,
+    setDrafts,
+    submitting,
+    error: form.error,
+    submit,
+    aloneStatement,
+    signature,
+    setSignature,
+    signatureError: form.fieldError(ALONE_SIGNATURE_FIELD),
+  };
 }
 
 function ScheduleFields({
@@ -370,6 +414,16 @@ export function CareScheduleRequestModal({
           drafts={form.drafts}
           setDrafts={form.setDrafts}
         />
+        {form.aloneStatement && (
+          <PickupSignatureField
+            id={ALONE_SIGNATURE_FIELD}
+            statement={form.aloneStatement}
+            value={form.signature}
+            onChange={form.setSignature}
+            disabled={form.submitting}
+            error={form.signatureError}
+          />
+        )}
         <FormErrorAlert message={form.error} />
       </div>
     </Modal>
