@@ -454,7 +454,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresPermission: "time_tracking:own",
   },
   {
-    // Eigener Dienstplan (#3821); Schulschalter in isHrefEnabled.
+    // Eigener Dienstplan (#3821); das Modul-Gate folgt in entriesToItems.
     ...STAFF_FLAT_PAGES.ownShiftPlan,
     iconKey: "dienstplan",
     concept: "staffPlan",
@@ -986,7 +986,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       PLANNING_SUB_PAGES.some(
         (page) => page.href === href && page.requiresTimetable,
       ) &&
-      !timetableEnabled
+      !timetableEnabled &&
+      !locked
     ) {
       // Gilt auch für Nicht-Admins mit nonAdminPermission (#2283): die
       // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
@@ -1001,22 +1002,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (href === "/day-log" && !attendanceLogEnabled) return false;
     // Eltern-Seiten: dieselben Regeln wie die Sidebar-Gruppe.
     if (href === "/messages") {
-      return userIsAdmin || hasPermission(session, "users:read");
+      return locked || userIsAdmin || hasPermission(session, "users:read");
     }
     if (href === "/admin/guardian-approvals") {
-      return canReviewGuardianApprovals(session);
+      return locked || canReviewGuardianApprovals(session);
     }
     if (href === "/parent-announcements") {
-      return canAnnounce && (locked || parentNewsEnabled);
+      return locked || (canAnnounce && parentNewsEnabled);
     }
     if (href === "/eltern/bankverbindungen") {
       return hasPermission(session, "guardians:financial");
     }
     if (href === "/meal-plan") {
-      return (
-        (locked || mealPlanEnabled) &&
-        (userIsAdmin || hasPermission(session, "config:read"))
-      );
+      return locked || (mealPlanEnabled && canReadConfig);
     }
     return true;
   };
@@ -1027,6 +1025,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
     }
+    // Die Leitung muss ein nicht gebuchtes Modul unabhängig vom Recht seiner
+    // Zielseite finden können: der Eintrag erklärt zuerst die Buchung. Für
+    // offene Seiten bleiben die Routenrechte unten unverändert maßgeblich.
+    if (item.locked) return true;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresAllPermissions) {

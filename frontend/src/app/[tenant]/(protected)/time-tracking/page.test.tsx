@@ -76,12 +76,13 @@ vi.mock("~/lib/time-tracking-api", () => ({
   timeTrackingService: mockTimeTrackingService,
 }));
 
-// Dienstplan der Schule eingeschaltet? Steuert den Kopf-Link „Mein
-// Dienstplan“ (#3821).
-const timetableState = vi.hoisted(() => ({ enabled: true }));
+// Das gebuchte Dienstplan-Modul steuert den Kopf-Link „Mein Dienstplan"
+// (#3821); timetable.enabled gehört nur zum Betreuungsplan.
+const moduleState = vi.hoisted(() => ({ dienstplanBooked: true }));
 vi.mock("~/lib/tenant-context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
-  useTimetableEnabled: () => timetableState.enabled,
+  useModuleBooked: (module: string) =>
+    module === "dienstplan" ? moduleState.dienstplanBooked : true,
 }));
 
 vi.mock("~/components/staff/staff-export-button", async () => {
@@ -1644,8 +1645,8 @@ describe("TimeTrackingPage", () => {
       ).toHaveAttribute("href", "/mein-dienstplan");
     });
 
-    it("hides the Dienstplan link when the school plans no shifts in moto", () => {
-      timetableState.enabled = false;
+    it("hides the Dienstplan link when the module is not booked", () => {
+      moduleState.dienstplanBooked = false;
       try {
         setupDefaultMocks();
         render(<TimeTrackingPage />);
@@ -1655,7 +1656,7 @@ describe("TimeTrackingPage", () => {
           screen.queryByRole("link", { name: /Mein Dienstplan/ }),
         ).not.toBeInTheDocument();
       } finally {
-        timetableState.enabled = true;
+        moduleState.dienstplanBooked = true;
       }
     });
   });

@@ -1068,6 +1068,21 @@ describe("MobileBottomNav", () => {
       ).toBeInTheDocument();
     });
 
+    it("zeigt einer Leitung das gesperrte Modul auch ohne Routenrecht", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage",
+      );
+      mockUseBookedModules.mockReturnValue(bookedWithout("dienstplan"));
+
+      render(<MobileBottomNav />);
+      openDrawer();
+
+      expect(
+        screen.getByRole("link", { name: "Mein Dienstplan , nicht gebucht" }),
+      ).toHaveAttribute("href", "/test-tenant/mein-dienstplan");
+    });
+
     it("blendet ein nicht gebuchtes Modul für Betreuungskräfte aus", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) =>
