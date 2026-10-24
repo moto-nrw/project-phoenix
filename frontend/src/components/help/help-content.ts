@@ -4156,7 +4156,7 @@ function leadSurveysTopic(): HelpTopic {
         title: "Die Auswertung ansehen",
         steps: [
           "Öffnen Sie die Umfrage in der Liste.",
-          "Im Reiter `Auswertung` sehen Sie je Frage die Verteilung, bei der Skala den Durchschnitt und die Freitexte.",
+          "Im Reiter `Auswertung` sehen Sie je Frage die Verteilung: bei der Skala den Durchschnitt, den höchsten und den niedrigsten Wert, bei Auswahlfragen die am häufigsten und am seltensten gewählte Antwort, dazu die Freitexte.",
           "Oben stehen `Stärken und Verbesserungsbedarf`: die Skalenfragen mit dem höchsten und dem niedrigsten Durchschnitt.",
           "Für eine Datei öffnen Sie das Menü mit den drei Punkten und wählen `Auswertung als PDF`.",
         ],

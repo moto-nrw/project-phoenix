@@ -84,15 +84,16 @@ function HighLow({ question }: Readonly<{ question: SurveyQuestionResult }>) {
   if (question.highest.length === 0 && question.lowest.length === 0) {
     return null;
   }
+  const scale = question.kind === "scale";
   return (
     <DataGrid>
       {question.highest.length > 0 && (
-        <DataField label="Stärken (am häufigsten gewählt)">
+        <DataField label={scale ? "Höchster Wert" : "Am häufigsten gewählt"}>
           {format(question.highest)}
         </DataField>
       )}
       {question.lowest.length > 0 && (
-        <DataField label="Verbesserungsbedarf (am seltensten gewählt)">
+        <DataField label={scale ? "Niedrigster Wert" : "Am seltensten gewählt"}>
           {format(question.lowest)}
         </DataField>
       )}
