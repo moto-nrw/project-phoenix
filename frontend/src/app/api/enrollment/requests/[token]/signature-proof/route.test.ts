@@ -16,7 +16,7 @@ describe("GET /api/enrollment/requests/[token]/signature-proof", () => {
 
   it("asks the status read for the PDF and passes the file through", async () => {
     const fetchMock = vi.fn(
-      async () =>
+      async (_url: string, _init?: RequestInit) =>
         new Response("%PDF", {
           headers: {
             "content-type": "application/pdf",
@@ -39,8 +39,7 @@ describe("GET /api/enrollment/requests/[token]/signature-proof", () => {
       "http://backend:8080/api/enrollment/requests/a%2Fb?format=pdf",
       expect.objectContaining({ method: "GET" }),
     );
-    const init = fetchMock.mock.calls[0]![1] as RequestInit;
-    expect(init.headers).toBeUndefined();
+    expect(fetchMock.mock.calls[0]![1]?.headers).toBeUndefined();
   });
 
   it("forwards a refused token unchanged", async () => {
