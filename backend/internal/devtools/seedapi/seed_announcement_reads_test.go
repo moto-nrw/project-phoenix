@@ -146,6 +146,11 @@ func TestSeedParentDeclarationDeclaresThroughTheParentAPI(t *testing.T) {
 		"/api/parent-announcements/81/publish",
 		"/parent/auth/login", "/parent/me/news", "/parent/me/news/81/declaration",
 	}, paths)
+	signature, ok := declared["signature"].(map[string]any)
+	require.True(t, ok, "the seeded consent is signed (#4785)")
+	delete(declared, "signature")
 	assert.Equal(t, map[string]any{"student_id": "10", "action": "agreed", "version_id": "5"}, declared,
 		"the parent declares only for a child they may declare for")
+	assert.Equal(t, "drawn", signature["method"])
+	assert.NotEmpty(t, signature["image_png"])
 }

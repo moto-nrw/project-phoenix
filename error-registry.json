@@ -163,6 +163,18 @@
       "legacy": "declaration_password_required"
     },
     {
+      "code": "care.declaration_signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.declaration_signature_invalid"
+    },
+    {
+      "code": "care.declaration_signature_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.declaration_signature_required"
+    },
+    {
       "code": "care.declaration_version_changed",
       "class": "business_rejection",
       "parameters": [],
