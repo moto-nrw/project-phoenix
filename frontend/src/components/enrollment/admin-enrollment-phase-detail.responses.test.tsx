@@ -15,6 +15,14 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   return { ...actual, listAdminRequests: mocks.listAdminRequests };
 });
 
+// The occupancy section loads on its own; phase-offering-occupancy.test.tsx
+// covers it.
+vi.mock("~/components/enrollment/phase-offering-occupancy", () => ({
+  PhaseOfferingOccupancy: ({ phaseId }: { phaseId: string }) => (
+    <div data-testid="phase-offering-occupancy">{phaseId}</div>
+  ),
+}));
+
 vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mocks.listPhases,
   getPhaseResponseOverview: vi.fn(),
