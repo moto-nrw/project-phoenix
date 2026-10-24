@@ -175,6 +175,8 @@ export const HOME_BLOCK_MODULES: Readonly<Record<string, ModuleScope>> = {
  * Zeiterfassung (Entscheidung in #4812).
  */
 export const STAFF_TAB_MODULES: Readonly<Record<string, ModuleKey>> = {
+  // Die Übersicht zeigt Stundenkonto und Woche aus der Zeiterfassung.
+  uebersicht: "zeiterfassung",
   zeiterfassung: "zeiterfassung",
   arbeitszeitmodell: "zeiterfassung",
   abwesenheiten: "zeiterfassung",

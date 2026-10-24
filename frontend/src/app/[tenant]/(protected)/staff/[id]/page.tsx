@@ -1,5 +1,7 @@
 "use client";
 
+import { isScopeBooked, STAFF_TAB_MODULES } from "~/lib/module-register";
+import { useBookedModules } from "~/lib/tenant-context";
 import {
   useCallback,
   useEffect,
@@ -123,6 +125,7 @@ export default function StaffDetailContent() {
   const canEditVacationQuota = canEdit || canManageTimeTracking;
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
+  const bookedModules = useBookedModules();
   const canEditStammdaten = hasPermission(session, "staff:stammdaten");
   // Deliberately NOT users:read or users:update: the sections carry HR-file
   // data (birthday, private address, contract terms). users:read is held by
@@ -449,20 +452,32 @@ export default function StaffDetailContent() {
         .join(" · ")
     : null;
 
+  // Reiter eines nicht gebuchten Moduls fehlen (#4894): Zeiterfassung,
+  // Arbeitszeitmodell und Abwesenheiten gehören zur Zeiterfassung,
+  // Stammdaten und Dokumente zur Personalakte (Modul-Register). Ein Reiter
+  // trägt kein Schloss: die Navigation zeigt der Leitung das Modul.
+  const tabBooked = (tab: string) =>
+    isScopeBooked(STAFF_TAB_MODULES[tab], bookedModules);
+  const showTimeTracking = canViewTimeTracking && tabBooked("zeiterfassung");
+  const showWorkTimeModel = canEdit && tabBooked("arbeitszeitmodell");
+  const showAbsences = canManageAbsences && tabBooked("abwesenheiten");
+  const showStammdaten = canViewStammdaten && tabBooked("stammdaten");
+  const showDocuments = canViewDocuments && tabBooked("dokumente");
+
   // Seitenreiter: berechtigungsgesteuert, nicht datengesteuert. Die Flags
   // kommen aus der Sitzung, die hier bereits aufgelöst ist — die Reiterleiste
   // steht also sofort, auch während `staff` noch lädt.
   const tabItems: TenantPageTab[] = [
-    ...(canViewTimeTracking
+    ...(showTimeTracking
       ? [
           { value: "uebersicht", label: "Übersicht" },
           { value: "zeiterfassung", label: "Zeiterfassung" },
         ]
       : []),
-    ...(canEdit
+    ...(showWorkTimeModel
       ? [{ value: "arbeitszeitmodell", label: "Arbeitszeitmodell" }]
       : []),
-    ...(canManageAbsences
+    ...(showAbsences
       ? [
           {
             value: "abwesenheiten",
@@ -471,10 +486,8 @@ export default function StaffDetailContent() {
           },
         ]
       : []),
-    ...(canViewStammdaten
-      ? [{ value: "stammdaten", label: "Stammdaten" }]
-      : []),
-    ...(canViewDocuments ? [{ value: "dokumente", label: "Dokumente" }] : []),
+    ...(showStammdaten ? [{ value: "stammdaten", label: "Stammdaten" }] : []),
+    ...(showDocuments ? [{ value: "dokumente", label: "Dokumente" }] : []),
     ...(canViewKlassen ? [{ value: "klassen", label: "Klassen" }] : []),
     // Rolle, Zugang, Notizen und Kontoaktionen (#3115) — vorher das Pane der
     // Datenverwaltung, jetzt ein Reiter der einen Personalakte.
@@ -482,17 +495,17 @@ export default function StaffDetailContent() {
   ];
 
   const defaultTab =
-    requestedTab === "dokumente" && canViewDocuments
+    requestedTab === "dokumente" && showDocuments
       ? "dokumente"
-      : requestedTab === "zeiterfassung" && canViewTimeTracking
+      : requestedTab === "zeiterfassung" && showTimeTracking
         ? "zeiterfassung"
         : requestedTab === "konto" && canViewRecord
           ? "konto"
-          : canViewTimeTracking
+          : showTimeTracking
             ? "uebersicht"
-            : canViewStammdaten
+            : showStammdaten
               ? "stammdaten"
-              : canViewDocuments
+              : showDocuments
                 ? "dokumente"
                 : canViewRecord
                   ? "konto"
@@ -642,11 +655,11 @@ export default function StaffDetailContent() {
     >
       {staff ? (
         <>
-          {activeTab === "uebersicht" && canViewTimeTracking && (
+          {activeTab === "uebersicht" && showTimeTracking && (
             <UebersichtTab staffId={staffId} />
           )}
 
-          {activeTab === "zeiterfassung" && canViewTimeTracking && (
+          {activeTab === "zeiterfassung" && showTimeTracking && (
             <ZeiterfassungTab
               staffId={staffId}
               initialDate={initialTimeTrackingDate}
@@ -655,11 +668,11 @@ export default function StaffDetailContent() {
             />
           )}
 
-          {activeTab === "arbeitszeitmodell" && canEdit && (
+          {activeTab === "arbeitszeitmodell" && showWorkTimeModel && (
             <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
           )}
 
-          {activeTab === "abwesenheiten" && canManageAbsences && (
+          {activeTab === "abwesenheiten" && showAbsences && (
             <AbwesenheitenTab
               staffId={staffId}
               canEdit={canEdit}
@@ -669,7 +682,7 @@ export default function StaffDetailContent() {
             />
           )}
 
-          {activeTab === "stammdaten" && canViewStammdaten && (
+          {activeTab === "stammdaten" && showStammdaten && (
             <StammdatenTab
               staffId={staffId}
               canManagePayroll={canManageTimeTracking}
@@ -680,7 +693,7 @@ export default function StaffDetailContent() {
             />
           )}
 
-          {activeTab === "dokumente" && canViewDocuments && (
+          {activeTab === "dokumente" && showDocuments && (
             <DokumenteTab staffId={staffId} />
           )}
 
