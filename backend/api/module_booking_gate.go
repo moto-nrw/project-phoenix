@@ -24,7 +24,8 @@ type moduleRequirement struct {
 // (#4893). It runs router-wide before any session is authenticated, so it
 // decides nothing itself: a request of an additional module only carries the
 // requirement on, and TenantScopeMiddleware checks it once the school of the
-// session is bound. Basis routes and paths no rule covers pass unmarked.
+// session is bound. Basis routes, paths no rule covers and the surfaces in
+// moduleRoutesLockedElsewhere pass unmarked.
 func moduleRoutesMiddleware(booking *settings.ModuleBooking) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,12 +35,13 @@ func moduleRoutesMiddleware(booking *settings.ModuleBooking) func(http.Handler) 
 			if r.URL.RawPath != "" {
 				path = r.URL.RawPath
 			}
-			module, ok := moduleForRoute(path)
-			if !ok || module == moduleRouteBasis {
+			rule, ok := moduleRouteFor(path)
+			_, elsewhere := moduleRoutesLockedElsewhere[rule.prefix]
+			if !ok || rule.module == moduleRouteBasis || elsewhere {
 				next.ServeHTTP(w, r)
 				return
 			}
-			ctx := context.WithValue(r.Context(), moduleRequirementKey{}, moduleRequirement{module: module, booking: booking})
+			ctx := context.WithValue(r.Context(), moduleRequirementKey{}, moduleRequirement{module: rule.module, booking: booking})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

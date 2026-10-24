@@ -25,10 +25,8 @@ type moduleRouteRule struct {
 // rule here. The reasons for borderline cases are in
 // docs/reference/modulschalter.md, section "Routen".
 //
-// Only routes behind the tenant scope (api.TenantScopeMiddleware) are locked
-// by this PR. The portals (/parent, /school, guardian invitations) follow in
-// #4895, the devices (/api/iot) in #4896; their rules already name the
-// module they belong to.
+// The lock in api.TenantScopeMiddleware refuses every module route except
+// the surfaces in moduleRoutesLockedElsewhere.
 var moduleRouteRules = []moduleRouteRule{
 	// Infrastructure, sign-in and the operator portal.
 	{"/", moduleRouteBasis},
@@ -109,8 +107,18 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/api/guardians/*/invite", settings.ModuleElternApp},
 	{"/api/guardians/students/*/invite", settings.ModuleElternApp},
 
-	// Online-Anmeldung: phases, forms, care offerings and requests.
+	// Online-Anmeldung: phases, forms, care offerings and requests, and the
+	// public intake and status links.
 	{"/api/enrollment", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/*/submit", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/*/uploads", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/phases/public", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/form-bootstrap/public", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/schema/public", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/care-offerings/public", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/legal", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/captcha-config", settings.ModuleOnlineAnmeldung},
+	{"/api/enrollment/requests", settings.ModuleOnlineAnmeldung},
 
 	// Dienstplan.
 	{"/api/staff-shifts", settings.ModuleDienstplan},
@@ -148,10 +156,50 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/api/staff/financial-profile", settings.ModulePersonalakte},
 }
 
+// moduleRoutesLockedElsewhere names, per rule prefix, the module routes the
+// tenant-scope lock leaves alone and who locks them instead: a later issue
+// for the portals and devices, or the owner where the route resolves its
+// school from the path or a token rather than from a session.
+var moduleRoutesLockedElsewhere = map[string]string{
+	"/parent":                    "#4895 Elternportal, an der Eltern-Sitzung",
+	"/parent-sse":                "#4895 Elternportal, an der Eltern-Sitzung",
+	"/parent-news-attachments":   "#4895 Elternportal, an der Eltern-Sitzung",
+	"/parent/enrollments":        "#4895 Elternportal, an der Eltern-Sitzung",
+	"/auth/guardian-invitations": "#4895 Elternportal: Einladung annehmen stellt die Eltern-Sitzung aus",
+	"/school":                    "#4895 Schulportal, an der Schul-Sitzung",
+	"/school-sse":                "#4895 Schulportal, an der Schul-Sitzung",
+	// The device administration under /api/iot runs in the staff chain, but
+	// devices and their PyrePortal contract move as one in #4896.
+	"/api/iot":             "#4896 Geräte und PyrePortal",
+	"/api/iot/staff-clock": "#4896 Geräte und PyrePortal",
+	"/api/students/*/rfid": "#4896 Geräte: Armband am Tablet zuordnen",
+	// Public enrollment: enrollment.enabled counts only while the module is
+	// booked (EnrollmentIntakeValues.EnrollmentEnabled), status links close
+	// in Intake.requestByStatusToken.
+	"/api/enrollment/*/submit":                "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
+	"/api/enrollment/*/uploads":               "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
+	"/api/enrollment/phases/public":           "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
+	"/api/enrollment/form-bootstrap/public":   "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
+	"/api/enrollment/requests":                "Anmeldung: Statuslink schließt mit dem Modul",
+	"/api/enrollment/schema/public":           "Anmeldung: Formularaufbau einer Phase, keine Personendaten",
+	"/api/enrollment/care-offerings/public":   "Anmeldung: Angebotsliste einer Phase, keine Personendaten",
+	"/api/enrollment/legal":                   "Anmeldung: Rechtstexte der Schule, keine Personendaten",
+	"/api/enrollment/captcha-config":          "Anmeldung: Captcha-Schlüssel, keine Personendaten",
+	"/public/enrollment-legal-documents":      "Anmeldung: Rechtstexte der Schule, keine Personendaten",
+	"/public/enrollment-form-legal-documents": "Anmeldung: Rechtstexte der Schule, keine Personendaten",
+}
+
 // moduleForRoute returns the module of a request path or a route pattern
-// and whether any rule covers it. Both shapes resolve alike: a rule segment
-// "*" matches a concrete value and a {param} placeholder.
+// and whether any rule covers it.
 func moduleForRoute(path string) (settings.ModuleKey, bool) {
+	rule, ok := moduleRouteFor(path)
+	return rule.module, ok
+}
+
+// moduleRouteFor returns the most specific rule covering a request path or
+// a route pattern. Both shapes resolve alike: a rule segment "*" matches a
+// concrete value and a {param} placeholder.
+func moduleRouteFor(path string) (moduleRouteRule, bool) {
 	segments := routeSegments(path)
 	best, found := moduleRouteRule{}, false
 	bestLength, bestWildcards := -1, 0
@@ -166,7 +214,7 @@ func moduleForRoute(path string) (settings.ModuleKey, bool) {
 			bestLength, bestWildcards = len(ruleSegments), wildcards
 		}
 	}
-	return best.module, found
+	return best, found
 }
 
 // matchRoutePrefix reports whether prefix covers the leading path segments

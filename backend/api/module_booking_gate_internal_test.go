@@ -139,6 +139,17 @@ func TestModuleLockTreatsAFailedReadAsAServerError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, response.Code)
 }
 
+// Devices and the portals are locked by #4895 and #4896, not here: a school
+// without NFC keeps its device administration until then.
+func TestModuleLockLeavesSurfacesLockedElsewhere(t *testing.T) {
+	t.Parallel()
+	switches := moduleSwitches{cancelled: map[int64]settings.ModuleKey{4893: settings.ModuleNFCAnwesenheit}}
+	for _, path := range []string{"/api/iot/", "/api/students/17/rfid", "/parent/me/children", "/api/enrollment/requests/token"} {
+		_, reached := serveThroughModuleLock(t, switches, 4893, path)
+		assert.Truef(t, reached, "%s", path)
+	}
+}
+
 // A platform token binds no school; the operator portal is not locked.
 func TestModuleLockLetsRequestsWithoutSchoolPass(t *testing.T) {
 	t.Parallel()

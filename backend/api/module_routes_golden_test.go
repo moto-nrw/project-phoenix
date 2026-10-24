@@ -23,38 +23,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// moduleRoutesLockedElsewhere are the path prefixes whose module routes run
-// without the tenant scope, with the place that locks them: a later issue, or
-// the owner itself where the route resolves its school from the path. Every
-// other route of an additional module must pass api.TenantScopeMiddleware,
-// which is where the module lock sits.
-var moduleRoutesLockedElsewhere = map[string]string{
-	"/parent":                            "#4895 Elternportal",
-	"/parent-sse":                        "#4895 Elternportal",
-	"/parent-news-attachments":           "#4895 Elternportal",
-	"/auth/guardian-invitations":         "#4895 Elternportal: Einladung annehmen stellt die Eltern-Sitzung aus",
-	"/school":                            "#4895 Schulportal",
-	"/school-sse":                        "#4895 Schulportal",
-	"/api/iot":                           "#4896 Geräte und PyrePortal",
-	"/api/students/*/rfid":               "#4896 Geräte: Armband am Tablet zuordnen, Geräte-Schlüssel statt Sitzung",
-	"/public/enrollment-legal-documents": "öffentliches Anmeldeformular, prüft die Anmeldung über die Schule im Pfad",
-	"/public/enrollment-form-legal-documents": "öffentliches Anmeldeformular, prüft die Anmeldung über die Schule im Pfad",
-	// Public enrollment resolves its school from the slug. Phase list,
-	// form bootstrap, uploads and submit refuse with enrollment.disabled
-	// unless the school booked Online-Anmeldung (EnrollmentIntakeValues).
-	"/api/enrollment/*/submit":              "öffentliche Anmeldung, Modul über enrollment.enabled",
-	"/api/enrollment/*/uploads":             "öffentliche Anmeldung, Modul über enrollment.enabled",
-	"/api/enrollment/phases/public":         "öffentliche Anmeldung, Modul über enrollment.enabled",
-	"/api/enrollment/form-bootstrap/public": "öffentliche Anmeldung, Modul über enrollment.enabled",
-	"/api/enrollment/schema/public":         "öffentliche Anmeldung: Formularaufbau einer Phase ohne Personendaten",
-	"/api/enrollment/care-offerings/public": "öffentliche Anmeldung: Angebotsliste einer Phase ohne Personendaten",
-	"/api/enrollment/legal":                 "öffentliche Anmeldung: Rechtstexte der Schule",
-	"/api/enrollment/captcha-config":        "öffentliche Anmeldung: Captcha-Schlüssel",
-	// Status links resolve their school from the token; they answer like an
-	// expired link while Online-Anmeldung is cancelled (Intake.requestByStatusToken).
-	"/api/enrollment/requests": "Statuslink einer Anmeldung, Modul über den Token",
-}
-
 // checkModuleRouteMap pins the module of every production route (#4893):
 // each route belongs to exactly one module or to Basis, a request path
 // resolves like its route pattern, and every route of an additional module
@@ -88,6 +56,18 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 	require.Emptyf(t, unassigned,
 		"these routes belong to no module and not to Basis. Add a rule to moduleRouteRules (api/module_routes.go) and justify a borderline case in docs/reference/modulschalter.md:\n%s",
 		strings.Join(unassigned, "\n"))
+
+	t.Run("every surface locked elsewhere is a rule", func(t *testing.T) {
+		rules := map[string]settings.ModuleKey{}
+		for _, rule := range moduleRouteRules {
+			rules[rule.prefix] = rule.module
+		}
+		for prefix := range moduleRoutesLockedElsewhere {
+			module, ok := rules[prefix]
+			require.Truef(t, ok, "moduleRoutesLockedElsewhere names %s, which is no rule", prefix)
+			require.NotEqualf(t, moduleRouteBasis, module, "%s is Basis and needs no lock", prefix)
+		}
+	})
 
 	t.Run("a request path resolves like its route pattern", func(t *testing.T) {
 		for _, route := range routes {
@@ -137,6 +117,11 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 		sort.Strings(entries)
 		table.WriteString("\n" + heading + "\n")
 		for _, entry := range entries {
+			_, pattern, _ := strings.Cut(entry, " ")
+			rule, _ := moduleRouteFor(pattern)
+			if reason, ok := moduleRoutesLockedElsewhere[rule.prefix]; ok {
+				entry += "  (" + reason + ")"
+			}
 			table.WriteString("\t" + entry + "\n")
 		}
 	}
@@ -144,15 +129,13 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 		"the module of a route changed — if intentional, regenerate with -update-goldens and justify the assignment in the PR description")
 }
 
+// lockedElsewhere reports whether the rule a route pattern resolves to
+// belongs to a surface another place locks.
 func lockedElsewhere(route string) bool {
 	_, pattern, _ := strings.Cut(route, " ")
-	segments := routeSegments(pattern)
-	for prefix := range moduleRoutesLockedElsewhere {
-		if _, ok := matchRoutePrefix(routeSegments(prefix), segments); ok {
-			return true
-		}
-	}
-	return false
+	rule, _ := moduleRouteFor(pattern)
+	_, ok := moduleRoutesLockedElsewhere[rule.prefix]
+	return ok
 }
 
 // checkModuleBookingGate drives the lock through the production router: a
@@ -244,6 +227,13 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 			status, body := request(cancelledToken, http.MethodGet, path, "")
 			require.Equalf(t, http.StatusOK, status, "GET %s: %v", path, body)
 		}
+	})
+
+	t.Run("devices stay with #4896", func(t *testing.T) {
+		setBooked(cancelled, settings.ModuleNFCAnwesenheit, false)
+		t.Cleanup(func() { setBooked(cancelled, settings.ModuleNFCAnwesenheit, true) })
+		status, body := request(cancelledToken, http.MethodGet, "/api/iot/?device_type=terminal", "")
+		require.Equalf(t, http.StatusOK, status, "device administration without NFC: %v", body)
 	})
 
 	t.Run("status links close with Online-Anmeldung", func(t *testing.T) {
