@@ -36,3 +36,26 @@ func TestMealOrderErasureRemovesTheSchoolsOrdersAndKeepsTheCaterer(t *testing.T)
 		(SELECT count(*) FROM schedule.meal_orders WHERE tenant_id = ?) AS orders`, catererID, catererID, schoolID).Scan(t.Context(), &remaining))
 	assert.Equal(t, struct{ Caterers, Supplies, Orders int }{Caterers: 1, Supplies: 1, Orders: 0}, remaining)
 }
+
+// Down removes exactly the meal ordering tables from the installed plan and
+// Up adds them again.
+func TestMealOrderErasureRoundTrip(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	planNames := func() []string {
+		t.Helper()
+		names := make([]string, 0)
+		for _, entry := range readErasurePlan(t, db) {
+			names = append(names, entry.Name)
+		}
+		return names
+	}
+	withMeals := planNames()
+	require.Contains(t, withMeals, "schedule.meal_orders")
+	require.NoError(t, mealOrderErasureDown(t.Context(), db))
+	without := planNames()
+	assert.Len(t, without, len(withMeals)-7)
+	assert.NotContains(t, without, "auth.caterer_schools")
+	require.NoError(t, mealOrderErasureUp(t.Context(), db))
+	assert.Equal(t, withMeals, planNames())
+}

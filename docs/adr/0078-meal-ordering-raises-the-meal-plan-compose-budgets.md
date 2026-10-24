@@ -56,12 +56,15 @@ What remains in this change:
 
 ## Decision
 
-1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 69 to 74.
+1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 66 to 74.
+   Development's 66 measures its own cutoff wiring (#4866), which the
+   ordering settings replace; against that wiring the composition grows by
+   the 5 lines above plus the 3 it had saved.
 2. `moduleComposeBudgets["workflows/parentportal/compose"]` rises from 278 to
    307.
-3. `moduleComposeBudgetTotal` rises by the same 34 lines; with
+3. `moduleComposeBudgetTotal` rises by the same 37 lines; with
    [ADR 0077](0077-the-caterer-is-an-identity-across-schools.md) it is
-   12,498 (12,382 on development).
+   12,497 (12,378 on development).
 4. `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
    to 18 for the adapter's week method.
 5. `modulePassthroughOwnerBudgets["modules/mealplan"]` does not rise: the
