@@ -53,7 +53,7 @@ func TestTraegerSessionNamesItsTraegerAndNoSchool(t *testing.T) {
 	accountID := testpkg.CreateTestAccount(t, db, "traeger-sitzung").ID
 	insert := func(scope string, tenantID, organizationID any) error {
 		_, err := db.ExecContext(ctx, `INSERT INTO auth.tokens (account_id, token, expiry, portal_scope, tenant_id, organization_id)
-			VALUES (?, gen_random_uuid()::text, NOW() + INTERVAL '1 hour', ?, ?, ?)`, accountID, scope, tenantID, organizationID)
+			VALUES (?, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), NOW() + INTERVAL '1 hour', ?, ?, ?)`, accountID, scope, tenantID, organizationID)
 		return err
 	}
 	assert.NoError(t, insert("org", nil, organization.ID))
