@@ -9,6 +9,8 @@ import {
   useTenantSafe,
 } from "~/lib/tenant-context";
 
+import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
+
 import { TenantPage } from "./tenant-page";
 
 const navigation = vi.hoisted(() => ({ pathname: "/time-tracking" }));
@@ -31,9 +33,14 @@ const TENANT = { tenantId: 1, slug: "demo" } as TenantInfo;
 
 function renderGate(title = "Zeiterfassung") {
   return render(
-    <TenantPage title={title} actions={<button type="button">Anlegen</button>}>
-      <div>Inhalt der Seite</div>
-    </TenantPage>,
+    <NotBookedPageProvider>
+      <TenantPage
+        title={title}
+        actions={<button type="button">Anlegen</button>}
+      >
+        <div>Inhalt der Seite</div>
+      </TenantPage>
+    </NotBookedPageProvider>,
   );
 }
 

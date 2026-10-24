@@ -6137,7 +6137,7 @@ function modulesTopic(): HelpTopic {
     steps: [
       "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
       "Wählen Sie den Reiter `Module`.",
-      "Unter `Gebuchte Module` steht jedes Zusatzmodul mit einem Satz, was dazugehört.",
+      "Klappen Sie `Gebuchte Module` auf. Dort steht jedes Zusatzmodul mit einem Satz, was dazugehört.",
       "Ein eingeschalteter Schalter heißt: Ihre OGS hat das Modul gebucht.",
     ],
     result: "Sie wissen, welche Zusatzmodule Ihre OGS nutzen kann.",
