@@ -2938,7 +2938,9 @@
         "presence_mode_switch_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "booking_authority_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "attendance_visible_exceeds_retention": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "attendance_retention_below_visible": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+        "attendance_retention_below_visible": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "module_requires": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "module_required_by": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "devices": {
         "tag_scan_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

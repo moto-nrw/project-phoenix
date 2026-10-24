@@ -101,6 +101,9 @@ func validateTextValue(def *config.Definition, value any) error {
 // so a rejection here only asks the admin to set the values in a consistent
 // order — never blocks a reachable configuration.
 func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
+	if module, ok := config.ModuleForSettingKey(key); ok {
+		return s.validateModuleBooking(ctx, key, module, value)
+	}
 	switch key {
 	case config.KeyOperationalOverviewScope, config.KeyAttendanceEditScope, config.KeyBlockStartScope, config.KeyBlockCompleteScope:
 		return s.validateOverviewScopeDependents(ctx, key, value)

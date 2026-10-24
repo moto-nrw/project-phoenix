@@ -269,6 +269,7 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 	var defNotFound *settings.DefinitionNotFoundError
 	var invalidValue *settings.InvalidValueError
 	var attendanceWindow *settings.AttendanceWindowError
+	var moduleDependency *settings.ModuleDependencyError
 	var permDenied *settings.PermissionDeniedError
 
 	switch {
@@ -278,6 +279,9 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 		common.RenderError(w, r, common.OperatorInvalidRequestWithCode(err, common.CodeSettingsInvalidValue))
 	case errors.As(inner, &attendanceWindow):
 		code, details := attendanceWindowRejection(attendanceWindow)
+		common.RenderError(w, r, common.OperatorRejectionWithDetails(http.StatusBadRequest, code, err.Error(), details))
+	case errors.As(inner, &moduleDependency):
+		code, details := moduleDependencyRejection(moduleDependency)
 		common.RenderError(w, r, common.OperatorRejectionWithDetails(http.StatusBadRequest, code, err.Error(), details))
 	case errors.As(inner, &permDenied):
 		common.RenderError(w, r, common.OperatorForbidden(err.Error()))
@@ -294,4 +298,18 @@ func attendanceWindowRejection(window *settings.AttendanceWindowError) (string, 
 		return common.CodeSettingsAttendanceVisibleExceedsRetention, map[string]any{"retention_days": window.RetentionDays}
 	}
 	return common.CodeSettingsAttendanceRetentionBelowVisible, map[string]any{"visible_days": window.VisibleDays}
+}
+
+// moduleDependencyRejection names the modules that block a module switch
+// (#4892): the prerequisites a booking lacks, or the booked modules a
+// cancellation would leave without their prerequisite.
+func moduleDependencyRejection(rejection *settings.ModuleDependencyError) (string, map[string]any) {
+	if rejection.Booking {
+		return common.CodeSettingsModuleRequires, map[string]any{
+			"module": rejection.Module.Label, "required": rejection.ConflictLabels(),
+		}
+	}
+	return common.CodeSettingsModuleRequiredBy, map[string]any{
+		"module": rejection.Module.Label, "dependents": rejection.ConflictLabels(),
+	}
 }

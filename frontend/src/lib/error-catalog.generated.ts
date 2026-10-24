@@ -1186,6 +1186,10 @@ export const ERROR_CATALOG = {
         "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
       "settings.attendance_retention_below_visible":
         "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
+      "settings.module_requires":
+        "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
+      "settings.module_required_by":
+        "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab.",
       "communication.announcement_not_found":
         "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":

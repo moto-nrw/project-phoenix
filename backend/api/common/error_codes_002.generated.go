@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetableStudentsNotPresent                  = "timetable.students_not_present"
+	CodeTimetableSubstituteAbsent                    = "timetable.substitute_absent"
 	CodeTimetableSubstituteAbsentOnDate              = "timetable.substitute_absent_on_date"
 	CodeTimetableSubstituteConflict                  = "timetable.substitute_conflict"
 	CodeTimetableSubstituteNotOnInstances            = "timetable.substitute_not_on_instances"
@@ -100,6 +102,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.students_not_present":                    "business_rejection",
+	"timetable.substitute_absent":                       "input",
 	"timetable.substitute_absent_on_date":               "input",
 	"timetable.substitute_conflict":                     "business_rejection",
 	"timetable.substitute_not_on_instances":             "input",

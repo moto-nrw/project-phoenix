@@ -100,6 +100,8 @@ const (
 	CodeSettingsBookingAuthorityBlocked               = "settings.booking_authority_blocked"
 	CodeSettingsInvalidValue                          = "settings.invalid_value"
 	CodeSettingsManagedByUpload                       = "settings.managed_by_upload"
+	CodeSettingsModuleRequiredBy                      = "settings.module_required_by"
+	CodeSettingsModuleRequires                        = "settings.module_requires"
 	CodeSettingsNotFound                              = "settings.not_found"
 	CodeSettingsPresenceModeSwitchBlocked             = "settings.presence_mode_switch_blocked"
 	CodeStaffExternalAccessInvalid                    = "staff.external_access_invalid"
@@ -300,8 +302,6 @@ const (
 	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
 	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
 	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
-	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
-	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -403,6 +403,8 @@ var errorCodeClasses1 = map[string]string{
 	"settings.booking_authority_blocked":                  "business_rejection",
 	"settings.invalid_value":                              "input",
 	"settings.managed_by_upload":                          "business_rejection",
+	"settings.module_required_by":                         "input",
+	"settings.module_requires":                            "input",
 	"settings.not_found":                                  "business_rejection",
 	"settings.presence_mode_switch_blocked":               "business_rejection",
 	"staff.external_access_invalid":                       "input",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_graduated":                         "business_rejection",
 	"timetable.student_not_checked_in":                    "business_rejection",
 	"timetable.student_not_found":                         "business_rejection",
-	"timetable.students_not_present":                      "business_rejection",
-	"timetable.substitute_absent":                         "input",
 }
 
 func init() {

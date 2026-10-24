@@ -329,8 +329,10 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 - The browser clock stands at 10:15 Berlin of today's weekday
   (`reference-time.ts`); the seed derives its schedules from the same time. The
   server renders with its real clock, so the reference day must be the server's
-  day; on a weekend the run aborts on the resulting hydration error instead of
-  printing an inconsistent image. Live presence follows the server clock too.
+  day; on a weekend a local run aborts on the resulting hydration error instead
+  of printing an inconsistent image. The workflow instead sets the runner's
+  clock back to the Friday after its downloads and restores it before uploading.
+  Live presence follows the server clock too.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),
