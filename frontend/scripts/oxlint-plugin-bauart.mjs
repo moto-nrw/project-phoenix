@@ -1590,7 +1590,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@606",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
-      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@266",
+      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@266",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@988",

@@ -120,8 +120,8 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Vertretungen' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Vertretungen");
+      it("should return 'Übergaben' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Übergaben");
       });
 
       it("titles the three planning areas and their redirect frames", () => {
@@ -136,8 +136,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
-      it("should return 'Schuljahr und Ferien' for /calendar-periods", () => {
-        expect(getPageTitle("/calendar-periods")).toBe("Schuljahr und Ferien");
+      it("should return 'Schuljahr und Kalender' for /calendar-periods", () => {
+        expect(getPageTitle("/calendar-periods")).toBe(
+          "Schuljahr und Kalender",
+        );
       });
 
       it("should return 'Tageslisten' for /lists", () => {
@@ -187,7 +189,7 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/messages")).toBe("Nachrichten");
         expect(getPageTitle("/messages/thread-1")).toBe("Nachrichten");
         expect(getPageTitle("/parent-announcements")).toBe("Mitteilungen");
-        expect(getPageTitle("/meal-plan")).toBe("Essensplan");
+        expect(getPageTitle("/meal-plan")).toBe("Speiseplan");
       });
 
       it("should return titles for operator navigation entries", () => {
@@ -399,7 +401,7 @@ describe("breadcrumb-utils", () => {
         );
         expect(getSectionBreadcrumb("/lists")?.pageLabel).toBe("Tageslisten");
         expect(getSectionBreadcrumb("/calendar-periods")?.pageLabel).toBe(
-          "Schuljahr und Ferien",
+          "Schuljahr und Kalender",
         );
       });
 
@@ -461,7 +463,7 @@ describe("breadcrumb-utils", () => {
           "Mitteilungen",
         );
         expect(getSectionBreadcrumb("/meal-plan")?.pageLabel).toBe(
-          "Essensplan",
+          "Speiseplan",
         );
       });
 

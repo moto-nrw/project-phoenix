@@ -29612,7 +29612,7 @@
       "effect": "mutation",
       "classification": "leaf",
       "adr": "0067",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/filestorage/internal/adapters/documents.Coordinator.Remove; modules/filestorage/internal/adapters/documents/coordinator.go:156. "
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/filestorage/internal/adapters/documents.Coordinator.Remove; modules/filestorage/internal/adapters/documents/coordinator.go:156."
     },
     {
       "source_owner": "enrollment",
@@ -29623,7 +29623,7 @@
       "binding_digest": "70853f10c8694e1ceed5341c2e97ceee",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/objects.PrivateUploadsBackend; modules/delivery/objects/private_uploads.go:14. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed construction helper: enrollment reaches modules/delivery/objects.PrivateUploadsBackend (delivery-platform) while binding the upload-object sweep. It resolves the existing private uploads backend but performs no object mutation, lock or scope effect."
     },
     {
       "source_owner": "enrollment",
@@ -29634,7 +29634,7 @@
       "binding_digest": "70853f10c8694e1ceed5341c2e97ceee",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/filestorage/compose.NewDocumentCoordinator; modules/filestorage/compose/new.go:155. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed construction helper: enrollment reaches modules/filestorage/compose.NewDocumentCoordinator (file-storage) while binding the upload-object sweep. It constructs the existing coordinator but performs no object mutation, lock or scope effect."
     },
     {
       "source_owner": "enrollment",
@@ -29814,7 +29814,7 @@
       "binding_digest": "7f1f91420a3a214f627966c4a5859f42",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target tenant.NewTenantID; tenant/id.go:18. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Read-only platform helper: enrollment reaches tenant.NewTenantID (tenant-runtime) through api.enrollmentUploadUnits.DiscardUpload. It validates the supplied tenant ID but performs no persistent, lock or scope effect."
     },
     {
       "source_owner": "enrollment",
@@ -29860,7 +29860,7 @@
       "binding_digest": "01cc39aa892f8745fec4b600c2654bf4",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target tenant.NewTenantID; tenant/id.go:18. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Read-only platform helper: enrollment reaches tenant.NewTenantID (tenant-runtime) through api.enrollmentUploadUnits.PrepareUpload. It validates the supplied tenant ID but performs no persistent, lock or scope effect."
     },
     {
       "source_owner": "enrollment",

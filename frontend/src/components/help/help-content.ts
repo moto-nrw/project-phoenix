@@ -1863,7 +1863,7 @@ function findStaffTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // Live geprueft: die Auswahl traegt ihren aktuellen Wert als
       // Beschriftung, anfangs `Alle`. Ein Knopf `Filter` existiert nicht.
       "Öffnen Sie bei Bedarf rechts neben der Suche die Auswahl `Alle`.",
-      "Wählen Sie zum Beispiel `Anwesend`, `Homeoffice` oder `Krank/Urlaub`.",
+      "Wählen Sie zum Beispiel `Anwesend`, `Unterwegs` oder `Krank/Urlaub`.",
       "Prüfen Sie auf der Karte, ob die Person gerade da ist.",
     ],
     // Ohne Aufsichten steht auf der Karte auch keine.
@@ -1951,7 +1951,7 @@ function trackWorkTimeTopic(): HelpTopic {
         title: "Arbeitszeit starten",
         steps: [
           "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
-          "Wählen Sie unter `Stempeluhr` den Arbeitsort `In der OGS` oder `Homeoffice`.",
+          "Wählen Sie unter `Stempeluhr` den Arbeitsort `In der OGS` oder `Unterwegs`. `Unterwegs` heißt zum Beispiel Ausflug, Fortbildung oder zu Hause.",
           "Wählen Sie `Einstempeln`.",
         ],
       },
@@ -1981,7 +1981,7 @@ function trackWorkTimeTopic(): HelpTopic {
       "Oben steht Ihr Stand: `Ist`, `Soll` und `Saldo`.",
     ],
     differences: [
-      "Steht dort `Bitte Status wählen`? Dann fehlt noch der Arbeitsort. Wählen Sie zuerst `In der OGS` oder `Homeoffice`.",
+      "Steht dort `Bitte Status wählen`? Dann fehlt noch der Arbeitsort. Wählen Sie zuerst `In der OGS` oder `Unterwegs`.",
       "Eine geplante Schicht steht oberhalb der Stempeluhr. Sie startet die Zeiterfassung nicht automatisch.",
       "Bei einer deutlichen Abweichung von Ihrer geplanten Schicht kann moto nach einem Grund fragen.",
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt moto, ab wann es geht.",
@@ -2033,7 +2033,7 @@ function ownShiftPlanTopic(): HelpTopic {
     title: "Eigenen Dienstplan ansehen",
     question: "Wo sehe ich meinen Dienstplan für die Woche?",
     summary:
-      "Sehen Sie Ihre Schichten der Woche, die Stunden je Schichtart und Ihr Soll.",
+      "Sehen Sie Ihre Schichten der Woche, die Stunden je Dienstart und Ihr Soll.",
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
     icon: "CalendarCheck",
@@ -2042,7 +2042,7 @@ function ownShiftPlanTopic(): HelpTopic {
       "Wechseln Sie mit den Pfeilen zur gewünschten Woche. `Diese Woche` bringt Sie zurück.",
     ],
     result:
-      "Sie sehen jede Schicht im Wochenraster. Darunter stehen die Stunden je Tag und je Schichtart.",
+      "Sie sehen jede Schicht im Wochenraster. Darunter stehen die Stunden je Tag und je Dienstart.",
     notes: [
       "Oben stehen die geplanten Stunden, Ihr `Soll` und die `Differenz`.",
       "In der `Zeiterfassung` führt oben der Knopf `Mein Dienstplan` ebenfalls hierher.",
@@ -2323,7 +2323,6 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
     steps: [
       "Öffnen Sie im `Menü` den Bereich `Mitarbeiter-Stempeln`.",
       "Wählen Sie `Armband scannen` und halten Sie Ihr Armband an den NFC-Sensor.",
-      "Wählen Sie beim Einstempeln `Vor Ort` oder `Homeoffice`.",
       "Wählen Sie `Einstempeln`.",
       "Scannen Sie das Armband erneut, um `Pause starten`, `Pause beenden` oder `Ausstempeln` zu wählen.",
       "Geben Sie bei einer Abweichung vom Dienstplan den verlangten Grund ein.",
@@ -2334,6 +2333,9 @@ function nfcWorkTimeTopic(nfcEnabled: boolean | null): HelpTopic {
       "Kinderarmbänder und nicht zugewiesene Armbänder funktionieren für die persönliche Arbeitszeit nicht.",
       "Eine laufende Pause wird als `In Pause` angezeigt.",
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt das Tablet, ab wann es geht.",
+    ],
+    notes: [
+      "Am Tablet gibt es keine Wahl des Arbeitsorts. Wer dort einstempelt, ist in der OGS. Arbeiten Sie unterwegs, stempeln Sie in der moto-App unter `Zeiterfassung` ein.",
     ],
     troubleshooting: HELP_TOPICS.nfcProblem,
     related: [HELP_TOPICS.trackWorkTime, HELP_TOPICS.tagAssignment],
@@ -3305,12 +3307,12 @@ function dataManagementTopic(): HelpTopic {
     notes: [
       "In der Seitenleiste erreichen Sie jeden Bereich auch direkt unter `Datenverwaltung`.",
       "Der Info-Knopf neben dem Seitennamen erklärt kurz, was hierher gehört.",
-      "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Schichtarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
+      "Die Kacheln `Terminkategorien`, `Planungsspuren`, `Dienstarten` und `Abwesenheitsarten` sind kurze Stammdaten-Listen.",
     ],
     differences: [
       "Sie sehen weniger Kacheln als eine Kollegin? Jede Kachel hängt an einem eigenen Recht.",
       "Ohne NFC fehlen `Aktivitäten` und `Geräte`.",
-      "Ohne Planungsbereich fehlen `Planungsspuren` und `Schichtarten`.",
+      "Ohne Planungsbereich fehlen `Planungsspuren` und `Dienstarten`.",
     ],
     troubleshootingDetails: [
       "Suchen Sie ein Kind für heute? Das steht nicht hier, sondern unter `Alle Kinder` im `Tagesbetrieb`.",
@@ -3413,7 +3415,7 @@ function goLiveTopic(
             : []),
           "Übernehmen Sie die Kinder aus einer Liste. Oder legen Sie sie einzeln an.",
           "Tragen Sie die Betreuungszeiten der Kinder ein.",
-          "Tragen Sie `Schuljahr und Ferien` ein.",
+          "Tragen Sie unter `Schuljahr und Kalender` Schuljahr, Ferien und Schließtage ein.",
           ...(usesNfc
             ? ["Richten Sie die NFC-Geräte und die Armbänder ein."]
             : []),
@@ -3829,14 +3831,14 @@ function gradeTransitionTopic(): HelpTopic {
     audience: "lead",
     icon: "ArrowUpRight",
     steps: [
-      "Öffnen Sie `Datenverwaltung` und danach `Jahrgangswechsel`.",
-      "Wählen Sie `Neuer Jahrgangswechsel`.",
+      "Öffnen Sie `Datenverwaltung` und danach `Schuljahreswechsel`.",
+      "Wählen Sie `Neuer Schuljahreswechsel`.",
       "Tragen Sie bei `Schuljahr (neu)` das neue Schuljahr ein, zum Beispiel `2026-2027`.",
       "Tragen Sie bei Bedarf eine `Notiz (optional)` ein.",
       "Prüfen Sie die vorgeschlagenen Klassen und passen Sie sie an.",
       "Wählen Sie `Weiter zur Vorschau`.",
       "Prüfen Sie die Vorschau.",
-      "Wählen Sie `Jahrgangswechsel anwenden`. Bestätigen Sie mit `Ja, anwenden`.",
+      "Wählen Sie `Schuljahreswechsel anwenden`. Bestätigen Sie mit `Ja, anwenden`.",
     ],
     result:
       "Alle Kinder stehen in der neuen Klasse. Abgänge sind aus der Betreuung heraus.",
@@ -3845,12 +3847,12 @@ function gradeTransitionTopic(): HelpTopic {
       "Ein Entwurf bleibt liegen. Über `Zurück zum Entwurf` arbeiten Sie später weiter.",
     ],
     differences: [
-      "Auf dem Handy erscheint nur ein Hinweis. Der Jahrgangswechsel läuft am Computer.",
+      "Auf dem Handy erscheint nur ein Hinweis. Der Schuljahreswechsel läuft am Computer.",
       "Ohne das Recht zum Anwenden sehen Sie die Vorschau, aber keinen Knopf zum Anwenden.",
     ],
     troubleshootingDetails: [
       "Die Vorschau meldet geänderte Daten? Dann hat jemand zwischendurch Klassen geändert. Prüfen Sie erneut und bestätigen Sie dann.",
-      "Fehlt `Jahrgangswechsel`? Dann fehlt Ihnen das Recht dafür.",
+      "Fehlt `Schuljahreswechsel`? Dann fehlt Ihnen das Recht dafür.",
     ],
     related: [
       HELP_TOPICS.leadEndCare,
@@ -4122,8 +4124,8 @@ function parentDeclarationTopic(): HelpTopic {
 function mealPlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadMealPlan,
-    title: "Einen Essensplan veröffentlichen",
-    question: "Wie zeige ich den Eltern den Essensplan?",
+    title: "Einen Speiseplan veröffentlichen",
+    question: "Wie zeige ich den Eltern den Speiseplan?",
     summary:
       "Tragen Sie die Gerichte je Tag ein. Eltern sehen den Plan sofort.",
     group: "elternarbeit",
@@ -4131,7 +4133,7 @@ function mealPlanTopic(): HelpTopic {
     icon: "UtensilsCrossed",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
-      "Öffnen Sie `Essensplan`.",
+      "Öffnen Sie `Speiseplan`.",
       "Blättern Sie mit den Pfeilen zur gewünschten Woche.",
       "Tragen Sie bei einem Tag unter `Gericht eintragen...` das Gericht ein.",
       "Tragen Sie bei Bedarf einen `Hinweis (optional)` dazu ein.",
@@ -4158,7 +4160,7 @@ function mealPlanTopic(): HelpTopic {
       "Fehlt `Kind anmelden`? Dafür brauchen Sie das Recht, Einstellungen zu ändern und Kinder zu sehen. Für vergangene Tage gibt es den Knopf nicht.",
     ],
     troubleshootingDetails: [
-      "Fehlt `Essensplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet.",
+      "Fehlt `Speiseplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet.",
     ],
     related: [
       HELP_TOPICS.leadParentAnnouncement,
@@ -4991,7 +4993,7 @@ function leadTeacherAccessTopic(): HelpTopic {
       "Die Lehrkraft sieht nach der Anmeldung ihre Klassen und den heutigen Tag.",
     notes: [
       "Schreiben Sie die Klasse genau wie bei den Kindern. Groß- und Kleinschreibung spielt keine Rolle.",
-      "Beim Jahrgangswechsel wandern die Klassen automatisch mit. Prüfen Sie danach den Reiter `Klassen`.",
+      "Beim Schuljahreswechsel wandern die Klassen automatisch mit. Prüfen Sie danach den Reiter `Klassen`.",
       "Eine Lehrkraft sieht nur ihre Klassen, keine Stammdaten und keine Kontaktdaten.",
     ],
     differences: [
@@ -5058,14 +5060,13 @@ function staffNoticesTopic(): HelpTopic {
 }
 
 /**
- * `/calendar-periods` heisst in der Seitenleiste `Schuljahr und Ferien`, auf
- * der Seite selbst aber `Zeiträume` (planning-navigation.ts:70 gegen
- * calendar-periods/page.tsx:46). Der Artikel nennt beides, sonst sucht man.
+ * `/calendar-periods` heisst in Seitenleiste und Kopfzeile `Schuljahr und
+ * Kalender` (#4778).
  */
 function calendarPeriodsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadCalendarPeriods,
-    title: "Schuljahr und Ferien eintragen",
+    title: "Schuljahr, Ferien und Schließtage eintragen",
     question: "Wo trage ich Schuljahr, Ferien und Schließtage ein?",
     summary: "moto plant nur an Tagen, an denen Ihre OGS geöffnet hat.",
     group: "planung",
@@ -5086,7 +5087,7 @@ function calendarPeriodsTopic(): HelpTopic {
         title: "Einen Zeitraum anlegen",
         steps: [
           "Klappen Sie in der Seitenleiste `Planung` auf.",
-          "Öffnen Sie `Schuljahr und Ferien`.",
+          "Öffnen Sie `Schuljahr und Kalender`.",
           "Wählen Sie `Halbjahr anlegen` oder `Zeitraum anlegen`.",
           "Tragen Sie `Bezeichnung`, `Art`, `Startdatum` und `Enddatum` ein. Für Ferien wählen Sie die Art `Ferien`.",
           "Wählen Sie `Anlegen`.",
@@ -5095,7 +5096,7 @@ function calendarPeriodsTopic(): HelpTopic {
       {
         title: "Einen Schließtag eintragen",
         steps: [
-          "Öffnen Sie `Schuljahr und Ferien`.",
+          "Öffnen Sie `Schuljahr und Kalender`.",
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
@@ -5118,7 +5119,6 @@ function calendarPeriodsTopic(): HelpTopic {
     result:
       "Im Betreuungsplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
-      "Die Seite heißt oben `Zeiträume`. In der Seitenleiste steht `Schuljahr und Ferien`.",
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
@@ -5180,7 +5180,7 @@ function leadCarePlanTopic(): HelpTopic {
       "`Monat` und `Serien` stehen nicht in jeder Ansicht zur Wahl.",
     ],
     troubleshootingDetails: [
-      "Die Woche sagt `Noch kein Planungszeitraum`? Wählen Sie `Planungszeitraum anlegen` oder tragen Sie zuerst `Schuljahr und Ferien` ein.",
+      "Die Woche sagt `Noch kein Planungszeitraum`? Wählen Sie `Planungszeitraum anlegen` oder tragen Sie zuerst unter `Schuljahr und Kalender` einen Zeitraum ein.",
       "Ein Regeltermin lässt sich nur ab heute beenden. Vergangene Termine löschen Sie einzeln.",
     ],
     related: [
@@ -5250,10 +5250,10 @@ function dutyRosterTopic(): HelpTopic {
     result:
       "Die Person sieht ihre Schichten unter `Mein Kalender`. Dort tragen sie die Farbe `Schicht`.",
     notes: [
-      "Jede Schicht kann eine Schichtart tragen. Die Farbe kommt von der Schichtart.",
-      "Über `Schichtarten verwalten` pflegen Sie die Arten.",
-      "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Schichtart und das Soll.",
-      "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Schichtart.",
+      "Jede Schicht kann eine Dienstart tragen. Die Farbe kommt von der Dienstart.",
+      "Über `Dienstarten verwalten` pflegen Sie die Arten.",
+      "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Dienstart und das Soll.",
+      "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Dienstart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       "Die Vorlage `Stundenübersicht` druckt diese Stunden als Liste.",
@@ -5275,7 +5275,7 @@ function dutyRosterTopic(): HelpTopic {
   };
 }
 
-/** `/vertretung`. Heisst in der Seitenleiste `Vertretungsplan`. */
+/** `/vertretung`. Heisst in Seitenleiste und Kopfzeile `Vertretungsplan` (#4778). */
 function substitutionPlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadSubstitutionPlan,
@@ -5299,8 +5299,7 @@ function substitutionPlanTopic(): HelpTopic {
       "Auch ein `Dienst` ohne Kinder lässt sich vertreten. Sind weniger Personen da als unter `Benötigtes Personal` eingetragen, zeigt der Plan eine Lücke.",
     ],
     differences: [
-      "Die Seite heißt oben `Vertretung`. In der Seitenleiste steht `Vertretungsplan`.",
-      "`Vertretungen` im `Tagesbetrieb` ist etwas anderes: dort steht, was heute vertreten wird.",
+      "`Übergaben` im `Tagesbetrieb` ist etwas anderes: dort übergeben Sie Gruppen für heute. Unter `Vertretungen heute` sehen Sie dort auch die Vertretungen des Tages.",
     ],
     troubleshootingDetails: [
       "Fehlt der Einsatz? Dann ist er noch nicht im Betreuungsplan angelegt.",
@@ -5671,7 +5670,7 @@ function settingsGuideTopic(): HelpTopic {
         steps: [
           "`Nachrichten von Eltern`: Eltern schreiben dem Team zu ihrem Kind.",
           "`Krankmeldung über Elternportal`: Eltern melden ihr Kind selbst krank.",
-          "`Essensplan`: Eltern sehen, was es diese und nächste Woche zu essen gibt.",
+          "`Speiseplan`: Eltern sehen, was es diese und nächste Woche zu essen gibt.",
           "Alle Schalter für Eltern erklärt die Anleitung „Festlegen, was Eltern in moto sehen“.",
         ],
       },
@@ -5782,7 +5781,7 @@ function parentVisibilityTopic(): HelpTopic {
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
       "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-      "Der Essensplan ist ein eigener Schalter.",
+      "Der Speiseplan ist ein eigener Schalter.",
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
@@ -6987,7 +6986,7 @@ function parentMealPlanTopic(): HelpTopic {
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
     ],
     troubleshootingDetails: [
-      "moto sagt, der Essensplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",
+      "moto sagt, der Speiseplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",
       "Die Woche ist leer? Dann hat die OGS den Plan noch nicht eingetragen.",
     ],
     related: [
@@ -7826,7 +7825,7 @@ function teacherNoClassesTopic(): HelpTopic {
     ],
     differences: [
       "Sie sehen eine Klasse, aber keine Kinder? Dann ist die Klasse anders geschrieben als bei den Kindern.",
-      "Nach einem Jahrgangswechsel wandern die Klassen automatisch mit.",
+      "Nach einem Schuljahreswechsel wandern die Klassen automatisch mit.",
     ],
     troubleshootingDetails: [
       "Es steht `Kein Schultag`? Dann ist heute kein Unterricht. Prüfen Sie einen anderen Tag.",

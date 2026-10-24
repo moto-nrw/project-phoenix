@@ -44,10 +44,7 @@ function readError(response: Response, fallback: string): Promise<ApiError> {
 
 async function readList(response: Response): Promise<ShiftType[]> {
   if (!response.ok) {
-    throw await readError(
-      response,
-      "Schichtarten konnten nicht geladen werden",
-    );
+    throw await readError(response, "Dienstarten konnten nicht geladen werden");
   }
   const json = (await response.json()) as { data: BackendShiftType[] | null };
   return (json.data ?? []).map(mapShiftType);
@@ -57,7 +54,7 @@ async function readOne(response: Response): Promise<ShiftType> {
   if (!response.ok) {
     throw await readError(
       response,
-      "Schichtart konnte nicht gespeichert werden",
+      "Dienstart konnte nicht gespeichert werden",
     );
   }
   const json = (await response.json()) as { data: BackendShiftType };
@@ -96,10 +93,7 @@ class ShiftTypeService {
       method: "DELETE",
     });
     if (!response.ok) {
-      throw await readError(
-        response,
-        "Schichtart konnte nicht gelöscht werden",
-      );
+      throw await readError(response, "Dienstart konnte nicht gelöscht werden");
     }
   }
 

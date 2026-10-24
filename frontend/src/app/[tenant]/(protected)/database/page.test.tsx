@@ -266,7 +266,7 @@ describe("DatabasePage", () => {
     await waitFor(() => {
       expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
       expect(screen.getByText("Planungsspuren")).toBeInTheDocument();
-      expect(screen.getByText("Schichtarten")).toBeInTheDocument();
+      expect(screen.getByText("Dienstarten")).toBeInTheDocument();
       expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     });
   });
@@ -293,7 +293,7 @@ describe("DatabasePage", () => {
     expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
     expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
-    expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dienstarten")).not.toBeInTheDocument();
   });
 
   it("shows planning catalogs to delegated users while planning is on", () => {
@@ -314,7 +314,7 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     expect(screen.getByText("Planungsspuren")).toBeInTheDocument();
-    expect(screen.getByText("Schichtarten")).toBeInTheDocument();
+    expect(screen.getByText("Dienstarten")).toBeInTheDocument();
   });
 
   it("hides planning catalogs for delegated users when planning is switched off", () => {
@@ -341,7 +341,7 @@ describe("DatabasePage", () => {
     // nur die Planungskataloge fehlen.
     expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
-    expect(screen.queryByText("Schichtarten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dienstarten")).not.toBeInTheDocument();
   });
 
   it("handles 401 unauthorized response gracefully", async () => {

@@ -251,13 +251,13 @@ export const ERROR_CATALOG = {
       "general.request_too_large":
         "{object} konnte nicht bearbeitet werden. Bitte löschen Sie im Browser die Cookies dieser Seite. Melden Sie sich danach neu an.",
       "grade_transition.graduates_checked_in":
-        "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Jahrgangswechsel danach erneut an.",
+        "Es sind noch Kinder mit Abgang eingecheckt. Bitte buchen Sie diese Kinder zuerst nach Hause. Wenden Sie den Schuljahreswechsel danach erneut an.",
       "grade_transition.not_applied":
-        "Der Jahrgangswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
+        "Der Schuljahreswechsel ist inzwischen schon zurückgesetzt. Die Liste ist neu geladen.",
       "grade_transition.not_draft":
-        "Der Jahrgangswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
+        "Der Schuljahreswechsel wurde inzwischen von einer anderen Person angewendet oder geändert. Bitte prüfen Sie die Liste.",
       "grade_transition.not_latest_transition":
-        "Inzwischen gibt es einen neueren Jahrgangswechsel. Er muss zuerst zurückgesetzt werden.",
+        "Inzwischen gibt es einen neueren Schuljahreswechsel. Er muss zuerst zurückgesetzt werden.",
       "grade_transition.preview_stale":
         "Klassen oder Zuordnungen haben sich seit dem Öffnen geändert. Die Vorschau ist neu geladen. Bitte prüfen Sie sie noch einmal.",
       "identity.account_already_has_tenant_access":
@@ -426,7 +426,7 @@ export const ERROR_CATALOG = {
       "students.care_offerings_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "students.care_resume_alumnus":
-        "Dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge.",
+        "Dieses Kind wurde beim Schuljahreswechsel abgemeldet. Sie finden es unter Schuljahreswechsel, Bereich Abgänge.",
       "students.care_resume_missing":
         "Für dieses Kind ist keine beendete Betreuung hinterlegt.",
       "students.care_resume_not_checked":
@@ -909,7 +909,7 @@ export const ERROR_CATALOG = {
       "workforce.shift_series_week_cycle_missing":
         "Dieser Kalenderzeitraum hat keine Woche A und B. Bitte wählen Sie „Jede Woche“.",
       "workforce.shift_type_inactive":
-        "Diese Schichtart ist ausgeschaltet. Bitte wählen Sie eine andere.",
+        "Diese Dienstart ist ausgeschaltet. Bitte wählen Sie eine andere.",
       "workforce.staff_profile_missing":
         "Für Ihr Konto gibt es keinen Personaldatensatz. Diese Einstellung gilt nur für Personal.",
       "workforce.stammdaten_invalid":

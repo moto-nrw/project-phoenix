@@ -731,7 +731,7 @@ function VertretungContent() {
   return (
     <TenantPage
       overlays={overlays}
-      title="Vertretung"
+      title="Vertretungsplan"
       stats={statusLine}
       statsLoading={showSkeleton || isLoading}
       actions={
@@ -966,9 +966,9 @@ function VertretungContent() {
 function VertretungDisabledState() {
   return (
     <PlanningDisabledState
-      pageTitle="Vertretung"
-      heading="Vertretung ist deaktiviert"
-      description="Die Vertretung gehört zum Betreuungsplan, der für diese Schule ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder aktiviert werden."
+      pageTitle="Vertretungsplan"
+      heading="Der Vertretungsplan ist ausgeschaltet"
+      description="Der Vertretungsplan gehört zum Betreuungsplan. Dieser ist für die Schule ausgeschaltet. Sie können ihn unter „Betrieb“ einschalten."
       testId="vertretung-disabled-state"
     />
   );
