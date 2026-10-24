@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import deMessages from "~/i18n/messages/de.json";
 import type { FormField } from "~/lib/enrollment-form-schema-api";
-import type { UploadValue } from "~/lib/enrollment-uploads";
+import {
+  effectiveFileFieldOptions,
+  type UploadValue,
+} from "~/lib/enrollment-uploads";
 import {
   EnrollmentUploadScope,
   FileUploadInput,
@@ -55,6 +58,7 @@ function Harness({
   previewMode = false,
   lateInviteToken,
   statusToken,
+  uploadEndpoint,
   initial = NO_FILES,
 }: Readonly<{
   field?: FormField;
@@ -62,6 +66,7 @@ function Harness({
   previewMode?: boolean;
   lateInviteToken?: string;
   statusToken?: string;
+  uploadEndpoint?: string;
   initial?: UploadValue[];
 }>) {
   const [value, setValue] = useState<UploadValue[]>(initial);
@@ -70,6 +75,7 @@ function Harness({
     phaseId,
     lateInviteToken,
     statusToken,
+    uploadEndpoint,
     locale: "de",
     previewMode,
   });
@@ -104,6 +110,17 @@ afterEach(() => {
 });
 
 describe("FileUploadInput", () => {
+  it("uses default file kinds when an older schema has no usable types", () => {
+    expect(effectiveFileFieldOptions(undefined).allowed_types).toEqual([
+      "pdf",
+      "jpg",
+      "png",
+    ]);
+    expect(
+      effectiveFileFieldOptions({ allowed_types: ["docx" as "pdf"] })
+        .allowed_types,
+    ).toEqual(["pdf", "jpg", "png"]);
+  });
   it("uploads a picked file at once and lists it with its token", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -169,12 +186,14 @@ describe("FileUploadInput", () => {
   });
 
   it("forwards a status token with the upload", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ status: "success", data: { token: "tok-1" } }),
-        { status: 201, headers: { "content-type": "application/json" } },
-      ),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ status: "success", data: { token: "tok-1" } }),
+          { status: 201, headers: { "content-type": "application/json" } },
+        ),
+      );
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(<Harness statusToken="status-token" />);
 
@@ -183,6 +202,28 @@ describe("FileUploadInput", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect((init.body as FormData).get("status_token")).toBe("status-token");
+  });
+
+  it("uses the parent upload endpoint when the form provides one", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ status: "success", data: { token: "tok-1" } }),
+          { status: 201, headers: { "content-type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(
+      <Harness uploadEndpoint="/api/parent/enrollments/school-a/uploads" />,
+    );
+
+    pick(container, [new File(["%PDF-1.7"], "bescheid.pdf")]);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/parent/enrollments/school-a/uploads",
+    );
   });
 
   it("rejects a file kind the field does not allow", () => {

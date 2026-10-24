@@ -77,7 +77,7 @@ func (s *Intake) uploadField(ctx context.Context, input enrollmentNative.UploadI
 	if strings.TrimSpace(input.StatusToken) != "" {
 		return s.statusUploadField(ctx, input)
 	}
-	phase, err := s.loadPublicPhaseWithLateInvite(ctx, input.PhaseID, time.Now(), input.LateInviteToken)
+	phase, err := s.loadEditablePhaseWithLateInvite(ctx, input.PhaseID, time.Now(), input.LateInviteToken, input.EnrolleeAccess)
 	if err != nil {
 		return nil, err
 	}

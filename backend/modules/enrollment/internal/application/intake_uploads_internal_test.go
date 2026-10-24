@@ -24,7 +24,7 @@ func (c uploadGateCatalog) Schema(context.Context, int64) (*enrollmentNative.For
 	return &schema, nil
 }
 
-func TestUploadField_RequiresPublicGateOrValidLateInvite(t *testing.T) {
+func TestUploadField_RequiresPublicGateLateInviteOrEnrolleeAccess(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(9)
@@ -50,6 +50,12 @@ func TestUploadField_RequiresPublicGateOrValidLateInvite(t *testing.T) {
 
 	input.LateInviteToken = "valid-token"
 	field, err := svc.uploadField(context.Background(), input)
+	require.NoError(t, err)
+	require.NotNil(t, field)
+
+	input.LateInviteToken = ""
+	input.EnrolleeAccess = enrollmentNative.EnrolleeAudienceAccess{LinkedParents: true}
+	field, err = svc.uploadField(context.Background(), input)
 	require.NoError(t, err)
 	require.NotNil(t, field)
 }

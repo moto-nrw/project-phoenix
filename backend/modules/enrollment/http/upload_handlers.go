@@ -106,13 +106,17 @@ func (rs *Resource) uploadEnrollmentFile(w http.ResponseWriter, r *http.Request)
 // storeEnrollmentUpload lets the intake commit the row, writes the bytes and
 // discards the row when the write fails.
 func (rs *Resource) storeEnrollmentUpload(ctx context.Context, files UploadFileStore, input capability.UploadInput, content io.Reader) (*UploadReceipt, error) {
-	prepared, err := rs.Uploads.PrepareUpload(ctx, input)
+	return storeEnrollmentUpload(ctx, rs.Uploads, files, input, content)
+}
+
+func storeEnrollmentUpload(ctx context.Context, uploads UploadService, files UploadFileStore, input capability.UploadInput, content io.Reader) (*UploadReceipt, error) {
+	prepared, err := uploads.PrepareUpload(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 	upload := prepared.Upload
 	if _, err := files.Save(ctx, input.TenantID, upload.StoredName, content); err != nil {
-		if discardErr := rs.Uploads.DiscardUpload(ctx, input.TenantID, upload.ID); discardErr != nil {
+		if discardErr := uploads.DiscardUpload(ctx, input.TenantID, upload.ID); discardErr != nil {
 			err = errors.Join(err, discardErr)
 		}
 		return nil, fmt.Errorf("write enrollment upload: %w", err)

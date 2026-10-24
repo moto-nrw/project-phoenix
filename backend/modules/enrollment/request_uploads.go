@@ -76,6 +76,9 @@ type UploadInput struct {
 	RemoteIP        string
 	LateInviteToken string
 	StatusToken     string
+	// EnrolleeAccess comes only from the authenticated parents-portal route.
+	// The anonymous HTTP route always leaves this at its fail-closed zero value.
+	EnrolleeAccess EnrolleeAudienceAccess
 }
 
 // PreparedUpload is the stored row of an upload whose bytes still have to be

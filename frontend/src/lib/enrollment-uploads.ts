@@ -58,9 +58,10 @@ export function effectiveFileFieldOptions(
   );
   const size = Math.round(Number(options?.max_size_mb));
   return {
-    allowed_types: ENROLLMENT_FILE_TYPES.filter((type) =>
-      allowed.includes(type),
-    ),
+    allowed_types:
+      allowed.length > 0
+        ? ENROLLMENT_FILE_TYPES.filter((type) => allowed.includes(type))
+        : defaults.allowed_types,
     max_size_mb: Number.isFinite(size)
       ? Math.min(MAX_UPLOAD_MB, Math.max(MIN_UPLOAD_MB, size))
       : defaults.max_size_mb,
@@ -175,6 +176,7 @@ export async function uploadEnrollmentFile(params: {
   file: File;
   lateInviteToken?: string;
   statusToken?: string;
+  uploadEndpoint?: string;
   signal?: AbortSignal;
 }): Promise<NewUploadValue> {
   // The upload endpoint verifies the same authorization context as the form:
@@ -193,7 +195,8 @@ export async function uploadEnrollmentFile(params: {
   let response: Response;
   try {
     response = await fetch(
-      `/api/enrollment/${encodeURIComponent(params.tenantSlug)}/uploads`,
+      params.uploadEndpoint ??
+        `/api/enrollment/${encodeURIComponent(params.tenantSlug)}/uploads`,
       { method: "POST", body, signal: params.signal },
     );
   } catch (cause) {

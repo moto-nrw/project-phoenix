@@ -29,6 +29,10 @@ type fakeEnrollmentForms struct {
 	accountID        int64
 	submitEligible   bool
 	clientIP         string
+	uploadCalled     bool
+	uploadSchoolID   int64
+	uploadLinked     bool
+	uploadExisting   bool
 }
 
 func (f *fakeEnrollmentForms) LoadFormBootstrap(_ context.Context, _ int64, _ time.Time, _ string, linkedParents, existingStudents bool) (EnrollmentResponse, error) {
@@ -54,6 +58,12 @@ func (*fakeEnrollmentForms) RenderSubmitError(w http.ResponseWriter, _ *http.Req
 	w.WriteHeader(http.StatusBadRequest)
 }
 
+func (f *fakeEnrollmentForms) StoreUpload(w http.ResponseWriter, _ *http.Request, schoolID int64, linkedParents, existingStudents bool) {
+	f.uploadCalled = true
+	f.uploadSchoolID, f.uploadLinked, f.uploadExisting = schoolID, linkedParents, existingStudents
+	w.WriteHeader(http.StatusCreated)
+}
+
 func serveBootstrap(t *testing.T, rs *Resource, accountID int) *httptest.ResponseRecorder {
 	t.Helper()
 	router := chi.NewRouter()
@@ -65,6 +75,46 @@ func serveBootstrap(t *testing.T, rs *Resource, accountID int) *httptest.Respons
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	return w
+}
+
+func serveUpload(t *testing.T, rs *Resource, accountID int) *httptest.ResponseRecorder {
+	t.Helper()
+	router := chi.NewRouter()
+	router.Post("/parent/enrollments/{tenantSlug}/uploads", rs.uploadParentEnrollment)
+	req := withClaims(
+		httptest.NewRequest(http.MethodPost, "/parent/enrollments/testschule/uploads", nil),
+		accountID,
+	)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func TestUploadParentEnrollment_ForwardsDerivedAudienceAccess(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+
+	school := &EnrollmentSchool{Active: true}
+	school.ID = 1
+	forms := &fakeEnrollmentForms{}
+	rs := &Resource{
+		ParentService: &fakeParentService{submitStatus: &parentService.GuardianSubmitStatus{
+			Linked:                      true,
+			HasGuardianLink:             true,
+			HasSubmitPermission:         true,
+			HasEnrolledSubmitPermission: true,
+		}},
+		EnrollmentForms: forms,
+		SchoolService:   &parentSubmitSchoolStub{school: school},
+	}
+
+	w := serveUpload(t, rs, 7001)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.True(t, forms.uploadCalled)
+	assert.Equal(t, int64(1), forms.uploadSchoolID)
+	assert.True(t, forms.uploadLinked)
+	assert.True(t, forms.uploadExisting)
 }
 
 // A guardian whose link grants parent_portal.enrollment.submit unlocks the

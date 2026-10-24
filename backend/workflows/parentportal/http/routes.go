@@ -79,6 +79,7 @@ func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {
 	// already authenticated), and forwards to the same owner
 	// submission the public path uses.
 	r.Post("/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
+	r.Post("/enrollments/{tenantSlug}/uploads", rs.uploadParentEnrollment)
 }
 
 func (rs *Resource) mountChildStatusRoutes(r chi.Router) {

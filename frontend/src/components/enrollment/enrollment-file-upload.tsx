@@ -45,6 +45,7 @@ interface EnrollmentUploadTarget {
   readonly phaseId?: string;
   readonly lateInviteToken?: string;
   readonly statusToken?: string;
+  readonly uploadEndpoint?: string;
   readonly locale: string;
   /** Called with +1 when an upload starts and -1 when it settles. */
   readonly onPendingChange: (delta: number) => void;
@@ -63,6 +64,7 @@ export function useEnrollmentUploadTarget(params: {
   phaseId?: string;
   lateInviteToken?: string;
   statusToken?: string;
+  uploadEndpoint?: string;
   locale: string;
   previewMode: boolean;
 }): { pendingUploads: number; uploadTarget: EnrollmentUploadTarget } {
@@ -76,6 +78,7 @@ export function useEnrollmentUploadTarget(params: {
     phaseId,
     lateInviteToken,
     statusToken,
+    uploadEndpoint,
     locale,
     previewMode,
   } = params;
@@ -85,6 +88,7 @@ export function useEnrollmentUploadTarget(params: {
       phaseId: previewMode ? undefined : phaseId,
       lateInviteToken,
       statusToken,
+      uploadEndpoint,
       locale,
       onPendingChange,
     }),
@@ -93,6 +97,7 @@ export function useEnrollmentUploadTarget(params: {
       phaseId,
       lateInviteToken,
       statusToken,
+      uploadEndpoint,
       previewMode,
       locale,
       onPendingChange,
@@ -236,6 +241,7 @@ export function FileUploadInput({
         file,
         lateInviteToken: target.lateInviteToken,
         statusToken: target.statusToken,
+        uploadEndpoint: target.uploadEndpoint,
         signal: controller.signal,
       });
       const next = [...latest.current, uploaded];
