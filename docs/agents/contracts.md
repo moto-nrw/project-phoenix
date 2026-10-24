@@ -258,16 +258,20 @@ cannot satisfy target-school MFA. Such a switch returns 401 (`identity.mfa_sessi
 and requires direct login at the target school; MFA lookup failures return 503.
 School-portal switching uses the same live-family proof, restricted to school scope;
 it cannot reuse a tenant-portal family. The staff switcher shows the refusal without
-expiring the source session. Its explicit target-login action first revokes the
-source refresh family through `/api/auth/logout`, then deletes the shared domain
-Auth.js cookie via `signOut({ callbackUrl: targetLoginUrl })`. Auth.js itself
+expiring the source session. Its explicit target-login action first requests
+revocation of the source refresh family through `/api/auth/logout`, then deletes
+the shared domain Auth.js cookie via `signOut({ callbackUrl: targetLoginUrl })`. Auth.js itself
 then navigates to the target school’s existing login page before notifying local
 required-session consumers; manual navigation after `redirect: false` can race
 their source-school redirects. Navigation alone is not reauthentication:
 the domain cookie would reach the target guard unchanged. The guard handles the
 same MFA refusal without SessionExpired redirects or automatic retries and
-offers this same explicit logout-and-login action. A failed backend logout
-stays visible and does not navigate; a 401 means no authenticated family remains to revoke.
+offers this same explicit logout-and-login action. An HTTP error returned by
+the logout BFF stays visible and prevents navigation; 401 is treated as already
+unauthenticated. This does not confirm database revocation: the existing backend
+`/auth/logout` logs `LogoutWithAudit` failures, including database revocation
+failures, and still responds 204. The browser cannot distinguish that failure
+from success.
 If Auth.js fails to clear the cookie, the target guard still blocks access and
 offers explicit reauthentication instead of redirecting in a loop.
 School-portal cookies remain host-only and are neither used nor cleared by the tenant action; the school portal currently has no
