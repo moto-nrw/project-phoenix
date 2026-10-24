@@ -34,6 +34,7 @@ import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
@@ -599,11 +600,13 @@ function GroupThreadReference({
   id,
   title,
 }: Readonly<{ id: string; title?: string }>) {
+  const tenantPath = useTenantAwarePath();
+
   return (
     <p className="mb-1 px-1 text-xs text-gray-500">
       Antwort auf Gruppennachricht:{" "}
       <NavigationLink
-        href={`/messages/groups/${encodeURIComponent(id)}`}
+        href={tenantPath(`/messages/groups/${encodeURIComponent(id)}`)}
         className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
       >
         {title ?? "Gruppennachricht"}
