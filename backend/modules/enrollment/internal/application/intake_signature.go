@@ -213,6 +213,29 @@ func (s *Intake) SignatureProofByStatusToken(ctx context.Context, token string) 
 	return s.signatureProof(s.tenantContext(ctx, req.TenantID), req, children)
 }
 
+// SignatureStatusByStatusToken loads only the signature information the
+// status page displays. Unlike the PDF proof, it does not read children,
+// co-guardians or offering selections.
+func (s *Intake) SignatureStatusByStatusToken(ctx context.Context, token string) (*enrollmentNative.RequestSignatureStatus, error) {
+	req, err := s.requestByStatusToken(ctx, token, false)
+	if err != nil {
+		return nil, err
+	}
+	ctx = s.tenantContext(ctx, req.TenantID)
+	status := &enrollmentNative.RequestSignatureStatus{}
+	if req.SchemaID != nil {
+		schema, err := s.intakeSchema(ctx, *req.SchemaID)
+		if err != nil {
+			return nil, fmt.Errorf("signature status: load pinned schema: %w", err)
+		}
+		status.SignatureRequired = signatureRequired(schema, req.SubmissionSource)
+	}
+	if status.Signature, err = s.requestSignature(ctx, req.ID); err != nil {
+		return nil, fmt.Errorf("signature status: load signature: %w", err)
+	}
+	return status, nil
+}
+
 // signatureProof completes a loaded request inside its school's
 // transaction: whether its form asks for a signature, its co-guardians and
 // its newest signature.

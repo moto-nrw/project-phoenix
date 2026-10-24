@@ -56,6 +56,13 @@ type RequestSignature struct {
 	IntegrityOK    bool
 }
 
+// RequestSignatureStatus is the signature information the status page needs.
+// It deliberately excludes the proof's schema, guardians and offerings.
+type RequestSignatureStatus struct {
+	Signature         *RequestSignature
+	SignatureRequired bool
+}
+
 // RequestSignatureProof is a request's signature with the request it
 // belongs to, for the proof a parent loads through the status link.
 type RequestSignatureProof struct {
@@ -86,6 +93,9 @@ type IntakeSignatureProofs interface {
 	// SignatureProofByStatusToken loads the request behind a valid status
 	// token with its signature; Signature is nil when it has none.
 	SignatureProofByStatusToken(ctx context.Context, token string) (*RequestSignatureProof, error)
+	// SignatureStatusByStatusToken loads only the signature information the
+	// status page shows. The full proof stays on the PDF path.
+	SignatureStatusByStatusToken(ctx context.Context, token string) (*RequestSignatureStatus, error)
 }
 
 // EnrollmentSignatureEntry is one signature the intake stores for a

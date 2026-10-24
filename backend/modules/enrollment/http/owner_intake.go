@@ -34,6 +34,13 @@ type SignatureProof struct {
 	SignatureRequired  bool
 }
 
+// StatusSignature is the signature metadata shown on the public status page.
+// The PDF path loads SignatureProof instead.
+type StatusSignature struct {
+	Signature         *capability.RequestSignature
+	SignatureRequired bool
+}
+
 // Intake values the owner's contract carries unchanged.
 type (
 	SubmitGuardian                 = capability.SubmitGuardian
@@ -187,6 +194,9 @@ type RequestService interface {
 	// status token when token is set, otherwise the request of the school
 	// in the caller's tenant transaction.
 	SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error)
+	// StatusSignature loads only the signature metadata shown on the public
+	// status page. It is authorized by the status token.
+	StatusSignature(ctx context.Context, token string) (*StatusSignature, error)
 }
 
 // NewRequestService decodes the owner's intake for these routes and the
@@ -428,6 +438,14 @@ func (s intakeService) SignatureProof(ctx context.Context, requestID int64, toke
 		return signatureProofValue(s.owner.SignatureProofByStatusToken(ctx, token))
 	}
 	return signatureProofValue(s.owner.SignatureProof(ctx, requestID))
+}
+
+func (s intakeService) StatusSignature(ctx context.Context, token string) (*StatusSignature, error) {
+	status, err := s.owner.SignatureStatusByStatusToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	return &StatusSignature{Signature: status.Signature, SignatureRequired: status.SignatureRequired}, nil
 }
 
 // signatureProofValue decodes the owner's proof for these routes.

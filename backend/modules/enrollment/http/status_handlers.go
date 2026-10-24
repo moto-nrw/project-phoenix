@@ -151,29 +151,47 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		view      statusView
-		statusErr error
+		view                 statusView
+		lookupErr, statusErr error
 	)
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
-		var lookupErr error
 		view, lookupErr, statusErr = rs.loadStatusView(adminCtx, token)
 		if lookupErr != nil {
 			return lookupErr
 		}
-		return statusErr
+		if statusErr != nil {
+			return statusErr
+		}
+		if wantsProofPDF(r) {
+			if proofErr := rs.loadStatusSignatureProof(adminCtx, token, &view); proofErr != nil {
+				if errors.Is(proofErr, capability.ErrRequestNotFound) {
+					lookupErr = proofErr
+				} else {
+					statusErr = proofErr
+				}
+				return proofErr
+			}
+			return nil
+		}
+		return nil
 	})
 	if err != nil {
+		if lookupErr != nil {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(lookupErr, common.CodeEnrollmentStatusLinkInvalid))
+			return
+		}
 		if statusErr != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment status", statusErr))
 			return
 		}
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment status", err))
 		return
 	}
-	if r.URL.Query().Get("format") == "pdf" {
+	if wantsProofPDF(r) {
 		rs.writeStatusSignatureProof(w, r, view)
 		return
 	}
+	rs.loadStatusSignature(r.Context(), token, &view)
 	rs.respondStatus(w, r, token, view)
 }
 
@@ -184,6 +202,7 @@ type statusView struct {
 	guardians []*capability.RequestGuardian
 	editMode  string
 	proof     *SignatureProof
+	signature *StatusSignature
 }
 
 // loadStatusView reads the request behind the token. A failed lookup
@@ -197,13 +216,6 @@ func (rs *Resource) loadStatusView(ctx context.Context, token string) (view stat
 	if view.editMode, serverErr = rs.RequestService.EditModeForStatus(ctx, view.req, view.children); serverErr != nil {
 		return view, nil, fmt.Errorf("status: compute edit mode: %w", serverErr)
 	}
-	if view.proof, serverErr = rs.RequestService.SignatureProof(ctx, 0, token); serverErr != nil {
-		// The token expired between the two reads: the link is invalid.
-		if errors.Is(serverErr, capability.ErrRequestNotFound) {
-			return view, serverErr, nil
-		}
-		return view, nil, fmt.Errorf("status: load signature: %w", serverErr)
-	}
 	// Best-effort: a failure here must not hide the request status, but a
 	// silent drop would mask a permission/RLS/DB problem behind a 200 with
 	// missing co-guardians. Log it so the failure is visible.
@@ -216,12 +228,42 @@ func (rs *Resource) loadStatusView(ctx context.Context, token string) (view stat
 	return view, nil, nil
 }
 
+// loadStatusSignature adds the small signature payload the status page shows.
+// Its failure is deliberately best-effort: the status link remains useful
+// when the independent signature read is temporarily unavailable.
+func (rs *Resource) loadStatusSignature(ctx context.Context, token string, view *statusView) {
+	var signature *StatusSignature
+	err := withinAdmin(ctx, func(adminCtx context.Context) error {
+		var loadErr error
+		signature, loadErr = rs.RequestService.StatusSignature(adminCtx, token)
+		return loadErr
+	})
+	if err != nil {
+		rs.logger().Warn("enrollment status: load signature failed",
+			slog.String("error", err.Error()))
+		return
+	}
+	view.signature = signature
+}
+
+// loadStatusSignatureProof loads the complete proof model only for the PDF.
+func (rs *Resource) loadStatusSignatureProof(ctx context.Context, token string, view *statusView) error {
+	proof, err := rs.RequestService.SignatureProof(ctx, 0, token)
+	if err != nil {
+		return fmt.Errorf("status: load signature proof: %w", err)
+	}
+	view.proof = proof
+	return nil
+}
+
 // respondStatus answers the status page payload.
 func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token string, view statusView) {
 	req := view.req
 	resp, anyLocked := newStatusResponse(req, view.editMode, view.children, view.guardians)
-	resp.SignatureRequired = view.proof.SignatureRequired
-	resp.Signature = newRequestSignatureResponse(view.proof.Signature, false)
+	if view.signature != nil {
+		resp.SignatureRequired = view.signature.SignatureRequired
+		resp.Signature = newRequestSignatureResponse(view.signature.Signature, false)
+	}
 	if anyLocked {
 		resp.HasParentAccount, resp.ParentPortalAccess = rs.statusParentAccount(r.Context(), token, req.ID)
 	}
