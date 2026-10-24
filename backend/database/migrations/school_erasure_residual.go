@@ -13,7 +13,16 @@ func installSchoolErasureResidual(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_assert_empty(p_school_id BIGINT,v_child_keys JSONB)
+const schoolErasureResidualSQL = schoolErasureResidualPart1SQL + `    SELECT 1 FROM education.class_homework AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+` + schoolErasureResidualPart2SQL + `    UNION ALL
+    SELECT 1 FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id
+` + schoolErasureResidualPart3SQL
+
+// The pre-1.15.510 definition shares the unchanged SQL sections.
+const schoolErasureResidualWithoutHomeworkSQL = schoolErasureResidualPart1SQL + schoolErasureResidualPart2SQL + schoolErasureResidualPart3SQL
+
+const schoolErasureResidualPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_assert_empty(p_school_id BIGINT,v_child_keys JSONB)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
  BEGIN
@@ -225,7 +234,9 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     UNION ALL
     SELECT 1 FROM education.class_arrival_times AS r WHERE r.tenant_id = p_school_id
     UNION ALL
-    SELECT 1 FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id
+`
+
+const schoolErasureResidualPart2SQL = `    SELECT 1 FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM education.grade_transition_class_list_entries AS r WHERE r.tenant_id = p_school_id
     UNION ALL
@@ -242,7 +253,9 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     SELECT 1 FROM education.group_teacher AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM education.groups AS r WHERE r.tenant_id = p_school_id
-    UNION ALL
+`
+
+const schoolErasureResidualPart3SQL = `    UNION ALL
     SELECT 1 FROM enrollment.care_offering_auto_triggers AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM enrollment.care_offering_bookings AS r WHERE r.tenant_id = p_school_id
@@ -486,3 +499,8 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
  END $body$;
  REVOKE ALL ON FUNCTION platform.school_erasure_assert_empty(BIGINT,JSONB) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;
 `
+
+func restoreSchoolErasureResidualBeforeHomework(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasureResidualWithoutHomeworkSQL)
+	return err
+}

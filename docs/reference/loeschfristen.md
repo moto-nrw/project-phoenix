@@ -30,6 +30,7 @@ Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellun
 | Betreuungsplan (Termine, Teilnahme, Änderungsprotokoll) | `gdpr.timetable_retention_days` | 365 Tage | 30 Tage bis 5 Jahre | Termin | Timetable | umgesetzt |
 | Termine im Kalender (Elternabende, Teamtermine) samt Empfängern, Antworten und Serienregeln | keine eigene: `gdpr.timetable_retention_days` | 365 Tage | 30 Tage bis 5 Jahre | letzter Tag des Termins bzw. der Serie | Appointments | umgesetzt (#4045) |
 | Krank-, Entschuldigt- und Klassenfahrt-Tage | `gdpr.status_day_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | gemeldeter Tag | Care Plan | umgesetzt (#3958) |
+| Hausaufgaben der Lehrkräfte samt Rückmeldungen der OGS je Kind | `gdpr.homework_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | Tag der Hausaufgabe | Timetable | umgesetzt (#4796) |
 | Elternnachrichten | `gdpr.parent_message_retention_days` | 365 Tage | 30 Tage bis 2 Jahre | Versand | Communication | umgesetzt (#3959) |
 | Elternbriefe (Mitteilungen, Umfragen, Einverständnisse ohne Antworten) samt Lesebestätigungen, Antworten und Anhängen | keine eigene: `gdpr.parent_message_retention_days` | 365 Tage | 30 Tage bis 2 Jahre | Ablauf, sonst Veröffentlichung; Entwurf: letzte Änderung | Communication | umgesetzt (#4045) |
 | Team-Chat | `gdpr.staff_message_retention_days` | 365 Tage | 30 Tage bis 2 Jahre | Versand | Communication | umgesetzt |

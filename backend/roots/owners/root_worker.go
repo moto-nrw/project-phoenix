@@ -65,7 +65,7 @@ func workerRetentionOf(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService, audit auditCommand,
 	fleet devicefleet.Capability, carePlan carePlanModule.Owner, parentMessages communication.ParentMessageCleanup,
 	rejected enrollmentOwner.RejectedEnrollmentCleaner, studentDeletion *studentdeletion.Workflow, identity identityaccess.Owner,
-	announcements communication.ParentAnnouncementCapability,
+	announcements communication.ParentAnnouncementCapability, homework homeworkRetention,
 ) (workerRetention, error) {
 	announcementRetention, ok := announcements.(communication.ParentAnnouncementRetention)
 	if !ok {
@@ -92,7 +92,7 @@ func workerRetentionOf(
 		filestorageCompose.NewCleanupRetention(), workforceCompose.NewCleanupRetention(),
 		carePlanCompose.NewCleanupRetention(), enrollmentCompose.New(),
 	)...)
-	contentSteps, err := newSchoolContentRetentionSteps(db, settings, announcementRetention)
+	contentSteps, err := newSchoolContentRetentionSteps(db, settings, announcementRetention, homework)
 	if err != nil {
 		return workerRetention{}, err
 	}

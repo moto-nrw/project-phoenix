@@ -205,6 +205,7 @@ describe("getParentHelpTopicForPath", () => {
           ![
             HELP_TOPICS.rooms,
             HELP_TOPICS.activeSupervision,
+            HELP_TOPICS.homeworkFeedback,
             HELP_TOPICS.manageActivity,
             HELP_TOPICS.changeLocation,
             HELP_TOPICS.dayPlan,
@@ -329,9 +330,9 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    // 42 seit #3821 („Eigenen Dienstplan ansehen“), 44 seit #4901
+    // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
     // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
-    expect(caregiverTopics).toHaveLength(44);
+    expect(caregiverTopics).toHaveLength(45);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -506,13 +507,13 @@ describe("getParentHelpTopicForPath", () => {
 
           // Was es in der OGS nicht gibt, steht auch nicht in der Liste:
           // ohne NFC entfallen sieben Themen, bei einfacher Anwesenheit
-          // fuenf, bei offener Betreuung zwei. `Aktivitaet anlegen` faellt
+          // sechs, bei offener Betreuung zwei. `Aktivitaet anlegen` faellt
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            44 -
+            45 -
             (nfcEnabled ? 0 : 7) -
-            (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
+            (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
           expect(caregiverTopics).toHaveLength(expectedLength);
           expect(
@@ -549,8 +550,9 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    // 86 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(leadTopics).toHaveLength(86);
+    // 86 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
+    // 87 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(leadTopics).toHaveLength(87);
     expect(
       leadTopics.every(
         (topic) =>
@@ -610,8 +612,14 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 21 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(teacherTopics).toHaveLength(21);
+    // 22 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(teacherTopics).toHaveLength(22);
+    expect([...visible]).toEqual(
+      expect.arrayContaining([
+        HELP_TOPICS.teacherHomework,
+        HELP_TOPICS.teacherClassHandover,
+      ]),
+    );
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
     expect(
       teacherTopics.every(
