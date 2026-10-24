@@ -56,6 +56,7 @@ func TestCommandEffectsResolveRootCallables(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, declarations, body, wiring string }{
 		{"closure field", "type binding struct { command func() }", "b.command()", "enrollment.Run(binding{command: func() { foreign.Ledger{}.Record() }})"},
+		{"named callable conversion", "type Command func(); type binding struct { command func() }", "b.command()", "enrollment.Run(binding{command: Command(foreign.Ledger{}.Record)})"},
 		{"method value field", "type binding struct { command func() }", "b.command()", "enrollment.Run(binding{command: foreign.Ledger{}.Record})"},
 		{"constructor parameter", "type binding struct { command func() }; func makeBinding(command func()) binding { return binding{command: command} }", "b.command()", "enrollment.Run(makeBinding(func() { foreign.Ledger{}.Record() }))"},
 		{"callable variable", "type binding struct { command func() }", "command := b.command; command()", "enrollment.Run(binding{command: foreign.Ledger{}.Record})"},
@@ -101,6 +102,8 @@ func TestCommandEffectsResolveRootClosuresBehindDomainOwnedFields(t *testing.T) 
 	for _, tc := range []struct{ name, domain, wiring string }{
 		{"constructor field", "type reads struct { list func() }; func NewReads(list func()) Writer { return reads{list: list} }; func (r reads) Record() { r.list() }",
 			"enrollment.Run(enrollment.NewReads(func() { foreign.Ledger{}.Record() }))"},
+		{"constructor alias", "type reads struct { list func() }; func NewReads(list func()) Writer { saved := list; return reads{list: saved} }; func (r reads) Record() { r.list() }",
+			"enrollment.Run(enrollment.NewReads(foreign.Ledger{}.Record))"},
 		{"forwarding helper", "type reads struct { list func() }; func NewReads(list func()) Writer { return reads{list: list} }; func (r reads) Record() { r.forward() }; func (r reads) forward() { call(r.list) }; func call(f func()) { f() }",
 			"enrollment.Run(enrollment.NewReads(foreign.Ledger{}.Record))"},
 		{"embedded provider", "type inner struct { list func() }; func (i inner) Record() { i.list() }; type reads struct { inner }; func NewReads(list func()) Writer { return reads{inner{list: list}} }",
@@ -307,6 +310,10 @@ func TestCommandEffectsResolveCallableFactories(t *testing.T) {
 	for _, tc := range []struct{ name, declarations, wiring string }{
 		{"root factory", "func optional(command func()) func() { if command == nil { return func() {} }; return command }", "enrollment.Run(binding{command: optional(foreign.Ledger{}.Record)})"},
 		{"tuple factory", "func factory() (func(), error) { return foreign.Ledger{}.Record, nil }", "command, _ := factory(); enrollment.Run(binding{command: command})"},
+		{"named result", "func factory() (command func()) { command = foreign.Ledger{}.Record; return }", "enrollment.Run(binding{command: factory()})"},
+		{"tuple forwarding", "func inner() (error, func()) { return nil, foreign.Ledger{}.Record }; func factory() (error, func()) { return inner() }", "_, command := factory(); enrollment.Run(binding{command: command})"},
+		{"recursive factory", "func factory(n int) func() { if n == 0 { return foreign.Ledger{}.Record }; return factory(n-1) }", "enrollment.Run(binding{command: factory(2)})"},
+		{"mutually recursive factories", "func factory(n int) func() { if n == 0 { return foreign.Ledger{}.Record }; return inner(n-1) }; func inner(n int) func() { return factory(n) }", "enrollment.Run(binding{command: factory(2)})"},
 		{"foreign factory", "", "enrollment.Run(binding{command: foreign.Recorder()})"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

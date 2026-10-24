@@ -101,10 +101,10 @@ func (s *effectScanner) resolveCallable(port, binding string, object types.Objec
 	}
 	resolved := true
 	for _, value := range values {
-		// The owner's own arguments to its own parameters and locals are
+		// The owner's own arguments to its own parameters are
 		// summarized where they occur, in the caller reached from the port.
 		// Unioning every call site would give each port all other ports' work.
-		if ownVariable && s.policy[value.pkg.PkgPath].Owner == s.sourceOwner {
+		if ownVariable && value.argument && s.policy[value.pkg.PkgPath].Owner == s.sourceOwner {
 			continue
 		}
 		if !s.resolveCallableValue(port, binding, value.pkg, value.expression, seen, visited, trail) {
@@ -226,6 +226,9 @@ func (s *effectScanner) resolveCallableSelector(port, binding string, pkg *packa
 // other owner's factory is that owner's implementation and a first-hop
 // terminal of its own (or no binding at all for kernels and libraries).
 func (s *effectScanner) resolveCallableFactory(port, binding string, pkg *packages.Package, call *ast.CallExpr, seen map[string]bool, visited map[types.Object]bool, trail []string) bool {
+	if pkg.TypesInfo.Types[call.Fun].IsType() {
+		return s.resolveCallableValue(port, binding, pkg, call.Args[0], seen, visited, trail)
+	}
 	if selector, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
 		if selection := pkg.TypesInfo.Selections[selector]; selection != nil && selection.Kind() == types.MethodVal {
 			s.resolve(port, binding, selection.Recv(), selector.Sel.Name, seen, trail)
@@ -237,6 +240,11 @@ func (s *effectScanner) resolveCallableFactory(port, binding string, pkg *packag
 		return false
 	}
 	fn = fn.Origin()
+	if visited[fn] {
+		return true // The enclosing traversal covers the other return branches.
+	}
+	visited[fn] = true
+	defer delete(visited, fn)
 	if owner := s.functionOwner(fn); owner != "root-composition" && owner != s.sourceOwner {
 		s.resolveFunction(port, binding, fn, seen, trail)
 		return true
@@ -250,8 +258,9 @@ func (s *effectScanner) resolveCallableFactory(port, binding string, pkg *packag
 		return false
 	}
 	trail = append(trail, fn.FullName()+":"+normalized)
-	resolved := true
-	for _, result := range effectReturnedCallables(body, fn.Signature().Results()) {
+	results := effectReturnedCallables(body, fn.Signature().Results())
+	resolved := len(results) > 0
+	for _, result := range results {
 		if !s.resolveCallableValue(port, binding, body.pkg, result, seen, visited, trail) {
 			resolved = false
 		}
@@ -267,16 +276,46 @@ func effectReturnedCallables(body effectBody, results *types.Tuple) []ast.Expr {
 		if _, nested := node.(*ast.FuncLit); nested {
 			return false
 		}
-		if ret, ok := node.(*ast.ReturnStmt); ok && len(ret.Results) == results.Len() {
-			for i, result := range ret.Results {
-				if effectCallableCarrier(results.At(i).Type(), map[types.Type]bool{}) {
-					returned = append(returned, result)
-				}
-			}
+		if ret, ok := node.(*ast.ReturnStmt); ok {
+			returned = append(returned, effectCallableReturnExpressions(body, ret, results)...)
 		}
 		return true
 	})
 	return returned
+}
+
+func effectCallableReturnExpressions(body effectBody, ret *ast.ReturnStmt, results *types.Tuple) []ast.Expr {
+	var returned []ast.Expr
+	for i := range results.Len() {
+		if !effectCallableCarrier(results.At(i).Type(), map[types.Type]bool{}) {
+			continue
+		}
+		switch {
+		case len(ret.Results) == results.Len():
+			returned = append(returned, ret.Results[i])
+		case len(ret.Results) == 1:
+			// A sole tuple-valued call forwards all callable result slots.
+			return ret.Results
+		case len(ret.Results) == 0:
+			if name := effectNamedResult(body, results.At(i)); name != nil {
+				returned = append(returned, name)
+			}
+		}
+	}
+	return returned
+}
+
+// Reuse the declaration identifier so go/types retains the named result's
+// identity and assignments when a factory uses a bare return.
+func effectNamedResult(body effectBody, result *types.Var) *ast.Ident {
+	for _, field := range body.declaration.Type.Results.List {
+		for _, name := range field.Names {
+			if body.pkg.TypesInfo.Defs[name] == result {
+				return name
+			}
+		}
+	}
+	return nil
 }
 
 // Instantiated generic objects are distinct go/types objects. Their typed

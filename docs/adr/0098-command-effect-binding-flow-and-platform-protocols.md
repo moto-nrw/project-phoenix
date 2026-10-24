@@ -161,3 +161,30 @@ approves nothing further.
 - Callables supplied only by `_test.go` stay `unresolved`.
 - Static may-bind accounting can overapproximate which implementation reaches
   a port. It does not prove liveness or instance wiring.
+
+## Callable resolution follow-up
+
+Local assignments must remain traversable even in the source owner. Only
+own call arguments to own parameters use caller-local summaries; skipping
+local aliases hid callbacks forwarded by constructors. Factory results also
+include named results at bare returns and sole tuple-valued forwarding calls.
+Active factory origins stop direct and mutual recursion while other return
+branches still contribute terminals. Callable conversions follow their operand.
+Fixtures cover each case without weakening the own-runner precision test.
+
+The register gains 28 entries, loses none, and changes eight fingerprints:
+
+- Six queries: two Care Plan bindings each reach People Directory's recorder
+  reader and context constructor; Workforce's schedule overview reaches the two
+  pure Timetable calendar-week helpers. The recorder targets already have
+  reviewed query entries; the calendar helpers compute only local values.
+- Twenty-two unresolved Workforce clock bindings: twenty reach `api.now` and
+  two reach `application.Clock.Time`. The typed build includes testhooks clock
+  providers whose callers exist only in `_test.go`. These remain visible
+  diagnostics with `approval_adr: "0098"`, not query or command approvals.
+- Eight existing Identity Access → Workforce employment-reset entries retain
+  their debt classification and targets. Following local aliases adds evidence
+  to their fingerprints; it grants no new coordination exception.
+
+The total is 7,475 entries, including 563 unresolved. Policy, legacy baseline,
+composition inventory and runtime code remain unchanged.

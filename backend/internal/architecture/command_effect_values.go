@@ -15,6 +15,7 @@ import (
 type effectValue struct {
 	pkg        *packages.Package
 	expression ast.Expr
+	argument   bool
 }
 type effectValues map[types.Object][]effectValue
 
@@ -47,7 +48,7 @@ func effectObject(pkg *packages.Package, expression ast.Expr) types.Object {
 	return nil
 }
 
-func (values effectValues) add(pkg *packages.Package, object types.Object, expression ast.Expr) {
+func (values effectValues) add(pkg *packages.Package, object types.Object, expression ast.Expr, argument bool) {
 	if object == nil {
 		return
 	}
@@ -55,7 +56,7 @@ func (values effectValues) add(pkg *packages.Package, object types.Object, expre
 		return
 	}
 	object = effectOriginObject(object)
-	values[object] = append(values[object], effectValue{pkg, expression})
+	values[object] = append(values[object], effectValue{pkg, expression, argument})
 }
 
 func (values effectValues) collect(pkg *packages.Package, node ast.Node) {
@@ -150,7 +151,7 @@ func (values effectValues) collectLiteral(pkg *packages.Package, n *ast.Composit
 			expression, i = keyed.Value, effectLiteralFieldIndex(shape, keyed.Key)
 		}
 		if i >= 0 && i < shape.NumFields() {
-			values.add(pkg, shape.Field(i), expression)
+			values.add(pkg, shape.Field(i), expression, false)
 		}
 	}
 }
@@ -189,7 +190,7 @@ func (values effectValues) collectCall(pkg *packages.Package, n *ast.CallExpr) {
 			i = signature.Params().Len() - 1
 		}
 		if i >= 0 && i < signature.Params().Len() {
-			values.add(pkg, signature.Params().At(i), arg)
+			values.add(pkg, signature.Params().At(i), arg, true)
 		}
 	}
 }
@@ -197,11 +198,11 @@ func (values effectValues) collectCall(pkg *packages.Package, n *ast.CallExpr) {
 func (values effectValues) collectAssignments(pkg *packages.Package, left, right []ast.Expr) {
 	if len(right) == 1 && len(left) > 1 {
 		for _, destination := range left {
-			values.add(pkg, effectObject(pkg, destination), right[0])
+			values.add(pkg, effectObject(pkg, destination), right[0], false)
 		}
 	} else if len(left) == len(right) {
 		for i, destination := range left {
-			values.add(pkg, effectObject(pkg, destination), right[i])
+			values.add(pkg, effectObject(pkg, destination), right[i], false)
 		}
 	}
 }
