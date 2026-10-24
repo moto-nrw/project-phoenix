@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   loginToTenant,
@@ -18,6 +18,15 @@ function addDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+// The fixture uses today's date, including Saturday/Sunday. Make those days
+// visible explicitly rather than depending on the work-week default.
+async function showFullWeek(page: Page): Promise<void> {
+  const weekends = page.getByRole("button", { name: /^Sa\/So/ });
+  if ((await weekends.getAttribute("aria-pressed")) !== "true")
+    await weekends.click();
+  await expect(weekends).toHaveAttribute("aria-pressed", "true");
 }
 
 // Der angelegte Termin wird wieder gelöscht. Sonst stapeln sich bei
@@ -60,6 +69,7 @@ test.describe("Personal calendar flow", () => {
     await expect(
       page.getByRole("heading", { name: "Mein Kalender" }),
     ).toBeVisible();
+    await showFullWeek(page);
 
     await page.getByRole("button", { name: "Neuer Termin" }).click();
     const createHeading = page.getByRole("heading", {
@@ -150,6 +160,7 @@ test.describe("Personal calendar flow", () => {
     // Gespeichert im Backend: nach frischem Laden der Seite steht die Zusage
     // weiterhin im Termin.
     await page.reload({ waitUntil: "domcontentloaded" });
+    await showFullWeek(page);
     await expect(currentWeekEvent).toBeVisible();
     await currentWeekEvent.click();
     await expect(eventDetail).toContainText("Zugesagt");

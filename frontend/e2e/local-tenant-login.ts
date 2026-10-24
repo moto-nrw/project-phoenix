@@ -1,14 +1,39 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 interface Credentials {
   readonly email: string;
   readonly password: string;
 }
 
-const sessions = new Map<
-  string,
-  Awaited<ReturnType<BrowserContext["cookies"]>>
->();
+type SessionCookies = Awaited<ReturnType<BrowserContext["cookies"]>>;
+
+function readSession(path: string): SessionCookies | undefined {
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as SessionCookies;
+  } catch (error) {
+    if (
+      error instanceof SyntaxError ||
+      (error instanceof Error && "code" in error && error.code === "ENOENT")
+    )
+      return undefined;
+    throw error;
+  }
+}
+
+function saveSession(
+  directory: string,
+  path: string,
+  cookies: SessionCookies,
+): void {
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, JSON.stringify(cookies), { mode: 0o600 });
+  renameSync(temporary, path);
+}
 
 async function hasSession(page: Page, origin: string): Promise<boolean> {
   const response = await page.request.get(`${origin}/api/auth/session`);
@@ -85,17 +110,27 @@ export async function loginToLocalTenant(
   page: Page,
   origin: string,
   credentials: Credentials,
+  cacheDirectory = join(
+    tmpdir(),
+    `moto-playwright-sessions-${process.getuid?.() ?? "local"}`,
+  ),
 ): Promise<void> {
   localURL(origin);
-  const key = JSON.stringify([origin, credentials.email, credentials.password]);
-  const cached = sessions.get(key);
+  // Playwright replaces the entire worker after a failing test. Keep only
+  // completed local sessions outside reports/artifacts, just like devtools.
+  // A miss or invalid session still completes the regular UI MFA flow below.
+  const key = createHash("sha256")
+    .update(JSON.stringify([origin, credentials.email, credentials.password]))
+    .digest("hex");
+  const path = join(cacheDirectory, `${key}.json`);
+  const cached = readSession(path);
   if (cached) {
     await page.context().addCookies(cached);
     if (await hasSession(page, origin)) {
       await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
+      saveSession(cacheDirectory, path, await page.context().cookies(origin));
       return;
     }
-    sessions.delete(key);
   }
   await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector('input[type="email"]', { timeout: 30_000 });
@@ -137,5 +172,5 @@ export async function loginToLocalTenant(
       throw new Error("Test-Login hat noch keine vollständige Sitzung.");
     }
   }).toPass({ timeout: 30_000, intervals: [250, 500] });
-  sessions.set(key, await page.context().cookies(origin));
+  saveSession(cacheDirectory, path, await page.context().cookies(origin));
 }
