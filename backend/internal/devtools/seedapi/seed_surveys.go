@@ -7,8 +7,10 @@ import (
 )
 
 // seedSurveysStep writes the surveys (#4781): an anonymous staff survey six
-// colleagues answered, so the evaluation passes the minimum of five, and an
-// anonymous parent survey the demo parents answered in the parents portal.
+// colleagues answered and the school then ended, so its evaluation shows (an
+// anonymous survey is evaluated after its end and from five answers on), and
+// a running staff survey nobody answered yet, and a running anonymous parent
+// survey the demo parents answered in the parents portal.
 // Every row comes through the real routes: the answers are anonymous only if
 // the API stores them so.
 type seedSurveysStep struct{}
@@ -30,6 +32,13 @@ func (seedSurveysStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	if _, err := rt.Client.Post("/api/surveys/"+staffSurvey.Data.ID+"/close", nil); err != nil {
+		return fmt.Errorf("close staff survey: %w", err)
+	}
+	// A second staff survey stays open, so the team still has one to answer.
+	if _, err := seedSurvey(rt, seedOpenStaffSurveyBody()); err != nil {
+		return err
+	}
 	parentSurvey, err := seedSurvey(rt, seedParentSurveyBody())
 	if err != nil {
 		return err
@@ -38,7 +47,7 @@ func (seedSurveysStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("  2 anonymous surveys published, answered by %d staff and %d parents\n", staff, parents)
+	fmt.Printf("  3 anonymous surveys published, answered by %d staff (ended) and %d parents\n", staff, parents)
 	return nil
 }
 
@@ -81,6 +90,20 @@ func seedStaffSurveyBody() map[string]any {
 		"audience": "staff", "anonymous": true, "send_email": false,
 		"closes_at": time.Now().Add(14 * 24 * time.Hour).UTC().Format(time.RFC3339),
 		"targets":   []map[string]any{}, "questions": seedSurveyQuestions(true),
+	}
+}
+
+func seedOpenStaffSurveyBody() map[string]any {
+	return map[string]any{
+		"title": "Fortbildungen im nächsten Halbjahr", "intro": "Welche Themen wünschen Sie sich für die Teamfortbildungen?",
+		"audience": "staff", "anonymous": true, "send_email": false,
+		"closes_at": time.Now().Add(10 * 24 * time.Hour).UTC().Format(time.RFC3339),
+		"targets":   []map[string]any{},
+		"questions": []map[string]any{
+			{"kind": "multiple", "prompt": "Welche Themen interessieren Sie?", "required": true, "options": []string{"Erste Hilfe am Kind", "Konflikte unter Kindern", "Gespräche mit Eltern", "Spiele für drinnen"}},
+			{"kind": "scale", "prompt": "Die Fortbildungen im letzten Halbjahr haben mir geholfen.", "required": true},
+			{"kind": "text", "prompt": "Welches Thema fehlt Ihnen?", "required": false},
+		},
 	}
 }
 
