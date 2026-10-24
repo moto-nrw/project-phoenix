@@ -112,6 +112,20 @@ Nebensystemfristen und deren produktive Nachweise: 3837-f.
    `DB_DSN` muss für diesen Lauf diesen Zugang verwenden. Zugangsdaten nur
    über den freigegebenen Secret-Prozess bereitstellen, nie in Argumente,
    Shell-History, Ausgabe oder dieses Runbook schreiben. Kein neues Env-Schema.
+   **Nach einem Restore ist dieser Zugang zunächst NOLOGIN.** Der Restore
+   akzeptiert nur eine ausschließliche Mitgliedschaft in genau einer der
+   Gruppen `phoenix_school_erasure`, `phoenix_billing_retention` oder
+   `phoenix_diagnostics`, ohne ADMIN-/INHERIT-Option, mit SET-Option und ohne
+   erhöhte Attribute, Einstellungen, zusätzliche Mitglieder/Mitgliedschaften,
+   direkte Rechte oder Objektbesitz. Für `tenant erase` den Löschzugang bewusst
+   einzeln neu freischalten: Auftrag und Rechte erneut prüfen, neues Passwort
+   über den bestehenden Secret-Prozess mit `\password` setzen, danach LOGIN
+   aktivieren und den bestehenden `DB_DSN` für diesen Lauf bereitstellen.
+   Aufbewahrungsbereinigung benötigt einen **getrennten** Zugang ausschließlich
+   zur Gruppe `phoenix_billing_retention`; ein gemeinsamer Login für beide
+   Gruppen wird beim Restore abgewiesen. Nicht benötigte Zugänge gesperrt
+   lassen und nach dem Wartungsfenster wieder auf NOLOGIN setzen. Der Restore
+   meldet nur die Anzahl gesperrter Zugänge, keine Login-Namen.
 5. Wartungsfenster für die gesamte Installation vereinbaren. Alle API-,
    Worker-, Scheduler-, Import- und Upload-Schreiber anhalten und laufende
    Uploads abwarten. DB-Locks können Schreibzugriffe **anderer Schulen**

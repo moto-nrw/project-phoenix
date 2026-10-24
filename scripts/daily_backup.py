@@ -25,6 +25,9 @@ from urllib.parse import urlparse
 FILES = ('database.dump', 'roles.sql', 'uploads.tar.gz')
 LOGIN_PASSWORDS = {'postgres': 'POSTGRES_PASSWORD', 'phoenix_auth': 'PHOENIX_AUTH_PASSWORD',
                    'phoenix_demo': 'PHOENIX_DEMO_PASSWORD'}
+QUARANTINE_GROUPS = {'phoenix_diagnostics': 'diagnostics',
+                     'phoenix_school_erasure': 'school_erasure',
+                     'phoenix_billing_retention': 'billing_retention'}
 BUNDLE_NAME = r'daily-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{16}\.tar\.age'
 step = 'configuration'
 
@@ -278,6 +281,67 @@ class Recovery:
                 timestamp = dt.datetime.strptime(obj['Path'][6:22], '%Y%m%dT%H%M%SZ').replace(tzinfo=dt.timezone.utc)
                 require(timestamp > cutoff)
 
+    def quarantine_internal_logins(self):
+        # One narrow shape for diagnostics and internal erasure/retention
+        # logins. Names stay inside SQL; only OIDs cross into the verifier.
+        quarantined = json.loads(self.sql("""
+            SELECT COALESCE(json_agg(oid), '[]') FROM pg_roles
+            WHERE rolcanlogin AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo');
+        """))
+        if not quarantined:
+            return quarantined
+        # This list is code-owned, never supplied by a role or environment.
+        groups = ','.join("'" + group + "'" for group in QUARANTINE_GROUPS)
+        self.sql(f"""
+            DO $$ DECLARE r record; BEGIN
+                IF EXISTS (SELECT FROM pg_roles g WHERE g.rolname IN ({groups}) AND (
+                    g.rolcanlogin OR g.rolinherit OR g.rolsuper OR g.rolcreatedb
+                    OR g.rolcreaterole OR g.rolreplication OR g.rolbypassrls
+                    OR EXISTS (SELECT FROM pg_auth_members m WHERE m.member = g.oid)))
+                THEN RAISE EXCEPTION 'unsafe internal group'; END IF;
+                FOR r IN SELECT * FROM pg_roles WHERE rolcanlogin
+                    AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo') LOOP
+                    IF r.rolinherit OR r.rolsuper OR r.rolcreatedb OR r.rolcreaterole
+                        OR r.rolreplication OR r.rolbypassrls OR r.rolconnlimit <> -1
+                        OR r.rolvaliduntil IS NOT NULL OR r.rolconfig IS NOT NULL
+                        OR (SELECT count(*) FROM pg_auth_members WHERE member = r.oid) <> 1
+                        OR NOT EXISTS (SELECT FROM pg_auth_members m
+                            JOIN pg_roles g ON g.oid = m.roleid
+                            WHERE m.member = r.oid AND g.rolname IN ({groups})
+                                AND NOT m.admin_option AND NOT m.inherit_option AND m.set_option)
+                        OR EXISTS (SELECT FROM pg_auth_members WHERE roleid = r.oid)
+                        OR EXISTS (SELECT FROM pg_db_role_setting WHERE setrole = r.oid)
+                    THEN RAISE EXCEPTION 'unmapped login role'; END IF;
+                    EXECUTE format('ALTER ROLE %I NOLOGIN', r.rolname);
+                END LOOP;
+            END $$;
+        """)
+        return quarantined
+
+    def verify_quarantined_logins(self, quarantined):
+        global step
+        if not quarantined:
+            return
+        step = 'role_passwords'
+        # Object ACLs, ownership, default ACLs and policy references exist
+        # only after pg_restore. Reject all direct dependencies, cluster-wide.
+        # OIDs come from PostgreSQL as integers, never from role names.
+        oids = ','.join(str(int(oid)) for oid in quarantined)
+        require(self.sql("SELECT count(*) FROM pg_shdepend WHERE refclassid = 'pg_authid'::regclass "
+                         f"AND refobjid = ANY(ARRAY[{oids}]::oid[]);") == '0')
+        groups = ','.join("'" + group + "'" for group in QUARANTINE_GROUPS)
+        counts = json.loads(self.sql(f"""
+            SELECT COALESCE(json_object_agg(group_name, n), '{{}}') FROM (
+                SELECT g.rolname AS group_name, count(*) AS n FROM pg_auth_members m
+                JOIN pg_roles g ON g.oid = m.roleid
+                WHERE m.member = ANY(ARRAY[{oids}]::oid[]) AND g.rolname IN ({groups})
+                GROUP BY g.rolname
+            ) AS totals;
+        """))
+        for group, label in QUARANTINE_GROUPS.items():
+            if counts.get(group, 0):
+                print(f'restore_{label}_disabled={int(counts[group])}', flush=True)
+
     def restore(self, work, cipher, name, ledger):
         global step
         require(re.fullmatch(BUNDLE_NAME, name))
@@ -327,39 +391,7 @@ class Recovery:
         self.dc('exec', '-T', 'postgres', 'psql', '-X', '-U', 'postgres', '-d', 'postgres',
                 '-v', 'ON_ERROR_STOP=1', data=roles.encode())
         step = 'role_passwords'
-        # Personal diagnostics accounts have no password mapping. Quarantine
-        # only this exact unprivileged shape, before importing any app data.
-        # Names never leave SQL (including unusual identifiers) or enter logs.
-        diagnostics = json.loads(self.sql("""
-            SELECT COALESCE(json_agg(oid), '[]') FROM pg_roles
-            WHERE rolcanlogin AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo');
-        """))
-        if diagnostics:
-            self.sql("""
-                DO $$ DECLARE r record; BEGIN
-                    IF NOT EXISTS (SELECT FROM pg_roles g
-                        WHERE g.rolname = 'phoenix_diagnostics' AND NOT
-                            (g.rolcanlogin OR g.rolinherit OR g.rolsuper OR g.rolcreatedb
-                             OR g.rolcreaterole OR g.rolreplication OR g.rolbypassrls)
-                        AND NOT EXISTS (SELECT FROM pg_auth_members m WHERE m.member = g.oid)) THEN
-                        RAISE EXCEPTION 'unsafe diagnostics group';
-                    END IF;
-                    FOR r IN SELECT * FROM pg_roles WHERE rolcanlogin
-                        AND rolname NOT IN ('postgres', 'phoenix_auth', 'phoenix_demo') LOOP
-                        IF r.rolinherit OR r.rolsuper OR r.rolcreatedb OR r.rolcreaterole
-                            OR r.rolreplication OR r.rolbypassrls OR r.rolconnlimit <> -1
-                            OR r.rolvaliduntil IS NOT NULL OR r.rolconfig IS NOT NULL
-                            OR (SELECT count(*) FROM pg_auth_members WHERE member = r.oid) <> 1
-                            OR NOT EXISTS (SELECT FROM pg_auth_members
-                                WHERE member = r.oid AND roleid = 'phoenix_diagnostics'::regrole
-                                    AND NOT admin_option AND NOT inherit_option AND set_option)
-                            OR EXISTS (SELECT FROM pg_auth_members WHERE roleid = r.oid)
-                            OR EXISTS (SELECT FROM pg_db_role_setting WHERE setrole = r.oid)
-                        THEN RAISE EXCEPTION 'unmapped login role'; END IF;
-                        EXECUTE format('ALTER ROLE %I NOLOGIN', r.rolname);
-                    END LOOP;
-                END $$;
-            """)
+        quarantined = self.quarantine_internal_logins()
         logins = self.sql('SELECT rolname FROM pg_roles WHERE rolcanlogin ORDER BY rolname;').splitlines()
         require(set(logins) <= set(LOGIN_PASSWORDS))  # Unknown LOGIN roles need an explicit operator mapping.
         for role in logins:
@@ -373,15 +405,7 @@ class Recovery:
         with (work / 'database.dump').open('rb') as file:
             self.dc('exec', '-T', 'postgres', 'pg_restore', '-U', 'postgres', '-d', 'postgres',
                     '--exit-on-error', stdin=file)
-        if diagnostics:
-            step = 'role_passwords'
-            # Object ACLs, ownership, default ACLs and policy references exist
-            # only after pg_restore. Reject all direct dependencies, cluster-wide.
-            # OIDs come from PostgreSQL as integers, never from role names.
-            oids = ','.join(str(int(oid)) for oid in diagnostics)
-            require(self.sql("SELECT count(*) FROM pg_shdepend WHERE refclassid = 'pg_authid'::regclass "
-                             f"AND refobjid = ANY(ARRAY[{oids}]::oid[]);") == '0')
-            print(f'restore_diagnostics_disabled={len(diagnostics)}', flush=True)
+        self.verify_quarantined_logins(quarantined)
         step = 'uploads_restore'
         command(['docker', 'volume', 'create', self.volume])
         with (work / 'uploads.tar.gz').open('rb') as file:

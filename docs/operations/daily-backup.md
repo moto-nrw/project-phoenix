@@ -424,22 +424,39 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
 
    `phoenix_tenant` und `phoenix_admin` sind NOLOGIN und benötigen kein Passwort.
    Auch außerhalb der Demo existiert `phoenix_demo`; sein Wert ist erforderlich.
-   Ausnahme für [persönliche Diagnosezugänge](diagnose-lesezugang-3840.md):
-   Ausschließliche Mitgliedschaft in `phoenix_diagnostics` ohne ADMIN-/INHERIT-
+   Eng begrenzte Ausnahme für [persönliche Diagnosezugänge](diagnose-lesezugang-3840.md)
+   und interne [Lösch-/Aufbewahrungszugänge](tenant-erasure.md): Ausschließliche
+   Mitgliedschaft in **genau einer** der Gruppen `phoenix_diagnostics`,
+   `phoenix_school_erasure` oder `phoenix_billing_retention` ohne ADMIN-/INHERIT-
    Option, mit SET-Option und ohne erhöhte Attribute, individuelle Einstellungen,
-   direkte Rechte oder Objektbesitz wird akzeptiert. Diese Zugänge werden vor
-   dem Datenimport auf **NOLOGIN** gesetzt, nicht mit einem Passwort versehen.
+   direkte Rechte oder Objektbesitz wird akzeptiert. Zusätzliche Mitgliedschaften,
+   auch in einer zweiten erlaubten Gruppe, bleiben verboten. Die Gruppen selbst
+   müssen NOLOGIN/NOINHERIT sein, ohne erhöhte Attribute oder weitere
+   Gruppenmitgliedschaften. Diese Zugänge werden vor dem Datenimport auf
+   **NOLOGIN** gesetzt, nicht mit einem Passwort versehen.
    Nach dem Datenimport prüft der Restore zusätzlich sämtliche direkten
    Objektabhängigkeiten (einschließlich Spalten-/Default-Rechten und Besitz).
    Bei Abweichung scheitert er weiterhin bei `step=role_passwords`, die
-   Freigabesperre bleibt bestehen. Nur die Anzahl wird als
-   `restore_diagnostics_disabled=<Anzahl>` gemeldet, keine persönlichen Rollennamen.
+   Freigabesperre bleibt bestehen. Nur die Anzahlen werden als
+   `restore_diagnostics_disabled=<Anzahl>`,
+   `restore_school_erasure_disabled=<Anzahl>` bzw.
+   `restore_billing_retention_disabled=<Anzahl>` gemeldet, keine Login-Namen.
    Alle anderen unbekannten LOGIN-Rollen werden weiterhin abgewiesen.
    Vor Wiederholung deren Zweck/Mapping klären und das Verfahren gezielt erweitern.
    Persönliche Diagnosezugänge nach Restore **bewusst einzeln neu freischalten**:
    Auftrag und Schulwahl bestätigen, Rechte und MFA-Netzweg/HBA nach dem
    Diagnose-Runbook prüfen, Passwort neu setzen, erst danach LOGIN aktivieren.
    Nicht benötigte Zugänge bleiben gesperrt.
+   **Lösch-/Aufbewahrungs-Logins ebenfalls bewusst einzeln neu freischalten:**
+   Auftrag, Zuständigkeit und benötigte Gruppenrolle erneut prüfen. Keine
+   kombinierte Mitgliedschaft für Löschung und Abrechnung vergeben. Mit dem
+   administrativen Restore-Zugang direkte Rechte, Objektbesitz, Einstellungen
+   und weitere Mitgliedschaften ausschließen, ein neues Passwort über das
+   freigegebene Secret-Verfahren und `\password` setzen und erst danach LOGIN
+   aktivieren. Für die Löschwiederholung vor App-Start die passende technische
+   Anmeldung im bestehenden `DB_DSN` bereitstellen. Nach dem Wartungsfenster
+   wieder sperren; nicht benötigte Zugänge bleiben NOLOGIN. Der Restore vergibt
+   keine zusätzlichen Gruppenrechte und aktiviert keinen dieser Logins.
    `migrate` ersetzt diese Passwortsetzung
    nicht: bereits ausgeführte Migrationen laufen nach Restore nicht erneut.
    Das Restore-Skript ruft `psql -X -c '\password <Rolle>'` ohne TTY auf und
