@@ -451,7 +451,7 @@
       "label": "İmzanız",
       "hint": "Alana parmağınızla, kalemle veya fareyle imza atın.",
       "canvas": "İmza alanı",
-      "clear": "Sil",
+      "clear": "Alanı temizle",
       "typeInstead": "Adınızı yazın",
       "drawInstead": "Bunun yerine çiz",
       "typedName": "Adınız ve soyadınız",

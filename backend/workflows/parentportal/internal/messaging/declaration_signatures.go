@@ -14,7 +14,7 @@ import (
 
 var (
 	// ErrDeclarationSignatureRequired: the school asks for a signature and
-	// the agreement carries none. 422.
+	// the agreement carries none. 400.
 	ErrDeclarationSignatureRequired = errors.New("parent: the declaration requires a signature")
 	// ErrDeclarationSignatureInvalid: the signature image or typed name does
 	// not pass the checks. 400.

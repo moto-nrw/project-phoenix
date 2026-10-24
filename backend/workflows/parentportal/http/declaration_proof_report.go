@@ -143,7 +143,9 @@ func proofHistoryCards(proof *parentService.DeclarationProof) []ReportCard {
 				if s.TypedName != "" {
 					typed = "Name getippt: " + s.TypedName
 				}
-				fields = append(fields, ReportField{Label: "Unterschrift", Value: typed, PNG: s.PNG})
+				fields = append(fields,
+					ReportField{Label: "Unterschrift", Value: typed, PNG: s.PNG},
+					ReportField{Label: "Prüfsumme der unterschriebenen Fassung", Value: s.DocumentSHA256})
 			}
 		}
 		cards = append(cards, ReportCard{

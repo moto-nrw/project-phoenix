@@ -287,10 +287,11 @@ function ProofDocument({
         ))}
       </section>
 
-      <footer className="border-t border-gray-200 pt-3 text-sm text-gray-600">
-        {proof.submissions.some((entry) => entry.signature)
-          ? t("noteSigned")
-          : t("note")}
+      <footer className="space-y-1 border-t border-gray-200 pt-3 text-sm text-gray-600">
+        {proof.submissions.some((entry) => entry.signature) && (
+          <p>{t("noteSigned")}</p>
+        )}
+        <p>{t("note")}</p>
       </footer>
     </article>
   );

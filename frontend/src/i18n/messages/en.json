@@ -451,7 +451,7 @@
       "label": "Your signature",
       "hint": "Sign in the box with your finger, a pen or the mouse.",
       "canvas": "Box for your signature",
-      "clear": "Clear",
+      "clear": "Clear field",
       "typeInstead": "Type your name",
       "drawInstead": "Draw instead",
       "typedName": "Your first and last name",

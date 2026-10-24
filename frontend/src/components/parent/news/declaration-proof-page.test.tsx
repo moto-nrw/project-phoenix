@@ -288,6 +288,12 @@ describe("Nachweis mit Unterschrift (#4785)", () => {
         "Unterschriebene Antworten sind als einfache elektronische Signatur mit gezeichneter Unterschrift gegeben.",
       ),
     ).toBeInTheDocument();
+    // The limitation of the procedure stays on a signed proof too.
+    expect(
+      screen.getByText(
+        "Dieser Nachweis belegt eine einfache elektronische Erklärung. Er ersetzt keine gesetzlich vorgeschriebene Unterschrift auf Papier.",
+      ),
+    ).toBeInTheDocument();
     // The image checksum stays off the screen like every other checksum.
     expect(document.body.textContent ?? "").not.toContain("d".repeat(64));
   });

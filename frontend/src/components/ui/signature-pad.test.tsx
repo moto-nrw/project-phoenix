@@ -112,7 +112,7 @@ describe("SignaturePad", () => {
     render(<Harness onValue={onValue} />);
 
     draw();
-    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Feld leeren" }));
     expect(context.clearRect).toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole("button", { name: "Unterschrift bestätigen" }),

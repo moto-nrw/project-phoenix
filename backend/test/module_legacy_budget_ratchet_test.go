@@ -150,7 +150,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
 // ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
-const moduleComposeBudgetTotal = 12396
+// ADR 0099: the signature ledger constructor adds exactly 6 LOC.
+const moduleComposeBudgetTotal = 12402
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -159,8 +160,9 @@ const moduleComposeBudgetTotal = 12396
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":         45,
-	"modules/auditlog/compose":             183,
+	"modules/appointments/compose": 45,
+	// ADR 0099: the signature ledger constructor, construction only.
+	"modules/auditlog/compose":             189,
 	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
 	"modules/classday/compose":             213,

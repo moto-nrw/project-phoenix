@@ -56,9 +56,7 @@ func testFingerprint(content []byte) string {
 
 func newTestSignatureLedger(t *testing.T) auditlog.SignatureLedger {
 	t.Helper()
-	ledger, err := NewSignatureLedger(testFingerprint)
-	require.NoError(t, err)
-	return ledger
+	return NewSignatureLedger(testFingerprint)
 }
 
 // A signature is stored in the caller's tenant transaction, read back
@@ -159,8 +157,6 @@ func TestSignatureLedgerRefusesWithoutTenantTransactionAndBadEntries(t *testing.
 		require.ErrorIs(t, err, auditlog.ErrSignatureInvalid, "a signature needs a subject")
 		return nil
 	}))
-	_, err = NewSignatureLedger(nil)
-	require.Error(t, err)
 }
 
 // An enrollment signs before a child exists (#4786): the request is the

@@ -53,13 +53,9 @@ func BuildParentPortal(
 	}
 	messages := parentStore.NewParentMessageRepository(db.Pool())
 	photos := services.StudentPhotos
-	signatures, err := SignatureLedger()
-	if err != nil {
-		return nil, fmt.Errorf("compose parent portal signatures: %w", err)
-	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: ParentGuardianChanges(),
-		Signatures:      signatures,
+		Signatures:      ParentDeclarationSignatures{Ledger: SignatureLedger()},
 		DeparturePolicy: ParentDeparturePolicy(),
 		GuardianPolicy:  NewParentGuardianPolicy(),
 		Fingerprints:    SecurityFingerprints{},

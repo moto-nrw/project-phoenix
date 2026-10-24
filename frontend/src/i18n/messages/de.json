@@ -451,7 +451,7 @@
       "label": "Ihre Unterschrift",
       "hint": "Unterschreiben Sie im Feld mit dem Finger, dem Stift oder der Maus.",
       "canvas": "Feld zum Unterschreiben",
-      "clear": "Löschen",
+      "clear": "Feld leeren",
       "typeInstead": "Namen tippen",
       "drawInstead": "Lieber zeichnen",
       "typedName": "Ihr Vor- und Nachname",

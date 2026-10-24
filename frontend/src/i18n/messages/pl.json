@@ -451,7 +451,7 @@
       "label": "Twój podpis",
       "hint": "Podpisz się w polu palcem, rysikiem lub myszą.",
       "canvas": "Pole na podpis",
-      "clear": "Wyczyść",
+      "clear": "Wyczyść pole",
       "typeInstead": "Wpisz imię i nazwisko",
       "drawInstead": "Narysuj zamiast tego",
       "typedName": "Twoje imię i nazwisko",

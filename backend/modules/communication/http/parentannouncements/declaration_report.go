@@ -288,10 +288,12 @@ func signatureReportFields(s *announcementService.DeclarationSignature) []Report
 	if s == nil {
 		return nil
 	}
-	label := "Unterschrift"
 	value := ""
-	if s.Method == "typed" {
+	if s.Method == announcementService.DeclarationSignatureMethodTyped {
 		value = "Name getippt: " + s.TypedName
 	}
-	return []ReportField{{Label: label, Value: value, PNG: s.PNG}}
+	return []ReportField{
+		{Label: "Unterschrift", Value: value, PNG: s.PNG},
+		{Label: "Prüfsumme der unterschriebenen Fassung", Value: s.DocumentSHA256},
+	}
 }

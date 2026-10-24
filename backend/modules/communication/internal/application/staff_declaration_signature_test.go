@@ -14,18 +14,19 @@ import (
 // on the version the answer names (#4785).
 func TestWithSubmissionSignatureChecksTheLinkToTheVersion(t *testing.T) {
 	t.Parallel()
-	id := int64(9)
-	sub := &StaffDeclarationSubmission{SignatureID: &id, ContentHash: strings.Repeat("a", 64)}
+	// The signature id is only a map key here; no row is read.
+	id := new(int64)
+	sub := &StaffDeclarationSubmission{SignatureID: id, ContentHash: strings.Repeat("a", 64)}
 	intact := DeclarationSubmissionView{IntegrityOK: true}
 
 	got := withSubmissionSignature(intact, sub, map[int64]declarations.DeclarationSignature{
-		id: {Method: "drawn", DocumentSHA256: strings.Repeat("a", 64), IntegrityOK: true},
+		*id: {Method: "drawn", DocumentSHA256: strings.Repeat("a", 64), IntegrityOK: true},
 	})
 	require.NotNil(t, got.Signature)
 	assert.True(t, got.IntegrityOK)
 
 	got = withSubmissionSignature(intact, sub, map[int64]declarations.DeclarationSignature{
-		id: {Method: "drawn", DocumentSHA256: strings.Repeat("b", 64), IntegrityOK: true},
+		*id: {Method: "drawn", DocumentSHA256: strings.Repeat("b", 64), IntegrityOK: true},
 	})
 	assert.False(t, got.IntegrityOK, "signed on another version")
 	assert.False(t, got.Signature.IntegrityOK)

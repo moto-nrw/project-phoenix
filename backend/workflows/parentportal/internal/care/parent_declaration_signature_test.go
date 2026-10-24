@@ -15,7 +15,7 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,13 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func mustSignatureLedger(t *testing.T) auditlog.SignatureLedger {
-	t.Helper()
-	ledger, err := owners.SignatureLedger()
-	require.NoError(t, err)
-	return ledger
-}
 
 func signedConsent() communication.ParentDeclarationSettings {
 	settings := consent(communication.DeclarationSignersAny, false, false)
@@ -149,4 +142,37 @@ func TestDeclarationSignature_ChangedSignatureIsReported(t *testing.T) {
 	proof, err := s.svc.DeclarationProof(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, proof.IntegrityOK)
+}
+
+// The wording and the answer are rewritten consistently, each with a fresh
+// checksum: only the checksum the signature stored still names the signed
+// wording, and the proof reports the change through it.
+func TestDeclarationSignature_SignatureChecksumRevealsAConsistentRewrite(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, signedConsent(), nil)
+	mine, _, err := s.submitSigned(s.chain.AccountID, parentportal.DeclarationActionAgreed, drawnSignature(t))
+	require.NoError(t, err)
+
+	rewritten := *s.version
+	rewritten.Body += " Neuer Treffpunkt."
+	rewritten.ContentHash = owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalContent(&rewritten))
+	_, err = s.db.ExecContext(context.Background(),
+		`UPDATE users.parent_announcement_declaration_versions SET body = ?, content_hash = ? WHERE id = ?`,
+		rewritten.Body, rewritten.ContentHash, rewritten.ID)
+	require.NoError(t, err)
+	answer := *mine
+	answer.ContentHash = rewritten.ContentHash
+	answer.RecordHash = owners.SecurityFingerprints{}.Content(api.ParentDeclarationCanonicalRecord(&answer))
+	_, err = s.db.ExecContext(context.Background(),
+		`UPDATE users.parent_announcement_declaration_submissions SET content_hash = ?, record_hash = ? WHERE id = ?`,
+		answer.ContentHash, answer.RecordHash, answer.ID)
+	require.NoError(t, err)
+
+	proof, err := s.svc.DeclarationProof(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID)
+	require.NoError(t, err)
+	signature := proof.Signatures[*mine.SignatureID]
+	require.NotNil(t, signature)
+	assert.True(t, signature.IntegrityOK, "the signature row itself is unchanged")
+	assert.Equal(t, s.version.ContentHash, signature.DocumentSHA256)
+	assert.False(t, proof.IntegrityOK, "the signed wording no longer matches")
 }

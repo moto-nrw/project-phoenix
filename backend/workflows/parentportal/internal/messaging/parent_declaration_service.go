@@ -237,12 +237,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err != nil {
 		return nil, false, err
 	}
-	submission := s.newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now)
-	if signatureID != nil {
-		submission.SignatureID = signatureID
-		submission.Method = DeclarationMethodSimpleElectronicSignature
-		submission.RecordHash = s.declarationRecordHash(submission)
-	}
+	submission := s.newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, signatureID, now)
 	if err := repo.InsertDeclarationSubmission(ctx, submission); err != nil {
 		return nil, false, fmt.Errorf("parent: record declaration: %w", err)
 	}
@@ -320,7 +315,7 @@ func (s *Service) latestOwnDeclaration(ctx context.Context, accountID, announcem
 	return nil, nil
 }
 
-func (s *Service) newDeclarationSubmission(tenantID, announcementID, accountID int64, version *DeclarationVersion, signer *DeclarationSignerContext, in DeclarationInput, passwordConfirmed bool, now time.Time) *DeclarationSubmission {
+func (s *Service) newDeclarationSubmission(tenantID, announcementID, accountID int64, version *DeclarationVersion, signer *DeclarationSignerContext, in DeclarationInput, passwordConfirmed bool, signatureID *int64, now time.Time) *DeclarationSubmission {
 	account, profile := accountID, signer.GuardianProfileID
 	submission := &DeclarationSubmission{
 		TenantID: tenantID, AnnouncementID: announcementID, VersionID: version.ID, StudentID: in.StudentID,
@@ -331,6 +326,10 @@ func (s *Service) newDeclarationSubmission(tenantID, announcementID, accountID i
 		// PostgreSQL keeps microseconds; hashing the stored precision keeps
 		// the record hash verifiable after a round trip.
 		SubmittedAt: time.UnixMicro(now.UnixMicro()).UTC(),
+	}
+	if signatureID != nil {
+		submission.SignatureID = signatureID
+		submission.Method = DeclarationMethodSimpleElectronicSignature
 	}
 	submission.RecordHash = s.declarationRecordHash(submission)
 	return submission

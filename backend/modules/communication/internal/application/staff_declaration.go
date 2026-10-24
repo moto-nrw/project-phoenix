@@ -436,8 +436,11 @@ func (s *service) submissionSignatures(ctx context.Context, submissions []*Staff
 			ids = append(ids, *sub.SignatureID)
 		}
 	}
-	if len(ids) == 0 || s.signatures == nil {
+	if len(ids) == 0 {
 		return map[int64]declarations.DeclarationSignature{}, nil
+	}
+	if s.signatures == nil {
+		return nil, fmt.Errorf("announcement: signature reader is not wired")
 	}
 	signatures, err := s.signatures.DeclarationSignatures(ctx, ids)
 	if err != nil {

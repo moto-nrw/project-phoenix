@@ -309,7 +309,7 @@ func signatureCSVColumns(s *announcementService.DeclarationSignature) []string {
 		return []string{"nein", "", "", ""}
 	}
 	method := "gezeichnet"
-	if s.Method == "typed" {
+	if s.Method == announcementService.DeclarationSignatureMethodTyped {
 		method = "Name getippt"
 	}
 	return []string{method, csvSafe(s.TypedName), s.ImageSHA256, yesNo(s.IntegrityOK)}

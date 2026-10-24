@@ -52,8 +52,7 @@ func NewParentAnnouncementsWithAttachments(cfg ParentAnnouncementConfig, attachm
 	}
 	return deliveryPorts.NewParentAnnouncementFacade(deliveryPorts.NewService(deliveryPorts.ServiceConfig{
 		Repo: records.NewRepository(cfg.Repo), Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
-		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
-		Preferences:      cfg.Preferences, Deliveries: deliveries,
+		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier), Preferences: cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints, Signatures: cfg.Signatures, Attachments: attachments,
 	}, runtime, policy)), nil
 }

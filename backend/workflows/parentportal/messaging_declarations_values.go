@@ -16,5 +16,7 @@ type (
 	DeclarationSubmission            = messaging.DeclarationSubmission
 	DeclarationSignature             = messaging.DeclarationSignature
 	DeclarationSignatureInput        = messaging.DeclarationSignatureInput
+	DeclarationSignatureEntry        = messaging.DeclarationSignatureEntry
+	SignatureLedger                  = messaging.SignatureLedger
 	DeclarationVersion               = messaging.DeclarationVersion
 )

@@ -58,7 +58,7 @@ const SIGNATURE_PAD_LABELS_DE: SignaturePadLabels = {
   label: "Unterschrift",
   hint: "Unterschreiben Sie mit dem Finger, dem Stift oder der Maus.",
   canvas: "Feld zum Unterschreiben",
-  clear: "Löschen",
+  clear: "Feld leeren",
   typeInstead: "Namen tippen",
   drawInstead: "Lieber zeichnen",
   typedName: "Ihr Name",

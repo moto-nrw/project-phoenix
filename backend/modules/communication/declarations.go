@@ -169,6 +169,12 @@ func DeclarationActionLabel(action string) string {
 	}
 }
 
+// Signature methods of a signed answer (#4785): drawn, or the typed name.
+const (
+	DeclarationSignatureMethodDrawn = "drawn"
+	DeclarationSignatureMethodTyped = "typed"
+)
+
 // Declaration methods. The strings are the database values.
 const (
 	DeclarationMethodSimpleElectronic          = "simple_electronic"
