@@ -120,11 +120,12 @@ func openGuardianInvitations(identity interface {
 // settings the windows resolve from, the subject deletions and the owner
 // steps, in the order dataRetentionSteps, protocolRetentionSteps and
 // cleanupJobRetentionSteps list them. attendance deletes the daily
-// attendance after the school's window (#3957); like the workflows it
-// reaches the Worker as an argument, not as a field of the owners (ADR 0059).
+// attendance (#3957) and the morning attendance (#4790) after the school's
+// windows; like the workflows it reaches the Worker as an argument, not as a
+// field of the owners (ADR 0059).
 func newWorkerRetention(
 	deletionLog retentionDeletionLog, settings retentionSettings, students studentRetention, staff staffRetention,
-	steps []schedulerPorts.RetentionStep, attendance studentpresence.AttendanceRetention, guardians guardianRetention,
+	steps []schedulerPorts.RetentionStep, attendance presenceRetention, guardians guardianRetention,
 ) (workerRetention, error) {
 	if deletionLog == nil || settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
@@ -211,9 +212,16 @@ func dataRetentionSteps(
 	return steps
 }
 
-// attendanceRetentionSteps is the deletion of the daily attendance after the
-// school's window (#3957).
-func attendanceRetentionSteps(attendance studentpresence.AttendanceRetention, settings settingsModule.StatisticsRetentionSource) []schedulerPorts.RetentionStep {
+// presenceRetention is Student Presence's part of the nightly cleanup: the
+// daily attendance and the morning attendance.
+type presenceRetention interface {
+	studentpresence.AttendanceRetention
+	studentpresence.MorningAttendanceRetention
+}
+
+// attendanceRetentionSteps are the deletions of the daily attendance (#3957)
+// and of the morning attendance (#4790), each after its school window.
+func attendanceRetentionSteps(attendance presenceRetention, settings settingsModule.StatisticsRetentionSource) []schedulerPorts.RetentionStep {
 	if attendance == nil {
 		return nil
 	}
@@ -228,6 +236,19 @@ func attendanceRetentionSteps(attendance studentpresence.AttendanceRetention, se
 			deleted, err := attendance.DeleteExpiredAttendance(ctx, days)
 			if errors.Is(err, studentpresence.ErrAttendanceRetentionWindow) {
 				return schedulerPorts.RetentionOutcome{}, window.SettingError(err)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+		},
+	}, {
+		Kind: auditModels.DeletionTypeMorningAttendanceRetention,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			days, err := settingsModule.MorningAttendanceRetentionWindow(settings)(ctx)
+			if err != nil {
+				return schedulerPorts.RetentionOutcome{}, err
+			}
+			deleted, err := attendance.DeleteExpiredMorningAttendance(ctx, days)
+			if errors.Is(err, studentpresence.ErrAttendanceRetentionWindow) {
+				return schedulerPorts.RetentionOutcome{}, fmt.Errorf("resolve %s: %w", settingsModule.KeyGDPRMorningAttendanceRetentionDays, err)
 			}
 			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 		},

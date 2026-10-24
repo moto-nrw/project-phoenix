@@ -2291,6 +2291,9 @@
         "arrival_exception_editor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "arrival_exception_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "arrival_exception_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "morning_attendance_no_school_day": "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
+        "morning_attendance_not_today": "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
+        "morning_attendance_unknown_child": "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
         "school_write_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "communication": {

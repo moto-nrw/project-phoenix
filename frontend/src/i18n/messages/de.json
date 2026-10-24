@@ -2291,6 +2291,9 @@
         "arrival_exception_editor_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "arrival_exception_past_date": "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
         "arrival_exception_weekend": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+        "morning_attendance_no_school_day": "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
+        "morning_attendance_not_today": "Die Anwesenheit lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+        "morning_attendance_unknown_child": "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
         "school_write_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
       },
       "communication": {

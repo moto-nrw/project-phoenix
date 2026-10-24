@@ -2291,6 +2291,9 @@
         "arrival_exception_editor_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "arrival_exception_past_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "arrival_exception_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
+        "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
+        "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
         "school_write_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "communication": {

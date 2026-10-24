@@ -562,6 +562,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/school/auth/switch-school"}:                                  notCaptured,
 	{http.MethodDelete, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}: event("arrival_exception_changed"),
 	{http.MethodPut, "/school/class-day/arrival-exceptions/{schoolClass}/{date}"}:    event("arrival_exception_changed"),
+	{http.MethodPut, "/school/class-day/morning-attendance/{schoolClass}/{date}"}:    event("morning_attendance_recorded"),
 	{http.MethodDelete, "/school/notifications/preferences/"}:                        notCaptured,
 	{http.MethodPut, "/school/notifications/preferences/{type}"}:                     notCaptured,
 	{http.MethodDelete, "/school/notifications/push/subscriptions"}:                  notCaptured,

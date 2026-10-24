@@ -66,6 +66,11 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(write, withTx).Get("/arrival-exceptions/block-start", rs.getArrivalExceptionBlockStart)
 	r.With(write, withTx).Put("/arrival-exceptions/{schoolClass}/{date}", rs.putArrivalException)
 	r.With(write, withTx).Delete("/arrival-exceptions/{schoolClass}/{date}", rs.deleteArrivalException)
+
+	// Morning attendance (#4790): the Lehrkraft marks today's school morning
+	// of an assigned class; the setting and the day are checked behind it.
+	morningWrite := common.RequiresPermission(permissions.ClassDayMorningAttendanceWrite)
+	r.With(morningWrite, withTx).Put("/morning-attendance/{schoolClass}/{date}", rs.putMorningAttendance)
 }
 
 // ClassesResponse lists the caller's assigned school classes.
@@ -147,6 +152,10 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	// The projection says whether the day and the school allow the morning
+	// attendance; the token decides whether this caller may write it.
+	report.CanRecordMorningAttendance = report.CanRecordMorningAttendance &&
+		common.HasPermission(permissions.ClassDayMorningAttendanceWrite, sessiontoken.PermissionsFromCtx(r.Context()))
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
 }
