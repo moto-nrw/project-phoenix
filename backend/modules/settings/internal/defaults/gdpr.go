@@ -311,6 +311,21 @@ var gdpr_init_sch_lerdaten_4Definitions = []config.Definition{
 		Validation:      config.Range(30, 365),
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	},
+	{
+		Key:             config.KeyGDPRHomeworkRetentionDays,
+		Label:           "Hausaufgaben aufbewahren (Tage)",
+		Description:     "So lange speichert moto die Hausaufgaben der Lehrkräfte und die Rückmeldungen der OGS dazu. Danach löscht moto beides.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       35,
+		Validation:      config.Range(30, 1095),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	},
 }
 
 var gdpr_init_bewegungsdaten_5Definitions = []config.Definition{

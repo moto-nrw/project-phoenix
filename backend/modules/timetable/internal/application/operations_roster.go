@@ -63,6 +63,7 @@ func (s *operations) rosterWithActionAccess(ctx context.Context, accountID int64
 	}
 	roster.CanEditAttendance = err == nil && staffID > 0
 	roster.CanReportAbsence = s.requireCanReportAbsence(ctx, accountID, isAdmin, instanceID) == nil
+	roster.CanRecordHomeworkFeedback = canRecordHomeworkFeedback(roster)
 	return roster, nil
 }
 
@@ -117,6 +118,9 @@ func (s *operations) buildRosterWithCareDay(ctx context.Context, instanceID int6
 		parallel: parallelPresence,
 	})
 	s.sortRosterRows(rows)
+	if err := s.applyRosterHomework(ctx, src.inst, rows); err != nil {
+		return nil, err
+	}
 	return s.rosterEnvelope(ctx, src.inst, rows, pickupTimesLoaded)
 }
 
@@ -298,6 +302,7 @@ func (s *operations) rosterEnvelope(ctx context.Context, inst *scheduleModels.Ac
 			StartTime:           inst.StartTime.Format("15:04"),
 			EndTime:             inst.EndTime.Format("15:04"),
 			IsDuty:              inst.TemplateType == timetable.GroupTypeDuty,
+			ListKind:            inst.ListKind,
 			CanComplete:         availability.CanComplete,
 			CompleteAvailableAt: availability.CompleteAvailableAt.Format(time.RFC3339),
 		},

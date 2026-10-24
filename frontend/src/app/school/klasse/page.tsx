@@ -14,10 +14,20 @@ import {
 } from "~/components/class-day/routes";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
+  addHomeworkSchool,
+  changeHomeworkSchool,
+  deleteHomeworkSchool,
   fetchClassDayClassesSchool,
   fetchClassDaySchool,
   recordMorningAttendanceSchool,
 } from "~/lib/school-class-day-api";
+
+// Die Schreibwege der Hausaufgaben (#4796), einmal für alle Renders.
+const homeworkApi = {
+  add: addHomeworkSchool,
+  change: changeHomeworkSchool,
+  remove: deleteHomeworkSchool,
+};
 
 function ClassFromAddress() {
   const schoolClass = classDayClassParam(
@@ -29,6 +39,7 @@ function ClassFromAddress() {
       fetchClassDay={fetchClassDaySchool}
       fetchClasses={fetchClassDayClassesSchool}
       recordMorningAttendance={recordMorningAttendanceSchool}
+      homework={homeworkApi}
     />
   );
 }

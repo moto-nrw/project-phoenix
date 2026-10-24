@@ -109,6 +109,7 @@ DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
@@ -964,6 +965,7 @@ POST /school/auth/mfa/verify
 POST /school/auth/password-reset
 POST /school/auth/password-reset/confirm
 POST /school/auth/switch-school
+POST /school/class-day/homework/{schoolClass}
 POST /school/notifications/push/subscriptions
 POST /school/notifications/test
 POST /school/staff-messages/threads/open
@@ -1059,6 +1061,7 @@ PUT /api/time-tracking/{id}
 PUT /api/timetable/closing-days/{id}
 PUT /api/timetable/conflict-acks/{fingerprint}
 PUT /api/timetable/instances/{id}
+PUT /api/timetable/operations/instances/{id}/students/{student_id}/homework-feedback
 PUT /api/timetable/periods/{id}
 PUT /api/timetable/planning-tracks/order
 PUT /api/timetable/planning-tracks/{id}
@@ -1095,8 +1098,10 @@ PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
+PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
 QUERY /.well-known/caldav
 QUERY /api/caldav
 QUERY /api/caldav/*

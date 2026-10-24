@@ -78,6 +78,7 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayHomeworkNotFound                         = "classday.homework_not_found"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -301,7 +302,6 @@ const (
 	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
 	CodeIotDeviceApiKeyFormatInvalid                     = "iot.device_api_key_format_invalid"
 	CodeIotDeviceApiKeyInvalid                           = "iot.device_api_key_invalid"
-	CodeIotDeviceApiKeyRequired                          = "iot.device_api_key_required"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -381,6 +381,7 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.homework_not_found":                          "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.deviation_reason_required":                        "input",
 	"iot.device_api_key_format_invalid":                    "permission",
 	"iot.device_api_key_invalid":                           "permission",
-	"iot.device_api_key_required":                          "permission",
 }
 
 func init() {

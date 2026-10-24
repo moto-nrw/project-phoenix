@@ -441,13 +441,15 @@ func cleanupJobRetentionSteps(
 // creates itself (#4045): parent announcements and staff notices after the
 // school's message windows, ended appointments after its timetable window
 // and cancelled or deleted ones after the fixed feed window, grade
-// transitions after its window for children and the rows of removed files
-// after the fixed window of their cleanup intents. A missing owner leaves its
+// transitions after its window for children, the rows of removed files
+// after the fixed window of their cleanup intents, and the homework with its
+// OGS feedback after the homework window (#4796). A missing owner leaves its
 // step out.
 func schoolContentRetentionSteps(
 	settings settingsModule.StatisticsRetentionSource, announcements communicationModule.ParentAnnouncementRetention,
 	staffNotices timetable.StaffNoticeRetention, appointments appointmentRetention,
 	transitions schoolstructure.GradeTransitionRetention, removedFiles fileStorageModule.CleanupRetention,
+	homework homeworkRetention,
 ) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
 	if announcements != nil {
@@ -459,6 +461,11 @@ func schoolContentRetentionSteps(
 		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeStaffNoticeRetention,
 			settingsModule.StaffNoticeRetentionWindow(settings), timetable.ErrStaffNoticeRetentionWindow,
 			staffNotices.DeleteExpiredStaffNotices))
+	}
+	if homework != nil {
+		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeHomeworkRetention,
+			settingsModule.HomeworkRetentionWindow(settings), timetable.ErrHomeworkRetentionWindow,
+			homework.DeleteExpiredHomework))
 	}
 	if appointments != nil {
 		steps = append(steps,
@@ -480,6 +487,12 @@ func schoolContentRetentionSteps(
 		steps = append(steps, ownerRetentionStep(auditModels.DeletionTypeRemovedFileRetention, removedFiles.DeleteRemovedFiles))
 	}
 	return steps
+}
+
+// homeworkRetention deletes the homework of the classes and the OGS feedback
+// on it after the school's window (#4796); the Timetable owner is one.
+type homeworkRetention interface {
+	DeleteExpiredHomework(ctx context.Context, retentionDays int) (int, error)
 }
 
 // appointmentRetention deletes the ended appointments after the school's
@@ -528,7 +541,7 @@ func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, i
 
 // newSchoolContentRetentionSteps builds the owners of the content a school
 // creates itself (#4045) over db and returns their retention steps.
-func newSchoolContentRetentionSteps(db transactionruntime.Database, settings retentionSettings, announcements communicationModule.ParentAnnouncementRetention) ([]schedulerPorts.RetentionStep, error) {
+func newSchoolContentRetentionSteps(db transactionruntime.Database, settings retentionSettings, announcements communicationModule.ParentAnnouncementRetention, homework homeworkRetention) ([]schedulerPorts.RetentionStep, error) {
 	appointments, err := BuildServeAppointments(db)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker appointment retention: %w", err)
@@ -539,6 +552,6 @@ func newSchoolContentRetentionSteps(db transactionruntime.Database, settings ret
 	}
 	return schoolContentRetentionSteps(
 		settings, announcements, timetable.NewStaffNoticeRetention(timetableCompose.NewStaffNoticeRepository(db.Pool()), calendar.TodayDate),
-		appointments, transitions, fileStorageCompose.NewCleanupRetention(),
+		appointments, transitions, fileStorageCompose.NewCleanupRetention(), homework,
 	), nil
 }

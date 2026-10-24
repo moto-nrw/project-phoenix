@@ -66,6 +66,7 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
 		BlockStarts:                   activeTimetable.TimetableOperations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
+		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
 		deliveryCompose.NewRealtimeHub(slog.Default()), slog.Default())
 	return ClassDayTestModule{ClassDay: classDay}, nil

@@ -1,11 +1,14 @@
 // Report-Vertrag der Klassenansicht (#1772): Tagesansicht einer Klasse;
-// geschrieben wird nur die Anwesenheit am Vormittag (#4790). Das Backend scopt jeden Abruf auf die zugewiesenen Klassen der
+// geschrieben werden die Anwesenheit am Vormittag (#4790) und die
+// Hausaufgaben (#4796). Das Backend scopt jeden Abruf auf die zugewiesenen Klassen der
 // aufrufenden Person (education.class_teachers) und liefert hier nie
 // Kontaktdaten der Sorgeberechtigten.
 //
 // Seit dem Cutover (#2207 PR 3) gibt es nur noch einen Abrufweg: das
 // Schul-Portal über lib/school-class-day-api. Diese Datei trägt deshalb nur
 // noch die Typen, die sich Ansicht und Abruf teilen.
+
+import type { HomeworkFeedbackStatus } from "./homework-feedback";
 
 export interface ClassDayRow {
   student_id: number;
@@ -37,6 +40,24 @@ export interface ClassDayRow {
   // (source "teacher"), sonst "absent" aus einer Meldung krank, entschuldigt
   // oder Klassenfahrt (source "report"). Fehlt, solange nichts davon vorliegt.
   morning_attendance?: ClassDayMorningAttendance;
+  // Rückmeldung der OGS zu den Hausaufgaben der Klasse an diesem Tag
+  // (#4796). Fehlt ohne Rückmeldung und bei Klassenlisteneinträgen.
+  homework_feedback?: ClassDayHomeworkFeedback;
+}
+
+interface ClassDayHomeworkFeedback {
+  status: HomeworkFeedbackStatus;
+  note?: string;
+}
+
+/** Ein Hausaufgaben-Eintrag der Klasse an diesem Tag (#4796). */
+export interface ClassDayHomework {
+  // int64 des Backends, als String.
+  id: string;
+  subject?: string;
+  description: string;
+  // Eigener Eintrag: nur die Lehrkraft, die ihn angelegt hat, ändert ihn.
+  own: boolean;
 }
 
 export type MorningAttendanceStatus = "present" | "absent";
@@ -74,6 +95,11 @@ export interface ClassDayReport {
   // Tag ist heute und ein Schultag, die OGS hat es nicht ausgeschaltet und
   // die Berechtigung liegt vor.
   can_record_morning_attendance?: boolean;
+  // Hausaufgaben der Klasse an diesem Tag (#4796), älteste zuerst. Fehlt,
+  // wenn es keine gibt.
+  homework?: ClassDayHomework[];
+  // Die Lehrkraft darf Hausaufgaben eintragen (Berechtigung liegt vor).
+  can_write_homework?: boolean;
 }
 
 interface ClassDayArrivalException {

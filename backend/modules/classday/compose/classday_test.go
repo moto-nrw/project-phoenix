@@ -65,7 +65,8 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 			 "list_entry_id": "9007199254740993", "registered": false, "stays_today": false, "offerings": []}
 		],
 		"class_arrival_exception": {"arrival_time": "12:45", "reason": "Unterricht fällt aus", "origin": "school"},
-		"can_record_morning_attendance": true
+		"can_record_morning_attendance": true,
+		"can_write_homework": false
 	}`, string(got))
 
 	// The optionals stay omitted.
@@ -74,6 +75,8 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 	assert.NotContains(t, string(bare), "class_arrival_exception")
 	assert.NotContains(t, string(bare), "phase_name")
 	assert.Contains(t, string(bare), `"can_record_morning_attendance":false`, "the verdict is always on the wire")
+	assert.Contains(t, string(bare), `"can_write_homework":false`, "the homework verdict is always on the wire")
+	assert.NotContains(t, string(bare), `"homework"`, "a day without homework carries no list")
 }
 
 // TestArrivalExceptionErrorsKeepTheirMessages pins the error contract of the

@@ -130,3 +130,44 @@ export async function recordMorningAttendanceSchool(
     { method: "PUT", body: { marks } },
   );
 }
+
+/** Was die Lehrkraft für einen Hausaufgaben-Eintrag schickt (#4796). */
+export interface HomeworkInput {
+  subject: string | null;
+  description: string;
+}
+
+/** Trägt Hausaufgaben für eine zugewiesene Klasse und einen Tag ein. */
+export async function addHomeworkSchool(
+  schoolClass: string,
+  date: string,
+  input: HomeworkInput,
+): Promise<void> {
+  await authFetch<unknown>(
+    `/api/school/class-day/homework/${encodeURIComponent(schoolClass)}`,
+    { method: "POST", body: { date, ...input } },
+  );
+}
+
+/** Ändert einen eigenen Hausaufgaben-Eintrag. */
+export async function changeHomeworkSchool(
+  schoolClass: string,
+  homeworkId: string,
+  input: HomeworkInput,
+): Promise<void> {
+  await authFetch<unknown>(
+    `/api/school/class-day/homework/${encodeURIComponent(schoolClass)}/${encodeURIComponent(homeworkId)}`,
+    { method: "PUT", body: input },
+  );
+}
+
+/** Löscht einen eigenen Hausaufgaben-Eintrag. */
+export async function deleteHomeworkSchool(
+  schoolClass: string,
+  homeworkId: string,
+): Promise<void> {
+  await authFetch<unknown>(
+    `/api/school/class-day/homework/${encodeURIComponent(schoolClass)}/${encodeURIComponent(homeworkId)}`,
+    { method: "DELETE" },
+  );
+}

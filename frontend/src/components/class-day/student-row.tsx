@@ -10,6 +10,10 @@
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import {
+  HOMEWORK_FEEDBACK_COLORS,
+  HOMEWORK_FEEDBACK_LABELS,
+} from "~/lib/homework-feedback";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { ClassDayRow, MorningAttendanceStatus } from "~/lib/class-day-api";
 import { reportedTodayLabel } from "./day-changes";
@@ -94,6 +98,12 @@ export function StudentRow({
             {reported}
           </p>
         ) : null}
+        {/* Die Notiz der OGS zu den Hausaufgaben (#4796), unter dem Namen. */}
+        {row.homework_feedback?.note ? (
+          <p className="text-xs break-words text-gray-600">
+            OGS: {row.homework_feedback.note}
+          </p>
+        ) : null}
       </div>
       {/* Auf schmalen Bildschirmen stapeln sich Zeit und Kennzeichen, statt
           die Zeile über den Rand zu schieben; ab sm stehen sie nebeneinander. */}
@@ -152,6 +162,12 @@ export function StudentRow({
           <StatusColorBadge
             label="Fehlt ohne Meldung"
             color={LOCATION_COLORS.WARNING}
+          />
+        ) : null}
+        {row.homework_feedback ? (
+          <StatusColorBadge
+            label={`Hausaufgaben: ${HOMEWORK_FEEDBACK_LABELS[row.homework_feedback.status]}`}
+            color={HOMEWORK_FEEDBACK_COLORS[row.homework_feedback.status]}
           />
         ) : null}
       </div>

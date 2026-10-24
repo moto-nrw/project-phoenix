@@ -451,6 +451,12 @@
       "legacy": "class_arrival_exception_weekend"
     },
     {
+      "code": "classday.homework_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.homework_not_found"
+    },
+    {
       "code": "classday.morning_attendance_no_school_day",
       "class": "input",
       "parameters": [],
@@ -2417,6 +2423,24 @@
       "class": "input",
       "parameters": [],
       "legacy": "timetable.guardian_notice_text_invalid"
+    },
+    {
+      "code": "timetable.homework_feedback_child_not_in_supervision",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.homework_feedback_child_not_in_supervision"
+    },
+    {
+      "code": "timetable.homework_feedback_not_allowed",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "timetable.homework_feedback_not_allowed"
+    },
+    {
+      "code": "timetable.homework_feedback_without_homework",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.homework_feedback_without_homework"
     },
     {
       "code": "timetable.idempotency_key_reused",

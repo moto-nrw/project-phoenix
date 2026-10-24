@@ -129,6 +129,9 @@ type DayRow struct {
 	// excused or class-trip day. Nil when neither exists or on a day without
 	// school.
 	MorningAttendance *DayMorningAttendance `json:"morning_attendance,omitempty"`
+	// HomeworkFeedback is what the OGS fed back on the class's homework of
+	// the date (#4796). Nil without feedback and for class-list-only entries.
+	HomeworkFeedback *DayHomeworkFeedback `json:"homework_feedback,omitempty"`
 }
 
 // DayMorningAttendance is one child's school-morning status on the wire.
@@ -181,6 +184,12 @@ type DayReport struct {
 	// school day, the school left the setting on, and the token holds
 	// class_day:morning_attendance_write.
 	CanRecordMorningAttendance bool `json:"can_record_morning_attendance"`
+	// Homework lists the class's homework of the date (#4796), oldest first.
+	// Omitted when there is none.
+	Homework []DayHomework `json:"homework,omitempty"`
+	// CanWriteHomework is true when the caller may enter homework for this
+	// class: the token holds class_day:homework_write. The HTTP layer sets it.
+	CanWriteHomework bool `json:"can_write_homework"`
 }
 
 // MorningAttendanceMark is one child's mark as the Lehrkraft enters it:
@@ -261,6 +270,9 @@ type ClassDay interface {
 	// on the class roster of the day, and only while the school leaves the
 	// setting on. It never changes the OGS attendance.
 	RecordMorningAttendance(ctx context.Context, in MorningAttendanceWrite) error
+	// ClassHomework enters, changes and deletes the homework of a class
+	// (#4796).
+	ClassHomework
 	// EarliestBlockStart returns the "HH:MM" start of the first block of the
 	// date that addresses the class, "" when there is none.
 	EarliestBlockStart(ctx context.Context, schoolClass string, date Date) (string, error)

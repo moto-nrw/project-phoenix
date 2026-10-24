@@ -219,6 +219,8 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     UNION ALL
     SELECT 1 FROM education.class_arrival_times AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM education.class_homework AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM education.grade_transition_class_list_entries AS r WHERE r.tenant_id = p_school_id
@@ -236,6 +238,8 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     SELECT 1 FROM education.group_teacher AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM education.groups AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM enrollment.care_offering_auto_triggers AS r WHERE r.tenant_id = p_school_id
     UNION ALL

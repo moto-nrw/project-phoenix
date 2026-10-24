@@ -71,6 +71,13 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	// of an assigned class; the setting and the day are checked behind it.
 	morningWrite := common.RequiresPermission(permissions.ClassDayMorningAttendanceWrite)
 	r.With(morningWrite, withTx).Put("/morning-attendance/{schoolClass}/{date}", rs.putMorningAttendance)
+
+	// Homework (#4796): the Lehrkraft enters it for an assigned class and
+	// changes or deletes her own entries; the OGS feedback is in the report.
+	homeworkWrite := common.RequiresPermission(permissions.ClassDayHomeworkWrite)
+	r.With(homeworkWrite, withTx).Post("/homework/{schoolClass}", rs.postHomework)
+	r.With(homeworkWrite, withTx).Put("/homework/{schoolClass}/{homeworkId}", rs.putHomework)
+	r.With(homeworkWrite, withTx).Delete("/homework/{schoolClass}/{homeworkId}", rs.deleteHomework)
 }
 
 // ClassesResponse lists the caller's assigned school classes.
@@ -156,6 +163,8 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 	// attendance; the token decides whether this caller may write it.
 	report.CanRecordMorningAttendance = report.CanRecordMorningAttendance &&
 		common.HasPermission(permissions.ClassDayMorningAttendanceWrite, sessiontoken.PermissionsFromCtx(r.Context()))
+	// Homework (#4796) needs only the permission: the class is assigned.
+	report.CanWriteHomework = common.HasPermission(permissions.ClassDayHomeworkWrite, sessiontoken.PermissionsFromCtx(r.Context()))
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
 }

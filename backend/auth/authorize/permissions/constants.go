@@ -343,6 +343,11 @@ const (
 	// decides whether it is unlocked, and the education.class_teachers
 	// assignment decides for which class.
 	ClassDayMorningAttendanceWrite = ResourceClassDay + ":morning_attendance_write"
+	// ClassDayHomeworkWrite lets a Lehrkraft enter homework for her assigned
+	// classes and change or delete her own entries (#4796). The
+	// education.class_teachers assignment decides for which class; no school
+	// setting gates it, because the entry changes no OGS record.
+	ClassDayHomeworkWrite = ResourceClassDay + ":homework_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

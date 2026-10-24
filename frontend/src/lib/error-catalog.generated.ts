@@ -123,6 +123,8 @@ export const ERROR_CATALOG = {
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "classday.arrival_exception_past_date":
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
+      "classday.homework_not_found":
+        "Diese Hausaufgabe gibt es nicht mehr, oder sie ist nicht von Ihnen. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
         "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
       "classday.morning_attendance_not_today":
@@ -624,6 +626,12 @@ export const ERROR_CATALOG = {
         "Der Termin liegt in der Vergangenheit. Eine Nachricht an die Eltern ist nicht mehr möglich.",
       "timetable.guardian_notice_text_invalid":
         "Bitte geben Sie Betreff und Text für die Eltern ein. Der Text darf höchstens 4000 Zeichen haben.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Dieses Kind gehört nicht zu dieser Aufsicht. Bitte laden Sie die Seite neu.",
+      "timetable.homework_feedback_not_allowed":
+        "Eine Rückmeldung zu Hausaufgaben geht nur in einer Lernzeit, die Sie betreuen.",
+      "timetable.homework_feedback_without_homework":
+        "Für die Klasse dieses Kindes sind heute keine Hausaufgaben eingetragen.",
       "timetable.idempotency_key_reused":
         "Dieser Termin wurde schon angelegt. Bitte laden Sie die Seite neu.",
       "timetable.instance_end_before_start":
@@ -1326,6 +1334,8 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.homework_not_found":
+        "This homework no longer exists or was entered by someone else. Please reload the page.",
       "classday.morning_attendance_no_school_day":
         "Today is not a school day. Attendance can only be recorded on school days.",
       "classday.morning_attendance_not_today":
@@ -1452,6 +1462,12 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "This child is not part of this supervision. Please reload the page.",
+      "timetable.homework_feedback_not_allowed":
+        "Homework feedback is only possible in a study time you supervise.",
+      "timetable.homework_feedback_without_homework":
+        "No homework is entered for this child's class today.",
       "enrollment.form_attachment_invalid":
         "Please check the label and the PDF file.",
       "enrollment.form_field_file_options_invalid":
@@ -1635,6 +1651,8 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.homework_not_found":
+        "Этого домашнего задания больше нет, или его внесли не вы. Обновите страницу.",
       "classday.morning_attendance_no_school_day":
         "Сегодня не учебный день. Посещаемость можно отмечать только в учебные дни.",
       "classday.morning_attendance_not_today":
@@ -1760,6 +1778,12 @@ export const ERROR_CATALOG = {
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Этот ребёнок не относится к этому присмотру. Обновите страницу.",
+      "timetable.homework_feedback_not_allowed":
+        "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
+      "timetable.homework_feedback_without_homework":
+        "Для класса этого ребёнка на сегодня нет домашних заданий.",
       "enrollment.form_attachment_invalid": "Проверьте название и PDF-файл.",
       "enrollment.form_field_file_options_invalid":
         "Проверьте вопрос с файлом. Выберите хотя бы один тип файла и размер от 1 до 10 МБ.",
@@ -1930,6 +1954,8 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.homework_not_found":
+        "Kjo detyrë shtëpie nuk ekziston më ose nuk është shënuar nga ju. Ringarkoni faqen.",
       "classday.morning_attendance_no_school_day":
         "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
       "classday.morning_attendance_not_today":
@@ -2058,6 +2084,12 @@ export const ERROR_CATALOG = {
         "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
       "students.status_day_conflict":
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
+      "timetable.homework_feedback_not_allowed":
+        "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
+      "timetable.homework_feedback_without_homework":
+        "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
       "enrollment.form_attachment_invalid":
         "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
       "enrollment.form_field_file_options_invalid":
@@ -2236,6 +2268,8 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.homework_not_found":
+        "Tego zadania domowego już nie ma albo nie zostało wpisane przez Ciebie. Odśwież stronę.",
       "classday.morning_attendance_no_school_day":
         "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
       "classday.morning_attendance_not_today":
@@ -2361,6 +2395,12 @@ export const ERROR_CATALOG = {
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "To dziecko nie należy do tej opieki. Odśwież stronę.",
+      "timetable.homework_feedback_not_allowed":
+        "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
+      "timetable.homework_feedback_without_homework":
+        "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
       "enrollment.form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
       "enrollment.form_field_file_options_invalid":
         "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
@@ -2531,6 +2571,8 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.homework_not_found":
+        "Bu ev ödevi artık yok veya sizin tarafınızdan girilmedi. Lütfen sayfayı yenileyin.",
       "classday.morning_attendance_no_school_day":
         "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
       "classday.morning_attendance_not_today":
@@ -2657,6 +2699,12 @@ export const ERROR_CATALOG = {
         "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
       "students.status_day_conflict":
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Bu çocuk bu gözetime ait değil. Lütfen sayfayı yenileyin.",
+      "timetable.homework_feedback_not_allowed":
+        "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
+      "timetable.homework_feedback_without_homework":
+        "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
       "enrollment.form_attachment_invalid":
         "Lütfen adı ve PDF dosyasını kontrol edin.",
       "enrollment.form_field_file_options_invalid":
@@ -2829,6 +2877,8 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.homework_not_found":
+        "Цього домашнього завдання більше немає, або його внесли не ви. Оновіть сторінку.",
       "classday.morning_attendance_no_school_day":
         "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
       "classday.morning_attendance_not_today":
@@ -2954,6 +3004,12 @@ export const ERROR_CATALOG = {
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Ця дитина не належить до цього нагляду. Оновіть сторінку.",
+      "timetable.homework_feedback_not_allowed":
+        "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
+      "timetable.homework_feedback_without_homework":
+        "Для класу цієї дитини на сьогодні немає домашніх завдань.",
       "enrollment.form_attachment_invalid": "Перевірте назву та PDF-файл.",
       "enrollment.form_field_file_options_invalid":
         "Перевірте запитання з файлом. Виберіть хоча б один тип файлу і розмір від 1 до 10 МБ.",

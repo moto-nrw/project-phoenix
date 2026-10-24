@@ -166,6 +166,7 @@ func buildClassDayViews(
 	carePlanRows owners.CarePlanRows, schedules owners.CarePlanSchedules, carePlan careplan.Capability, people owners.PeopleRows, audit owners.AuditOwner,
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence owners.PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
+	homework timetable.HomeworkBook,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
@@ -176,6 +177,7 @@ func buildClassDayViews(
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
 		BlockStarts:                   operations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 	}, reports, carePlanRows.StatusDays, people.Students, people.Persons, people.StudentGuardians,
 		audit.Persistence.DataAccessLog, settings, hub, env.Logger.With("service", "class-day-arrival-exceptions"))
 	slotLists := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
