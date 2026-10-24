@@ -160,6 +160,47 @@ const createInvitedCatererSQL = `
 		GRANT EXECUTE ON FUNCTION auth.create_invited_caterer(BIGINT, BIGINT) TO phoenix_tenant;
 `
 
+// deleteUnusedCaterersSQL deletes the caterer businesses nobody needs any
+// more, with their account links, for the hourly cleanup after the account
+// erasure: no supply names it, running or ended (an ended supply is the
+// school's record until the school is erased), none of its accounts is left
+// unerased, and no invitation to one of their addresses is open. An erased
+// account cannot accept an invitation, so such a caterer gains no supply
+// while it is deleted.
+const deleteUnusedCaterersSQL = `
+		CREATE OR REPLACE FUNCTION auth.delete_unused_caterers()
+		RETURNS INTEGER
+		LANGUAGE sql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog
+		AS $$
+			WITH deleted AS (
+				DELETE FROM auth.caterers AS caterer
+				WHERE NOT EXISTS (SELECT 1 FROM auth.caterer_schools AS supply WHERE supply.caterer_id = caterer.id)
+					AND NOT EXISTS (
+						SELECT 1 FROM auth.caterer_accounts AS link
+						JOIN auth.accounts AS account ON account.id = link.account_id
+						WHERE link.caterer_id = caterer.id
+							AND (
+								account.personal_data_erased_at IS NULL
+								OR EXISTS (
+									SELECT 1 FROM auth.caterer_invitations AS invitation
+									WHERE LOWER(invitation.email) = LOWER(account.email)
+										AND invitation.accepted_at IS NULL
+										AND invitation.revoked_at IS NULL
+										AND invitation.expires_at > statement_timestamp()
+								)
+							)
+					)
+				RETURNING 1
+			)
+			SELECT count(*)::INTEGER FROM deleted;
+		$$;
+		REVOKE ALL ON FUNCTION auth.delete_unused_caterers() FROM PUBLIC;
+		GRANT EXECUTE ON FUNCTION auth.delete_unused_caterers() TO phoenix_admin;
+`
+
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     mealCaterersVersion,
@@ -185,7 +226,7 @@ func mealCaterersUp(ctx context.Context, db *bun.DB) error {
 		if err := provisionTenantRLS(ctx, tx, "auth.caterer_invitations", "auth.caterer_schools"); err != nil {
 			return fmt.Errorf("provision caterer tenant isolation: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, catererAccountReferences+createInvitedCatererSQL+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
+		if _, err := tx.ExecContext(ctx, catererAccountReferences+createInvitedCatererSQL+deleteUnusedCaterersSQL+accountIsUnusedSQL+catererAccountsInUse+accountIsUnusedEnd); err != nil {
 			return fmt.Errorf("keep caterer accounts from the account erasure: %w", err)
 		}
 		return nil
@@ -198,6 +239,7 @@ func mealCaterersDown(ctx context.Context, db *bun.DB) error {
 	}
 	if _, err := db.ExecContext(ctx, `
 		DROP FUNCTION IF EXISTS auth.create_invited_caterer(BIGINT, BIGINT);
+		DROP FUNCTION IF EXISTS auth.delete_unused_caterers();
 		DELETE FROM auth.tokens WHERE portal_scope = 'caterer';
 		ALTER TABLE auth.tokens DROP CONSTRAINT IF EXISTS chk_tokens_portal_scope;
 		ALTER TABLE auth.tokens ADD CONSTRAINT chk_tokens_portal_scope

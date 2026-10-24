@@ -132,7 +132,11 @@ tenant transaction.
   and its account link only through `auth.create_invited_caterer`, a
   `SECURITY DEFINER` function that requires an open invitation of the
   transaction's school and the account of the invited address. Caterers'
-  business names are no personal data.
+  business names are no personal data. The hourly account cleanup deletes a
+  caterer with its account links once no supply names it, running or ended,
+  none of its accounts is left unerased and no invitation to their addresses
+  is open; an ended supply stays the school's record until the school is
+  erased.
 - Deployments need `CATERER_URL` and `NEXT_PUBLIC_CATERER_HOSTNAME`, DNS and
   TLS for the new host before the release that contains the portal.
 - A caterer account cannot sign in to any other portal, and no other account

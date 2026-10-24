@@ -146,6 +146,7 @@ func accountRetentionJobs(retention ports.AccountRetention) []CleanupJob {
 	return []CleanupJob{
 		{Description: "Unused account erasure", Run: retention.EraseUnusedAccounts},
 		{Description: "Erased account avatar cleanup", Run: retention.CleanupErasedAccountAvatars, OwnTransactions: true},
+		{Description: "Unused caterer deletion", Run: retention.DeleteUnusedCaterers},
 	}
 }
 
