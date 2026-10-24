@@ -165,8 +165,8 @@ function ScheduleSection({
     return (
       <EmptyState
         variant="compact"
-        title="Keine Terminvertretungen verfügbar"
-        description="Bitten Sie einen Admin um Zugriff auf Terminvertretungen."
+        title="Keine Vertretungen verfügbar"
+        description="Bitten Sie einen Admin um Zugriff auf Vertretungen."
       />
     );
   }
@@ -177,7 +177,7 @@ function ScheduleSection({
     return (
       <EmptyState
         variant="compact"
-        title="Heute keine Terminvertretungen"
+        title="Heute keine Vertretungen"
         description="Für heute ist keine Vertretung eingetragen."
       />
     );
@@ -761,7 +761,7 @@ function ScheduleCardContent({
   // Ladefehler vor Ort mit Wiederholen, nie als leere Liste (#2516).
   const loadError = useSwrLoadError(
     data.scheduleError,
-    "die Liste der Terminvertretungen",
+    "die Liste der Vertretungen",
     () => data.scheduleMutate(),
   );
   if (data.scheduleError && loadError !== null) {
@@ -770,7 +770,7 @@ function ScheduleCardContent({
   // Bis der Katalogtext da ist, bleibt das Skelett stehen.
   if (data.scheduleLoading || data.scheduleError) {
     return (
-      <SkeletonRegion label="Terminvertretungen werden geladen">
+      <SkeletonRegion label="Vertretungen werden geladen">
         <ListSkeleton rows={2} />
       </SkeletonRegion>
     );

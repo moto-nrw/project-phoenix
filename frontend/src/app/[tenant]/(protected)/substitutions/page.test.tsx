@@ -395,11 +395,11 @@ describe("SubstitutionPage", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.server", "die Liste der Terminvertretungen"),
+        catalogText("general.server", "die Liste der Vertretungen"),
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Heute keine Terminvertretungen"),
+      screen.queryByText("Heute keine Vertretungen"),
     ).not.toBeInTheDocument();
     // Die übrigen Karten bleiben bedienbar.
     expect(screen.getByText("Freispiel")).toBeInTheDocument();
@@ -491,9 +491,7 @@ describe("SubstitutionPage", () => {
     render(<SubstitutionPage />);
 
     expect(screen.getByText("Keine laufenden Betreuungen")).toBeInTheDocument();
-    expect(
-      screen.getByText("Heute keine Terminvertretungen"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Heute keine Vertretungen")).toBeInTheDocument();
     expect(screen.getByText("Keine Gruppenübergaben")).toBeInTheDocument();
     expect(screen.getByText(/Keine Gruppe verfügbar/)).toBeInTheDocument();
   });
