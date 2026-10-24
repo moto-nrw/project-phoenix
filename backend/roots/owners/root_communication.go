@@ -59,6 +59,8 @@ func BuildParentAnnouncements(
 type CommunicationMessaging struct {
 	Messaging      communication.ParentMessagingCapability
 	StaffMessaging communication.StaffMessagingRuntime
+	// GroupThreads is the OGS side of the group threads (#4784).
+	GroupThreads communication.ParentGroupThreadCapability
 }
 
 // BuildCommunicationMessaging binds the parent messenger and the colleague
@@ -76,7 +78,7 @@ func BuildCommunicationMessaging(
 	},
 ) CommunicationMessaging {
 	logger := env.Logger
-	messaging := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
+	messagingConfig := communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db.Pool()),
 		ReadRepo: portal.ParentMessageRead, Persons: BindParentMessagePeople(users), UserContext: caller,
 		Session: session, Settings: settingsValues.NewParentMessagingValues(settings), Broadcaster: hub, DB: db.Pool(),
@@ -85,7 +87,9 @@ func BuildCommunicationMessaging(
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
 		Outbox: OutboxEnqueuer{Outbox: outbox}, GuardianProfiles: BindParentMessageGuardianProfiles(people.GuardianProfiles), Schools: schools,
 		LoginImages: settings, ParentsURL: env.Links.ParentsURL, Observe: env.Observe.Communication,
-	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+		GroupAudience: NewParentGroupAudience(db),
+	}
+	messaging, groupThreads := communicationCompose.NewParentMessaging(messagingConfig, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	staffMessaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(db.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(db.Pool()), ReadRepo: portal.StaffMessageRead,
@@ -93,5 +97,5 @@ func BuildCommunicationMessaging(
 		Logger: logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		Preferences: notifications.Preferences, Observe: env.Observe.Communication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	return CommunicationMessaging{Messaging: messaging, StaffMessaging: staffMessaging}
+	return CommunicationMessaging{Messaging: messaging, StaffMessaging: staffMessaging, GroupThreads: groupThreads}
 }

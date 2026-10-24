@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import {
   loginToTenant,
@@ -20,13 +20,12 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-// The fixture uses today's date, including Saturday/Sunday. Make those days
-// visible explicitly rather than depending on the work-week default.
-async function showFullWeek(page: Page): Promise<void> {
-  const weekends = page.getByRole("button", { name: /^Sa\/So/ });
-  if ((await weekends.getAttribute("aria-pressed")) !== "true")
-    await weekends.click();
-  await expect(weekends).toHaveAttribute("aria-pressed", "true");
+function weekdayInCurrentWeek(date: Date): Date {
+  const weekday = new Date(date);
+  const day = weekday.getDay();
+  if (day === 6) weekday.setDate(weekday.getDate() - 1);
+  else if (day === 0) weekday.setDate(weekday.getDate() - 2);
+  return weekday;
 }
 
 // Der angelegte Termin wird wieder gelöscht. Sonst stapeln sich bei
@@ -60,16 +59,18 @@ test.describe("Personal calendar flow", () => {
     // Kalt kompiliert der Next-Dev-Server /calendar und die Detailansicht
     // spürbar langsam; gleiches Budget wie die übrigen Tenant-Flows.
     test.setTimeout(90000);
-    const today = new Date();
-    const startDate = toISODate(today);
-    const recurrenceEnd = toISODate(addDays(today, 7));
+    // Der Kalender blendet Wochenenden zunächst aus. Der Termin liegt daher
+    // auch am Wochenende auf einem sichtbaren Wochentag der aktuell
+    // angezeigten Woche, damit er nach dem Speichern im Raster erscheint.
+    const start = weekdayInCurrentWeek(new Date());
+    const startDate = toISODate(start);
+    const recurrenceEnd = toISODate(addDays(start, 7));
     const title = `Playwright Kalendertermin ${Date.now()}`;
 
     await page.goto("/calendar");
     await expect(
       page.getByRole("heading", { name: "Mein Kalender" }),
     ).toBeVisible();
-    await showFullWeek(page);
 
     await page.getByRole("button", { name: "Neuer Termin" }).click();
     const createHeading = page.getByRole("heading", {
@@ -160,7 +161,6 @@ test.describe("Personal calendar flow", () => {
     // Gespeichert im Backend: nach frischem Laden der Seite steht die Zusage
     // weiterhin im Termin.
     await page.reload({ waitUntil: "domcontentloaded" });
-    await showFullWeek(page);
     await expect(currentWeekEvent).toBeVisible();
     await currentWeekEvent.click();
     await expect(eventDetail).toContainText("Zugesagt");

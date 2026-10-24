@@ -187,8 +187,8 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "shiftTypes",
-    title: "Schichtarten",
-    description: "Aufgabe einer Schicht im Dienstplan benennen",
+    title: "Dienstarten",
+    description: "Aufgabe eines Dienstes im Dienstplan benennen",
     href: "/database/shift-types",
     concept: "staffPlan",
     requiresPlanning: true,
@@ -204,7 +204,7 @@ const baseDataSections: DataSection[] = [
   },
   {
     id: "gradeTransitions",
-    title: "Jahrgangswechsel",
+    title: "Schuljahreswechsel",
     description:
       "Kinder zum Schuljahreswechsel in die nächste Klasse versetzen",
     href: "/database/grade-transitions",

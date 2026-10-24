@@ -111,8 +111,8 @@ func messageValue(message *communication.PortalParentMessage) (*domain.ParentMes
 		RequestType: message.RequestType, RequestStatus: message.RequestStatus,
 		Payload: payload, RefTable: message.RefTable, RefID: message.RefID,
 		AppliedAt: message.AppliedAt, AppliedBy: message.AppliedBy,
-		DecisionReason: message.DecisionReason,
-		CreatedAt:      message.CreatedAt, UpdatedAt: message.UpdatedAt,
+		DecisionReason: message.DecisionReason, GroupThreadID: message.GroupThreadID,
+		CreatedAt: message.CreatedAt, UpdatedAt: message.UpdatedAt,
 	}, nil
 }
 
@@ -132,7 +132,7 @@ func messageModel(value *domain.ParentMessage) (*communication.PortalParentMessa
 		EventActorKind: value.EventActorKind, RequestType: value.RequestType,
 		RequestStatus: value.RequestStatus, Payload: payload,
 		RefTable: value.RefTable, RefID: value.RefID, AppliedAt: value.AppliedAt,
-		AppliedBy: value.AppliedBy, DecisionReason: value.DecisionReason,
+		AppliedBy: value.AppliedBy, DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID,
 	}
 	message.ID = value.ID
 	message.CreatedAt = value.CreatedAt

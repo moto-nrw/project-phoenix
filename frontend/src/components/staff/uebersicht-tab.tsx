@@ -483,7 +483,7 @@ const distributionConfig = {
   // Ton, den getLocationBadgeTone fuer ABSENCE_TYPE_HEX.vacation liefert, und
   // Uebersicht, Zeiterfassung und Abwesenheiten sind Tabs derselben Seite.
   homeoffice: {
-    label: "Homeoffice",
+    label: "Unterwegs",
     color: MOTO_COLOR_PALETTE.timeTracking.base,
   },
   urlaub: { label: "Urlaub", color: MOTO_COLOR_PALETTE.orange.base },
@@ -657,7 +657,7 @@ function buildDistribution(
     },
     {
       key: "homeoffice",
-      label: "Homeoffice",
+      label: "Unterwegs",
       value: sessionDays.homeOffice,
       color: color("homeoffice"),
     },

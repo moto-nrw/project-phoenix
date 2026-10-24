@@ -90,7 +90,7 @@ describe("PeriodSwitcherDropdown", () => {
       screen.queryByRole("button", { name: /bearbeiten/i }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Zeiträume verwalten/ }),
+      screen.getByRole("link", { name: /Schuljahr und Kalender verwalten/ }),
     ).toHaveAttribute("href", expect.stringContaining("/calendar-periods"));
 
     fireEvent.click(screen.getByText("Sommerferien"));

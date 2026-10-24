@@ -9,6 +9,9 @@ Sicherheits-/Systemeinstellungen, Personalverwaltung, Gesundheitsrechte und
 vom 24.10.2026 gehören auch `staff:stammdaten`, `staff:documents`,
 `time_tracking:manage` und `vacation:approve` dazu. Die genaue Untergrenze steht
 in `backend/modules/identityaccess/internal/domain/mfa_privilege.go`.
+Sie umfasst 23 Rechte, einschließlich `enrollment_uploads:read`: Die
+Einkommensnachweise der Eltern sind Finanzdaten und erhalten denselben
+MFA-Schutz wie die bereits erfassten Finanzrechte.
 `users:create/update/delete` verwalten Personen-/Kinderdaten, nicht Konten oder
 Rollen (siehe `mountAdminRoutes`); allein diese Rechte erzwingen keine MFA.
 Auch `users:read` bleibt ausdrücklich außerhalb dieser Untergrenze.
@@ -101,7 +104,8 @@ Die Abfrage liefert ausschließlich Schul-IDs und Anzahlen, keine Konten,
 Adressen, Codes oder Schlüssel. `without_any_second_factor` zählt Konten ohne
 E-Mail-MFA und ohne gültigen Passkey. `without_email_address` zeigt Fälle ohne
 E-Mail-Weg, nicht die tatsächliche Zustellbarkeit.
-Die Zählmenge enthält auch die vier ergänzten Personalrechte, nicht `users:read`.
+Die Zählmenge enthält alle 23 Rechte, einschließlich der vier ergänzten
+Personalrechte und `enrollment_uploads:read`, nicht `users:read`.
 
 ```sh
 PGOPTIONS='-c default_transaction_read_only=on' \

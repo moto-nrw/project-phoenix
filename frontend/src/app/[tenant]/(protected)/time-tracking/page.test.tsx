@@ -202,7 +202,7 @@ vi.mock("~/components/staff/staff-session-table", () => ({
             <td>{session?.check_out_time ? "08:00" : "..."}</td>
             <td>{session?.check_out_time ? "16:30" : "..."}</td>
             <td>8h</td>
-            <td>{session?.status === "home_office" ? "Homeoffice" : "OGS"}</td>
+            <td>{session?.status === "home_office" ? "Unterwegs" : "OGS"}</td>
             <td>{session && !session.check_out_time ? "aktiv" : null}</td>
             <td>
               {session?.edit_count ? (
@@ -918,11 +918,11 @@ describe("TimeTrackingPage", () => {
   // ── No Active Session (Check-in state) ──────────────────────────────────
 
   describe("no active session - check-in controls", () => {
-    it("shows In der OGS and Homeoffice mode buttons", () => {
+    it("shows In der OGS and Unterwegs mode buttons", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       expect(screen.getByText("In der OGS")).toBeInTheDocument();
-      expect(screen.getByText("Homeoffice")).toBeInTheDocument();
+      expect(screen.getByText("Unterwegs")).toBeInTheDocument();
     });
 
     it("shows Abwesend button", () => {
@@ -982,14 +982,14 @@ describe("TimeTrackingPage", () => {
       });
     });
 
-    it("calls checkIn with 'home_office' when Homeoffice is selected", async () => {
+    it("calls checkIn with 'home_office' when Unterwegs is selected", async () => {
       setupDefaultMocks();
       vi.mocked(timeTrackingService.checkIn).mockResolvedValue(
         mockActiveSession,
       );
       render(<TimeTrackingPage />);
 
-      fireEvent.click(screen.getByText("Homeoffice"));
+      fireEvent.click(screen.getByText("Unterwegs"));
 
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
@@ -1096,14 +1096,14 @@ describe("TimeTrackingPage", () => {
       expect(badges.length).toBeGreaterThan(0);
     });
 
-    it("shows status badge Homeoffice when home_office", () => {
+    it("shows status badge Unterwegs when home_office", () => {
       const hoSession = {
         ...mockActiveSession,
         status: "home_office" as const,
       };
       setupDefaultMocks({ currentSession: hoSession });
       render(<TimeTrackingPage />);
-      const badges = screen.getAllByText("Homeoffice");
+      const badges = screen.getAllByText("Unterwegs");
       expect(badges.length).toBeGreaterThan(0);
     });
 
@@ -1959,7 +1959,7 @@ describe("TimeTrackingPage", () => {
       );
       render(<TimeTrackingPage />);
 
-      fireEvent.click(screen.getByText("Homeoffice"));
+      fireEvent.click(screen.getByText("Unterwegs"));
       await act(async () => {
         fireEvent.click(screen.getByLabelText("Einstempeln"));
       });
@@ -2618,7 +2618,7 @@ describe("TimeTrackingPage", () => {
         ),
       ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "In der OGS" })).toBeDisabled();
-      expect(screen.getByRole("button", { name: "Homeoffice" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Unterwegs" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Abwesend" })).toBeDisabled();
       expect(screen.getByLabelText("Einstempeln")).toBeDisabled();
     });
@@ -2958,8 +2958,8 @@ describe("TimeTrackingPage", () => {
     it("changing status selector works", async () => {
       await openEditModal(makePastSession());
       const statusSelect = screen.getByLabelText("Ort");
-      chooseSelectOption(statusSelect, "Homeoffice");
-      expect(statusSelect).toHaveTextContent("Homeoffice");
+      chooseSelectOption(statusSelect, "Unterwegs");
+      expect(statusSelect).toHaveTextContent("Unterwegs");
     });
 
     it("shows compliance warning when work > 10h", async () => {
@@ -3629,7 +3629,7 @@ describe("TimeTrackingPage", () => {
       expect(aktivBadges.length).toBeGreaterThan(0);
     });
 
-    it("shows home_office badge as 'Homeoffice' in desktop table", () => {
+    it("shows home_office badge as 'Unterwegs' in desktop table", () => {
       const yISO = weekdayISO;
       const hoSession: WorkSessionHistory = {
         ...mockHistorySession,
@@ -3642,7 +3642,7 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks({ history: [hoSession] });
       render(<TimeTrackingPage />);
 
-      const hoBadges = screen.queryAllByText("Homeoffice");
+      const hoBadges = screen.queryAllByText("Unterwegs");
       expect(hoBadges.length).toBeGreaterThan(0);
     });
 
@@ -3857,10 +3857,10 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(changeText.closest("tr")!);
 
       await waitFor(() => {
-        // formatEditValue maps "present" -> "In der OGS", "home_office" -> "Homeoffice"
+        // formatEditValue maps "present" -> "In der OGS", "home_office" -> "Unterwegs"
         const ogsLabels = screen.queryAllByText("In der OGS");
         expect(ogsLabels.length).toBeGreaterThan(0);
-        const hoLabels = screen.queryAllByText("Homeoffice");
+        const hoLabels = screen.queryAllByText("Unterwegs");
         expect(hoLabels.length).toBeGreaterThan(0);
       });
     });

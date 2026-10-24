@@ -165,7 +165,7 @@ describe("ShiftMoveDialog prefill", () => {
     );
     // Schichtart trigger shows the attached type.
     expect(
-      screen.getByRole("combobox", { name: "Schichtart" }),
+      screen.getByRole("combobox", { name: "Dienstart" }),
     ).toHaveTextContent("Betreuung");
   });
 
@@ -390,7 +390,7 @@ describe("ShiftMoveDialog person change", () => {
     selectPerson("Zielperson", "Yilmaz, Bo");
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Diese Schichtart ist inaktiv",
+      "Diese Dienstart ist inaktiv",
     );
     expect(screen.getByRole("button", { name: "Verschieben" })).toBeDisabled();
     expect(staffShiftService.moveShift).not.toHaveBeenCalled();

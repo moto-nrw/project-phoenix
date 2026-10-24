@@ -161,13 +161,14 @@ func (s *Service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 		return 0, fmt.Errorf("parent: account_id must be positive")
 	}
 	// Resolve the guardian's children (cross-tenant) in one admin transaction.
-	var tenantIDs []int64
+	var tenantIDs, portalStudentIDs []int64
 	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
 		tenantIDs = distinctTenantIDs(children)
+		portalStudentIDs = portalAccessStudentIDs(children)
 		return nil
 	}); txErr != nil {
 		return 0, fmt.Errorf("parent: unread message count: %w", txErr)
@@ -202,8 +203,10 @@ func (s *Service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 		if err != nil {
 			return err
 		}
-		total = count
-		return nil
+		// Group threads with an unread OGS message count like a conversation.
+		groups, err := s.unreadGroupThreadCount(adminCtx, accountID, portalStudentIDs, enabledTenantIDs)
+		total = count + groups
+		return err
 	})
 	if txErr != nil {
 		return 0, fmt.Errorf("parent: unread message count: %w", txErr)
@@ -241,6 +244,9 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 		// "OGS hat gelesen" receipt — decorate the snapshot through the shared path
 		// so the write side (PostChildMessage) renders identical markers.
 		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
+		if err := s.decorateGroupThreadTitles(txCtx, messages); err != nil {
+			return err
+		}
 		view.Messages = messages
 		// Mark read only up to the newest message actually returned, never NOW().
 		// The mark-to-newest invariant (and the empty-conversation skip) lives in
@@ -270,7 +276,16 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 
 // PostChildMessage appends a guardian message to the child's conversation,
 // creating the conversation on the first message (get-or-create).
-func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {
+//
+// An optional groupThreadID marks the message as the answer to that group
+// thread (#4784). The answer stays in the child's 1:1 conversation with the
+// OGS; no other family ever sees it. The guardian may answer only a group
+// thread that reached them for this child and is still open.
+func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string, groupThreadIDs ...int64) (*MessageThreadView, error) {
+	groupThreadID := int64(0)
+	if len(groupThreadIDs) > 0 {
+		groupThreadID = groupThreadIDs[0]
+	}
 	var err error
 	body, err = normalizeParentMessageBody(body)
 	if err != nil {
@@ -286,17 +301,9 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 	if err != nil {
 		return nil, err
 	}
-	// A child whose care at this school has ended keeps read access to what
-	// happened, but nothing new can be submitted for them (#2487).
-	if err := child.RequireCareRunning(); err != nil {
+	groupRef, err := s.requireChildReply(ctx, child, accountID, studentID, groupThreadID)
+	if err != nil {
 		return nil, err
-	}
-	// Fail OPEN on a transient resolve error (via the shared helper) so a config-DB
-	// blip does not 500 a guardian's reply while the badge and thread list keep
-	// rendering unread — the write side agrees with the read side. A genuine
-	// disabled flag still returns ErrNotesDisabled.
-	if !s.MessagingEnabled(ctx, child.TenantID) {
-		return nil, care.ErrNotesDisabled
 	}
 
 	senderName, err := s.resolveGuardianName(ctx, child.TenantID, accountID)
@@ -309,7 +316,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		SchoolName:  child.SchoolName,
 	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		if err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, view); err != nil {
+		if err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view); err != nil {
 			return err
 		}
 		captured := child.TenantID
@@ -330,12 +337,30 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 	return view, nil
 }
 
+// requireChildReply checks that the guardian may write for the child now and
+// returns the group thread reference of the answer, nil for a plain message.
+func (s *Service) requireChildReply(ctx context.Context, child *Child, accountID, studentID, groupThreadID int64) (*int64, error) {
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.RequireCareRunning(); err != nil {
+		return nil, err
+	}
+	// Fail OPEN on a transient resolve error (via the shared helper) so a config-DB
+	// blip does not 500 a guardian's reply while the badge and thread list keep
+	// rendering unread — the write side agrees with the read side. A genuine
+	// disabled flag still returns ErrNotesDisabled.
+	if !s.MessagingEnabled(ctx, child.TenantID) {
+		return nil, care.ErrNotesDisabled
+	}
+	return s.groupReplyRef(ctx, child, accountID, studentID, groupThreadID)
+}
+
 // appendGuardianMessage writes a guardian message into the thread and updates the
 // thread's last-activity fields. The append invariant (and why it does NOT move
 // the sender's read cursor) is shared with the staff side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
-func (s *Service) appendGuardianMessage(ctx context.Context, thread *ParentMessageThread, accountID int64, senderName, body string) (*ParentMessage, error) {
+func (s *Service) appendGuardianMessage(ctx context.Context, thread *ParentMessageThread, accountID int64, senderName, body string, groupThreadID *int64) (*ParentMessage, error) {
 	msg := &ParentMessage{
 		ThreadID:        thread.ID,
 		StudentID:       thread.StudentID,
@@ -344,6 +369,7 @@ func (s *Service) appendGuardianMessage(ctx context.Context, thread *ParentMessa
 		SenderName:      senderName,
 		Body:            body,
 		Kind:            ParentMessageKindMessage,
+		GroupThreadID:   groupThreadID,
 	}
 	msg.TenantID = thread.TenantID
 	if err := s.Conversations.AppendMessage(ctx, msg); err != nil {
@@ -412,6 +438,9 @@ func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, threa
 	// carry the same "OGS hat gelesen" markers GetChildConversation produces —
 	// otherwise existing receipts blink off until the next full GET/SSE refresh.
 	s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
+	if err := s.decorateGroupThreadTitles(txCtx, messages); err != nil {
+		return err
+	}
 	view.Messages = messages
 	// Advance the guardian's read cursor over this returned snapshot, exactly as
 	// GetChildConversation does. The guardian is now viewing this list, so any
@@ -438,7 +467,17 @@ func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, threa
 	return nil
 }
 
-func (s *Service) postGuardianReply(txCtx context.Context, child *Child, accountID, studentID int64, senderName, body string, view *MessageThreadView) error {
+func (s *Service) postGuardianReply(txCtx context.Context, child *Child, accountID, studentID int64, senderName, body string, groupThreadID *int64, view *MessageThreadView) error {
+	if groupThreadID != nil {
+		// The first group-thread check happens before opening this write
+		// transaction, so it can return a refused answer without creating a
+		// conversation. Repeat it here while the group thread is locked: closing
+		// and appending must serialize, otherwise a close between those two
+		// transactions could still admit an answer to a closed thread.
+		if _, err := s.GroupThreads.GroupReplyTarget(txCtx, *groupThreadID, accountID, studentID); err != nil {
+			return err
+		}
+	}
 	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 	if err != nil {
 		return err
@@ -450,7 +489,7 @@ func (s *Service) postGuardianReply(txCtx context.Context, child *Child, account
 	if err != nil {
 		return err
 	}
-	message, err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body)
+	message, err := s.appendGuardianMessage(txCtx, thread, accountID, senderName, body, groupThreadID)
 	if err != nil {
 		return err
 	}
@@ -472,4 +511,16 @@ func normalizeParentMessageBody(body string) (string, error) {
 	}
 
 	return body, nil
+}
+
+// portalAccessStudentIDs returns the children the guardian may open in the
+// portal: the relationship grants parent_portal.access.
+func portalAccessStudentIDs(children []*care.ChildSummary) []int64 {
+	out := make([]int64, 0, len(children))
+	for _, child := range children {
+		if child.GuardianPermissions[care.GuardianPermissionPortalAccess] {
+			out = append(out, child.StudentID)
+		}
+	}
+	return out
 }

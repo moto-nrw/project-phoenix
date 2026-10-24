@@ -11,7 +11,7 @@ import (
 
 func TestMFAPrivilegedPermissionsCannotBeExempted(t *testing.T) {
 	t.Parallel()
-	for _, grant := range []string{"users:manage", "roles:update", "permissions:create", "auth:manage", "config:manage", "system:manage", "staff_documents:health", "student_documents:health", "staff:financial", "staff:stammdaten", "staff:documents", "time_tracking:manage", "vacation:approve", "admin:*", "*:*", "*:health", "*:manage", "user*:manage", "staff*:h*"} {
+	for _, grant := range []string{"users:manage", "roles:update", "permissions:create", "auth:manage", "config:manage", "system:manage", "staff_documents:health", "student_documents:health", "staff:financial", "staff:stammdaten", "staff:documents", "time_tracking:manage", "vacation:approve", "enrollment_uploads:read", "enrollment_uploads:*", "enrollment*:read", "admin:*", "*:*", "*:health", "*:manage", "user*:manage", "staff*:h*"} {
 		for _, policy := range []MFAPolicy{MFAPolicyForMode(MFAModeOff), MFAPolicyForMode(MFAModeRequiredAdmins), MFAPolicyForced(false)} {
 			assert.True(t, policy.RequiredFor([]string{grant}), "grant %q must require MFA even with off/force_off", grant)
 		}
@@ -60,6 +60,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"config:update":                     false,
 		"display:manage":                    false,
 		"display:read":                      false,
+		"enrollment_uploads:read":           true,
 		"feedback:create":                   false,
 		"feedback:delete":                   false,
 		"feedback:list":                     false,

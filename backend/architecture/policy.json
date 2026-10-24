@@ -3926,6 +3926,10 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.account_avatar_file_cleanup",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "auth.accounts",
       "write_owner": "identity-access"
     },
@@ -4183,6 +4187,14 @@
     },
     {
       "name": "enrollment.request_reads",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_upload_cleanup",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_uploads",
       "write_owner": "enrollment"
     },
     {
@@ -4467,6 +4479,22 @@
     },
     {
       "name": "users.parent_announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_message_recipients",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_thread_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_threads",
       "write_owner": "communication"
     },
     {

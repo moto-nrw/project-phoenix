@@ -454,6 +454,7 @@ const (
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"
+	KeyEnrollmentUploadRetentionDays                    = "enrollment.upload_retention_days"
 	KeyEnrollmentWaitlistEnabled                        = "enrollment.waitlist_enabled"
 	KeyEnrollmentNotifyPerDecision                      = "enrollment.notify_per_decision"
 	KeyEnrollmentOutboxMaxAttempts                      = "enrollment.outbox_max_attempts"

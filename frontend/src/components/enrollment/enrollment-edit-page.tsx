@@ -234,6 +234,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
             eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
           }}
           initialDraft={bootstrap.draft}
+          statusToken={token}
           submitter={submitter}
           skipCaptcha
           localizedCopy

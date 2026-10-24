@@ -23,7 +23,8 @@ WITH privileged_permission(name) AS (
  ('time_tracking:manage'),
  ('vacation:approve'),
  ('staff_documents:health'),
- ('student_documents:health')
+ ('student_documents:health'),
+ ('enrollment_uploads:read')
 ), targets AS (
  SELECT name FROM privileged_permission
  UNION SELECT resource || ':' || action FROM auth.permissions WHERE action = 'health'

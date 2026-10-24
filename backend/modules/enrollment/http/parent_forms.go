@@ -3,12 +3,15 @@ package enrollmenthttp
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -18,7 +21,9 @@ import (
 // own school and guardian gates and its transactions; the composition root
 // binds the portal's port to these methods.
 type ParentForms struct {
-	Requests RequestService
+	Requests    RequestService
+	Uploads     UploadService
+	UploadFiles UploadFileStorage
 }
 
 // LoadFormBootstrap loads the form of the phase for an enrollee whose
@@ -85,4 +90,34 @@ func (f ParentForms) submit(ctx context.Context, wireReq *SubmitEnrollmentReques
 // RenderSubmitError renders a refused submission like the public route.
 func (ParentForms) RenderSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	mapSubmitError(w, r, err)
+}
+
+// StoreUpload receives one file from the authenticated parents portal. The
+// portal derives the audience facts from its session before calling this
+// method; multipart fields never control them.
+func (f ParentForms) StoreUpload(w http.ResponseWriter, r *http.Request, schoolID int64, linkedParents, existingStudents bool) {
+	if f.Uploads == nil || f.UploadFiles == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent enrollment uploads not configured")))
+		return
+	}
+	file, input, err := parseEnrollmentUpload(w, r)
+	if err != nil {
+		renderUploadRefusal(w, r, err)
+		return
+	}
+	defer common.CloseFile(file.File)
+	input.TenantID = schoolID
+	input.StatusToken = ""
+	input.EnrolleeAccess = EnrolleeAudienceAccess{LinkedParents: linkedParents, ExistingStudents: existingStudents}
+	files, err := f.UploadFiles(capability.RequestUploadStorageKind)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("enrollment upload storage unavailable: %w", err)))
+		return
+	}
+	receipt, err := storeEnrollmentUpload(r.Context(), f.Uploads, files, input, file.File)
+	if err != nil {
+		renderUploadFailure(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, receipt, "Upload stored")
 }

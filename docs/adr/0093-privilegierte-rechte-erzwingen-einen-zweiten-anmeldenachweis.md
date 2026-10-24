@@ -9,6 +9,10 @@ Die Nutzerentscheidung ist Option B: Verwaltungsrechte sowie Gesundheits- und
 Personalfinanzrechte verlangen MFA unabhängig von der Schuleinstellung.
 Ergänzung vom 24.10.2026: Das gilt auch für `staff:stammdaten`,
 `staff:documents`, `time_tracking:manage` und `vacation:approve`.
+Ergänzung nach #4783: `enrollment_uploads:read` erfasst Einkommensnachweise
+der Eltern. Diese Finanzdaten erhalten dieselbe MFA-Schutzklasse wie die
+bereits erfassten Finanzrechte. Die benannte Mindestmenge umfasst damit
+23 Rechte; allein dieses Leserecht erzwingt den zweiten Nachweis.
 Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../security/zugriff-gesundheits-und-personaldaten.md).
 
 ## Entscheidung
@@ -62,7 +66,7 @@ Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../sec
 - Bestehende privilegierte Sitzungen verlangen beim nächsten Refresh eine neue
   Anmeldung. Bereits ausgegebene Access-Token laufen regulär ab.
 - Berechtigte Konten ohne zweiten Faktor gelangen in die bestehende Einrichtung.
-  Das gilt auch für Konten mit ausschließlich einem der vier ergänzten Rechte.
+  Das gilt auch für Konten mit ausschließlich einem der ergänzten Personalrechte oder `enrollment_uploads:read`.
   Ohne erreichbares Postfach oder gültigen Passkey muss Support zunächst diesen
   Anmeldeweg wiederherstellen. Es gibt keine Passwort-Notfallausnahme.
 - Der dev-only Seed-Adapter bestätigt dieselben E-Mail-Codes über Mailpit.

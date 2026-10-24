@@ -36,7 +36,7 @@ var security_init_mfa_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyMFAMode,
 		Label:           "Zwei-Faktor-Anmeldung (Code per E-Mail)",
-		Description:     "Für Verwaltung ist ein zweiter Anmeldenachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente, Personalfinanzen und Gesundheitsdokumente. Auch beim Verwalten fremder Arbeitszeiten und Genehmigen von Urlaub. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus. „Aus“ und „Nur Admins“ ändern daran nichts. „Alle Mitarbeitenden“ schützt zusätzlich das ganze Team.",
+		Description:     "Für Verwaltung ist ein zweiter Anmeldenachweis immer Pflicht. Ebenso für Personalstammdaten, Personaldokumente, Personalfinanzen und Gesundheitsdokumente. Auch zum Lesen von Einkommensnachweisen der Eltern. Auch beim Verwalten fremder Arbeitszeiten und Genehmigen von Urlaub. Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht aus. „Aus“ und „Nur Admins“ ändern daran nichts. „Alle Mitarbeitenden“ schützt zusätzlich das ganze Team.",
 		Type:            config.FieldSelect,
 		Default:         config.MFAModeOff,
 		ReadPermission:  "config:read",

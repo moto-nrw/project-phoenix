@@ -241,7 +241,8 @@ Backend paths in this section are relative to `backend/`:
 Effective school permissions, not role names, impose the MFA minimum in
 `modules/identityaccess/internal/domain/mfa_privilege.go`: administrative
 account/role/auth/security/system/staff rights, health permissions and
-`staff:financial`, including matching wildcards. `off` and `required_admins`
+`staff:financial` and `enrollment_uploads:read` (parents’ income documents),
+including matching wildcards. `off` and `required_admins`
 cannot lower it. No new `force_off` exemption is accepted for privileged
 targets, even from operators; existing exemptions lose to the runtime floor.
 
