@@ -281,6 +281,7 @@ export function OwnSupervisionView() {
             onComplete={actions.handleCompleteTimetableInstance}
             onConfirmExpected={actions.handleConfirmExpectedStudents}
             onRosterAction={actions.handleRosterAction}
+            onSaveHomeworkFeedback={actions.handleSaveHomeworkFeedback}
             onSearchChange={actions.handleAddStudentSearchChange}
           />
         </>

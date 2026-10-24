@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetableSpontaneousCategoryArchived         = "timetable.spontaneous_category_archived"
+	CodeTimetableStaffAbsentOnDate                   = "timetable.staff_absent_on_date"
+	CodeTimetableStaffAbsentOnSource                 = "timetable.staff_absent_on_source"
+	CodeTimetableStaffAbsentOnTarget                 = "timetable.staff_absent_on_target"
 	CodeTimetableStaffAlreadyOnTarget                = "timetable.staff_already_on_target"
 	CodeTimetableStaffNotFound                       = "timetable.staff_not_found"
 	CodeTimetableStaffNotOnSource                    = "timetable.staff_not_on_source"
@@ -113,6 +117,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.spontaneous_category_archived":           "business_rejection",
+	"timetable.staff_absent_on_date":                    "business_rejection",
+	"timetable.staff_absent_on_source":                  "input",
+	"timetable.staff_absent_on_target":                  "business_rejection",
 	"timetable.staff_already_on_target":                 "business_rejection",
 	"timetable.staff_not_found":                         "business_rejection",
 	"timetable.staff_not_on_source":                     "input",

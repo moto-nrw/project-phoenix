@@ -148,7 +148,7 @@ func BuildTimetableDay(
 		Sessions: presence.SessionRecords, Supervisions: supervisions,
 		Visits: presence.Presence, People: TimetableOperationPeople{OperationPeople: NewTimetableOperationPeople(users), Membership: membership},
 		Lifecycle: arrivalTimetable.NewOperationLifecycle(lifecycle.Instances),
-		Logger:    env.Logger.With("service", "timetable-operations"), Now: env.Now,
+		Logger:    env.Logger.With("service", "timetable-operations"), Now: env.Now, Homework: timetableOwner,
 	}, lifecycle.Rows, active, settings, schedules.CareDay, schedules.Arrivals, schedules.Pickups, hub, withStaff)
 	if err != nil {
 		return TimetableLifecycle{}, fmt.Errorf("compose timetable operations: %w", err)

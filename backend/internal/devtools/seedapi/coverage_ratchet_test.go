@@ -51,6 +51,11 @@ var seedCoverageExemptions = map[string]string{
 	// schule for today; the seeder signs in no Lehrkraft and assigns no class
 	// (education.class_teachers below), so nothing it does can write a mark.
 	"active.morning_attendance": "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	// Homework (#4796) is entered only by a Lehrkraft with an assigned class
+	// through moto schule, and the OGS feedback needs that homework; the
+	// seeder signs in no Lehrkraft, so it can write neither table.
+	"education.class_homework":    "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	"education.homework_feedback": "not in prod yet (migration newer than the deployed image); needs homework of a Lehrkraft, which the seeder seeds none of",
 	// The class handover (#4794) is written the same way: only a Lehrkraft
 	// through moto schule, for today and an assigned class.
 	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",

@@ -17,6 +17,7 @@ import {
   timetableOperationsApi,
 } from "~/lib/timetable-operations-api";
 import type {
+  HomeworkFeedbackBody,
   PlannedTimetableInstance,
   TimetableRoster,
   TimetableRosterRow,
@@ -122,6 +123,11 @@ export interface TimetableActions {
     row: TimetableRosterRow,
   ) => Promise<void>;
   readonly handleExcuseRestOfDay: (row: TimetableRosterRow) => Promise<void>;
+  /** Rückmeldung zu den Hausaufgaben (#4796); Fehler zeigt der Dialog. */
+  readonly handleSaveHomeworkFeedback: (
+    row: TimetableRosterRow,
+    body: HomeworkFeedbackBody,
+  ) => Promise<void>;
   readonly confirmCompleteTimetableInstance: () => Promise<void>;
   readonly handleCompleteTimetableInstance: () => Promise<void>;
   readonly handleReopenTimetableInstance: () => Promise<void>;
@@ -439,6 +445,21 @@ export function useTimetableActions(
       reloadAfterDenial,
       showActionError,
     ],
+  );
+
+  // Rückmeldung zu den Hausaufgaben (#4796): gespeichert, dann die Liste neu.
+  // Ein Fehler geht an den Dialog, der ihn an seinem Formular zeigt.
+  const handleSaveHomeworkFeedback = useCallback(
+    async (row: TimetableRosterRow, body: HomeworkFeedbackBody) => {
+      if (!activeTimetableInstanceId) return;
+      await timetableOperationsApi.saveHomeworkFeedback(
+        activeTimetableInstanceId,
+        row.studentId,
+        body,
+      );
+      await mutateRoster();
+    },
+    [activeTimetableInstanceId, mutateRoster],
   );
 
   // „Rest des Tages“ (#3166): this block by hand, every later block of the day
@@ -778,6 +799,7 @@ export function useTimetableActions(
     handleStartSpontaneousActivity,
     handleRosterAction,
     handleExcuseRestOfDay,
+    handleSaveHomeworkFeedback,
     confirmCompleteTimetableInstance,
     handleCompleteTimetableInstance,
     handleReopenTimetableInstance,

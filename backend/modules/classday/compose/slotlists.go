@@ -53,10 +53,6 @@ type SlotListDependencies struct {
 // application.NewSlotLists); every other nil dependency surfaces as a "not
 // configured" error on the first build.
 func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
-	var settings ports.Settings
-	if deps.Settings != nil {
-		settings = deps.Settings
-	}
 	var careDays ports.CareDays
 	if deps.CareDays != nil {
 		careDays = application.CareDayBinding{Resolver: deps.CareDays}
@@ -81,7 +77,7 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 		EffectiveTimes:  effectiveTimes,
 		PickupBaselines: baselines,
 		Rules:           application.Rules(deps.EnrolledOn),
-		Settings:        settings,
+		Settings:        deps.Settings,
 		Access:          deps.Access,
 		ListExport:      deps.ListExport,
 		Now:             deps.Now,
