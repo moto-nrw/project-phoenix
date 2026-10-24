@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -111,7 +110,7 @@ func (p ParentDeclarationSignatures) RecordPickupSignature(ctx context.Context, 
 // PickupSignatures reads pickup permission signatures of the child for the
 // wording each was given on.
 func (p ParentDeclarationSignatures) PickupSignatures(ctx context.Context, studentID int64, statements map[int64]string) (map[int64]*parentportal.PickupSignature, error) {
-	proofs, err := pickupSignatureProofs(ctx, p.Ledger, studentID, statements)
+	proofs, err := PickupSignatureProofs(ctx, p.Ledger, studentID, statements)
 	if err != nil {
 		return nil, err
 	}
@@ -123,9 +122,9 @@ func (p ParentDeclarationSignatures) PickupSignatures(ctx context.Context, stude
 	return out, nil
 }
 
-// pickupSignatureProof is a stored pickup permission signature as both the
-// parent proof and the OGS proof show it.
-type pickupSignatureProof struct {
+// PickupSignatureProof is a stored pickup permission signature as both the
+// parent proof and the OGS proof show it (#4780).
+type PickupSignatureProof struct {
 	ID          int64
 	Method      string
 	TypedName   string
@@ -136,10 +135,10 @@ type pickupSignatureProof struct {
 	Intact      bool
 }
 
-// pickupSignatureProofs reads the signatures and checks each: the ledger's
+// PickupSignatureProofs reads the signatures and checks each: the ledger's
 // own integrity, the pickup permission purpose, the child, and the SHA-256
 // of the wording the request keeps.
-func pickupSignatureProofs(ctx context.Context, ledger auditlog.SignatureLedger, studentID int64, statements map[int64]string) (map[int64]pickupSignatureProof, error) {
+func PickupSignatureProofs(ctx context.Context, ledger auditlog.SignatureLedger, studentID int64, statements map[int64]string) (map[int64]PickupSignatureProof, error) {
 	ids := make([]int64, 0, len(statements))
 	for id := range statements {
 		ids = append(ids, id)
@@ -148,34 +147,15 @@ func pickupSignatureProofs(ctx context.Context, ledger auditlog.SignatureLedger,
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[int64]pickupSignatureProof, len(stored))
+	out := make(map[int64]PickupSignatureProof, len(stored))
 	for id, s := range stored {
 		intact := s.IntegrityOK && s.Purpose == auditlog.SignaturePurposePickupPermission &&
 			s.StudentID != nil && *s.StudentID == studentID &&
 			s.DocumentSHA256 == securityruntime.Fingerprint([]byte(statements[id]))
-		out[id] = pickupSignatureProof{
+		out[id] = PickupSignatureProof{
 			ID: s.ID, Method: s.Method, TypedName: s.TypedName, SignerName: s.SignerName, PNG: s.PNG,
 			ImageSHA256: s.ImageSHA256, SignedAt: s.SignedAt, Intact: intact,
 		}
 	}
 	return out, nil
-}
-
-// StaffPickupSignatures binds the ledger to the OGS proof of a signed parent
-// request (#4780).
-type StaffPickupSignatures struct{ Ledger auditlog.SignatureLedger }
-
-func (s StaffPickupSignatures) PickupSignatureProof(ctx context.Context, studentID, signatureID int64, statement string) (*careStudentsHTTP.PickupSignatureProof, error) {
-	proofs, err := pickupSignatureProofs(ctx, s.Ledger, studentID, map[int64]string{signatureID: statement})
-	if err != nil {
-		return nil, err
-	}
-	proof, ok := proofs[signatureID]
-	if !ok {
-		return nil, nil
-	}
-	return &careStudentsHTTP.PickupSignatureProof{
-		Method: proof.Method, TypedName: proof.TypedName, SignerName: proof.SignerName,
-		PNG: proof.PNG, SignedAt: proof.SignedAt, Intact: proof.Intact,
-	}, nil
 }

@@ -9322,6 +9322,28 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.PickupSignatureProofs.PickupSignatureProof",
+      "binding": "github.com/moto-nrw/project-phoenix/api.staffPickupSignatures.PickupSignatureProof",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.Signatures",
+      "target_owner": "audit-platform",
+      "binding_digest": "182b052b27e179a909e46ba1a9371720",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: the OGS proof of a signed parent request (#4780) reads its stored signature through modules/auditlog.SignatureLedger.Signatures (audit-platform), a tenant-scoped SELECT of audit.signatures by id inside the caller's tenant transaction. No owned-row mutation, lock or scope effect."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.ReportRenderer.RenderReport",
+      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
+      "target_owner": "document-rendering",
+      "binding_digest": "3a587bdb139363c30ed7326bb0590745",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: care-plan renders the PDF proof of a signed parent request (#4780) through modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) via api.declarationReports.RenderReport. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.StudentChangeHistory.ListStudentChangeHistory",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentChangeHistory",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentChangeHistory",

@@ -15,3 +15,11 @@ type Reads interface {
 	// FindStudentRequest returns one request of the child, or ErrNotFound.
 	FindStudentRequest(ctx context.Context, studentID, requestID int64) (*Request, error)
 }
+
+// PickupPermissions is the part of Submissions and Reads the pickup
+// permission flow (#4780) needs: create, list and find one request.
+type PickupPermissions interface {
+	CreatePickupPermission(context.Context, PickupPermissionCreateInput) (*Request, error)
+	ListPickupPermissionRequests(context.Context, int64, time.Time) ([]Request, error)
+	FindStudentRequest(ctx context.Context, studentID, requestID int64) (*Request, error)
+}

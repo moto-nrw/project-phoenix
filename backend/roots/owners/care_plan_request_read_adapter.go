@@ -14,11 +14,3 @@ func (s *CareScheduleRequestService) GetPendingForStudent(ctx context.Context, i
 func (s *CareScheduleRequestService) ListPickupChangeRequests(ctx context.Context, id int64, since time.Time) ([]carerequests.Request, error) {
 	return s.Requests.reads.ListPickupChangeRequests(ctx, id, since)
 }
-
-func (s *CareScheduleRequestService) FindStudentRequest(ctx context.Context, studentID, requestID int64) (*carerequests.Request, error) {
-	return s.Requests.reads.FindStudentRequest(ctx, studentID, requestID)
-}
-
-func (s *CareScheduleRequestService) ListPickupPermissionRequests(ctx context.Context, id int64, since time.Time) ([]carerequests.Request, error) {
-	return s.Requests.reads.ListPickupPermissionRequests(ctx, id, since)
-}

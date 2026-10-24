@@ -3,9 +3,7 @@ package parentportal_test
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"image"
 	"image/color"
 	"image/png"
@@ -154,8 +152,7 @@ func storedSignature(t *testing.T, db *bun.DB, id int64) (purpose string, studen
 }
 
 func sha256Hex(text string) string {
-	sum := sha256.Sum256([]byte(text))
-	return hex.EncodeToString(sum[:])
+	return owners.SecurityFingerprints{}.Content([]byte(text))
 }
 
 func pickupWeekdays(t *testing.T, db *bun.DB, studentID, profileID int64) (bool, []int) {

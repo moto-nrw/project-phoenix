@@ -46,6 +46,29 @@ func (a requestDecisionAdapter) ApplyPickup(ctx context.Context, request *carere
 	return a.s.applyPickupChangeRequest(ctx, request, token, required)
 }
 
+// ApplyPickupPermission grants the pickup permission an approved request asks
+// for (#4780): the contact may collect the child on the asked weekdays. The
+// request was built by the parent portal flow from the child's verified link,
+// so its relationship belongs to this child; a link removed since then
+// refuses the approval.
 func (a requestDecisionAdapter) ApplyPickupPermission(ctx context.Context, request *carerequests.Request) error {
-	return a.s.applyPickupPermissionRequest(ctx, request)
+	if a.s.PickupPermissionCommands == nil {
+		return errors.New("schedule: pickup permission commands not configured")
+	}
+	permission, err := carerequests.ParsePickupPermission(request.Payload)
+	if err != nil {
+		return err
+	}
+	grant := true
+	found, err := a.s.PickupPermissionCommands.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
+		TenantID: request.TenantID, RelationshipID: permission.RelationshipID,
+		CanPickup: &grant, SetWeekdays: true, Weekdays: permission.Weekdays,
+	})
+	if err != nil {
+		return err
+	}
+	if !found {
+		return carerequests.ErrPickupPermissionContactGone
+	}
+	return nil
 }

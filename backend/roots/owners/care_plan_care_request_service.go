@@ -33,9 +33,12 @@ type CareScheduleRequestService struct {
 	StudentAudit      requestStudentAudit
 	Logger            *slog.Logger
 	ReviewPolicy      RequestReviewPolicy
-	// PickupPermissions writes the pickup permission an approved pickup
-	// permission request grants (#4780).
-	PickupPermissions careplan.GuardianPickupPermissions
+	// PickupPermissionCommands writes the pickup permission an approved
+	// pickup permission request grants (#4780).
+	PickupPermissionCommands careplan.GuardianPickupPermissions
+	// PickupPermissions serves the pickup permission requests from the native
+	// submissions and reads (#4780).
+	carerequests.PickupPermissions
 	// permissions reads the permissions of the request claims the review
 	// policy decides on.
 	Permissions func(context.Context) []string
@@ -52,8 +55,9 @@ type careRequestOptions struct {
 	// shares answers who the parent explicitly shared a request with; nil
 	// means nobody was, so every co-guardian gets the neutral line.
 	shares eventContract.ShareVisibilityResolver
-	// pickupPermissions writes an approved pickup permission (#4780).
-	pickupPermissions careplan.GuardianPickupPermissions
+	// service applies settings that bind further collaborators to the built
+	// service, like the pickup permission commands (#4780).
+	service []func(*CareScheduleRequestService)
 }
 
 // CareRequestOption configures an optional collaborator of the care request
@@ -69,7 +73,9 @@ func WithCareRequestToday(today func() timezone.Date) CareRequestOption {
 // WithPickupPermissions wires Care Plan's pickup permission commands an
 // approved pickup permission request writes through (#4780).
 func WithPickupPermissions(permissions careplan.GuardianPickupPermissions) CareRequestOption {
-	return func(o *careRequestOptions) { o.pickupPermissions = permissions }
+	return func(o *careRequestOptions) {
+		o.service = append(o.service, func(s *CareScheduleRequestService) { s.PickupPermissionCommands = permissions })
+	}
 }
 
 // WithRequestShareVisibility wires the sharing resolver Care Plan's
@@ -135,7 +141,9 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		Attendance: attendance, PickupAutoExcusal: pickupAutoExcusal, DayLocker: dayLocker,
 		UserContext: userContext, StudentAudit: studentAudit, Logger: logger,
 		ReviewPolicy: reviewPolicy, Permissions: permissions, Today: config.today,
-		PickupPermissions: config.pickupPermissions,
+	}
+	for _, apply := range config.service {
+		apply(svc)
 	}
 	ledger := NewParentRequestLedger(events)
 	messenger, effects, err := newCareRequestEffects(svc, emitter, broadcaster, ledger, config.shares)
@@ -147,6 +155,10 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		panic(err)
 	}
 	svc.Requests = requests
+	svc.PickupPermissions = struct {
+		carerequests.Submissions
+		carerequests.Reads
+	}{requests.submissions, requests.reads}
 	return svc
 }
 
@@ -261,10 +273,6 @@ func (s *CareScheduleRequestService) CreatePickupChange(ctx context.Context, inp
 	return s.Requests.submissions.CreatePickupChange(ctx, input)
 }
 
-func (s *CareScheduleRequestService) CreatePickupPermission(ctx context.Context, input carerequests.PickupPermissionCreateInput) (*carerequests.Request, error) {
-	return s.Requests.submissions.CreatePickupPermission(ctx, input)
-}
-
 func (s *CareScheduleRequestService) EditRequest(ctx context.Context, input carerequests.EditInput) (*carerequests.Request, error) {
 	request, err := s.Requests.edits.EditRequest(ctx, input)
 	if err != nil {
@@ -304,33 +312,6 @@ func (s *CareScheduleRequestService) applyPickupChangeRequest(ctx context.Contex
 		TenantID: req.TenantID, StudentID: req.StudentID, Payload: req.Payload,
 		ExpectedImpactToken: expectedImpactToken, RequireImpactToken: requireImpactToken,
 	})
-}
-
-// applyPickupPermissionRequest grants the pickup permission an approved
-// request asks for (#4780): the contact may collect the child on the asked
-// weekdays. The request was built by the parent portal flow from the child's
-// verified link, so its relationship belongs to this child; a link removed
-// since then refuses the approval.
-func (s *CareScheduleRequestService) applyPickupPermissionRequest(ctx context.Context, req *carerequests.Request) error {
-	if s.PickupPermissions == nil {
-		return errors.New("schedule: pickup permission commands not configured")
-	}
-	permission, err := carerequests.ParsePickupPermission(req.Payload)
-	if err != nil {
-		return err
-	}
-	grant := true
-	found, err := s.PickupPermissions.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
-		TenantID: req.TenantID, RelationshipID: permission.RelationshipID,
-		CanPickup: &grant, SetWeekdays: true, Weekdays: permission.Weekdays,
-	})
-	if err != nil {
-		return err
-	}
-	if !found {
-		return carerequests.ErrPickupPermissionContactGone
-	}
-	return nil
 }
 
 func (s *CareScheduleRequestService) MarkDone(ctx context.Context, requestID int64, expectedVersion, reason string, reviewedBy int64) error {
