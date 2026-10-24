@@ -221,6 +221,17 @@ describe("SchoolCalendarPage", () => {
     await waitFor(() => expect(mockMutate).toHaveBeenCalled());
   });
 
+  it("names a class that already says Klasse only once", () => {
+    mockCalendar(calendar({ classes: ["Klasse 2a"] }));
+    render(<SchoolCalendarPage />);
+    openCreate();
+
+    fireEvent.click(screen.getByLabelText("Eltern meiner Klassen"));
+
+    expect(screen.getByLabelText("Klasse 2a")).toBeInTheDocument();
+    expect(screen.queryByText("Klasse Klasse 2a")).not.toBeInTheDocument();
+  });
+
   it("explains why the own classes cannot be chosen", () => {
     mockCalendar(calendar({ classes: [] }));
     render(<SchoolCalendarPage />);

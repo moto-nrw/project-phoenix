@@ -68,6 +68,7 @@ import {
   schoolCalendarEvents,
   type SchoolAppointmentDraft,
 } from "~/lib/school-calendar";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "SchoolCalendarPage" });
@@ -548,7 +549,7 @@ export default function SchoolCalendarPage() {
                                 })
                               }
                             />
-                            Klasse {schoolClass}
+                            {schoolClassLabel(schoolClass)}
                           </ChoiceTile>
                         );
                       })}
