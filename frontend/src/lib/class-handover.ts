@@ -26,7 +26,7 @@ export const HANDOVER_ABSENT_WORDING = "Nach dem Unterricht nicht da";
 export const HANDOVER_PRESENT_WORDING = "Nach dem Unterricht da";
 
 /** „Nach dem Unterricht da“ oder „Nach dem Unterricht nicht da“. */
-export function handoverWording(handover: ClassHandover): string {
+function handoverWording(handover: ClassHandover): string {
   return handover.absent ? HANDOVER_ABSENT_WORDING : HANDOVER_PRESENT_WORDING;
 }
 
