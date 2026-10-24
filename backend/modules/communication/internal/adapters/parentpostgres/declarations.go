@@ -32,16 +32,18 @@ var ErrDeclarationVersionConflict = errors.New("users: declaration version alrea
 // declarationColumns is embedded in parentAnnouncementRow. NULL kind/signers
 // is every non-declaration announcement.
 type declarationColumns struct {
-	DeclarationKind             *string `bun:"declaration_kind"`
-	DeclarationSigners          *string `bun:"declaration_signers"`
-	DeclarationRevocable        bool    `bun:"declaration_revocable,notnull"`
-	DeclarationRequiresPassword bool    `bun:"declaration_requires_password,notnull"`
+	DeclarationKind              *string `bun:"declaration_kind"`
+	DeclarationSigners           *string `bun:"declaration_signers"`
+	DeclarationRevocable         bool    `bun:"declaration_revocable,notnull"`
+	DeclarationRequiresPassword  bool    `bun:"declaration_requires_password,notnull"`
+	DeclarationRequiresSignature bool    `bun:"declaration_requires_signature,notnull"`
 }
 
 func (c declarationColumns) value() domain.DeclarationSettings {
 	settings := domain.DeclarationSettings{
-		Revocable:        c.DeclarationRevocable,
-		RequiresPassword: c.DeclarationRequiresPassword,
+		Revocable:         c.DeclarationRevocable,
+		RequiresPassword:  c.DeclarationRequiresPassword,
+		RequiresSignature: c.DeclarationRequiresSignature,
 	}
 	if c.DeclarationKind != nil {
 		settings.Kind = *c.DeclarationKind
@@ -54,8 +56,9 @@ func (c declarationColumns) value() domain.DeclarationSettings {
 
 func declarationRow(settings domain.DeclarationSettings) declarationColumns {
 	columns := declarationColumns{
-		DeclarationRevocable:        settings.Revocable,
-		DeclarationRequiresPassword: settings.RequiresPassword,
+		DeclarationRevocable:         settings.Revocable,
+		DeclarationRequiresPassword:  settings.RequiresPassword,
+		DeclarationRequiresSignature: settings.RequiresSignature,
 	}
 	if settings.Kind != "" {
 		kind := settings.Kind
@@ -75,7 +78,8 @@ func setDeclarationColumns(query *bun.UpdateQuery, settings domain.DeclarationSe
 		Set("declaration_kind = ?", columns.DeclarationKind).
 		Set("declaration_signers = ?", columns.DeclarationSigners).
 		Set("declaration_revocable = ?", columns.DeclarationRevocable).
-		Set("declaration_requires_password = ?", columns.DeclarationRequiresPassword)
+		Set("declaration_requires_password = ?", columns.DeclarationRequiresPassword).
+		Set("declaration_requires_signature = ?", columns.DeclarationRequiresSignature)
 }
 
 type declarationVersionRow struct {
@@ -130,6 +134,7 @@ type declarationSubmissionRow struct {
 	ContentHash       string    `bun:"content_hash,notnull"`
 	RecordHash        string    `bun:"record_hash,notnull"`
 	SubmittedAt       time.Time `bun:"submitted_at,notnull"`
+	SignatureID       *int64    `bun:"signature_id"`
 	CreatedAt         time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 }
 
@@ -140,6 +145,7 @@ func (r *declarationSubmissionRow) value() *domain.DeclarationSubmission {
 		GuardianProfileID: r.GuardianProfileID, SignerName: r.SignerName, GuardianRole: r.GuardianRole,
 		Action: r.Action, Method: r.Method, PasswordConfirmed: r.PasswordConfirmed,
 		ContentHash: r.ContentHash, RecordHash: r.RecordHash, SubmittedAt: r.SubmittedAt,
+		SignatureID: r.SignatureID,
 	}
 }
 
@@ -263,7 +269,8 @@ func (s *AnnouncementStore) DeclarationSettings(ctx context.Context, announcemen
 		TableExpr(parentAnnouncementTableExpr).
 		ColumnExpr(`"parent_announcement".id, "parent_announcement".declaration_kind,
 			"parent_announcement".declaration_signers, "parent_announcement".declaration_revocable,
-			"parent_announcement".declaration_requires_password`).
+			"parent_announcement".declaration_requires_password,
+			"parent_announcement".declaration_requires_signature`).
 		Where(`"parent_announcement".id IN (?)`, bun.List(announcementIDs)).
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("load declaration settings: %w", err)
@@ -424,7 +431,7 @@ func (s *AnnouncementStore) InsertDeclarationSubmission(ctx context.Context, sub
 		GuardianProfileID: submission.GuardianProfileID, SignerName: submission.SignerName,
 		GuardianRole: submission.GuardianRole, Action: submission.Action, Method: submission.Method,
 		PasswordConfirmed: submission.PasswordConfirmed, ContentHash: submission.ContentHash,
-		RecordHash: submission.RecordHash, SubmittedAt: submission.SubmittedAt,
+		RecordHash: submission.RecordHash, SubmittedAt: submission.SubmittedAt, SignatureID: submission.SignatureID,
 	}
 	if _, err := db.NewInsert().Model(row).ModelTableExpr(declarationSubmissionTable).
 		Returning("id").Exec(ctx); err != nil {

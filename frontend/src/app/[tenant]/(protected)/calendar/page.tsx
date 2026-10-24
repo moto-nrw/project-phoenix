@@ -17,6 +17,7 @@ import { useSession } from "next-auth/react";
 
 import {
   calendarEmptyLabel,
+  calendarFetchRange,
   CalendarOverviewList,
   PersonalCalendar,
   PersonalCalendarChrome,
@@ -85,7 +86,6 @@ import {
 } from "~/lib/personal-calendar-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
-import { getWeekRange } from "~/lib/timetable-helpers";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -115,6 +115,7 @@ const targetTypeLabels: Record<CalendarTargetType, string> = {
   staff: "Mitarbeitende",
   guardian_profile: "Einzelne Eltern",
   all_staff: "Alle Mitarbeitenden",
+  all_teachers: "Alle Lehrkräfte",
   all_school_parents: "Alle Eltern der Schule",
   parents_by_class: "Eltern nach Klasse",
   parents_by_group: "Eltern nach Gruppe",
@@ -144,32 +145,13 @@ function weekdayName(dateISO: string): string {
   return date.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
 }
 
-function calendarRange(referenceDate: Date, viewMode: CalendarViewMode) {
-  if (viewMode === "day") return { from: referenceDate, to: referenceDate };
-  if (viewMode === "month") {
-    // Month view renders a 42-day grid starting at the week containing the 1st
-    // (see monthGridDays in personal-calendar.tsx). Fetch that full visible
-    // range so appointments on the leading/trailing adjacent-month days show,
-    // instead of only the calendar month itself.
-    const firstOfMonth = new Date(
-      referenceDate.getFullYear(),
-      referenceDate.getMonth(),
-      1,
-    );
-    const from = getWeekRange(firstOfMonth).from;
-    const to = new Date(from);
-    to.setDate(from.getDate() + 41);
-    return { from, to };
-  }
-  return getWeekRange(referenceDate);
-}
-
 function targetKey(
   type: CalendarTargetType,
   id?: string,
   value?: string,
 ): string {
   if (type === "all_staff") return "all_staff";
+  if (type === "all_teachers") return "all_teachers";
   if (type === "all_school_parents") return "all_school_parents";
   return `${type}:${id ?? value ?? ""}`;
 }
@@ -178,7 +160,11 @@ function serializeTarget(target: DraftTarget): CalendarTarget {
   if (target.type === "parents_by_class") {
     return { type: target.type, value: target.value };
   }
-  if (target.type === "all_staff" || target.type === "all_school_parents") {
+  if (
+    target.type === "all_staff" ||
+    target.type === "all_teachers" ||
+    target.type === "all_school_parents"
+  ) {
     return { type: target.type };
   }
   return { type: target.type, id: target.id };
@@ -236,6 +222,18 @@ function buildTargetGroups(
           key: "all_staff",
           type: "all_staff",
           label: "Alle Mitarbeitenden",
+        },
+      ],
+    },
+    // Die Lehrkräfte der Schule erreichen den Termin in moto schule (#4798).
+    {
+      type: "all_teachers",
+      label: targetTypeLabels.all_teachers,
+      choices: [
+        {
+          key: "all_teachers",
+          type: "all_teachers",
+          label: "Alle Lehrkräfte",
         },
       ],
     },
@@ -484,7 +482,7 @@ function StaffCalendarPageInner() {
   >(null);
 
   const range = useMemo(
-    () => calendarRange(referenceDate, viewMode),
+    () => calendarFetchRange(referenceDate, viewMode),
     [referenceDate, viewMode],
   );
   const calendarKey = `staff-calendar-${viewMode}-${toISODate(range.from)}-${toISODate(range.to)}`;

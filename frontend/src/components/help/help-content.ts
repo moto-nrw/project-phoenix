@@ -432,6 +432,9 @@ function appOverviewTopic(): HelpTopic {
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
+      // Kopfzeile aus BrandTraegerLine (#4656): nur bei einem Träger mit
+      // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
+      "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
     notes: [
       "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
@@ -1199,6 +1202,7 @@ function myScheduleTopic(): HelpTopic {
           "Grün zeigt Termine und Einladungen.",
           "Blau zeigt Ihre Einsätze im Betreuungsplan.",
           "Orange zeigt Ihre Schichten aus dem Dienstplan.",
+          "Lila zeigt Schultermine. Eine Lehrkraft hat sie in moto schule eingetragen, zum Beispiel einen Ausflug. Die Art steht im geöffneten Termin.",
         ],
       },
       {
@@ -1218,6 +1222,7 @@ function myScheduleTopic(): HelpTopic {
     notes: [
       "Mit `Sa/So` blenden Sie das Wochenende ein. Eine Zahl zeigt, dass dort Einträge liegen.",
       "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`.",
+      "Legen Sie einen Termin an und wählen Sie `Alle Lehrkräfte`. Dann sehen die Lehrkräfte ihn in moto schule.",
     ],
     differences: [
       "Das Kalender-Abo ist nur zum Lesen. Änderungen in Ihrem persönlichen Kalender werden nicht an moto übertragen.",
@@ -4069,8 +4074,9 @@ function parentSurveyTopic(): HelpTopic {
 
 /**
  * Einverständnis (#3430): Eltern stimmen je Kind zu oder lehnen ab. Einfache
- * Erklärung per Knopfdruck, mit Fassung und Nachweis. Eine reine
- * Lesebestätigung ist ein Elternbrief.
+ * Erklärung per Knopfdruck, mit Fassung und Nachweis, auf Wunsch mit
+ * gezeichneter Unterschrift (#4785). Eine reine Lesebestätigung ist ein
+ * Elternbrief.
  */
 function parentDeclarationTopic(): HelpTopic {
   const steps = parentAnnouncementSteps(
@@ -4102,6 +4108,7 @@ function parentDeclarationTopic(): HelpTopic {
       "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
     notes: [
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+      "Mit `Mit Unterschrift` unterschreiben Eltern ihre Zustimmung mit dem Finger oder der Maus. Ablehnen geht ohne Unterschrift. Die Unterschrift steht im Nachweis der Eltern und in `Bericht als PDF`.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
       "Unter `Herunterladen` lädt `Bericht als PDF` den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
@@ -7003,6 +7010,7 @@ function parentNewsTopic(): HelpTopic {
           "Lesen Sie den Text und die Dateien.",
           "Tippen Sie beim Kind auf `Zustimmen` oder `Ablehnen`.",
           "Prüfen Sie im Fenster das Kind und Ihre Antwort.",
+          "Verlangt die Schule eine Unterschrift? Unterschreiben Sie im Feld mit dem Finger oder der Maus. Tippen Sie dann auf `Unterschrift bestätigen`.",
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
@@ -8046,6 +8054,56 @@ function teacherNoticesTopic(): HelpTopic {
   };
 }
 
+function teacherCalendarTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherCalendar,
+    title: "Den Kalender nutzen",
+    question: "Wie trage ich einen Ausflug oder Schultermin ein?",
+    summary:
+      "Der Kalender zeigt Termine der OGS, Schließtage, Ferien und Ihre Schultermine.",
+    group: "nachrichten",
+    audience: "teacher",
+    icon: "CalendarDays",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Einen Schultermin eintragen",
+        steps: [
+          "Öffnen Sie `Kalender`.",
+          "Wählen Sie `Neuer Termin`.",
+          "Geben Sie einen Titel ein und wählen Sie die Art, zum Beispiel `Ausflug`.",
+          "Wählen Sie Tag und Uhrzeit. Oder setzen Sie den Haken bei `Ganztägig`.",
+          "Wählen Sie unter `Wer sieht den Termin?`, ob auch Eltern ihn sehen.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Auf eine Einladung der OGS antworten",
+        steps: [
+          "Wählen Sie den Termin im Kalender.",
+          "Wählen Sie `Zusagen` oder `Absagen`.",
+        ],
+      },
+    ],
+    result:
+      "Die OGS und alle Lehrkräfte sehen Ihren Schultermin. Die Eltern sehen ihn nur, wenn Sie das gewählt haben.",
+    notes: [
+      "Ihre eigenen Schultermine öffnen Sie im Kalender. Dort finden Sie `Bearbeiten` und `Löschen`.",
+      "Schließtage und Ferien trägt die OGS ein. Sie stehen ganztägig im Kalender.",
+      "Unter `Kalender abonnieren` holen Sie die Termine in Ihren Handy-Kalender.",
+    ],
+    differences: [
+      "Wer den Termin sieht, wählen Sie nur beim Anlegen. Beim Ändern bleibt es gleich.",
+      "`Eltern meiner Klassen` ist grau? Dann ist Ihnen keine Klasse zugeordnet.",
+    ],
+    related: [
+      HELP_TOPICS.teacherNotices,
+      HELP_TOPICS.teacherMessages,
+      HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
 /** Problemartikel: falsches Portal ist die haeufigste Ursache. */
 function teacherLoginProblemTopic(): HelpTopic {
   return {
@@ -8157,7 +8215,7 @@ function teacherFeatureMissingTopic(): HelpTopic {
 
 // Portal "moto schule" (#2207). Geruest nach der echten Navigation des
 // Schul-Portals (`SCHOOL_PRIMARY_NAV`): Klassenansicht, Meine Aufsichten,
-// Nachrichten, Tagesinformationen.
+// Nachrichten, Tagesinformationen, Kalender.
 //
 // Eine Lehrkraft sieht bewusst wenig: ihre Klassen und ihre eigenen
 // Aufsichten. Abhol- und Notfallkontakte gibt es nur zu den Kindern einer
@@ -8188,6 +8246,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Nachrichten und Infos ---
   teacherMessagesTopic(),
   teacherNoticesTopic(),
+  teacherCalendarTopic(),
 
   // --- Wenn etwas nicht klappt ---
   teacherLoginProblemTopic(),

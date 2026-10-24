@@ -110,6 +110,7 @@ DELETE /parent/me/children/{studentId}/meal-participation/{date}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
+DELETE /school/calendar/appointments/{appointmentId}
 DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
 DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/notifications/preferences/
@@ -591,6 +592,8 @@ GET /public/login-image/{filename}
 GET /public/request-feed/{token}
 GET /ready
 GET /school-sse/events
+GET /school/calendar/feed
+GET /school/calendar/my
 GET /school/class-day/
 GET /school/class-day/arrival-exceptions
 GET /school/class-day/arrival-exceptions/block-start
@@ -982,6 +985,9 @@ POST /school/auth/mfa/verify
 POST /school/auth/password-reset
 POST /school/auth/password-reset/confirm
 POST /school/auth/switch-school
+POST /school/calendar/appointments
+POST /school/calendar/feed/rotate
+POST /school/calendar/recipients/{recipientId}/response
 POST /school/class-day/class-trips/{schoolClass}
 POST /school/notifications/push/subscriptions
 POST /school/notifications/test
@@ -1115,6 +1121,7 @@ PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
+PUT /school/calendar/appointments/{appointmentId}
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
 PUT /school/class-day/handover/{schoolClass}/{date}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}

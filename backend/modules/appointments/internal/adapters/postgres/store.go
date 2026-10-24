@@ -463,6 +463,7 @@ func (s *Store) UpdateAppointment(ctx context.Context, id int64, fields appointm
 		Set(`end_time = ?`, normalizeWallClock(fields.EndTime).Format("15:04:05")).
 		Set(`all_day = ?`, fields.AllDay).Set(`delivery_mode = ?`, fields.DeliveryMode).
 		Set(`overview_visibility = ?`, fields.OverviewVisibility).Set(`notify_guardians = ?`, fields.NotifyGuardians).
+		Set(`school_event_type = ?`, fields.SchoolEventType).
 		Set(`updated_at = ?`, time.Now()).Set(`revision = revision + 1`).
 		Where(`"appointment".id = ?`, id).Where(`"appointment".cancelled_at IS NULL`).Where(`"appointment".deleted_at IS NULL`)
 	query = withTenant(query, "appointment", tenantID)

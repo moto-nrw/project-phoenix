@@ -156,6 +156,10 @@ type TenantResolveResponse struct {
 	// staff member's navigation follows it, also without config:read. A lookup
 	// error fails the shell request.
 	ChildSearchOnlyNavigation bool `json:"child_search_only_navigation"`
+	// TraegerName is the Träger the school portal shows (#4656). It is set
+	// only while the Träger runs more than one operational school; a Träger
+	// with a single OGS sees no Träger level, so the field is omitted.
+	TraegerName string `json:"traeger_name,omitempty"`
 }
 
 type tenantShellSettings struct {

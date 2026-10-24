@@ -466,6 +466,7 @@
     "deadline": "Frist bis {date}",
     "closed": "Frist abgelaufen",
     "passwordNote": "Bevor Sie antworten, fragt moto Ihr Passwort ab.",
+    "signatureNote": "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
     "state": {
       "open": "Offen",
       "partial": "Teilweise beantwortet",
@@ -517,6 +518,22 @@
     "confirmVersion": "Text",
     "confirmRecorded": "moto speichert Ihre Antwort mit Datum und Uhrzeit. Die Schule sieht sie.",
     "passwordLabel": "Passwort Ihres Eltern-Kontos",
+    "signature": {
+      "label": "Ihre Unterschrift",
+      "hint": "Unterschreiben Sie im Feld mit dem Finger, dem Stift oder der Maus.",
+      "canvas": "Feld zum Unterschreiben",
+      "clear": "Feld leeren",
+      "typeInstead": "Namen tippen",
+      "drawInstead": "Lieber zeichnen",
+      "typedName": "Ihr Vor- und Nachname",
+      "confirm": "Unterschrift bestätigen",
+      "confirmed": "Ihre Unterschrift ist bereit.",
+      "confirmedTyped": "Ihr getippter Name ist bereit.",
+      "change": "Neu unterschreiben",
+      "preview": "Ihre Unterschrift",
+      "emptyDrawing": "Bitte unterschreiben Sie im Feld.",
+      "nameTooShort": "Bitte tippen Sie Ihren Namen."
+    },
     "revokeTitle": "Zustimmung widerrufen",
     "revokeBody": "Sie nehmen Ihre Zustimmung für {name} zurück.",
     "revokeConfirm": "Widerrufen",
@@ -525,7 +542,8 @@
     "saved": "Ihre Antwort für {name} ist gespeichert.",
     "errors": {
       "passwordRequired": "Bitte geben Sie Ihr Passwort ein.",
-      "uncertainReload": "Der Stand wird neu geladen. Bitte prüfen Sie ihn, bevor Sie noch einmal antworten."
+      "uncertainReload": "Der Stand wird neu geladen. Bitte prüfen Sie ihn, bevor Sie noch einmal antworten.",
+      "signatureRequired": "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“."
     },
     "errorObjectAnswer": "die Antwort"
   },
@@ -548,10 +566,14 @@
     "entryVersion": "Fassung {version}",
     "passwordYes": "Mit Passwort bestätigt",
     "passwordNo": "Ohne Passwort",
+    "signatureAlt": "Unterschrift von {name}",
+    "signatureDrawn": "Mit Finger oder Maus gezeichnet",
+    "signatureTyped": "Getippt: {name}",
     "versionsTitle": "Text der Schule",
     "versionHeading": "Fassung {version}, veröffentlicht am {date} Uhr",
     "attachments": "Dateien",
     "note": "Dieser Nachweis belegt eine einfache elektronische Erklärung. Er ersetzt keine gesetzlich vorgeschriebene Unterschrift auf Papier.",
+    "noteSigned": "Unterschriebene Antworten sind als einfache elektronische Signatur mit gezeichneter Unterschrift gegeben.",
     "errorObjectProof": "das Nachweisdokument",
     "errorObjectPdf": "das PDF"
   },
@@ -2288,6 +2310,8 @@
         "declaration_not_permitted": "Für dieses Kind dürfen Sie nicht antworten. Bei Fragen wenden Sie sich an die OGS.",
         "declaration_password_incorrect": "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
         "declaration_password_required": "Bitte geben Sie Ihr Passwort ein.",
+        "declaration_signature_invalid": "Die Unterschrift konnte nicht gespeichert werden. Bitte unterschreiben Sie noch einmal.",
+        "declaration_signature_required": "Bitte unterschreiben Sie, bevor Sie zustimmen.",
         "declaration_version_changed": "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
         "excused_request_not_pending": "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
         "excused_request_overlap": "Die Zeiten für {object} überschneiden sich. Bitte prüfen Sie die Angaben.",

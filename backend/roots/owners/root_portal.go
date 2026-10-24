@@ -55,6 +55,7 @@ func BuildParentPortal(
 	photos := services.StudentPhotos
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: ParentGuardianChanges(),
+		Signatures:      ParentDeclarationSignatures{Ledger: SignatureLedger()},
 		DeparturePolicy: ParentDeparturePolicy(),
 		GuardianPolicy:  NewParentGuardianPolicy(),
 		Fingerprints:    SecurityFingerprints{},

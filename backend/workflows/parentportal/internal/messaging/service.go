@@ -54,9 +54,11 @@ type Config struct {
 	SharePolicy    RequestSharePolicy
 	Fingerprints   ContentFingerprints
 	Declarations   DeclarationPolicy
-	Runtime        care.Runtime
-	Logger         *slog.Logger
-	Now            func() time.Time
+	// Signatures stores the signatures of signed Erklärungen (#4785).
+	Signatures SignatureLedger
+	Runtime    care.Runtime
+	Logger     *slog.Logger
+	Now        func() time.Time
 
 	Children ChildResolver
 

@@ -26,6 +26,9 @@ type ServiceConfig struct {
 	// Fingerprints computes the content identities an Erklärung freezes. A
 	// service without it refuses to publish a declaration.
 	Fingerprints Fingerprints
+	// Signatures reads the signatures of signed answers (#4785). A service
+	// without it reports every signed answer as not verifiable.
+	Signatures DeclarationSignatures
 	// Attachments is the file side of the attachments. A service without
 	// one refuses to delete an announcement that could still own
 	// attachments rather than orphaning their bytes silently.

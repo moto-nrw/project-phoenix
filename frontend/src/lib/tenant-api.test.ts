@@ -343,6 +343,36 @@ describe("tenant-api", () => {
       expect(result?.presenceMode).toBe("binary");
     });
 
+    it("maps the Träger name only when the backend names one (#4656)", async () => {
+      const respond = (extra: Record<string, unknown>) =>
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 3,
+              slug: "traeger-school",
+              name: "Träger School",
+              subdomain: "traeger",
+              organization_id: 12,
+              organization_name: "Org T",
+              settings: {},
+              ...extra,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(respond({ traeger_name: "Org T" }))
+        .mockResolvedValueOnce(respond({}));
+
+      const severalSchools = await resolveTenant("traeger-school");
+      const singleSchool = await resolveTenant("traeger-school");
+
+      expect(severalSchools?.traegerName).toBe("Org T");
+      expect(singleSchool?.organizationName).toBe("Org T");
+      expect(singleSchool?.traegerName).toBeUndefined();
+    });
+
     it("derives nfcEnabled from the booked NFC module", async () => {
       const backendData = {
         status: "success",

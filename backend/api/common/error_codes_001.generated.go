@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIdentityUseSchoolPortal                       = "identity.use_school_portal"
+	CodeIdentityUsernameTaken                         = "identity.username_taken"
 	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
 	CodeImportFileMissing                             = "import.file_missing"
 	CodeImportFileNoRows                              = "import.file_no_rows"
@@ -300,11 +302,11 @@ const (
 	CodeTimetableSickAbsenceScopeLocked               = "timetable.sick_absence_scope_locked"
 	CodeTimetableSlotListDrifted                      = "timetable.slot_list_drifted"
 	CodeTimetableSlotListGroupingInvalid              = "timetable.slot_list_grouping_invalid"
-	CodeTimetableSlotListPickupPastDate               = "timetable.slot_list_pickup_past_date"
-	CodeTimetableSlotListReconciliationFutureDate     = "timetable.slot_list_reconciliation_future_date"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.use_school_portal":                          "permission",
+	"identity.username_taken":                             "business_rejection",
 	"import.file_columns_missing":                         "input",
 	"import.file_missing":                                 "input",
 	"import.file_no_rows":                                 "input",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.sick_absence_scope_locked":                 "business_rejection",
 	"timetable.slot_list_drifted":                         "business_rejection",
 	"timetable.slot_list_grouping_invalid":                "input",
-	"timetable.slot_list_pickup_past_date":                "input",
-	"timetable.slot_list_reconciliation_future_date":      "input",
 }
 
 func init() {

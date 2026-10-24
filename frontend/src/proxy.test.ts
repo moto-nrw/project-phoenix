@@ -829,6 +829,16 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /kalender to /school/kalender (#4798)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/kalender`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/kalender",
+      );
+    });
+
     it("rewrites a class page to /school/klasse (#2294)", () => {
       // Klasse und Tag stehen als Query-Parameter in der Adresse; die
       // Umschreibung muss sie unverändert mitnehmen.

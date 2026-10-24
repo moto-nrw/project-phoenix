@@ -30,6 +30,7 @@ type ParentAnnouncementConfig struct {
 	Preferences      deliveryPorts.NotificationPreferences
 	Deliveries       deliveryPorts.ParentAnnouncementDeliveryRecorder
 	Fingerprints     deliveryPorts.Fingerprints
+	Signatures       communication.DeclarationSignatureReader
 	ParentsURL       string
 	Logger           *slog.Logger
 }
@@ -51,9 +52,8 @@ func NewParentAnnouncementsWithAttachments(cfg ParentAnnouncementConfig, attachm
 	}
 	return deliveryPorts.NewParentAnnouncementFacade(deliveryPorts.NewService(deliveryPorts.ServiceConfig{
 		Repo: records.NewRepository(cfg.Repo), Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
-		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
-		Preferences:      cfg.Preferences, Deliveries: deliveries,
-		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints, Attachments: attachments,
+		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier), Preferences: cfg.Preferences, Deliveries: deliveries,
+		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints, Signatures: cfg.Signatures, Attachments: attachments,
 	}, runtime, policy)), nil
 }
 

@@ -1,4 +1,5 @@
 import { proxyPost } from "~/lib/parent/route-wrapper.server";
+import type { SignatureRequestBody } from "~/lib/signature";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface DeclarationSubmitResult {
@@ -11,13 +12,14 @@ interface DeclarationSubmitBody {
   action?: string;
   version_id?: string;
   password?: string;
+  signature?: SignatureRequestBody;
 }
 
 /**
  * Proxy POST /api/parent/me/news/{announcementId}/declaration → backend.
  * Records one action of an Erklärung for ONE child (#3430); the backend
  * authorizes the child, checks the version, the deadline and, when asked
- * for, the account password. Password errors come back as 403 and pass
+ * for, the account password and, when asked for, the signature (#4785). Password errors come back as 403 and pass
  * through unchanged, so they never trigger the 401 token refresh or logout.
  */
 export const POST = proxyPost<DeclarationSubmitResult, DeclarationSubmitBody>(

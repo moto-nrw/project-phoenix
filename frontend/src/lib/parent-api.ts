@@ -24,6 +24,7 @@ import {
 } from "~/lib/meal-allergens";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
+import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -1082,6 +1083,8 @@ export interface ParentDeclaration {
   readonly signers: "any" | "all";
   readonly revocable: boolean;
   readonly requires_password: boolean;
+  /** Agreeing needs a signature with finger, pen or mouse (#4785). */
+  readonly requires_signature: boolean;
   readonly deadline: string | null;
   readonly closed: boolean;
   readonly version: {
@@ -1265,6 +1268,8 @@ export async function submitDeclaration(
     readonly action: ParentDeclarationAction;
     readonly versionId: string;
     readonly password?: string;
+    /** Sent only when agreeing to an Einverständnis that asks for it. */
+    readonly signature?: SignatureValue;
   },
 ): Promise<{ submission: ParentDeclarationSubmission; created: boolean }> {
   return postJson<{
@@ -1275,7 +1280,20 @@ export async function submitDeclaration(
     action: input.action,
     version_id: input.versionId,
     ...(input.password === undefined ? {} : { password: input.password }),
+    ...(input.signature === undefined
+      ? {}
+      : { signature: signatureRequestBody(input.signature) }),
   });
+}
+
+/** A stored signature as the own proof shows it (#4785). */
+interface ParentDeclarationProofSignature {
+  readonly method: "drawn" | "typed";
+  readonly typed_name: string | null;
+  /** `data:image/png;base64,…` */
+  readonly image_data_url: string;
+  readonly image_sha256: string;
+  readonly signed_at: string;
 }
 
 /** One version of an Einverständnis as frozen on publishing (#3430). */
@@ -1307,6 +1325,7 @@ interface ParentDeclarationProofEntry {
   readonly method: string;
   readonly content_hash: string;
   readonly record_hash: string;
+  readonly signature: ParentDeclarationProofSignature | null;
 }
 
 /** The proof (Nachweis) of this account's Einverständnis for one child. */
