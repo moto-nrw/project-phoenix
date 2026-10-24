@@ -73,15 +73,20 @@ Katalogpunkt 4.16 fragt, ob sich die Funktionen 4.1 bis 4.15 modular hinzufügen
 
 Die Folge-Issues setzen auf diese Teile auf. Neue Module kommen nur über die Modulliste dazu.
 
-**Backend, Paket `modules/settings`:**
+**Backend, Paket `modules/settings` (vorhanden):**
 
-- `settings.ModuleKey` und die Konstanten `settings.ModuleNFCAnwesenheit` bis `settings.ModuleElternbeitraege`.
-- `settings.Modules()` liefert die Liste in Katalogreihenfolge mit Namen und Voraussetzungen, `settings.ModuleSettingKeys()` alle Einstellungen für ein gebündeltes Lesen.
-- `settings.NewModuleBooking(reader)` baut den Helfer. `reader` ist der Settings-Service (`ResolveBool`, `ResolveBoolForTenant`). Er liest über den Request-Cache, nie aus einer Umgebungsvariable.
-  - `IsBooked(ctx, module)` und `Require(ctx, tenantID, modules...)` für Routen in der Tenant-Middleware (#4893). `tenantID` benennt die Schule nur im Fehler.
-  - `IsBookedForTenant(ctx, tenantID, module)` und `RequireForTenant(...)` außerhalb der Middleware: Scheduler, Login und Refresh der Portale, Geräte (#4895, #4896).
-  - `Require` liefert `*settings.ModuleNotBookedError` mit Schule und erstem fehlenden Modul. Daraus macht #4893 den Fehlercode für nicht gebuchte Module mit dem Modulschlüssel im Fehler-Umschlag. Ein Lesefehler bleibt ein Fehler und wird nie als „gebucht“ oder „nicht gebucht“ gewertet.
-- `settings.BookedModules(readBool)` liest die gebuchten Module aus einem schon geladenen Satz Einstellungen.
+- `settings.ModuleKey` und die Konstanten `settings.ModuleNFCAnwesenheit` bis `settings.ModuleElternbeitraege`; die Liste mit Namen und Voraussetzungen in `modules/settings/records` (`Modules()`, `LookupModule`, `ModuleDependents`).
+- Je Modul die Einstellung `module.<schlüssel>`. Lesen heißt: `ResolveBool` des Settings-Service für die Schule der Anfrage, `ResolveBoolForTenant` außerhalb der Tenant-Middleware. Beide gehen über den Request-Cache, nie über eine Umgebungsvariable.
+- `settings.ModuleSettingKeys()` für ein gebündeltes Lesen, `settings.BookedModules(readBool)` für die gebuchten Module aus einem schon geladenen Satz Einstellungen (so liest die Mandanten-Auflösung).
+
+**Backend, Helfer `ModuleBooking` (kommt mit #4893):**
+
+Das Deadcode-Gate (`scripts/check-deadcode.sh`) lässt keine Produktionsfunktion zu, die nur Tests erreichen. Der Helfer entsteht deshalb im selben PR wie sein erster Aufrufer, der Routen-Sperre. Die Form ist festgelegt; ein fertiger Entwurf mit Tests steht im ersten Commit von #4892 (`backend/modules/settings/modules.go`, `modules_test.go`):
+
+- `settings.NewModuleBooking(reader)`; `reader` ist der Settings-Service (`ResolveBool`, `ResolveBoolForTenant`).
+- `IsBooked(ctx, module)` und `Require(ctx, tenantID, modules...)` für Routen in der Tenant-Middleware (#4893). `tenantID` benennt die Schule nur im Fehler.
+- `IsBookedForTenant(ctx, tenantID, module)` und `RequireForTenant(...)` außerhalb der Middleware: Scheduler, Login und Refresh der Portale, Geräte (#4895, #4896).
+- `Require` liefert `*settings.ModuleNotBookedError{TenantID, Module}` für das erste fehlende Modul. Daraus macht #4893 den Fehlercode für nicht gebuchte Module mit dem Modulschlüssel im Fehler-Umschlag. Ein Lesefehler bleibt ein Fehler und wird nie als „gebucht“ oder „nicht gebucht“ gewertet. Ein unbekannter Schlüssel ist ein Fehler.
 
 **Frontend:**
 

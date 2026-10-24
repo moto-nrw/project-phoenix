@@ -36,8 +36,10 @@ type operatorSettingsTestContext struct {
 	// onValueSet is the side-effect hook the resource runs on each write.
 	// A test replaces it before the request whose hook call it observes.
 	onValueSet operatorSettingsHook
-	// settings reads resolved values the way routes, jobs and portals do.
-	settings settings.ModuleBookingReader
+	// settings reads a school's resolved values outside its request.
+	settings interface {
+		ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+	}
 }
 
 // runValueSetHook is the hook the resource is built with; it runs the

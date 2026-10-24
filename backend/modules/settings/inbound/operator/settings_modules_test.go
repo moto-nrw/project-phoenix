@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,30 +25,23 @@ func putModule(t *testing.T, ctx *operatorSettingsTestContext, tenantID int64, k
 }
 
 // The moto team books each module per school (#4892): switching one school
-// leaves every other school's booking unchanged, and the helper the routes,
-// jobs and portals use reads each school's own booking.
+// leaves every other school's booking unchanged when the settings service
+// resolves it outside the request, as jobs and portals will (#4895).
 func TestOperatorBooksModulesPerSchoolWithoutCrosstalk(t *testing.T) {
 	t.Parallel()
 	ctx := setupOperatorSettingsRoute(t)
 	schoolA := testpkg.Tenant(t)
 	schoolB, _ := testpkg.CreateTestTenant(t, ctx.db)
-	booking := settings.NewModuleBooking(ctx.settings)
 	background := context.Background()
 
 	require.Nil(t, putModule(t, ctx, schoolA, "module.zeiterfassung", false))
 
-	bookedA, err := booking.IsBookedForTenant(background, schoolA, settings.ModuleZeiterfassung)
+	bookedA, err := ctx.settings.ResolveBoolForTenant(background, schoolA, "module.zeiterfassung")
 	require.NoError(t, err)
 	assert.False(t, bookedA, "school A cancelled Zeiterfassung")
-	bookedB, err := booking.IsBookedForTenant(background, schoolB, settings.ModuleZeiterfassung)
+	bookedB, err := ctx.settings.ResolveBoolForTenant(background, schoolB, "module.zeiterfassung")
 	require.NoError(t, err)
 	assert.True(t, bookedB, "school B keeps the registry default")
-
-	var notBooked *settings.ModuleNotBookedError
-	require.ErrorAs(t, booking.RequireForTenant(background, schoolA, settings.ModuleMittagessen, settings.ModuleZeiterfassung), &notBooked)
-	assert.Equal(t, settings.ModuleZeiterfassung, notBooked.Module)
-	assert.Equal(t, schoolA, notBooked.TenantID)
-	require.NoError(t, booking.RequireForTenant(background, schoolB, settings.ModuleZeiterfassung))
 
 	count, err := ctx.db.NewSelect().TableExpr("config.setting_values").
 		Where("tenant_id = ?", schoolB).Where("setting_key LIKE 'module.%'").Count(background)

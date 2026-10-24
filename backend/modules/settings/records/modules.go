@@ -154,14 +154,3 @@ func moduleKeyList(modules []ModuleDefinition) string {
 	}
 	return strings.Join(keys, ", ")
 }
-
-// ModuleNotBookedError reports that a school has not booked a module a
-// route, job or portal needs. Module names the first missing module.
-type ModuleNotBookedError struct {
-	TenantID int64
-	Module   ModuleKey
-}
-
-func (e *ModuleNotBookedError) Error() string {
-	return fmt.Sprintf("module %s is not booked for school %d", e.Module, e.TenantID)
-}
