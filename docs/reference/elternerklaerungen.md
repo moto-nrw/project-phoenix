@@ -1,6 +1,6 @@
 # Elternerklärungen: Verfahren, Einsatzfälle und Formulierungen
 
-Stand: #3430, Unterschrift #4785. Diese Seite beschreibt, was die Funktion „Einverständnis“ in
+Stand: #3430, Unterschrift #4785, Abholerlaubnis #4780. Diese Seite beschreibt, was die Funktion „Einverständnis“ in
 den Elternmitteilungen leistet, wofür sie reicht und wofür nicht. Im Code
 heißt der Modus `declaration`. Sie ist keine
 Rechtsberatung. Die Einordnung der Einsatzfälle muss vor der Freigabe in der
@@ -42,8 +42,8 @@ Unterschrift auf Papier verglichen.
 Die Unterschrift ist ein gemeinsamer Baustein der Audit Platform
 (`modules/auditlog`, Tabelle `audit.signatures`). Er entscheidet nicht, wer
 unterschreiben darf; das prüft der Ablauf, der ihn nutzt. Nutzer sind
-Einverständnisse (#4785), geplant die Anmeldung (#4786) und die
-Abholerlaubnis (#4780).
+Einverständnisse (#4785), die Abholerlaubnis (#4780) und, geplant, die
+Anmeldung (#4786).
 
 - Prüfen: `auditlog.ParseSignatureImage(method, pngBase64, typedName)` prüft
   Verfahren, PNG (Magic Number, Größe, Abmessungen, sichtbarer Strich) und
@@ -60,6 +60,27 @@ Abholerlaubnis (#4780).
 - Oberfläche: `frontend/src/components/ui/signature-pad.tsx` (Zeichenfläche,
   Löschen, Bestätigen, Name tippen) und `frontend/src/lib/signature.ts` für
   den Request-Teil `signature: {method, image_png, typed_name}`.
+
+## Abholerlaubnis und Heimweg allein (#4780)
+
+Eltern mit `parent_portal.pickup.manage` für genau dieses Kind erteilen im
+Eltern-Portal Erlaubnisse, die die OGS unter `/anfragen` bestätigt. Jede
+Erlaubnis ist eine einfache elektronische Signatur mit gezeichneter
+Unterschrift (Zweck `pickup_permission`, Bezug: das Kind).
+
+| Erlaubnis | Ablauf |
+|---|---|
+| Abholberechtigung einer Kontaktperson | Anfrage `pickup_permission` mit Wochentagen (Standard: alle Tage). Nach der Bestätigung schreibt Care Plan `can_pickup` und `pickup_weekdays`. Nur für Kontakte ohne eigenes Eltern-Konto, keine Sozialarbeit, keine Sorgeberechtigten einer anderen Familie. Wegnehmen geht weiterhin direkt und ohne Unterschrift. |
+| Abholperson für einen Tag | Teil der Anfrage „Abholzeit ändern“ (`pickup_change`) mit einer hinterlegten Kontaktperson. Nach der Bestätigung steht für diesen Tag eine Abholnotiz „Abholung durch … (Erlaubnis der Eltern)“, die die OGS überall sieht, wo die Abholung des Tages steht. Die dauerhafte Abholberechtigung ändert sich nicht. |
+| Heimweg allein | Abholart „allein“ für einen Tag (`pickup_change`) oder an Wochentagen (Betreuungszeiten-Anfrage). |
+
+Gespeichert wird der deutsche Wortlaut der Erklärung („Ich erlaube, dass …“)
+in der Anfrage; die Unterschrift trägt seine SHA-256-Prüfsumme. Der Nachweis
+(Seite und PDF für die Eltern, PDF für die OGS) prüft Bild, Eintrag, Kind,
+Zweck und Wortlaut erneut. Eltern sehen nur den Nachweis ihrer eigenen
+Unterschrift. Die Stichzeit `operations.parent_pickup_change_cutoff_time`
+gilt für die Tages-Anfragen; eine Abholberechtigung an Wochentagen gilt ab
+der Bestätigung durch die OGS.
 
 ## Rechtlicher Rahmen
 
@@ -144,6 +165,8 @@ Nicht zulässig:
   voller Beweiskraft“.
 - „elektronische Unterschrift“ oder „E-Signatur“ ohne den vollständigen
   Namen „einfache elektronische Signatur mit gezeichneter Unterschrift“.
+- „schriftliche Abholvollmacht“, „ersetzt die Vollmacht auf Papier“ oder
+  „rechtsverbindliche Abholerlaubnis“ für die Abholerlaubnis im Eltern-Portal.
 
 Quellen: [Art. 25 eIDAS](https://gesetze.legal/eu/vo_eu_2014_910/25),
 [§ 126a BGB](https://www.gesetze-im-internet.de/bgb/__126a.html),
