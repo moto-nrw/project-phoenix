@@ -27,6 +27,7 @@ type GroupThreadStore interface {
 	ListThreads(ctx context.Context) ([]deliveryPorts.ParentGroupThreadSummary, error)
 	TitlesByIDs(ctx context.Context, ids []int64) (map[int64]string, error)
 	ReadStatus(ctx context.Context, threadID int64) ([]deliveryPorts.ParentGroupChildRead, error)
+	FamilyReadCounts(ctx context.Context, threadID int64) (deliveryPorts.ParentGroupThreadReadCounts, error)
 }
 
 // The group threads are an OGS-wide channel: the caller must read every
@@ -207,13 +208,17 @@ func (s *Service) groupThreadDetail(ctx context.Context, thread *deliveryPorts.P
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list group messages: %w", err)
 	}
+	readCounts, err := s.GroupThreads.FamilyReadCounts(ctx, thread.ID)
+	if err != nil {
+		return nil, fmt.Errorf("messaging: group family read counts: %w", err)
+	}
 	children, err := s.groupReadChildren(ctx, thread)
 	if err != nil {
 		return nil, err
 	}
 	return &deliveryPorts.ParentGroupThreadDetail{
-		Thread: *thread, Messages: messages,
-		Children: children,
+		Thread: *thread, Messages: messages, Children: children,
+		FamilyCount: readCounts.FamilyCount, ReadCount: readCounts.ReadCount,
 	}, nil
 }
 

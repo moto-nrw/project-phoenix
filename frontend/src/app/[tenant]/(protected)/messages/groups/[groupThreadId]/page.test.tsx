@@ -42,7 +42,10 @@ vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "schule",
   useTenantRoutingModeSafe: () => "subdomain",
 }));
-vi.mock("~/lib/parent-group-threads-api", () => api);
+vi.mock("~/lib/parent-group-threads-api", async (importOriginal) => ({
+  ...(await importOriginal()),
+  ...api,
+}));
 vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: () => false,
 }));
@@ -68,6 +71,8 @@ function detail(closed: boolean) {
         created_at: "2026-09-08T08:00:00Z",
       },
     ],
+    family_count: 2,
+    read_count: 1,
     children: [
       {
         student_id: "7",
@@ -101,7 +106,7 @@ describe("Gruppennachricht: Objektseite", () => {
       screen.getByText("Wer bringt einen Kuchen mit?"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Gruppe Bären · 2 Familien · 1 gelesen"),
+      screen.getByText("Gruppe Bären · 1 von 2 Familien gelesen"),
     ).toBeInTheDocument();
     const list = screen.getByTestId("group-read-list");
     const felix = within(list)
@@ -139,7 +144,7 @@ describe("Gruppennachricht: Objektseite", () => {
       screen.queryByRole("textbox", { name: "Nachricht" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText("Gruppe Bären · 2 Familien · 1 gelesen · Geschlossen"),
+      screen.getByText("Gruppe Bären · 1 von 2 Familien gelesen · Geschlossen"),
     ).toBeInTheDocument();
   });
 

@@ -85,9 +85,18 @@ type ParentGroupChild struct {
 
 // ParentGroupThreadDetail is the OGS view of one group thread.
 type ParentGroupThreadDetail struct {
-	Thread   ParentGroupThread
-	Messages []ParentGroupMessage
-	Children []ParentGroupChild
+	Thread      ParentGroupThread
+	Messages    []ParentGroupMessage
+	Children    []ParentGroupChild
+	FamilyCount int
+	ReadCount   int
+}
+
+// ParentGroupThreadReadCounts is the family-level read status of a group
+// thread. A family is one guardian account that the thread reached.
+type ParentGroupThreadReadCounts struct {
+	FamilyCount int
+	ReadCount   int
 }
 
 // ParentGroupThreadInput starts a group thread with its first message.

@@ -50,6 +50,8 @@ export interface GroupThreadDetail {
   thread: GroupThread;
   messages: GroupMessage[];
   children: GroupChild[];
+  family_count: number;
+  read_count: number;
 }
 
 export interface GroupTarget {

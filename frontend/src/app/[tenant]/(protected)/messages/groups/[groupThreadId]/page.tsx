@@ -20,6 +20,7 @@ import { createLogger } from "~/lib/logger";
 import {
   type GroupThreadDetail,
   closeGroupThread,
+  familyReadLabel,
   fetchGroupThread,
   postGroupMessage,
 } from "~/lib/parent-group-threads-api";
@@ -126,15 +127,14 @@ function GroupMessageContent() {
   const thread = data?.thread;
   const closed = Boolean(thread?.closed_at);
   const children = data?.children ?? [];
-  const readCount = children.filter((child) => child.read).length;
-  const stats = thread
-    ? [
-        thread.target_label,
-        `${children.length} ${children.length === 1 ? "Familie" : "Familien"}`,
-        `${readCount} gelesen`,
-        ...(closed ? ["Geschlossen"] : []),
-      ].join(" · ")
-    : null;
+  const stats =
+    data && thread
+      ? [
+          thread.target_label,
+          familyReadLabel(data.read_count, data.family_count),
+          ...(closed ? ["Geschlossen"] : []),
+        ].join(" · ")
+      : null;
 
   return (
     <TenantPage

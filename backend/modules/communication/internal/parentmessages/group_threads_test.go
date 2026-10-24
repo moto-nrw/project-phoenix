@@ -140,7 +140,7 @@ func TestGroupThread_StaffListCountsMultiChildFamilyOnce(t *testing.T) {
 	f, run := newGroupFixture(t)
 	staffCtx := adminCtx(t, f.staff)
 	sibling := testpkg.CreateTestStudent(t, testpkg.SetupTestDB(t), "Lena", "Schneider", "1a")
-	testpkg.CreateTestStudentGuardianLink(t, testpkg.SetupTestDB(t), sibling.ID, f.a.GuardianProfileID, "parent")
+	testpkg.CreateTestStudentGuardianLink(t, testpkg.SetupTestDB(t), sibling.ID, f.a.GuardianProfileID, testpkg.GuardianRolePrimaryGuardian)
 
 	var threadID int64
 	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
@@ -159,6 +159,12 @@ func TestGroupThread_StaffListCountsMultiChildFamilyOnce(t *testing.T) {
 	}))
 
 	require.NoError(t, run(staffCtx, func(ctx context.Context) error {
+		detail, err := f.svc.GetParentGroupThread(ctx, threadID)
+		require.NoError(t, err)
+		assert.Len(t, detail.Children, 3)
+		assert.Equal(t, 2, detail.FamilyCount, "one guardian account reaches both siblings")
+		assert.Equal(t, 1, detail.ReadCount)
+
 		rows, err := f.svc.ListParentGroupThreads(ctx)
 		require.NoError(t, err)
 		require.Len(t, rows, 1)

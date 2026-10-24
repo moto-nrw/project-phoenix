@@ -82,9 +82,11 @@ type GroupChildResponse struct {
 }
 
 type GroupThreadDetailResponse struct {
-	Thread   GroupThreadResponse    `json:"thread"`
-	Messages []GroupMessageResponse `json:"messages"`
-	Children []GroupChildResponse   `json:"children"`
+	Thread      GroupThreadResponse    `json:"thread"`
+	Messages    []GroupMessageResponse `json:"messages"`
+	Children    []GroupChildResponse   `json:"children"`
+	FamilyCount int                    `json:"family_count"`
+	ReadCount   int                    `json:"read_count"`
 }
 
 func (rs *Resource) listGroupThreads(w http.ResponseWriter, r *http.Request) {
@@ -255,7 +257,7 @@ func toGroupThreadDetail(detail *communication.ParentGroupThreadDetail) GroupThr
 		})
 	}
 	return GroupThreadDetailResponse{
-		Thread: toGroupThreadResponse(detail.Thread), Messages: messages,
-		Children: toGroupChildResponses(detail.Children),
+		Thread: toGroupThreadResponse(detail.Thread), Messages: messages, Children: toGroupChildResponses(detail.Children),
+		FamilyCount: detail.FamilyCount, ReadCount: detail.ReadCount,
 	}
 }

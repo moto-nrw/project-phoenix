@@ -276,7 +276,7 @@ const groupChildReadSQL = `
 
 // groupFamilyReadSQL is one row per guardian account a thread reached with
 // whether it read the newest message that reached the account. It correlates
-// with gt and is only used for the staff list's family totals.
+// with gt and is used for the staff-facing family totals.
 const groupFamilyReadSQL = `
 	SELECT per_family.guardian_account_id,
 		COALESCE(rd.last_read_message_id >= per_family.latest_message_id, FALSE) AS read
@@ -315,6 +315,30 @@ func (s *GroupThreadStore) ListThreads(ctx context.Context) ([]communication.Par
 		})
 	}
 	return out, nil
+}
+
+const familyReadCountsSQL = `
+SELECT COUNT(*) AS family_count, COUNT(*) FILTER (WHERE family.read) AS read_count
+FROM users.parent_group_threads AS gt, LATERAL (` + groupFamilyReadSQL + `) AS family
+WHERE gt.id = ? AND gt.tenant_id = ?`
+
+type familyReadCountsRow struct {
+	FamilyCount int `bun:"family_count"`
+	ReadCount   int `bun:"read_count"`
+}
+
+// FamilyReadCounts returns the family-level read status for one staff-visible
+// group thread. A family is counted once even when it has several children.
+func (s *GroupThreadStore) FamilyReadCounts(ctx context.Context, threadID int64) (communication.ParentGroupThreadReadCounts, error) {
+	db, tenantID, err := s.tenantDB(ctx, "load parent group thread family read counts")
+	if err != nil {
+		return communication.ParentGroupThreadReadCounts{}, err
+	}
+	row := new(familyReadCountsRow)
+	if err := db.NewRaw(familyReadCountsSQL, threadID, tenantID).Scan(ctx, row); err != nil {
+		return communication.ParentGroupThreadReadCounts{}, fmt.Errorf("load parent group thread family read counts: %w", err)
+	}
+	return communication.ParentGroupThreadReadCounts{FamilyCount: row.FamilyCount, ReadCount: row.ReadCount}, nil
 }
 
 // TitlesByIDs returns the titles of the given threads of the caller's school,
