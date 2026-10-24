@@ -36693,10 +36693,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
       "target_owner": "organization-tenancy",
-      "binding_digest": "348e17aa5e6339e9618175e8726db853",
+      "binding_digest": "15d1153c26950d90f9d988632064034b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36704,10 +36704,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy",
-      "binding_digest": "5bbd6b1773d43a047b158fd7aba8f2ac",
+      "binding_digest": "9211f9564411940fe0c41cac08f8da24",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchoolBySubdomain; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchoolBySubdomain; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36715,10 +36715,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9759c4927d409ea23c91ea8804eb884b",
+      "binding_digest": "96f6baf93e30c7d67d461cdb95813a33",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.SchoolDirectory.GetSchoolBySubdomain",
+      "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindVisibleTraegerName",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "8f8844132a20c730254175c1a506d5d6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: identity-access reaches modules/organizationtenancy.Capability.FindVisibleTraegerName (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain for the tenant shell (#4656). One read transaction counts the organization's operational schools and reads its name; no owned-row mutation, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -36726,10 +36737,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListOrganizationsByID",
       "target_owner": "organization-tenancy",
-      "binding_digest": "4c55f7cb5da0e65de8156dcfa978ce17",
+      "binding_digest": "aaedfeaaf2bbbdea348a0f4bb9f3517f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36737,10 +36748,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
       "target_owner": "organization-tenancy",
-      "binding_digest": "4e0c658996ae974f60d33f8785a44b9f",
+      "binding_digest": "ad0e3153e77096b552178c9655a320b7",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36748,10 +36759,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy",
-      "binding_digest": "822528a302d3f26f5dbaf69f44aab340",
+      "binding_digest": "0229689584b6394ef2047581c48522f8",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchoolBySubdomain; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchoolBySubdomain; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36759,10 +36770,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
       "target_owner": "organization-tenancy",
-      "binding_digest": "da9c1656d0b1d4e71ccca22b329f097f",
+      "binding_digest": "dee8ad582497b397460942e15bfebd67",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.SchoolDirectory.GetSchoolBySubdomain",
+      "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindVisibleTraegerName",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "db2f1b529ea9a55e9150ffa54a99aef0",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: identity-access reaches modules/organizationtenancy.Query.FindVisibleTraegerName (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain for the tenant shell (#4656). One read transaction counts the organization's operational schools and reads its name; no owned-row mutation, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -36770,10 +36792,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListOrganizationsByID",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9985adffea65ed563ed81a4c6e610b9b",
+      "binding_digest": "807b7c18991d10e43f730d4088a2bb23",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36781,10 +36803,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9edd7c5a7e56dbadfc82a521f257bce1",
+      "binding_digest": "f4c388aeeb0adc3860faaff5ccadc9b9",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",

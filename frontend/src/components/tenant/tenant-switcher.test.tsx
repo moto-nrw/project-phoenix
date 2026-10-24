@@ -281,6 +281,30 @@ describe("BrandTenantSwitcher", () => {
     expect(screen.getByText("School A")).toBeInTheDocument();
   });
 
+  it("names the Träger under the current school in the trigger (#4656)", async () => {
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+
+    render(<BrandTenantSwitcher traegerName="Org Alpha" />);
+
+    const trigger = await screen.findByRole("button", {
+      name: TRIGGER_LABEL,
+    });
+    expect(trigger).toHaveTextContent("School A");
+    expect(trigger).toHaveTextContent("Träger: Org Alpha");
+  });
+
+  it("names the Träger on the plain brand of a single-school account (#4656)", async () => {
+    mockListAvailableTenants.mockResolvedValue([tenantA]);
+
+    render(<BrandTenantSwitcher label="School A" traegerName="Org Alpha" />);
+
+    await waitFor(() => {
+      expect(mockListAvailableTenants).toHaveBeenCalled();
+    });
+    expect(screen.getByText("School A")).toBeInTheDocument();
+    expect(screen.getByText("Träger: Org Alpha")).toBeInTheDocument();
+  });
+
   it("opens dropdown on click and shows other tenants", async () => {
     mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
 
