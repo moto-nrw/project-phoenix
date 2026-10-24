@@ -2466,7 +2466,10 @@
         "submission_rate_limited": "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
         "waitlist_disabled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "window_closed": "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
-        "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin."
+        "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
+        "signature_required": "Lütfen kaydı imzalayın.",
+        "signature_invalid": "İmza okunamadı. Lütfen tekrar imzalayın.",
+        "signature_not_found": "Bu kayıt için imza yok."
       },
       "files": {
         "announcement_published": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

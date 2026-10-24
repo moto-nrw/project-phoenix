@@ -229,6 +229,10 @@ export const ERROR_CATALOG = {
         "Diese Anmeldung gilt nur für bestimmte Klassenstufen. Bitte prüfen Sie die Klassenstufe Ihres Kindes.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+      "enrollment.signature_invalid":
+        "Die Unterschrift konnte nicht gelesen werden. Bitte unterschreiben Sie noch einmal.",
+      "enrollment.signature_required":
+        "Bitte unterschreiben Sie die Anmeldung.",
       "enrollment.invalid_phone":
         "Bitte geben Sie eine gültige Telefonnummer ein.",
       "enrollment.late_invite_invalid":
@@ -1040,6 +1044,8 @@ export const ERROR_CATALOG = {
         "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_rate_limited":
         "Es wurden zu viele Dateien hochgeladen. Bitte versuchen Sie es später noch einmal.",
+      "enrollment.signature_not_found":
+        "Zu dieser Anmeldung gibt es keine Unterschrift.",
       "enrollment.upload_not_found":
         "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
       "enrollment.request_not_found":
@@ -1410,6 +1416,9 @@ export const ERROR_CATALOG = {
       "enrollment.grade_not_eligible":
         "This enrollment is only for certain grades. Please check your child's grade.",
       "enrollment.invalid_email": "Please enter a valid email address.",
+      "enrollment.signature_invalid":
+        "The signature could not be read. Please sign again.",
+      "enrollment.signature_required": "Please sign the enrollment.",
       "enrollment.invalid_phone": "Please enter a valid phone number.",
       "enrollment.late_invite_invalid":
         "This link is invalid, has expired or was already used. Please contact the school.",
@@ -1501,6 +1510,8 @@ export const ERROR_CATALOG = {
         "An uploaded file has expired. Please upload it again.",
       "enrollment.upload_rate_limited":
         "Too many files were uploaded. Please try again later.",
+      "enrollment.signature_not_found":
+        "There is no signature for this enrollment.",
       "enrollment.upload_not_found":
         "This file no longer exists. Please upload it again.",
       "enrollment.form_not_found":
@@ -1731,6 +1742,9 @@ export const ERROR_CATALOG = {
       "enrollment.grade_not_eligible":
         "Эта запись только для определённых годов обучения. Проверьте класс ребёнка.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
+      "enrollment.signature_invalid":
+        "Не удалось прочитать подпись. Пожалуйста, подпишите ещё раз.",
+      "enrollment.signature_required": "Пожалуйста, подпишите заявку.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
         "Эта ссылка недействительна, устарела или уже использована. Обратитесь в школу.",
@@ -1820,6 +1834,7 @@ export const ERROR_CATALOG = {
         "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
       "enrollment.upload_rate_limited":
         "Загружено слишком много файлов. Попробуйте позже.",
+      "enrollment.signature_not_found": "Для этой заявки нет подписи.",
       "enrollment.upload_not_found":
         "Этого файла больше нет. Загрузите его ещё раз.",
       "enrollment.form_not_found":
@@ -2039,6 +2054,9 @@ export const ERROR_CATALOG = {
         "Ky regjistrim vlen vetëm për disa nivele klase. Kontrolloni nivelin e klasës së fëmijës.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
+      "enrollment.signature_invalid":
+        "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+      "enrollment.signature_required": "Ju lutemi nënshkruani regjistrimin.",
       "enrollment.invalid_phone":
         "Ju lutemi shkruani një numër telefoni të vlefshëm.",
       "enrollment.late_invite_invalid":
@@ -2131,6 +2149,7 @@ export const ERROR_CATALOG = {
         "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
       "enrollment.upload_rate_limited":
         "U ngarkuan shumë skedarë. Provoni përsëri më vonë.",
+      "enrollment.signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
       "enrollment.upload_not_found":
         "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
       "enrollment.form_not_found":
@@ -2356,6 +2375,9 @@ export const ERROR_CATALOG = {
       "enrollment.grade_not_eligible":
         "Ten zapis dotyczy tylko wybranych roczników. Sprawdź klasę dziecka.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
+      "enrollment.signature_invalid":
+        "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
+      "enrollment.signature_required": "Prosimy podpisać zgłoszenie.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
         "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",
@@ -2445,6 +2467,7 @@ export const ERROR_CATALOG = {
         "Przesłany plik wygasł. Prześlij go ponownie.",
       "enrollment.upload_rate_limited":
         "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
+      "enrollment.signature_not_found": "To zgłoszenie nie ma podpisu.",
       "enrollment.upload_not_found":
         "Tego pliku już nie ma. Prześlij go ponownie.",
       "enrollment.form_not_found":
@@ -2663,6 +2686,9 @@ export const ERROR_CATALOG = {
       "enrollment.grade_not_eligible":
         "Bu kayıt yalnızca belirli sınıf düzeyleri içindir. Lütfen çocuğunuzun sınıf düzeyini kontrol edin.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
+      "enrollment.signature_invalid":
+        "İmza okunamadı. Lütfen tekrar imzalayın.",
+      "enrollment.signature_required": "Lütfen kaydı imzalayın.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
         "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",
@@ -2754,6 +2780,7 @@ export const ERROR_CATALOG = {
         "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_rate_limited":
         "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",
+      "enrollment.signature_not_found": "Bu kayıt için imza yok.",
       "enrollment.upload_not_found":
         "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.form_not_found":
@@ -2973,6 +3000,9 @@ export const ERROR_CATALOG = {
       "enrollment.grade_not_eligible":
         "Цей запис лише для певних років навчання. Перевірте клас дитини.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
+      "enrollment.signature_invalid":
+        "Не вдалося прочитати підпис. Будь ласка, підпишіть ще раз.",
+      "enrollment.signature_required": "Будь ласка, підпишіть заявку.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":
         "Це посилання недійсне, застаріле або вже використане. Зверніться до школи.",
@@ -3062,6 +3092,7 @@ export const ERROR_CATALOG = {
         "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
       "enrollment.upload_rate_limited":
         "Завантажено забагато файлів. Спробуйте пізніше.",
+      "enrollment.signature_not_found": "Для цієї заявки немає підпису.",
       "enrollment.upload_not_found":
         "Цього файлу більше немає. Завантажте його ще раз.",
       "enrollment.form_not_found":

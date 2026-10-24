@@ -2466,7 +2466,10 @@
         "submission_rate_limited": "Too many enrollments were sent. Please try again in an hour.",
         "waitlist_disabled": "{object} could not be changed. Please check its current status.",
         "window_closed": "The enrollment period has ended or has not started yet. Please contact the school.",
-        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school."
+        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school.",
+        "signature_required": "Please sign the enrollment.",
+        "signature_invalid": "The signature could not be read. Please sign again.",
+        "signature_not_found": "There is no signature for this enrollment."
       },
       "files": {
         "announcement_published": "{object} could not be changed. Please check its current status.",

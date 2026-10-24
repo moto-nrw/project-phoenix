@@ -2466,7 +2466,10 @@
         "submission_rate_limited": "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
         "waitlist_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "window_closed": "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
-        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën."
+        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
+        "signature_required": "Ju lutemi nënshkruani regjistrimin.",
+        "signature_invalid": "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+        "signature_not_found": "Për këtë regjistrim nuk ka nënshkrim."
       },
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

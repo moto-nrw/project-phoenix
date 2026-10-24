@@ -2466,7 +2466,10 @@
         "submission_rate_limited": "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
         "waitlist_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "window_closed": "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
-        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule."
+        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",
+        "signature_required": "Bitte unterschreiben Sie die Anmeldung.",
+        "signature_invalid": "Die Unterschrift konnte nicht gelesen werden. Bitte unterschreiben Sie noch einmal.",
+        "signature_not_found": "Zu dieser Anmeldung gibt es keine Unterschrift."
       },
       "files": {
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
