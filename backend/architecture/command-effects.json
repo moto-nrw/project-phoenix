@@ -41596,6 +41596,17 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolportal.SchoolRouter.SchoolRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http.Resource.SchoolRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http.Resource.SchoolRouter",
+      "target_owner": "school-calendar",
+      "binding_digest": "b798321e5b2b0f697c60e0be602fddb8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar/http.Resource.SchoolRouter; modules/schoolcalendar/http/school.go:19. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolportal.StaffMessagingRouter.SchoolRouter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages.Resource.SchoolRouter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages.Resource.SchoolRouter",
@@ -53582,10 +53593,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.birthdayStore.StaffBirthdaysForExport",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "c985526c308cd28018862dfa33ebc492",
+      "binding_digest": "7ce6a7130d5ccee1062e82754fbb63fc",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -53604,10 +53615,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.birthdayStore.StaffBirthdaysOn",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "f056f12495cdf4350a43649d0807591d",
+      "binding_digest": "f9aad50abb95d1dcc2637d159b181333",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -54793,10 +54804,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindBirthdaysOn",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "09f927fb232e4e42e6e635e0b466233b",
+      "binding_digest": "a85a8e452f266e6ad22562453c743309",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -54907,10 +54918,54 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableCalendarStaffIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "9102f974f9f37c71b89d61bbff3f444d",
+      "binding_digest": "a49369e6b25d4b3eb09324477c8a8003",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableSchoolCalendarStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "e6d9213154a129f15b1799cd222b9dc2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "91ebc08a9ad60b8cea60e0f1f3215eb3",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindSchoolPortalStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.SchoolPortalStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "24abe266b8493b84994d06e495fe9dd7",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.SchoolPortalStaffIDs; modules/staffdirectoryview/accounts.go:177. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindSchoolPortalStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "943405b0433fa73424b0f41f8aeb8020",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New; modules/staffdirectoryview/staffdirectoryview.go:81. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "people-directory",
@@ -54984,10 +55039,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.GetStaffContactInfo",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "771120bfd3170c33fa8df0014c384152",
+      "binding_digest": "1ef6074ce221b7830d6cb823a611fb3c",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55006,10 +55061,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListAccountIDsByStaffIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "dcfeca24db1ef61e937bb5cbf38ba2c9",
+      "binding_digest": "68945405b23ebc12f1d091f891139ff7",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAccountIDsByStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAccountIDsByStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55028,10 +55083,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListAllStaffAccountIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "e9dccc80b047f01f1864c0b4e0873f05",
+      "binding_digest": "e1473e85c5f7b9c24375841db24a5eeb",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAllStaffAccountIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAllStaffAccountIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55083,10 +55138,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListBirthdaysForExport",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "7c1949da12d6d080dcbdcb6f3493b2e7",
+      "binding_digest": "7a88d140973c3d162547d88f71b74a4d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55105,10 +55160,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListStaffByRoles",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "0707a28c5c4647c7554a76520dc452dd",
+      "binding_digest": "fc1d97f6b4a40e38347099bd6e998f73",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffByRoles. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffByRoles. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55127,10 +55182,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListStaffWithPermission",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "c68035b906a533b9dae402a9e0ca54a5",
+      "binding_digest": "20c6400e6b88a9cc63f2ca589a20a38b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffWithPermission. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffWithPermission. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -61239,6 +61294,17 @@
     },
     {
       "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Identity.MySchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarIdentityPort.MySchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerReach.MySchoolClasses",
+      "target_owner": "identity-access",
+      "binding_digest": "242712fe8db76f01a2523302c26d4737",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.CallerReach.MySchoolClasses; modules/identityaccess.CallerReach (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Instances.FindByIDs",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarInstancePort.FindByIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.FindCalendarInstances",
@@ -61328,6 +61394,30 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities/compose.FindRoomNames; modules/facilities/compose/room_rows.go:10. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SchoolDays.ListCalendarPeriods",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): school-calendar reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/schoolcalendar.Days.ListCalendarPeriods, the read of the moto schule calendar (#4798). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SchoolDays.ListClosingDays",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): school-calendar reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/schoolcalendar.Days.ListClosingDays, the read of the moto schule calendar (#4798). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "school-calendar",
@@ -61445,10 +61535,76 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "be8d3741798f9d17be8d9469fccbb2c7",
+      "binding_digest": "6270dd870c300e6bff8d87bb67624f9d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: school-calendar reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: school-calendar reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "e6d9213154a129f15b1799cd222b9dc2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "96457d707936ece25a9dc6ee250beb34",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "91ebc08a9ad60b8cea60e0f1f3215eb3",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.SchoolPortalStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "24abe266b8493b84994d06e495fe9dd7",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.SchoolPortalStaffIDs; modules/staffdirectoryview/accounts.go:177. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "8a363eb5baab982208fe939c62476640",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs; modules/peopledirectory/ports/repository_contracts.go:253. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "943405b0433fa73424b0f41f8aeb8020",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New; modules/staffdirectoryview/staffdirectoryview.go:81. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "school-calendar",
@@ -119403,10 +119559,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.absenceEmailStaffDirectory.GetStaffContactInfo",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "e14f849340bf65d06bd32c8bf12047ec",
+      "binding_digest": "8f30bbd0dd674d519f6ae3906b7caaaa",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "workforce",
@@ -119436,10 +119592,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.absenceEmailStaffDirectory.ListAbsenceApprovers",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "aaa82ffc61e75003805c037cd13e63cb",
+      "binding_digest": "254d69ccea313ad2a03f66d4ff81f229",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.ListAbsenceApprovers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.ListAbsenceApprovers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "workforce",
