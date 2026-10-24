@@ -130,6 +130,15 @@ func (b effectBindings) collectCall(pkg *packages.Package, call *ast.CallExpr) {
 		return
 	}
 	arguments := effectArgumentTypes(pkg, call.Args)
+	b.collectArguments(signature, arguments, call.Ellipsis.IsValid())
+	// A generic callee also binds its type parameters: the instantiated
+	// signature only names the concrete argument type, which is no interface.
+	if fn, ok := effectObject(pkg, call.Fun).(*types.Func); ok && fn.Origin().Signature() != signature {
+		b.collectArguments(fn.Origin().Signature(), arguments, call.Ellipsis.IsValid())
+	}
+}
+
+func (b effectBindings) collectArguments(signature *types.Signature, arguments []types.Type, ellipsis bool) {
 	for i, source := range arguments {
 		parameter := i
 		if signature.Variadic() && parameter >= signature.Params().Len()-1 {
@@ -139,7 +148,7 @@ func (b effectBindings) collectCall(pkg *packages.Package, call *ast.CallExpr) {
 			continue
 		}
 		destination := signature.Params().At(parameter).Type()
-		if signature.Variadic() && parameter == signature.Params().Len()-1 && !call.Ellipsis.IsValid() {
+		if signature.Variadic() && parameter == signature.Params().Len()-1 && !ellipsis {
 			destination = destination.(*types.Slice).Elem()
 		}
 		b.add(destination, source)
