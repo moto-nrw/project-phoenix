@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Ganze Woche abmelden?",
     "unregisterWeekText": "{name} wird an {count, plural, one {# Tag} other {# Tagen}} dieser Woche vom Mittagessen abgemeldet. Wieder anmelden geht nur bis zur Änderungsfrist."
   },
+  "mealAllergens": {
+    "legendTitle": "Allergene",
+    "choose": "Allergene wählen",
+    "marksShort": "Allergene: {letters}",
+    "marksLabel": "Enthält: {names}",
+    "noneThisWeek": "Für diese Woche sind keine Allergene angegeben.",
+    "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die OGS.",
+    "names": {
+      "gluten": "Glutenhaltiges Getreide",
+      "crustaceans": "Krebstiere",
+      "eggs": "Eier",
+      "fish": "Fisch",
+      "peanuts": "Erdnüsse",
+      "soybeans": "Soja",
+      "milk": "Milch (auch Laktose)",
+      "nuts": "Schalenfrüchte (Nüsse)",
+      "celery": "Sellerie",
+      "mustard": "Senf",
+      "sesame": "Sesam",
+      "sulphites": "Schwefeldioxid und Sulfite",
+      "lupin": "Lupinen",
+      "molluscs": "Weichtiere"
+    }
+  },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
@@ -2532,6 +2556,7 @@
         "wc_not_configured": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut."
       },
       "meals": {
+        "invalid_allergens": "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
         "invalid_dishes": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_meal_date": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_participation": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",

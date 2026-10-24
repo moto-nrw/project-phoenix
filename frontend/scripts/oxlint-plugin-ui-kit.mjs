@@ -450,7 +450,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/ui/avatar.tsx",
   "src/components/ui/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
-  "src/components/ui/multi-checkbox-select.tsx",
   "src/components/ui/notification-badge.tsx",
   "src/components/ui/origin-chip.tsx",
   "src/components/ui/page-header/FilterButton.tsx",
@@ -510,7 +509,6 @@ src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@294 text-[10px]@321
-src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
@@ -676,7 +674,9 @@ function isUiKitTabsModule(source, filename) {
   const sourceStart = posixFilename.lastIndexOf("/src/");
   const importer =
     sourceStart === -1 ? posixFilename : posixFilename.slice(sourceStart + 1);
-  return normalize(`${dirname(importer)}/${source}`) === "src/components/ui/tabs";
+  return (
+    normalize(`${dirname(importer)}/${source}`) === "src/components/ui/tabs"
+  );
 }
 
 function collectStaticTabText(children, texts) {
@@ -711,11 +711,7 @@ function isTabsTriggerElement(node, tabsTriggerNames, tabsPrimitiveNamespaces) {
   );
 }
 
-function isTabsContentElement(
-  node,
-  tabsContentNames,
-  tabsPrimitiveNamespaces,
-) {
+function isTabsContentElement(node, tabsContentNames, tabsPrimitiveNamespaces) {
   const name = node.openingElement?.name;
   if (tabsContentNames.has(jsxName(name))) return true;
   return (
@@ -849,11 +845,7 @@ const noTabsAsValueSwitcher = {
       },
       JSXElement(node) {
         if (
-          !isTabsTriggerElement(
-            node,
-            tabsTriggerNames,
-            tabsPrimitiveNamespaces,
-          )
+          !isTabsTriggerElement(node, tabsTriggerNames, tabsPrimitiveNamespaces)
         )
           return;
         const texts = [];

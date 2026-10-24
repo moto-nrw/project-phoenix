@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableTemplateEducationGroupInvalid       = "timetable.template_education_group_invalid"
 	CodeTimetableTemplateEndBeforeStart              = "timetable.template_end_before_start"
 	CodeTimetableTemplateGradeAboveMax               = "timetable.template_grade_above_max"
 	CodeTimetableTemplateInvalid                     = "timetable.template_invalid"
@@ -92,6 +93,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.template_education_group_invalid":        "input",
 	"timetable.template_end_before_start":               "input",
 	"timetable.template_grade_above_max":                "input",
 	"timetable.template_invalid":                        "input",

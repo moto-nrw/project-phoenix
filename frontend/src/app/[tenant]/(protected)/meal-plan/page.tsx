@@ -48,6 +48,16 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
+import {
+  MealAllergenLegend,
+  MealAllergenMarks,
+  MealAllergenSelect,
+} from "~/components/meal-plan/meal-allergens";
+import {
+  normalizeMealAllergens,
+  usedMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 
 const logger = createLogger({ component: "MealPlanPage" });
 
@@ -63,10 +73,20 @@ interface DishDraft {
   clientId?: string;
   dish: string;
   note: string;
+  allergens: MealAllergen[];
 }
 
-function createDishDraft(dish = "", note = ""): DishDraft {
-  return { clientId: crypto.randomUUID(), dish, note };
+function createDishDraft(
+  dish = "",
+  note = "",
+  allergens: readonly MealAllergen[] = [],
+): DishDraft {
+  return {
+    clientId: crypto.randomUUID(),
+    dish,
+    note,
+    allergens: [...allergens],
+  };
 }
 
 function weekdayLabel(iso: string): string {
@@ -94,7 +114,11 @@ function shortDateWithYear(iso: string): string {
 // Normalised, comparable form of a day: blank dishes dropped, fields trimmed.
 function normalizeDay(rows: DishDraft[]): DishDraft[] {
   return rows
-    .map((r) => ({ dish: r.dish.trim(), note: r.note.trim() }))
+    .map((r) => ({
+      dish: r.dish.trim(),
+      note: r.note.trim(),
+      allergens: normalizeMealAllergens(r.allergens),
+    }))
     .filter((r) => r.dish !== "");
 }
 
@@ -111,7 +135,7 @@ function draftsFromEntries(
   const byDate = new Map<string, DishDraft[]>();
   for (const e of entries) {
     const rows = byDate.get(e.date) ?? [];
-    rows.push(createDishDraft(e.dish, e.note ?? ""));
+    rows.push(createDishDraft(e.dish, e.note ?? "", e.allergens));
     byDate.set(e.date, rows);
   }
   const next: Record<string, DishDraft[]> = {};
@@ -213,6 +237,10 @@ export default function MealPlanPage() {
   }, [today, weekOffset]);
 
   const weekDates = useMemo(() => workWeekDates(mondayISO), [mondayISO]);
+  // Legende unter dem Plan: nur die Buchstaben, die diese Woche vorkommen.
+  const weekAllergens = usedMealAllergens(
+    weekDates.flatMap((date) => drafts[date] ?? []),
+  );
 
   // Latest-wins guard: every load() captures a token; a slower earlier load
   // (e.g. a previous week on a slow connection) bails instead of overwriting
@@ -293,12 +321,20 @@ export default function MealPlanPage() {
   const updateDish = (
     date: string,
     idx: number,
-    field: keyof DishDraft,
+    field: "dish" | "note",
     value: string,
   ) => {
     setDrafts((prev) => {
       const rows = [...(prev[date] ?? [])];
       rows[idx] = { ...rows[idx]!, [field]: value };
+      return { ...prev, [date]: rows };
+    });
+  };
+
+  const updateAllergens = (date: string, idx: number, codes: string[]) => {
+    setDrafts((prev) => {
+      const rows = [...(prev[date] ?? [])];
+      rows[idx] = { ...rows[idx]!, allergens: normalizeMealAllergens(codes) };
       return { ...prev, [date]: rows };
     });
   };
@@ -321,7 +357,12 @@ export default function MealPlanPage() {
   // straight away (nothing to lose).
   const requestRemove = (date: string, idx: number) => {
     const row = drafts[date]?.[idx];
-    if (row && (row.dish.trim() !== "" || row.note.trim() !== "")) {
+    if (
+      row &&
+      (row.dish.trim() !== "" ||
+        row.note.trim() !== "" ||
+        row.allergens.length > 0)
+    ) {
       setDeleteTarget({ date, idx });
     } else {
       removeRow(date, idx);
@@ -342,7 +383,9 @@ export default function MealPlanPage() {
   const pasteDay = (date: string) => {
     if (!clipboard) return;
     const rows = clipboard.length
-      ? clipboard.map((row) => createDishDraft(row.dish, row.note))
+      ? clipboard.map((row) =>
+          createDishDraft(row.dish, row.note, row.allergens),
+        )
       : [createDishDraft()];
     setDrafts((prev) => ({ ...prev, [date]: rows }));
   };
@@ -386,7 +429,7 @@ export default function MealPlanPage() {
       const byDate = new Map<string, DishDraft[]>();
       for (const e of entries) {
         const rows = byDate.get(e.date) ?? [];
-        rows.push(createDishDraft(e.dish, e.note ?? ""));
+        rows.push(createDishDraft(e.dish, e.note ?? "", e.allergens));
         byDate.set(e.date, rows);
       }
       setDrafts((prev) => {
@@ -395,7 +438,9 @@ export default function MealPlanPage() {
           const target = weekDates[i]!;
           const rows = byDate.get(pd);
           next[target] = rows?.length
-            ? rows.map((row) => createDishDraft(row.dish, row.note))
+            ? rows.map((row) =>
+                createDishDraft(row.dish, row.note, row.allergens),
+              )
             : [createDishDraft()];
         });
         return next;
@@ -435,7 +480,7 @@ export default function MealPlanPage() {
       for (const date of weekDates) {
         const o = originals[date] ?? [];
         next[date] = o.length
-          ? o.map((row) => createDishDraft(row.dish, row.note))
+          ? o.map((row) => createDishDraft(row.dish, row.note, row.allergens))
           : [createDishDraft()];
       }
       return next;
@@ -460,6 +505,7 @@ export default function MealPlanPage() {
           draft.map((d) => ({
             dish: d.dish,
             note: d.note === "" ? null : d.note,
+            allergens: d.allergens,
           })),
         );
         persisted[date] = draft;
@@ -601,7 +647,7 @@ export default function MealPlanPage() {
             kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
       <SectionCard
         title="Wochenplan"
-        description="Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan im Elternportal."
+        description="Pro Tag ein oder mehrere Gerichte mit Allergenen und optionalem Hinweis. Eltern sehen den Plan im Elternportal."
         actions={
           <>
             {/* Wochennavigation steht in der Titelzeile, damit die Karte
@@ -670,14 +716,17 @@ export default function MealPlanPage() {
 
       <FormErrorAlert message={saveErrors.error} />
 
+      {/* overflow visible: die Allergen-Auswahl eines Gerichts darf über
+          die Unterkante der Karte hinausragen. */}
       <SectionCard
+        overflow="visible"
         className={`transition-opacity duration-200 ${
           loading ? "opacity-50" : "opacity-100"
         }`}
         bodyClassName=""
       >
         <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-y-0">
-          {weekDates.map((date) => {
+          {weekDates.map((date, dayIndex) => {
             const rows = drafts[date] ?? [];
             const isToday = date === today;
             const hasContent = dayHasContent(rows);
@@ -763,10 +812,28 @@ export default function MealPlanPage() {
                           updateDish(date, idx, "note", e.target.value)
                         }
                       />
+                      {canEditNow ? (
+                        <MealAllergenSelect
+                          value={row.allergens}
+                          // Donnerstag und Freitag öffnen nach links, damit
+                          // das Menü im Fenster bleibt.
+                          menuAlign={dayIndex >= 3 ? "end" : "start"}
+                          onChange={(codes) =>
+                            updateAllergens(date, idx, codes)
+                          }
+                          className="mt-2"
+                        />
+                      ) : (
+                        <MealAllergenMarks
+                          allergens={row.allergens}
+                          className="mt-2"
+                        />
+                      )}
                       {canEdit &&
                         (rows.length > 1 ||
                           row.dish.trim() !== "" ||
-                          row.note.trim() !== "") && (
+                          row.note.trim() !== "" ||
+                          row.allergens.length > 0) && (
                           <button
                             type="button"
                             aria-label="Gericht entfernen"
@@ -796,6 +863,13 @@ export default function MealPlanPage() {
             );
           })}
         </div>
+        {weekAllergens.length > 0 ? (
+          <MealAllergenLegend
+            allergens={weekAllergens}
+            showSource={false}
+            className="border-t border-gray-200 px-4 py-3"
+          />
+        ) : null}
       </SectionCard>
 
       {canReadParticipants ? (

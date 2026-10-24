@@ -29,6 +29,7 @@ const (
 	CodeIotStudentNotPresent                          = "iot.student_not_present"
 	CodeIotWcNeedsStaff                               = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                            = "iot.wc_not_configured"
+	CodeMealsInvalidAllergens                         = "meals.invalid_allergens"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableSubstituteSingleOnly                 = "timetable.substitute_single_only"
 	CodeTimetableTemplateCareOfferingConflict         = "timetable.template_care_offering_conflict"
 	CodeTimetableTemplateCategoryUnavailable          = "timetable.template_category_unavailable"
-	CodeTimetableTemplateEducationGroupInvalid        = "timetable.template_education_group_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -332,6 +332,7 @@ var errorCodeClasses1 = map[string]string{
 	"iot.student_not_present":                             "business_rejection",
 	"iot.wc_needs_staff":                                  "server",
 	"iot.wc_not_configured":                               "server",
+	"meals.invalid_allergens":                             "input",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.substitute_single_only":                    "input",
 	"timetable.template_care_offering_conflict":           "input",
 	"timetable.template_category_unavailable":             "business_rejection",
-	"timetable.template_education_group_invalid":          "input",
 }
 
 func init() {
