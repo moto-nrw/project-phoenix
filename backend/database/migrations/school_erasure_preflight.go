@@ -67,6 +67,7 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     audit.guardian_financial_changes,
     audit.personnel_number_changes,
     audit.room_color_migration_backup,
+    audit.signatures,
     audit.staff_master_data_changes,
     audit.student_consent_changes,
     audit.student_deletions,
@@ -279,7 +280,7 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '35013a7fec9d1763a2712e0cb4ebd1084c916458d44d5a484f3b0f096414a683' THEN
+    ) AS edge) <> '767ba28402e98dfe4e8f4de1134238fb8bcd8cd52522f5287cc330ed3bb5dda7' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
@@ -331,6 +332,8 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     SELECT 1 FROM audit.guardian_changes AS c JOIN users.guardian_profiles AS p ON c."guardian_profile_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM audit.guardian_changes AS c JOIN users.student_profiles AS p ON c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM audit.signatures AS c JOIN enrollment.requests AS p ON c."enrollment_request_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM audit.student_consent_changes AS c JOIN users.student_profiles AS p ON c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

@@ -1,10 +1,16 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"math"
 	"slices"
 	"strconv"
 	"time"
@@ -260,9 +266,12 @@ func seedParentDeclaration(rt *Runtime) error {
 		"declaration_signers":           "any",
 		"declaration_revocable":         true,
 		"declaration_requires_password": false,
-		"response_deadline":             deadline.Format(time.RFC3339),
-		"send_email":                    true,
-		"targets":                       []map[string]any{{"target_type": "school_all"}},
+		// Agreeing needs a drawn signature (#4785), so the proof, the report
+		// and the parent view show one on every machine.
+		"declaration_requires_signature": true,
+		"response_deadline":              deadline.Format(time.RFC3339),
+		"send_email":                     true,
+		"targets":                        []map[string]any{{"target_type": "school_all"}},
 	})
 	if err != nil {
 		return fmt.Errorf("create parent declaration: %w", err)
@@ -293,6 +302,29 @@ func seedParentDeclaration(rt *Runtime) error {
 	}
 	fmt.Println("  1 parent declaration published")
 	return nil
+}
+
+// demoSignaturePNG draws a handwritten-looking stroke as the canvas of the
+// portal would send it: a transparent PNG with dark ink, base64 encoded.
+func demoSignaturePNG() string {
+	const width, height = 600, 180
+	img := image.NewNRGBA(image.Rect(0, 0, width, height))
+	ink := color.NRGBA{R: 23, G: 37, B: 84, A: 255}
+	for step := 0; step <= 2400; step++ {
+		t := float64(step) / 2400
+		x := 40 + t*520
+		y := 95 + 38*math.Sin(t*11) - 22*math.Cos(t*23) + 18*t
+		for dx := -1; dx <= 1; dx++ {
+			for dy := -1; dy <= 1; dy++ {
+				img.Set(int(x)+dx, int(y)+dy, ink)
+			}
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		panic(fmt.Sprintf("encode demo signature: %v", err))
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
 // seedDeclarationAnswer lets the first demo parent consent for their first
@@ -336,6 +368,7 @@ func seedDeclarationAnswer(rt *Runtime) error {
 			}
 			if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+item.ID+"/declaration", map[string]any{
 				"student_id": child.StudentID, "action": "agreed", "version_id": item.Declaration.Version.ID,
+				"signature": map[string]any{"method": "drawn", "image_png": demoSignaturePNG()},
 			}); err != nil {
 				return fmt.Errorf("declare consent: %w", err)
 			}

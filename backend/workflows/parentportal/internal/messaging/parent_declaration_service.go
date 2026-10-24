@@ -41,6 +41,9 @@ type DeclarationInput struct {
 	VersionID int64
 	Action    string
 	Password  string
+	// Signature is the guardian's signature; an agreement needs one when the
+	// school asks for it (#4785).
+	Signature *DeclarationSignatureInput
 }
 
 // PasswordConfirmer checks the signed-in account's password. The handler
@@ -49,9 +52,10 @@ type PasswordConfirmer func(ctx context.Context, password string) error
 
 // declarationTarget is the resolved announcement a declaration is made on.
 type declarationTarget struct {
-	tenantID         int64
-	rules            declarationRules
-	requiresPassword bool
+	tenantID          int64
+	rules             declarationRules
+	requiresPassword  bool
+	requiresSignature bool
 }
 
 // SubmitDeclaration records one declaration. The returned bool is false when
@@ -73,6 +77,9 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	}
 	if !knownDeclarationAction(in.Action) {
 		return nil, false, ErrDeclarationActionNotAllowed
+	}
+	if err := requireDeclarationSignature(target.requiresSignature, in); err != nil {
+		return nil, false, err
 	}
 	passwordConfirmed, err := confirmDeclarationPassword(ctx, target.requiresPassword, in.Password, confirm)
 	if err != nil {
@@ -125,7 +132,7 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 		}
 		target = &declarationTarget{
 			tenantID: a.GetTenantID(), rules: feedDeclarationRules(a.Declaration, a.ResponseDeadline),
-			requiresPassword: a.Declaration.RequiresPassword,
+			requiresPassword: a.Declaration.RequiresPassword, requiresSignature: a.Declaration.RequiresSignature,
 		}
 		return nil
 	}); err != nil {
@@ -197,7 +204,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err := repo.LockDeclarationChild(ctx, announcementID, in.StudentID); err != nil {
 		return nil, false, err
 	}
-	rules, version, err := s.lockedDeclarationVersion(ctx, target.tenantID, announcementID, in)
+	rules, version, requiresSignature, err := s.lockedDeclarationVersion(ctx, target.tenantID, announcementID, in)
 	if err != nil {
 		return nil, false, err
 	}
@@ -226,7 +233,16 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err := checkDeclarationAction(s.Declarations, rules, mine, in.Action, now); err != nil {
 		return nil, false, err
 	}
+	signatureID, err := s.recordDeclarationSignature(ctx, target.tenantID, accountID, version, signer, in, requiresSignature, now)
+	if err != nil {
+		return nil, false, err
+	}
 	submission := s.newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now)
+	if signatureID != nil {
+		submission.SignatureID = signatureID
+		submission.Method = DeclarationMethodSimpleElectronicSignature
+		submission.RecordHash = s.declarationRecordHash(submission)
+	}
 	if err := repo.InsertDeclarationSubmission(ctx, submission); err != nil {
 		return nil, false, fmt.Errorf("parent: record declaration: %w", err)
 	}
@@ -237,27 +253,28 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 // lockedDeclarationVersion re-reads the announcement under the child lock and
 // requires that the guardian declares on the current version. A new
 // declaration for a child whose care ended is refused; a revocation is not.
-func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (declarationRules, *DeclarationVersion, error) {
+// It also returns whether the reloaded settings ask for a signature.
+func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (declarationRules, *DeclarationVersion, bool, error) {
 	a, err := s.AnnouncementRepo.FindByID(ctx, announcementID)
 	if err != nil {
-		return declarationRules{}, nil, fmt.Errorf("parent: reload declaration: %w", err)
+		return declarationRules{}, nil, false, fmt.Errorf("parent: reload declaration: %w", err)
 	}
 	if !declarationActionAnnouncementIsLive(a, in.Action) {
-		return declarationRules{}, nil, ErrAnnouncementNotFound
+		return declarationRules{}, nil, false, ErrAnnouncementNotFound
 	}
 	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, tenantID, announcementID)
 	if err != nil {
-		return declarationRules{}, nil, fmt.Errorf("parent: load declaration version: %w", err)
+		return declarationRules{}, nil, false, fmt.Errorf("parent: load declaration version: %w", err)
 	}
 	if version == nil || version.ID != in.VersionID {
-		return declarationRules{}, nil, ErrDeclarationVersionChanged
+		return declarationRules{}, nil, false, ErrDeclarationVersionChanged
 	}
 	if in.Action != DeclarationActionRevoked {
 		if err := s.requireCareRunning(ctx, tenantID, in.StudentID); err != nil {
-			return declarationRules{}, nil, err
+			return declarationRules{}, nil, false, err
 		}
 	}
-	return feedDeclarationRules(a.Declaration, a.ResponseDeadline), version, nil
+	return feedDeclarationRules(a.Declaration, a.ResponseDeadline), version, a.Declaration.RequiresSignature, nil
 }
 
 // checkDeclarationAction maps a refused action to the error the portal can
@@ -308,7 +325,7 @@ func (s *Service) newDeclarationSubmission(tenantID, announcementID, accountID i
 	submission := &DeclarationSubmission{
 		TenantID: tenantID, AnnouncementID: announcementID, VersionID: version.ID, StudentID: in.StudentID,
 		AccountID: &account, GuardianProfileID: &profile,
-		SignerName:   strings.TrimSpace(signer.FirstName + " " + signer.LastName),
+		SignerName:   signerName(signer),
 		GuardianRole: signer.GuardianRole, Action: in.Action, Method: DeclarationMethodSimpleElectronic,
 		PasswordConfirmed: passwordConfirmed, ContentHash: version.ContentHash,
 		// PostgreSQL keeps microseconds; hashing the stored precision keeps
@@ -329,6 +346,10 @@ func (s *Service) declarationRecordHash(submission *DeclarationSubmission) strin
 // the same digest the staff side stores when it freezes the version.
 func (s *Service) declarationContentHash(version *DeclarationVersion) string {
 	return s.Fingerprints.Content(s.Declarations.CanonicalContent(*version))
+}
+
+func signerName(signer *DeclarationSignerContext) string {
+	return strings.TrimSpace(signer.FirstName + " " + signer.LastName)
 }
 
 func knownDeclarationAction(action string) bool {

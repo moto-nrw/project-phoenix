@@ -14,5 +14,7 @@ type (
 	DeclarationSignerContext         = messaging.DeclarationSignerContext
 	DeclarationSignerState           = messaging.DeclarationSignerState
 	DeclarationSubmission            = messaging.DeclarationSubmission
+	DeclarationSignature             = messaging.DeclarationSignature
+	DeclarationSignatureInput        = messaging.DeclarationSignatureInput
 	DeclarationVersion               = messaging.DeclarationVersion
 )

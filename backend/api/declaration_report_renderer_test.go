@@ -13,7 +13,10 @@ import (
 // unnamed structs, and base.go binding this adapter to both ports is what
 // proves it satisfies them.
 type (
-	testReportField = struct{ Label, Value string }
+	testReportField = struct {
+		Label, Value string
+		PNG          []byte
+	}
 	testReportBlock = struct {
 		Title  string
 		Fields []testReportField

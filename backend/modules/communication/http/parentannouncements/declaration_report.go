@@ -16,8 +16,12 @@ import (
 // The shapes are aliases of unnamed structs, so the parent portal's proof
 // document is the same type and one binding serves both.
 type (
-	// ReportField is one label/value line.
-	ReportField = struct{ Label, Value string }
+	// ReportField is one label/value line. PNG, when set, is an image
+	// printed below the label (a signature, #4785).
+	ReportField = struct {
+		Label, Value string
+		PNG          []byte
+	}
 	// ReportBlock is an indented block inside a card.
 	ReportBlock = struct {
 		Title  string
@@ -120,7 +124,12 @@ func declarationReport(s *announcementService.ParentDeclarationStatus) ReportDoc
 }
 
 func declarationSettingsCard(s *announcementService.ParentDeclarationStatus) ReportCard {
-	revocable, askPassword := "Nicht erlaubt", "Nein"
+	revocable, askPassword, askSignature := "Nicht erlaubt", "Nein", "Nein"
+	method := announcementService.DeclarationMethodSimpleElectronic
+	if s.Settings.RequiresSignature {
+		askSignature = "Ja, beim Zustimmen"
+		method = announcementService.DeclarationMethodSimpleElectronicSignature
+	}
 	if s.Settings.Revocable {
 		revocable = "Erlaubt, auch nach der Frist"
 	}
@@ -131,8 +140,9 @@ func declarationSettingsCard(s *announcementService.ParentDeclarationStatus) Rep
 		{Label: "Wer muss antworten", Value: declarationSignersLabel(s.Settings.Signers)},
 		{Label: "Widerruf", Value: revocable},
 		{Label: "Passwort vor dem Antworten", Value: askPassword},
+		{Label: "Unterschrift", Value: askSignature},
 		{Label: "Frist", Value: reportDeadline(s.Deadline)},
-		{Label: "Verfahren", Value: announcementService.DeclarationMethodLabel("simple_electronic")},
+		{Label: "Verfahren", Value: announcementService.DeclarationMethodLabel(method)},
 	}}
 }
 
@@ -260,6 +270,7 @@ func declarationHistoryCards(submissions []announcementService.DeclarationSubmis
 			{Label: "Fassung", Value: strconv.Itoa(sub.VersionNo)},
 			{Label: "Passwort bestätigt", Value: confirmed},
 		}
+		fields = append(fields, signatureReportFields(sub.Signature)...)
 		if !sub.IntegrityOK {
 			fields = append(fields, ReportField{Label: "Prüfung", Value: "Dieser Eintrag wurde nachträglich verändert."})
 		}
@@ -269,4 +280,18 @@ func declarationHistoryCards(submissions []announcementService.DeclarationSubmis
 		})
 	}
 	return cards
+}
+
+// signatureReportFields print a signed answer's signature (#4785): the image
+// and, for the keyboard alternative, the typed name.
+func signatureReportFields(s *announcementService.DeclarationSignature) []ReportField {
+	if s == nil {
+		return nil
+	}
+	label := "Unterschrift"
+	value := ""
+	if s.Method == "typed" {
+		value = "Name getippt: " + s.TypedName
+	}
+	return []ReportField{{Label: label, Value: value, PNG: s.PNG}}
 }

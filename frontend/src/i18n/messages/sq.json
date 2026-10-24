@@ -395,6 +395,7 @@
     "deadline": "Afati deri më {date}",
     "closed": "Afati ka kaluar",
     "passwordNote": "Para se të përgjigjeni, moto ju kërkon fjalëkalimin.",
+    "signatureNote": "Për të dhënë pëlqimin, nënshkruani me gisht ose me mi.",
     "state": {
       "open": "E hapur",
       "partial": "Përgjigjur pjesërisht",
@@ -446,6 +447,22 @@
     "confirmVersion": "Teksti",
     "confirmRecorded": "moto e ruan përgjigjen tuaj me datë dhe orë. Shkolla e sheh.",
     "passwordLabel": "Fjalëkalimi i llogarisë suaj të prindit",
+    "signature": {
+      "label": "Nënshkrimi juaj",
+      "hint": "Nënshkruani në fushë me gisht, me laps ose me mi.",
+      "canvas": "Fusha për nënshkrimin",
+      "clear": "Fshi",
+      "typeInstead": "Shkruani emrin",
+      "drawInstead": "Vizato në vend të kësaj",
+      "typedName": "Emri dhe mbiemri juaj",
+      "confirm": "Konfirmo nënshkrimin",
+      "confirmed": "Nënshkrimi juaj është gati.",
+      "confirmedTyped": "Emri i shkruar është gati.",
+      "change": "Nënshkruani përsëri",
+      "preview": "Nënshkrimi juaj",
+      "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
+      "nameTooShort": "Ju lutemi shkruani emrin tuaj."
+    },
     "revokeTitle": "Tërhiq pëlqimin",
     "revokeBody": "Ju e tërhiqni pëlqimin tuaj për {name}.",
     "revokeConfirm": "Tërhiq",
@@ -454,7 +471,8 @@
     "saved": "Përgjigjja juaj për {name} u ruajt.",
     "errors": {
       "passwordRequired": "Ju lutemi shkruani fjalëkalimin.",
-      "uncertainReload": "Gjendja aktuale po ngarkohet sërish. Ju lutemi kontrollojeni para se të përgjigjeni përsëri."
+      "uncertainReload": "Gjendja aktuale po ngarkohet sërish. Ju lutemi kontrollojeni para se të përgjigjeni përsëri.",
+      "signatureRequired": "Ju lutemi nënshkruani dhe prekni „Konfirmo nënshkrimin”."
     },
     "errorObjectAnswer": "përgjigjja"
   },
@@ -477,10 +495,14 @@
     "entryVersion": "Versioni {version}",
     "passwordYes": "Konfirmuar me fjalëkalim",
     "passwordNo": "Pa fjalëkalim",
+    "signatureAlt": "Nënshkrimi i {name}",
+    "signatureDrawn": "Vizatuar me gisht ose me maus",
+    "signatureTyped": "Shkruar: {name}",
     "versionsTitle": "Teksti i shkollës",
     "versionHeading": "Versioni {version}, publikuar më {date}",
     "attachments": "Skedarët",
     "note": "Ky vërtetim dokumenton një deklaratë të thjeshtë elektronike. Nuk zëvendëson një nënshkrim në letër kur ai kërkohet me ligj.",
+    "noteSigned": "Përgjigjet e nënshkruara janë dhënë si nënshkrim elektronik i thjeshtë me nënshkrim të vizatuar.",
     "errorObjectProof": "dokumenti i vërtetimit",
     "errorObjectPdf": "skedari PDF"
   },
@@ -2217,6 +2239,8 @@
         "declaration_not_permitted": "Nuk mund të përgjigjeni për këtë fëmijë. Për pyetje kontaktoni OGS-në.",
         "declaration_password_incorrect": "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
         "declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+        "declaration_signature_invalid": "Nënshkrimi nuk u ruajt dot. Ju lutemi nënshkruani përsëri.",
+        "declaration_signature_required": "Ju lutemi nënshkruani para se të jepni pëlqimin.",
         "declaration_version_changed": "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
         "excused_request_not_pending": "Nuk është më i hapur: {object}. Ju lutemi ringarkoni faqen.",
         "excused_request_overlap": "Oraret mbivendosen: {object}. Kontrolloni të dhënat.",

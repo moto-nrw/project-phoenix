@@ -395,6 +395,7 @@
     "deadline": "Deadline {date}",
     "closed": "Deadline passed",
     "passwordNote": "moto asks for your password before you answer.",
+    "signatureNote": "To agree, you sign with your finger or the mouse.",
     "state": {
       "open": "Open",
       "partial": "Partly answered",
@@ -446,6 +447,22 @@
     "confirmVersion": "Text",
     "confirmRecorded": "moto saves your answer with date and time. The school can see it.",
     "passwordLabel": "Password of your parent account",
+    "signature": {
+      "label": "Your signature",
+      "hint": "Sign in the box with your finger, a pen or the mouse.",
+      "canvas": "Box for your signature",
+      "clear": "Clear",
+      "typeInstead": "Type your name",
+      "drawInstead": "Draw instead",
+      "typedName": "Your first and last name",
+      "confirm": "Confirm signature",
+      "confirmed": "Your signature is ready.",
+      "confirmedTyped": "Your typed name is ready.",
+      "change": "Sign again",
+      "preview": "Your signature",
+      "emptyDrawing": "Please sign in the box.",
+      "nameTooShort": "Please type your name."
+    },
     "revokeTitle": "Withdraw consent",
     "revokeBody": "You withdraw your consent for {name}.",
     "revokeConfirm": "Withdraw",
@@ -454,7 +471,8 @@
     "saved": "Your answer for {name} has been saved.",
     "errors": {
       "passwordRequired": "Please enter your password.",
-      "uncertainReload": "The current status is being reloaded. Please check it before you reply again."
+      "uncertainReload": "The current status is being reloaded. Please check it before you reply again.",
+      "signatureRequired": "Please sign and tap “Confirm signature”."
     },
     "errorObjectAnswer": "the reply"
   },
@@ -477,10 +495,14 @@
     "entryVersion": "Version {version}",
     "passwordYes": "Confirmed with password",
     "passwordNo": "Without password",
+    "signatureAlt": "Signature of {name}",
+    "signatureDrawn": "Drawn with finger or mouse",
+    "signatureTyped": "Typed: {name}",
     "versionsTitle": "Text from the school",
     "versionHeading": "Version {version}, published on {date}",
     "attachments": "Files",
     "note": "This proof documents a simple electronic declaration. It does not replace a signature on paper that is required by law.",
+    "noteSigned": "Signed answers were given as a simple electronic signature with a drawn signature.",
     "errorObjectProof": "the proof document",
     "errorObjectPdf": "the PDF"
   },
@@ -2217,6 +2239,8 @@
         "declaration_not_permitted": "You may not answer for this child. If you have questions, please contact the OGS.",
         "declaration_password_incorrect": "The password is not correct. Please try again.",
         "declaration_password_required": "Please enter your password.",
+        "declaration_signature_invalid": "The signature could not be saved. Please sign again.",
+        "declaration_signature_required": "Please sign before you agree.",
         "declaration_version_changed": "The school has changed the text. Please read it again and then answer again.",
         "excused_request_not_pending": "{object} is no longer open. Please reload the page.",
         "excused_request_overlap": "The times for {object} overlap. Please check the details.",

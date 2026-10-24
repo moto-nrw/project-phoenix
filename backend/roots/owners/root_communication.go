@@ -44,12 +44,17 @@ func BuildParentAnnouncements(
 	notifications DeliveryNotifications, messaging parentStore.MessagingRepositories,
 	attachments communication.ParentAnnouncementAttachmentPurger,
 ) (communication.ParentAnnouncementCapability, error) {
+	signatures, err := SignatureLedger()
+	if err != nil {
+		return nil, err
+	}
 	return communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
 		Repo: messaging.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(settings), Outbox: OutboxEnqueuer{Outbox: outbox},
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(module), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		ReminderNotifier: BindCommunicationDurableNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
 		Deliveries: announcementDeliveryAdapter{module: module}, ParentsURL: env.Links.ParentsURL,
-		Fingerprints: SecurityFingerprints{}, Logger: env.Logger.With("service", "announcement"),
+		Fingerprints: SecurityFingerprints{}, Signatures: CommunicationSignatures{Ledger: signatures},
+		Logger: env.Logger.With("service", "announcement"),
 	}, attachments, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 

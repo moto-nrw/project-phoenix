@@ -66,6 +66,7 @@ const proof: ParentDeclarationProof = {
       method: "simple_electronic",
       content_hash: "a".repeat(64),
       record_hash: "c".repeat(64),
+      signature: null,
     },
   ],
 };
@@ -231,5 +232,63 @@ describe("Nachweis eines Einverständnisses im Eltern-Portal (#3430)", () => {
     expect(
       screen.getByText(/Für dieses Kind gibt es noch keinen Nachweis/),
     ).toBeInTheDocument();
+  });
+});
+
+describe("Nachweis mit Unterschrift (#4785)", () => {
+  const signed: ParentDeclarationProof = {
+    ...proof,
+    method_label:
+      "Einfache elektronische Signatur mit gezeichneter Unterschrift im angemeldeten Eltern-Konto",
+    submissions: [
+      {
+        ...proof.submissions[0]!,
+        method: "simple_electronic_signature",
+        signature: {
+          method: "drawn",
+          typed_name: null,
+          image_data_url: "data:image/png;base64,iVBORw0KGgo=",
+          image_sha256: "d".repeat(64),
+          signed_at: "2026-09-02T06:15:00Z",
+        },
+      },
+      {
+        ...proof.submissions[0]!,
+        id: "76",
+        signature: {
+          method: "typed",
+          typed_name: "Klaus Schneider",
+          image_data_url: "data:image/png;base64,iVBORw0KGgp=",
+          image_sha256: "e".repeat(64),
+          signed_at: "2026-09-01T06:15:00Z",
+        },
+      },
+    ],
+  };
+
+  it("shows the stored signature image, the typed name and the signed note", async () => {
+    vi.spyOn(parentApi, "fetchDeclarationProof").mockResolvedValue(signed);
+
+    render(<DeclarationProofPage announcementId="42" />);
+
+    const images = await screen.findAllByAltText(
+      "Unterschrift von Klaus Schneider",
+    );
+    expect(images).toHaveLength(2);
+    expect(images[0]).toHaveAttribute(
+      "src",
+      "data:image/png;base64,iVBORw0KGgo=",
+    );
+    expect(
+      screen.getByText("Mit Finger oder Maus gezeichnet"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Getippt: Klaus Schneider")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Unterschriebene Antworten sind als einfache elektronische Signatur mit gezeichneter Unterschrift gegeben.",
+      ),
+    ).toBeInTheDocument();
+    // The image checksum stays off the screen like every other checksum.
+    expect(document.body.textContent ?? "").not.toContain("d".repeat(64));
   });
 });

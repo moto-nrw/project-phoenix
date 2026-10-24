@@ -21,6 +21,8 @@ type declarationSettingsRequest struct {
 	Signers          string `json:"declaration_signers,omitempty"`
 	Revocable        bool   `json:"declaration_revocable,omitempty"`
 	RequiresPassword bool   `json:"declaration_requires_password,omitempty"`
+	// RequiresSignature asks guardians to sign their consent (#4785).
+	RequiresSignature bool `json:"declaration_requires_signature,omitempty"`
 }
 
 func (d declarationSettingsRequest) settings() announcementService.ParentDeclarationSettings {
@@ -32,6 +34,7 @@ type declarationSettingsResponse struct {
 	Signers           string `json:"declaration_signers,omitempty"`
 	Revocable         *bool  `json:"declaration_revocable,omitempty"`
 	RequiresPassword  *bool  `json:"declaration_requires_password,omitempty"`
+	RequiresSignature *bool  `json:"declaration_requires_signature,omitempty"`
 	LockedAttachments *bool  `json:"declaration_locked_attachments,omitempty"`
 }
 
@@ -40,9 +43,10 @@ func toDeclarationSettingsResponse(a *announcementService.ParentAnnouncement) de
 		return declarationSettingsResponse{}
 	}
 	revocable, password, locked := a.Declaration.Revocable, a.Declaration.RequiresPassword, a.DeclarationFrozen
+	signature := a.Declaration.RequiresSignature
 	return declarationSettingsResponse{
 		Kind: a.Declaration.Kind, Signers: a.Declaration.Signers,
-		Revocable: &revocable, RequiresPassword: &password, LockedAttachments: &locked,
+		Revocable: &revocable, RequiresPassword: &password, RequiresSignature: &signature, LockedAttachments: &locked,
 	}
 }
 
@@ -96,20 +100,43 @@ type declarationSubmissionResponse struct {
 	RecordHash        string    `json:"record_hash"`
 	SubmittedAt       time.Time `json:"submitted_at"`
 	IntegrityOK       bool      `json:"integrity_ok"`
+	// Signature is set for a signed answer (#4785). The image itself is only
+	// in the PDF report, not in this status.
+	Signature *declarationSignatureResponse `json:"signature"`
+}
+
+type declarationSignatureResponse struct {
+	Method      string    `json:"method"`
+	TypedName   *string   `json:"typed_name"`
+	SignedAt    time.Time `json:"signed_at"`
+	IntegrityOK bool      `json:"integrity_ok"`
+}
+
+func toDeclarationSignatureResponse(s *announcementService.DeclarationSignature) *declarationSignatureResponse {
+	if s == nil {
+		return nil
+	}
+	out := &declarationSignatureResponse{Method: s.Method, SignedAt: s.SignedAt, IntegrityOK: s.IntegrityOK}
+	if s.TypedName != "" {
+		typed := s.TypedName
+		out.TypedName = &typed
+	}
+	return out
 }
 
 type declarationStatusResponse struct {
-	Kind             string                          `json:"kind"`
-	Signers          string                          `json:"signers"`
-	Revocable        bool                            `json:"revocable"`
-	RequiresPassword bool                            `json:"requires_password"`
-	Deadline         *time.Time                      `json:"deadline"`
-	CurrentVersion   *declarationVersionResponse     `json:"current_version"`
-	Versions         []declarationVersionResponse    `json:"versions"`
-	Summary          map[string]int                  `json:"summary"`
-	Children         []declarationChildResponse      `json:"children"`
-	Submissions      []declarationSubmissionResponse `json:"submissions"`
-	IntegrityOK      bool                            `json:"integrity_ok"`
+	Kind              string                          `json:"kind"`
+	Signers           string                          `json:"signers"`
+	Revocable         bool                            `json:"revocable"`
+	RequiresPassword  bool                            `json:"requires_password"`
+	RequiresSignature bool                            `json:"requires_signature"`
+	Deadline          *time.Time                      `json:"deadline"`
+	CurrentVersion    *declarationVersionResponse     `json:"current_version"`
+	Versions          []declarationVersionResponse    `json:"versions"`
+	Summary           map[string]int                  `json:"summary"`
+	Children          []declarationChildResponse      `json:"children"`
+	Submissions       []declarationSubmissionResponse `json:"submissions"`
+	IntegrityOK       bool                            `json:"integrity_ok"`
 }
 
 var declarationSummaryStates = []string{
@@ -134,7 +161,8 @@ func toDeclarationVersionResponse(v announcementService.DeclarationVersion) decl
 func toDeclarationStatusResponse(s *announcementService.ParentDeclarationStatus) declarationStatusResponse {
 	out := declarationStatusResponse{
 		Kind: s.Settings.Kind, Signers: s.Settings.Signers, Revocable: s.Settings.Revocable,
-		RequiresPassword: s.Settings.RequiresPassword, Deadline: s.Deadline, IntegrityOK: s.IntegrityAllGood,
+		RequiresPassword: s.Settings.RequiresPassword, RequiresSignature: s.Settings.RequiresSignature,
+		Deadline: s.Deadline, IntegrityOK: s.IntegrityAllGood,
 		Versions: []declarationVersionResponse{}, Children: []declarationChildResponse{},
 		Submissions: []declarationSubmissionResponse{},
 		Summary:     map[string]int{"children_total": s.Summary.ChildrenTotal},
@@ -169,6 +197,7 @@ func toDeclarationStatusResponse(s *announcementService.ParentDeclarationStatus)
 			SignerName: sub.SignerName, GuardianRole: sub.GuardianRole, Action: sub.Action, Method: sub.Method,
 			PasswordConfirmed: sub.PasswordConfirmed, VersionNo: sub.VersionNo, ContentHash: sub.ContentHash,
 			RecordHash: sub.RecordHash, SubmittedAt: sub.SubmittedAt, IntegrityOK: sub.IntegrityOK,
+			Signature: toDeclarationSignatureResponse(sub.Signature),
 		})
 	}
 	return out
@@ -257,19 +286,33 @@ func declarationCSV(s *announcementService.ParentDeclarationStatus) (ReportFile,
 	w := csv.NewWriter(&buf)
 	w.Comma = ';'
 	rows := [][]string{{"Eintrag", "Kind", "Aktion", "Zeitpunkt", "Erklärt von", "Berechtigung", "Verfahren",
-		"Passwort bestätigt", "Fassung", "Prüfsumme Fassung", "Prüfsumme Eintrag", "Eintrag unverändert"}}
+		"Passwort bestätigt", "Fassung", "Prüfsumme Fassung", "Prüfsumme Eintrag", "Eintrag unverändert",
+		"Unterschrift", "Unterschrift getippter Name", "Prüfsumme Unterschrift", "Unterschrift unverändert"}}
 	for _, sub := range s.Submissions {
-		rows = append(rows, []string{
+		rows = append(rows, append([]string{
 			strconv.FormatInt(sub.ID, 10), csvSafe(strings.TrimSpace(sub.StudentFirstName + " " + sub.StudentLastName)),
 			announcementService.DeclarationActionLabel(sub.Action), berlinStamp(sub.SubmittedAt), csvSafe(sub.SignerName),
 			announcementService.GuardianRoleLabel(sub.GuardianRole), announcementService.DeclarationMethodLabel(sub.Method),
 			yesNo(sub.PasswordConfirmed), strconv.Itoa(sub.VersionNo), sub.ContentHash, sub.RecordHash, yesNo(sub.IntegrityOK),
-		})
+		}, signatureCSVColumns(sub.Signature)...))
 	}
 	if err := w.WriteAll(rows); err != nil {
 		return ReportFile{}, err
 	}
 	return ReportFile{Data: buf.Bytes(), ContentType: "text/csv; charset=utf-8", Filename: "nachweis-erklaerung.csv"}, nil
+}
+
+// signatureCSVColumns are the signature columns of one answer; empty for an
+// unsigned one. The image itself stays in the PDF.
+func signatureCSVColumns(s *announcementService.DeclarationSignature) []string {
+	if s == nil {
+		return []string{"nein", "", "", ""}
+	}
+	method := "gezeichnet"
+	if s.Method == "typed" {
+		method = "Name getippt"
+	}
+	return []string{method, csvSafe(s.TypedName), s.ImageSHA256, yesNo(s.IntegrityOK)}
 }
 
 // csvSafe neutralises spreadsheet formula injection in user-entered names.
