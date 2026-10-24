@@ -5,6 +5,7 @@ interface BackendMealPlanEntry {
   date: string;
   dish: string;
   note?: string | null;
+  allergens?: string[];
 }
 
 /**

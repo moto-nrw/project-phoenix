@@ -303,6 +303,30 @@
     "deliveryCsv": "CSV olarak teslimat listesi",
     "errorObjectDelivery": "teslimat listesi"
   },
+  "mealAllergens": {
+    "legendTitle": "Alerjenler",
+    "choose": "Alerjenleri seçin",
+    "marksShort": "Alerjenler: {letters}",
+    "marksLabel": "İçerir: {names}",
+    "noneThisWeek": "Bu hafta için alerjen bilgisi girilmedi.",
+    "source": "Bu bilgiler okuldan veya yemek firmasından gelir. Harfi olmayan bir yemek kesin olarak alerjensiz değildir. Sorularınız için OGS'ye başvurun.",
+    "names": {
+      "gluten": "Gluten içeren tahıllar",
+      "crustaceans": "Kabuklu deniz ürünleri",
+      "eggs": "Yumurta",
+      "fish": "Balık",
+      "peanuts": "Yer fıstığı",
+      "soybeans": "Soya",
+      "milk": "Süt (laktoz dahil)",
+      "nuts": "Sert kabuklu yemişler",
+      "celery": "Kereviz",
+      "mustard": "Hardal",
+      "sesame": "Susam",
+      "sulphites": "Kükürt dioksit ve sülfitler",
+      "lupin": "Acı bakla (lupin)",
+      "molluscs": "Yumuşakçalar"
+    }
+  },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
     "description": "Liste, o gün öğle yemeğine kayıtlı tüm çocukları gösterir.",
@@ -2584,6 +2608,7 @@
         "child_not_enrolled": "{object} mümkün değil. Çocuk bu gün bakımda değil.",
         "day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
         "day_past": "{object} artık mümkün değil. Bu gün geçti.",
+        "invalid_allergens": "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
         "invalid_dishes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_meal_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_participation": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",

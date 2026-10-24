@@ -35,6 +35,7 @@ const (
 	CodeMealsDayClosed                                = "meals.day_closed"
 	CodeMealsDayPast                                  = "meals.day_past"
 	CodeMealsDeliveryRangeTooLong                     = "meals.delivery_range_too_long"
+	CodeMealsInvalidAllergens                         = "meals.invalid_allergens"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
 	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
 	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
-	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -338,6 +338,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.day_closed":                                    "business_rejection",
 	"meals.day_past":                                      "business_rejection",
 	"meals.delivery_range_too_long":                       "input",
+	"meals.invalid_allergens":                             "input",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_graduated":                         "business_rejection",
 	"timetable.student_not_checked_in":                    "business_rejection",
 	"timetable.student_not_found":                         "business_rejection",
-	"timetable.students_not_present":                      "business_rejection",
 }
 
 func init() {

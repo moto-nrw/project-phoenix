@@ -14,10 +14,11 @@ func ParseDate(value string) (Date, error) { return calendar.ParseDate(value) }
 func DateFromInstant(instant time.Time) Date { return calendar.DateFromTime(instant) }
 
 type Entry struct {
-	Date     Date
-	Position int
-	Dish     string
-	Note     *string
+	Date      Date
+	Position  int
+	Dish      string
+	Note      *string
+	Allergens []string
 }
 
 type OperationStats struct {

@@ -303,6 +303,30 @@
     "deliveryCsv": "Lista e dorëzimeve si CSV",
     "errorObjectDelivery": "lista e dorëzimeve"
   },
+  "mealAllergens": {
+    "legendTitle": "Alergjenët",
+    "choose": "Zgjidhni alergjenët",
+    "marksShort": "Alergjenët: {letters}",
+    "marksLabel": "Përmban: {names}",
+    "noneThisWeek": "Për këtë javë nuk janë dhënë alergjenë.",
+    "source": "Këto të dhëna vijnë nga shkolla ose nga furnizuesi i ushqimit. Një gjellë pa shkronjë nuk është patjetër pa alergjenë. Për pyetje drejtohuni te OGS.",
+    "names": {
+      "gluten": "Drithëra me gluten",
+      "crustaceans": "Krustace",
+      "eggs": "Vezë",
+      "fish": "Peshk",
+      "peanuts": "Kikirikë",
+      "soybeans": "Sojë",
+      "milk": "Qumësht (përfshirë laktozën)",
+      "nuts": "Arra",
+      "celery": "Selino",
+      "mustard": "Mustardë",
+      "sesame": "Susam",
+      "sulphites": "Dioksid squfuri dhe sulfite",
+      "lupin": "Lupinë",
+      "molluscs": "Molusqe"
+    }
+  },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
     "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",
@@ -2584,6 +2608,7 @@
         "child_not_enrolled": "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
         "day_closed": "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
         "day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
+        "invalid_allergens": "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",

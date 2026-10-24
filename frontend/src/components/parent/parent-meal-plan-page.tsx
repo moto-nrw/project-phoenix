@@ -47,6 +47,11 @@ import {
   type MealPlanEntry,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { usedMealAllergens } from "~/lib/meal-allergens";
+import {
+  MealAllergenLegend,
+  MealAllergenMarks,
+} from "~/components/meal-plan/meal-allergens";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "ParentMealPlanPage" });
@@ -124,6 +129,7 @@ function DishCard({
       {entry.note ? (
         <p className="mt-1 text-sm leading-snug text-gray-500">{entry.note}</p>
       ) : null}
+      <MealAllergenMarks allergens={entry.allergens} className="mt-1" />
     </div>
   );
 }
@@ -393,6 +399,9 @@ function ParticipationWeek({
 }>) {
   const t = useTranslations("parentMealPlan");
   const locale = useLocale();
+  const weekDishes = weekDates.flatMap((date) => dishesByDate.get(date) ?? []);
+  const hasDishes = weekDishes.length > 0;
+  const weekAllergens = usedMealAllergens(weekDishes);
   const [participation, setParticipation] = useState<MealParticipation | null>(
     null,
   );
@@ -1046,6 +1055,7 @@ function ParticipationWeek({
                                 {entry.note}
                               </p>
                             ) : null}
+                            <MealAllergenMarks allergens={entry.allergens} />
                           </div>
                         ))}
                       </div>
@@ -1175,6 +1185,12 @@ function ParticipationWeek({
               );
             })}
           </ul>
+          {hasDishes ? (
+            <MealAllergenLegend
+              allergens={weekAllergens}
+              className="border-t border-gray-200 px-4 py-3 sm:px-5"
+            />
+          ) : null}
         </>
       )}
 
@@ -1571,6 +1587,9 @@ export function ParentMealPlanPage() {
                                         {entry.note}
                                       </p>
                                     ) : null}
+                                    <MealAllergenMarks
+                                      allergens={entry.allergens}
+                                    />
                                   </div>
                                 ))
                               ) : (
@@ -1635,6 +1654,10 @@ export function ParentMealPlanPage() {
                   })}
                 </div>
               </div>
+              <MealAllergenLegend
+                allergens={usedMealAllergens(entries)}
+                className="border-t border-gray-200 px-4 py-3 sm:px-5"
+              />
             </>
           )}
         </section>

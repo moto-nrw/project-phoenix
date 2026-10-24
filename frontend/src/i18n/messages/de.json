@@ -303,6 +303,30 @@
     "deliveryCsv": "Lieferliste als CSV",
     "errorObjectDelivery": "die Lieferliste"
   },
+  "mealAllergens": {
+    "legendTitle": "Allergene",
+    "choose": "Allergene wählen",
+    "marksShort": "Allergene: {letters}",
+    "marksLabel": "Enthält: {names}",
+    "noneThisWeek": "Für diese Woche sind keine Allergene angegeben.",
+    "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die OGS.",
+    "names": {
+      "gluten": "Glutenhaltiges Getreide",
+      "crustaceans": "Krebstiere",
+      "eggs": "Eier",
+      "fish": "Fisch",
+      "peanuts": "Erdnüsse",
+      "soybeans": "Soja",
+      "milk": "Milch (auch Laktose)",
+      "nuts": "Schalenfrüchte (Nüsse)",
+      "celery": "Sellerie",
+      "mustard": "Senf",
+      "sesame": "Sesam",
+      "sulphites": "Schwefeldioxid und Sulfite",
+      "lupin": "Lupinen",
+      "molluscs": "Weichtiere"
+    }
+  },
   "mealParticipantList": {
     "title": "Tagesliste für die Küche",
     "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
@@ -2584,6 +2608,7 @@
         "child_not_enrolled": "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
         "day_closed": "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
         "day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
+        "invalid_allergens": "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
         "invalid_dishes": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_meal_date": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
         "invalid_participation": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",

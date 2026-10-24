@@ -345,6 +345,8 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.invalid_allergens":
+        "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
       "meals.invalid_dishes":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "meals.invalid_meal_date":
@@ -1408,6 +1410,8 @@ export const ERROR_CATALOG = {
         "This invitation does not exist. Please check the link in the email.",
       "identity.invitation_expired":
         "This invitation has expired or has already been used. Please ask your school for a new invitation.",
+      "meals.invalid_allergens":
+        "The allergens could not be saved. Please select them again.",
       "meals.invalid_participation":
         "{object} contains invalid details. Please check your entries.",
       "meals.plan_disabled":
@@ -1709,6 +1713,8 @@ export const ERROR_CATALOG = {
         "Такого приглашения нет. Проверьте ссылку в письме.",
       "identity.invitation_expired":
         "Это приглашение истекло или уже было использовано. Попросите в школе новое приглашение.",
+      "meals.invalid_allergens":
+        "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
       "meals.invalid_participation":
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "meals.plan_disabled":
@@ -1998,6 +2004,8 @@ export const ERROR_CATALOG = {
         "Kjo ftesë nuk ekziston. Kontrolloni lidhjen në e-mail.",
       "identity.invitation_expired":
         "Kjo ftesë ka skaduar ose është përdorur tashmë. Kërkojini shkollës suaj një ftesë të re.",
+      "meals.invalid_allergens":
+        "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
       "meals.invalid_participation":
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "meals.plan_disabled":
@@ -2294,6 +2302,8 @@ export const ERROR_CATALOG = {
         "To zaproszenie nie istnieje. Sprawdź link w e-mailu.",
       "identity.invitation_expired":
         "To zaproszenie wygasło lub zostało już użyte. Poproś swoją szkołę o nowe zaproszenie.",
+      "meals.invalid_allergens":
+        "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
       "meals.invalid_participation":
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "meals.plan_disabled":
@@ -2581,6 +2591,8 @@ export const ERROR_CATALOG = {
         "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
       "identity.invitation_expired":
         "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen okulunuzdan yeni bir davet isteyin.",
+      "meals.invalid_allergens":
+        "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
       "meals.invalid_participation":
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "meals.plan_disabled":
@@ -2871,6 +2883,8 @@ export const ERROR_CATALOG = {
         "Такого запрошення немає. Перевірте посилання в листі.",
       "identity.invitation_expired":
         "Це запрошення вже недійсне або його вже використали. Попросіть у школи нове запрошення.",
+      "meals.invalid_allergens":
+        "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
       "meals.invalid_participation":
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "meals.plan_disabled":

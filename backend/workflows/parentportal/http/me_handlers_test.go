@@ -442,7 +442,26 @@ func TestGetChildMealPlan_ResponseContract(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{
 		"status":"success",
-		"data":[{"date":"2026-08-24","position":0,"dish":"Spaghetti"}],
+		"data":[{"date":"2026-08-24","position":0,"dish":"Spaghetti","allergens":[]}],
+		"message":"Meal plan retrieved"
+	}`, w.Body.String())
+}
+
+func TestGetChildMealPlan_CarriesAllergenCodes(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{mealPlanRows: []parentService.MealPlanEntry{{
+		Date: "2026-08-24", Position: 0, Dish: "Spaghetti", Allergens: []string{"gluten", "eggs"},
+	}}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.getChildMealPlan(w, mealPlanRequest())
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{
+		"status":"success",
+		"data":[{"date":"2026-08-24","position":0,"dish":"Spaghetti","allergens":["gluten","eggs"]}],
 		"message":"Meal plan retrieved"
 	}`, w.Body.String())
 }

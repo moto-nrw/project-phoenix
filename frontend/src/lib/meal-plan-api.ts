@@ -7,6 +7,10 @@ import { downloadBlob, filenameFromDisposition } from "./file-download";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  normalizeMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 
 const logger = createLogger({ component: "MealPlanAPI" });
 
@@ -16,6 +20,7 @@ export interface BackendMealPlanEntry {
   position: number;
   dish: string;
   note?: string | null;
+  allergens?: string[] | null;
 }
 
 /** One dish on a day of the meal plan as used by the UI. */
@@ -24,12 +29,16 @@ export interface MealPlanEntry {
   position: number;
   dish: string;
   note: string | null;
+  /** Codes of the main allergens, in legend order; empty when unmarked. */
+  allergens: MealAllergen[];
 }
 
 /** One dish in a day submission. */
 export interface DishInput {
   dish: string;
   note: string | null;
+  /** Omitted means no marking. */
+  allergens?: MealAllergen[];
 }
 
 export interface DailyMealParticipant {
@@ -67,6 +76,7 @@ function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
     position: entry.position,
     dish: entry.dish,
     note: entry.note?.trim() ? entry.note : null,
+    allergens: normalizeMealAllergens(entry.allergens),
   };
 }
 

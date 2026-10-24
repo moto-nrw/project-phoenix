@@ -38,7 +38,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 	t.Helper()
 	enabled := settings.boolValues[parentService.KeyMealPlanEnabled]
 	mealPlan := &fakeMealPlan{available: enabled, err: settings.boolErr, entries: []mealplanModule.Entry{
-		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti"},
+		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti", Allergens: []mealplanModule.Allergen{mealplanModule.AllergenGluten}},
 		{Date: mealplanModule.Date("2026-08-24"), Position: 1, Dish: "Salat"},
 	}}
 	require.LessOrEqual(t, len(moduleOverride), 1)
@@ -129,7 +129,9 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "Spaghetti", rows[0].Dish)
+	assert.Equal(t, []string{"gluten"}, rows[0].Allergens, "the parent sees the dish's allergens")
 	assert.Equal(t, "Salat", rows[1].Dish)
+	assert.Empty(t, rows[1].Allergens)
 }
 
 func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
