@@ -60,7 +60,7 @@ func surveyReportSubtitle(r *announcementService.SurveyResults) string {
 func highlightFields(rows []announcementService.SurveyHighlight) []ReportField {
 	out := make([]ReportField, 0, len(rows))
 	for _, h := range rows {
-		out = append(out, ReportField{Label: h.Prompt, Value: "Durchschnitt " + formatAverage(h.Average)})
+		out = append(out, ReportField{Label: "Durchschnitt " + formatAverage(h.Average), Value: h.Prompt})
 	}
 	return out
 }
@@ -108,7 +108,7 @@ func countWithShare(count, total int) string {
 	if total == 0 {
 		return strconv.Itoa(count)
 	}
-	return fmt.Sprintf("%d (%d %%)", count, count*100/total)
+	return fmt.Sprintf("%d (%d %%)", count, (count*200+total)/(2*total))
 }
 
 func formatAverage(v float64) string {
