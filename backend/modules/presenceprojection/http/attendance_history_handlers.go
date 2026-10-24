@@ -401,9 +401,9 @@ func clampAttendanceHistoryRange(start, end, endOfToday time.Time, attendanceCap
 		return time.Time{}, time.Time{}, false, errors.New("start must not be in the future")
 	}
 
-	maxDuration := time.Duration(attendanceCap) * 24 * time.Hour
-	if end.Sub(start) > maxDuration {
-		start = end.Add(-maxDuration).Add(time.Second)
+	firstAllowedDate := calendar.DateFromTime(end).AddDays(-(attendanceCap - 1))
+	if calendar.DateFromTime(start).Before(firstAllowedDate) {
+		start = firstAllowedDate.BerlinMidnight()
 		clamped = true
 	}
 	return start, end, clamped, nil

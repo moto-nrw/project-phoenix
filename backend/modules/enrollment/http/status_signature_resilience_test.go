@@ -44,7 +44,7 @@ func (s *unavailableStatusSignatureService) SignatureProof(context.Context, int6
 	return nil, errStatusSignatureUnavailable
 }
 
-func statusSignatureTestContext(t *testing.T, adminTransactions *int) context.Context {
+func statusSignatureTestContext(t *testing.T, adminTransactions *int, savepointActions *[]tenant.SavepointAction) context.Context {
 	t.Helper()
 	runtime, err := tenant.NewUnitOfWork(
 		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
@@ -54,7 +54,10 @@ func statusSignatureTestContext(t *testing.T, adminTransactions *int) context.Co
 			*adminTransactions++
 			return fn(ctx, struct{}{})
 		},
-		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(_ context.Context, action tenant.SavepointAction) error {
+			*savepointActions = append(*savepointActions, action)
+			return nil
+		},
 		func(error) bool { return false },
 	)
 	require.NoError(t, err)
@@ -66,11 +69,12 @@ func TestStatusSignatureFailureDoesNotHideJSONStatus(t *testing.T) {
 	service := &unavailableStatusSignatureService{}
 	rs := &Resource{RequestService: service}
 	adminTransactions := 0
+	var savepointActions []tenant.SavepointAction
 
 	request := httptest.NewRequest(http.MethodGet, "/requests/token", nil)
 	route := chi.NewRouteContext()
 	route.URLParams.Add("statusToken", "token")
-	request = request.WithContext(context.WithValue(statusSignatureTestContext(t, &adminTransactions), chi.RouteCtxKey, route))
+	request = request.WithContext(context.WithValue(statusSignatureTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
 	response := httptest.NewRecorder()
 
 	rs.getStatus(response, request)
@@ -78,7 +82,11 @@ func TestStatusSignatureFailureDoesNotHideJSONStatus(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.Equal(t, 1, service.statusSignatureCalls)
 	assert.Zero(t, service.signatureProofCalls, "the JSON status must not load the PDF proof")
-	assert.Equal(t, 2, adminTransactions, "the optional signature read needs an independent transaction")
+	assert.Equal(t, 1, adminTransactions, "the optional signature read stays inside the status transaction")
+	assert.Equal(t, []tenant.SavepointAction{
+		tenant.CreateSavepoint, tenant.ReleaseSavepoint,
+		tenant.CreateSavepoint, tenant.RollbackSavepoint, tenant.ReleaseSavepoint,
+	}, savepointActions)
 }
 
 func TestStatusSignatureProofFailureStillRejectsPDF(t *testing.T) {
@@ -86,11 +94,12 @@ func TestStatusSignatureProofFailureStillRejectsPDF(t *testing.T) {
 	service := &unavailableStatusSignatureService{}
 	rs := &Resource{RequestService: service}
 	adminTransactions := 0
+	var savepointActions []tenant.SavepointAction
 
 	request := httptest.NewRequest(http.MethodGet, "/requests/token?format=pdf", nil)
 	route := chi.NewRouteContext()
 	route.URLParams.Add("statusToken", "token")
-	request = request.WithContext(context.WithValue(statusSignatureTestContext(t, &adminTransactions), chi.RouteCtxKey, route))
+	request = request.WithContext(context.WithValue(statusSignatureTestContext(t, &adminTransactions, &savepointActions), chi.RouteCtxKey, route))
 	response := httptest.NewRecorder()
 
 	rs.getStatus(response, request)
@@ -99,4 +108,5 @@ func TestStatusSignatureProofFailureStillRejectsPDF(t *testing.T) {
 	assert.Zero(t, service.statusSignatureCalls, "the PDF loads its complete proof directly")
 	assert.Equal(t, 1, service.signatureProofCalls)
 	assert.Equal(t, 1, adminTransactions)
+	assert.Equal(t, []tenant.SavepointAction{tenant.CreateSavepoint, tenant.ReleaseSavepoint}, savepointActions)
 }

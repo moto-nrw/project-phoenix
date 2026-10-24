@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // --- status / edit / withdraw handlers (token-gated, public) ---
@@ -151,37 +152,17 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		view                 statusView
-		lookupErr, statusErr error
+		view        statusView
+		invalidLink bool
+		statusErr   error
 	)
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
-		view, lookupErr, statusErr = rs.loadStatusView(adminCtx, token)
-		if lookupErr != nil {
-			return lookupErr
-		}
-		if statusErr != nil {
-			return statusErr
-		}
-		if wantsProofPDF(r) {
-			if proofErr := rs.loadStatusSignatureProof(adminCtx, token, &view); proofErr != nil {
-				if errors.Is(proofErr, capability.ErrRequestNotFound) {
-					lookupErr = proofErr
-				} else {
-					statusErr = proofErr
-				}
-				return proofErr
-			}
-			return nil
-		}
-		return nil
+		view, invalidLink, statusErr = rs.loadPublicStatusView(adminCtx, token, wantsProofPDF(r))
+		return statusErr
 	})
 	if err != nil {
-		if lookupErr != nil {
-			common.RenderError(w, r, common.ErrorNotFoundWithCode(lookupErr, common.CodeEnrollmentStatusLinkInvalid))
-			return
-		}
-		if statusErr != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment status", statusErr))
+		if invalidLink {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment status", err))
@@ -191,8 +172,27 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		rs.writeStatusSignatureProof(w, r, view)
 		return
 	}
-	rs.loadStatusSignature(r.Context(), token, &view)
 	rs.respondStatus(w, r, token, view)
+}
+
+// loadPublicStatusView completes the public status read in its administrative
+// transaction. Optional status data runs behind savepoints so a failed query
+// cannot abort the status response's transaction.
+func (rs *Resource) loadPublicStatusView(ctx context.Context, token string, proofRequested bool) (view statusView, invalidLink bool, err error) {
+	var lookupErr, statusErr error
+	view, lookupErr, statusErr = rs.loadStatusView(ctx, token)
+	if lookupErr != nil {
+		return view, true, lookupErr
+	}
+	if statusErr != nil {
+		return view, false, statusErr
+	}
+	if !proofRequested {
+		rs.loadStatusSignature(ctx, token, &view)
+		return view, false, nil
+	}
+	err = rs.loadStatusSignatureProof(ctx, token, &view)
+	return view, errors.Is(err, capability.ErrRequestNotFound), err
 }
 
 // statusView is everything the status page and its proof show.
@@ -216,26 +216,35 @@ func (rs *Resource) loadStatusView(ctx context.Context, token string) (view stat
 	if view.editMode, serverErr = rs.RequestService.EditModeForStatus(ctx, view.req, view.children); serverErr != nil {
 		return view, nil, fmt.Errorf("status: compute edit mode: %w", serverErr)
 	}
-	// Best-effort: a failure here must not hide the request status, but a
-	// silent drop would mask a permission/RLS/DB problem behind a 200 with
-	// missing co-guardians. Log it so the failure is visible.
-	if g, gerr := rs.RequestService.GuardiansByStatusToken(ctx, token); gerr == nil {
-		view.guardians = g
-	} else {
-		rs.logger().Warn("enrollment status: load co-guardians failed",
-			slog.String("error", gerr.Error()))
-	}
+	rs.loadStatusGuardians(ctx, token, &view)
 	return view, nil, nil
+}
+
+// loadStatusGuardians adds the optional co-guardians without risking the
+// transaction that established the status link.
+func (rs *Resource) loadStatusGuardians(ctx context.Context, token string, view *statusView) {
+	var guardians []*capability.RequestGuardian
+	err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		var loadErr error
+		guardians, loadErr = rs.RequestService.GuardiansByStatusToken(savepointCtx, token)
+		return loadErr
+	})
+	if err != nil {
+		rs.logger().Warn("enrollment status: load co-guardians failed",
+			slog.String("error", err.Error()))
+		return
+	}
+	view.guardians = guardians
 }
 
 // loadStatusSignature adds the small signature payload the status page shows.
 // Its failure is deliberately best-effort: the status link remains useful
-// when the independent signature read is temporarily unavailable.
+// when the optional signature read is temporarily unavailable.
 func (rs *Resource) loadStatusSignature(ctx context.Context, token string, view *statusView) {
 	var signature *StatusSignature
-	err := withinAdmin(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
 		var loadErr error
-		signature, loadErr = rs.RequestService.StatusSignature(adminCtx, token)
+		signature, loadErr = rs.RequestService.StatusSignature(savepointCtx, token)
 		return loadErr
 	})
 	if err != nil {
