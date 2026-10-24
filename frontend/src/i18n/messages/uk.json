@@ -2936,7 +2936,8 @@
         "attendance_visible_exceeds_retention": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "attendance_retention_below_visible": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "module_requires": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-        "module_required_by": "Не вдалося зберегти: {object}. Перевірте введені дані."
+        "module_required_by": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "module_not_booked": "Ваша школа не підключила модуль {module_label}. Тому ця функція недоступна."
       },
       "devices": {
         "tag_scan_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",

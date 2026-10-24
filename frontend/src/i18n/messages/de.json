@@ -2936,7 +2936,8 @@
         "attendance_visible_exceeds_retention": "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
         "attendance_retention_below_visible": "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
         "module_requires": "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
-        "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab."
+        "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab.",
+        "module_not_booked": "Ihre Schule hat das Modul {module_label} nicht gebucht. Deshalb ist diese Funktion nicht verfügbar."
       },
       "devices": {
         "tag_scan_not_found": "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",

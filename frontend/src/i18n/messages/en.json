@@ -2936,7 +2936,8 @@
         "attendance_visible_exceeds_retention": "{object} could not be saved. Please check your entries.",
         "attendance_retention_below_visible": "{object} could not be saved. Please check your entries.",
         "module_requires": "{object} could not be saved. Please check your entries.",
-        "module_required_by": "{object} could not be saved. Please check your entries."
+        "module_required_by": "{object} could not be saved. Please check your entries.",
+        "module_not_booked": "Your school has not booked the module {module_label}. This function is therefore not available."
       },
       "devices": {
         "tag_scan_not_found": "{object} could not be changed. Please check its current status.",

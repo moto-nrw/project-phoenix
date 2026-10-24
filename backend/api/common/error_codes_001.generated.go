@@ -96,6 +96,7 @@ const (
 	CodeSettingsBookingAuthorityBlocked               = "settings.booking_authority_blocked"
 	CodeSettingsInvalidValue                          = "settings.invalid_value"
 	CodeSettingsManagedByUpload                       = "settings.managed_by_upload"
+	CodeSettingsModuleNotBooked                       = "settings.module_not_booked"
 	CodeSettingsModuleRequiredBy                      = "settings.module_required_by"
 	CodeSettingsModuleRequires                        = "settings.module_requires"
 	CodeSettingsNotFound                              = "settings.not_found"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
 	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
 	CodeTimetableSubstituteAbsentOnDate               = "timetable.substitute_absent_on_date"
-	CodeTimetableSubstituteConflict                   = "timetable.substitute_conflict"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -399,6 +399,7 @@ var errorCodeClasses1 = map[string]string{
 	"settings.booking_authority_blocked":                  "business_rejection",
 	"settings.invalid_value":                              "input",
 	"settings.managed_by_upload":                          "business_rejection",
+	"settings.module_not_booked":                          "permission",
 	"settings.module_required_by":                         "input",
 	"settings.module_requires":                            "input",
 	"settings.not_found":                                  "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.students_not_present":                      "business_rejection",
 	"timetable.substitute_absent":                         "input",
 	"timetable.substitute_absent_on_date":                 "input",
-	"timetable.substitute_conflict":                       "business_rejection",
 }
 
 func init() {

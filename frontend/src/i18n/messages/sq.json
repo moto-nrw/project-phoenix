@@ -2936,7 +2936,8 @@
         "attendance_visible_exceeds_retention": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "attendance_retention_below_visible": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+        "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "module_not_booked": "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Prandaj ky funksion nuk është i disponueshëm."
       },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

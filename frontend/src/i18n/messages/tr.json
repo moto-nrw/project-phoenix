@@ -2936,7 +2936,8 @@
         "attendance_visible_exceeds_retention": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "attendance_retention_below_visible": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "module_requires": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "module_required_by": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+        "module_required_by": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "module_not_booked": "Okulunuz {module_label} modülünü almamış. Bu nedenle bu işlev kullanılamıyor."
       },
       "devices": {
         "tag_scan_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

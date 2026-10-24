@@ -1190,6 +1190,8 @@ export const ERROR_CATALOG = {
         "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
       "settings.module_required_by":
         "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab.",
+      "settings.module_not_booked":
+        "Ihre Schule hat das Modul {module_label} nicht gebucht. Deshalb ist diese Funktion nicht verfügbar.",
       "communication.announcement_not_found":
         "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":
@@ -1512,6 +1514,8 @@ export const ERROR_CATALOG = {
         "Sign-in verification is currently unavailable. Please try again.",
       "identity.mfa_session_required":
         "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
+      "settings.module_not_booked":
+        "Your school has not booked the module {module_label}. This function is therefore not available.",
       "staff.external_email_required": "Please enter an email address.",
       "staff.external_email_invalid":
         "This email address is not valid. Please check it.",
@@ -1816,6 +1820,8 @@ export const ERROR_CATALOG = {
         "Подтверждение входа сейчас недоступно. Попробуйте ещё раз.",
       "identity.mfa_session_required":
         "Для входа в {object} требуется дополнительное подтверждение. Кнопка завершит текущий сеанс и откроет страницу входа этой школы. Войдите там заново и подтвердите вход.",
+      "settings.module_not_booked":
+        "Ваша школа не подключила модуль {module_label}. Поэтому эта функция недоступна.",
       "communication.group_thread_closed":
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
@@ -2123,6 +2129,8 @@ export const ERROR_CATALOG = {
         "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
       "identity.mfa_session_required":
         "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
+      "settings.module_not_booked":
+        "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Prandaj ky funksion nuk është i disponueshëm.",
       "communication.group_thread_closed":
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
@@ -2417,6 +2425,8 @@ export const ERROR_CATALOG = {
         "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
       "identity.mfa_session_required":
         "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
+      "settings.module_not_booked":
+        "Twoja szkoła nie zamówiła modułu {module_label}. Dlatego ta funkcja jest niedostępna.",
       "communication.group_thread_closed":
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
@@ -2718,6 +2728,8 @@ export const ERROR_CATALOG = {
         "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
       "identity.mfa_session_required":
         "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
+      "settings.module_not_booked":
+        "Okulunuz {module_label} modülünü almamış. Bu nedenle bu işlev kullanılamıyor.",
       "communication.group_thread_closed":
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
@@ -3009,6 +3021,8 @@ export const ERROR_CATALOG = {
         "Підтвердження входу зараз недоступне. Спробуйте ще раз.",
       "identity.mfa_session_required":
         "Для входу до {object} потрібне додаткове підтвердження. Кнопка завершить поточний сеанс і відкриє сторінку входу цієї школи. Увійдіть там знову й підтвердьте вхід.",
+      "settings.module_not_booked":
+        "Ваша школа не підключила модуль {module_label}. Тому ця функція недоступна.",
       "communication.group_thread_closed":
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":
