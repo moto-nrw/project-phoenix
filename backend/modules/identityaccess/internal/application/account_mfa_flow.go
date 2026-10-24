@@ -403,8 +403,12 @@ func (f *AccountMFAFlows) PrepareTrustedDevice(ctx context.Context, accountID, t
 	if err != nil {
 		return nil, err
 	}
+	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
+	if err != nil || !found {
+		return nil, identityaccess.ErrMFAStatusUnavailable
+	}
 	return func(issueCtx context.Context) (string, time.Time, error) {
-		preparedCtx := context.WithValue(issueCtx, trustedDevicePolicyKey{accountID, tenantID}, days)
+		preparedCtx := context.WithValue(issueCtx, trustedDevicePolicyKey{accountID, tenantID}, trustedDevicePolicy{days: days, generation: account.MFAResetGeneration})
 		return f.IssueTrustedDevice(preparedCtx, accountID, tenantID, userAgent, ip)
 	}, nil
 }
@@ -413,10 +417,15 @@ func (f *AccountMFAFlows) PrepareTrustedDevice(ctx context.Context, accountID, t
 // Only PrepareTrustedDevice populates it, for this one exchange.
 type trustedDevicePolicyKey struct{ accountID, tenantID int64 }
 
+type trustedDevicePolicy struct {
+	days       int
+	generation int64
+}
+
 // IssueTrustedDevice mints a remember-device cookie using a prepared policy,
 // or resolves one first for callers that do not split preparation and issuance.
 func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	days, prepared := ctx.Value(trustedDevicePolicyKey{accountID, tenantID}).(int)
+	policy, prepared := ctx.Value(trustedDevicePolicyKey{accountID, tenantID}).(trustedDevicePolicy)
 	if !prepared {
 		issue, err := f.PrepareTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
 		if err != nil || issue == nil {
@@ -424,6 +433,7 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 		}
 		return issue(ctx)
 	}
+	days := policy.days
 	expiresAt := f.now().Add(time.Duration(days) * 24 * time.Hour)
 	rawToken, err := domain.GenerateTrustedDeviceToken()
 	if err != nil {
@@ -443,6 +453,9 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 		device.UserAgent = &label
 	}
 	err = f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		if err := f.requirePreparedDeviceGeneration(txCtx, accountID, policy.generation); err != nil {
+			return err
+		}
 		stored, err := f.records.CreateTrustedDevice(txCtx, device)
 		if err != nil {
 			return fmt.Errorf("persist trusted device: %w", err)
@@ -567,6 +580,12 @@ func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.Acc
 	var challenge domain.AccountMFAChallenge
 	var send func(context.Context) error
 	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		if err := f.records.LockAccountForOverrideWrite(txCtx, input.AccountID); err != nil {
+			return err
+		}
+		if err := f.requireChallengeRateLimit(txCtx, input.AccountID); err != nil {
+			return err
+		}
 		var err error
 		challenge, err = f.records.CreateChallenge(txCtx, input)
 		if err != nil {
@@ -678,4 +697,19 @@ func (f *AccountMFAFlows) challengeClaims(challengeToken, expectedScope string, 
 		return domain.MFAChallengeClaims{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
 	return claims, nil
+}
+
+// The caller owns the device write transaction; reset takes this same lock.
+func (f *AccountMFAFlows) requirePreparedDeviceGeneration(ctx context.Context, accountID, generation int64) error {
+	if err := f.records.LockAccountForOverrideWrite(ctx, accountID); err != nil {
+		return err
+	}
+	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
+	if err != nil || !found {
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	if account.MFAResetGeneration != generation {
+		return identityaccess.ErrMFAChallengeTokenInvalid
+	}
+	return nil
 }

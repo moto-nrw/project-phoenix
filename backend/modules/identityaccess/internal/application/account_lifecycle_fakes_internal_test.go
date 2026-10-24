@@ -915,7 +915,7 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	schools.add(lifecycleTenant, lifecycleTenant*10, "lifecycle", true, false)
 	persons := newFakePersons(runtime)
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, Codec: fakeCodec{},
+		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
 		MFA: &fakeMFA{}, MFALock: &fakeMFALock{store: store.fakeStore}, Audit: &fakeAudit{}, Push: &fakePush{},
 		Runtime: runtime, Rotation: fakeRotation{}, Logger: logger,
 	})

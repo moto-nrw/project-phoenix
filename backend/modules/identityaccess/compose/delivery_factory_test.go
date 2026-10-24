@@ -34,7 +34,8 @@ func TestPasswordResetDeliveryFor_RecordsLikeTheModule(t *testing.T) {
 		return New(Dependencies{
 			DB: db, Observe: func(Observation) {}, TenantRuntime: testpkg.TenantRuntime(t, db), Resets: resets,
 			Sessions: &identityPorts.SessionDependencies{
-				Schools: sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
+				PasswordLoginPolicy: func() (int, time.Duration, error) { return 5, time.Minute, nil },
+				Schools:             sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
 				Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{},
 			},
 		})

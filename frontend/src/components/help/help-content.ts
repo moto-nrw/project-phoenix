@@ -2781,6 +2781,8 @@ function loginProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       "Wählen Sie `Passwort vergessen?`, wenn Sie Ihr Passwort nicht mehr wissen.",
       "Öffnen Sie die E-Mail von moto und folgen Sie dem Link zum neuen Passwort.",
       "Fragt moto nach einem Sicherheitscode? Prüfen Sie Ihr E-Mail-Postfach und den Spam-Ordner.",
+      "Haben Sie mehrfach ein falsches Passwort eingegeben? Warten Sie 15 Minuten. Versuchen Sie es danach erneut.",
+      "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "Versuchen Sie die Anmeldung mit dem neuen Passwort erneut.",
       "Klappt die Anmeldung weiterhin nicht? Wenden Sie sich an Ihre Leitung.",
       "Bitten Sie um eine Prüfung von Konto und Einladung.",
@@ -5741,7 +5743,7 @@ function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Zwei-Faktor-Anmeldung (Code per E-Mail)`: Beim Anmelden kommt zusätzlich ein Code per E-Mail.",
-          "`Fehlversuche bis zur Kontosperre`: Nach so vielen falschen Eingaben sperrt moto das Konto für eine Weile.",
+          "`Fehlversuche bis zur Kontosperre`: Nach so vielen falschen Bestätigungscodes pausiert die Code-Prüfung.",
         ],
       },
       {
@@ -6298,9 +6300,10 @@ function parentLoginTopic(): HelpTopic {
       "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Es öffnet sich das Fenster `Passwort zurücksetzen`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Den Link bekommen Sie per E-Mail.",
     ],
     troubleshootingDetails: [
+      "Nach mehreren falschen Passwörtern warten Sie bitte 15 Minuten.",
+      "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "moto sagt, das Konto gehöre zum Personal einer Schule? Dann melden Sie sich über die Schul-Anmeldung an.",
       "moto sagt, Ihr Konto sei deaktiviert? Wenden Sie sich an Ihre OGS.",
-      "Nach vielen Versuchen sperrt moto die Anmeldung kurz. Warten Sie einen Moment.",
     ],
     related: [
       HELP_TOPICS.parentAccount,
@@ -7808,6 +7811,8 @@ function teacherLoginProblemTopic(): HelpTopic {
       "`Die E-Mail-Adresse oder das Passwort stimmt nicht.` Prüfen Sie beides.",
     ],
     troubleshootingDetails: [
+      "Nach mehreren falschen Passwörtern warten Sie bitte 15 Minuten.",
+      "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "Sie werden immer wieder abgemeldet? Melden Sie sich einmal neu an.",
     ],
     related: [

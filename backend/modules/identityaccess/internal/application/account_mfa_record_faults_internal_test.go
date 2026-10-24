@@ -315,7 +315,7 @@ func TestAccountMFA_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = svc.VerifyMFACodeForAccount(ctx, 1, 0, plaintext, identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(ctx, 1, 0, plaintext, identityaccess.MFAChallengeScopeTenant)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
 		"VerifyCodeForAccount must refuse the race-loser with the generic invalid-code error")
 	assert.Equal(t, 1, stub.markCalls)
@@ -347,7 +347,7 @@ func TestAccountMFA_VerifyCodeForAccount_ResetFailureIsReported(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = svc.VerifyMFACodeForAccount(ctx, 1, 0, plaintext, identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(ctx, 1, 0, plaintext, identityaccess.MFAChallengeScopeTenant)
 	assert.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.Equal(t, 1, resetCalls)
 }
@@ -407,3 +407,5 @@ func TestLoginWithMFAGate_EnrollmentInfraError_ReturnsMFAStatusUnavailable(t *te
 	assert.True(t, errors.Is(authErr.Err, identityaccess.ErrMFAStatusUnavailable),
 		"an unreadable enrollment must surface as ErrMFAStatusUnavailable")
 }
+
+func (r *memoryMFARecords) LockAccountForOverrideWrite(context.Context, int64) error { return nil }

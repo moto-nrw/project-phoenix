@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -16,6 +17,19 @@ import (
 // the module's ports instead of the legacy repository layer.
 
 var errDB = errors.New("database is down")
+
+func TestPasswordLoginRefusesUnavailableProtectionPolicy(t *testing.T) {
+	t.Parallel()
+	f := newAuthFixture(t)
+	f.seedStaff(1, 10, "user")
+	f.auth.passwordPolicy = func() (int, time.Duration, error) { return 0, 0, errDB }
+	result, err := f.auth.LoginWithMFAGate(context.Background(), f.store.accounts[1].Email, "", "", "", "", "")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, identityaccess.ErrInvalidCredentials)
+	require.True(t, result == nil)
+	require.Zero(t, len(f.store.sessionsOf(1)))
+	require.Empty(t, f.store.passwordStates, "unavailable protection cannot accept uncounted guesses")
+}
 
 func TestResolveAccountTenantBySlug_UnknownSlugIsTenantNotFound(t *testing.T) {
 	t.Parallel()

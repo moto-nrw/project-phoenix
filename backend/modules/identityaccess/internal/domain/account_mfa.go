@@ -29,16 +29,17 @@ type AccountMFACredential struct {
 // code up by account and would otherwise reach another portal's in-flight
 // code.
 type AccountMFAChallenge struct {
-	ID         int64
-	AccountID  int64
-	Scope      string
-	TenantID   int64
-	CodeHash   string
-	ExpiresAt  time.Time
-	ConsumedAt *time.Time
-	IPAddress  net.IP
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	MFAResetGeneration int64
+	ID                 int64
+	AccountID          int64
+	Scope              string
+	TenantID           int64
+	CodeHash           string
+	ExpiresAt          time.Time
+	ConsumedAt         *time.Time
+	IPAddress          net.IP
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // AccountTrustedDevice is the server-side record of a remember-device
@@ -89,9 +90,10 @@ type MFAAdminState struct {
 // VerifiedMFAChallenge is what a redeemed challenge hands the login flow so
 // it can mint the token pair without re-decoding the challenge JWT.
 type VerifiedMFAChallenge struct {
-	AccountID int64
-	Scope     string
-	TenantID  int64
+	MFAResetGeneration int64
+	AccountID          int64
+	Scope              string
+	TenantID           int64
 }
 
 // MFAChallengeClaims are the claims of a challenge JWT.

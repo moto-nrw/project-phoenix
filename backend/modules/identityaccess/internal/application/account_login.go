@@ -170,7 +170,15 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 // passkey). It skips the credential check but otherwise reuses the login
 // pipeline, so the session is indistinguishable from a password login.
 // tenantID is the school carried in the MFA challenge.
-func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (_ string, _ string, err error) {
+func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+	return s.issueAuthenticatedTokens(ctx, accountID, tenantID, ipAddress, userAgent, nil)
+}
+
+func (s *AccountAuthentication) IssueTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
+	return s.issueAuthenticatedTokens(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent, &proof)
+}
+
+func (s *AccountAuthentication) issueAuthenticatedTokens(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, proof *identityaccess.VerifiedMFAChallenge) (_ string, _ string, err error) {
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
@@ -192,7 +200,7 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant token issue")
 		return "", "", failed("issue tokens", identityaccess.ErrMustUseSchoolPortal)
 	}
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope, true)
+	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeTenant, nil), "", true)
 	if err != nil {
 		return "", "", err
 	}
@@ -226,15 +234,29 @@ func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operat
 // (#3376).
 func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, email, password, ipAddress, userAgent string) (domain.LoginAccount, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
-	account, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.store, email)
-	if err != nil || !found {
-		s.logFailedLogin(ctx, 0, ipAddress, userAgent, "Account not found")
-		return domain.LoginAccount{}, failed("login", domain.ErrAccountNotFound)
+	var account domain.LoginAccount
+	var accepted bool
+	err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		var found bool
+		var err error
+		account, found, _, err = s.store.LockLoginAccountByEmail(txCtx, email)
+		if err != nil {
+			return err
+		}
+		if !found {
+			account = domain.LoginAccount{}
+		}
+		accepted, err = checkPasswordLogin(txCtx, s.store, s.passwords, s.passwordPolicy, account.ID, account.PasswordHash, password, false)
+		return err
+	})
+	if err != nil {
+		return domain.LoginAccount{}, failed("password login protection", err)
 	}
-	if err := s.verifyPassword(account, password); err != nil {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Invalid password")
-		return domain.LoginAccount{}, err
+	if !accepted {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Password login refused")
+		return domain.LoginAccount{}, failed("login", identityaccess.ErrInvalidCredentials)
 	}
+
 	if !account.Active {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
 		return domain.LoginAccount{}, failed("login", identityaccess.ErrAccountInactive)
@@ -243,11 +265,8 @@ func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, em
 }
 
 func (s *AccountAuthentication) verifyPassword(account domain.LoginAccount, password string) error {
-	if account.PasswordHash == "" {
-		return failed("login", identityaccess.ErrInvalidCredentials)
-	}
 	valid, err := s.passwords.VerifyPassword(password, account.PasswordHash)
-	if err != nil || !valid {
+	if err != nil || !valid || account.PasswordHash == "" {
 		return failed("login", identityaccess.ErrInvalidCredentials)
 	}
 	return nil

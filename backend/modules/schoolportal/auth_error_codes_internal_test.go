@@ -33,7 +33,7 @@ func refusalRuntime(err error) *Resource {
 		return func(got error) bool { return errors.Is(got, target) }
 	}
 	return &Resource{AuthService: AuthRuntime{
-		IssueTokens: func(context.Context, int64, int64, string, string) (string, string, error) {
+		IssueTokens: func(context.Context, VerifiedChallenge, string, string) (string, string, error) {
 			return "", "", err
 		},
 		SwitchSchool: func(context.Context, int64, string, string, string, string) (string, string, error) {
@@ -109,7 +109,7 @@ func TestSchoolExchangeRefusalsCarryIdentityCodes(t *testing.T) {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
 			recorder := httptest.NewRecorder()
-			refusalRuntime(tc.err).completeSchoolExchange(recorder, httptest.NewRequest(http.MethodPost, "/auth/mfa/verify", nil), 1, 2, false)
+			refusalRuntime(tc.err).completeSchoolExchange(recorder, httptest.NewRequest(http.MethodPost, "/auth/mfa/verify", nil), VerifiedChallenge{AccountID: 1, TenantID: 2}, false)
 			status, code := decodeRefusal(t, recorder)
 			assert.Equal(t, tc.status, status)
 			assert.Equal(t, tc.code, code)
