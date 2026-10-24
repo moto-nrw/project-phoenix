@@ -242,7 +242,7 @@ export function SignaturePad({
     if (!canvas) return;
     if (mode === "type") {
       const name = typedName.trim();
-      if (name.length < SIGNATURE_TYPED_NAME_MIN) {
+      if (Array.from(name).length < SIGNATURE_TYPED_NAME_MIN) {
         setLocalError(labels.nameTooShort);
         return;
       }
@@ -313,7 +313,9 @@ export function SignaturePad({
           name={`${baseId}-typed`}
           label={labels.typedName}
           value={typedName}
-          maxLength={SIGNATURE_TYPED_NAME_MAX}
+          // HTML counts UTF-16 code units; the server limits Unicode code
+          // points, which can occupy two code units each.
+          maxLength={SIGNATURE_TYPED_NAME_MAX * 2}
           autoComplete="name"
           disabled={disabled}
           onChange={(event) => {

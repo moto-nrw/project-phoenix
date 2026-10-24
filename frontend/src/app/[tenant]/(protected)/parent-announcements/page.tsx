@@ -1700,7 +1700,7 @@ function AnnouncementFormModal({
                       />
                       <span className="text-sm text-gray-800">
                         <span className="block">Mit Unterschrift</span>
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-sm text-gray-500">
                           Eltern unterschreiben die Zustimmung mit dem Finger
                           oder der Maus. Ablehnen geht ohne Unterschrift.
                         </span>

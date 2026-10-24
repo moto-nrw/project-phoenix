@@ -162,6 +162,30 @@ describe("SignaturePad", () => {
     );
   });
 
+  it("counts typed names as Unicode code points like the server", () => {
+    const onValue = vi.fn();
+    render(<Harness onValue={onValue} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    const input = screen.getByLabelText("Ihr Name");
+    fireEvent.change(input, { target: { value: "😀" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onValue).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Bitte tippen Sie Ihren Namen."),
+    ).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "😀A" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(onValue).toHaveBeenCalledWith({
+      method: "typed",
+      imagePngBase64: "iVBORw0KGgoAAAANSUhEUg==",
+      typedName: "😀A",
+    });
+  });
+
   it("describes the field with the given error", () => {
     render(<Harness onValue={vi.fn()} error="Bitte noch einmal." />);
 
