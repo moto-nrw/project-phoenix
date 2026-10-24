@@ -35486,15 +35486,27 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.CleanupErasedAccountAvatars",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.CleanupErasedAccountAvatars",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "f37d4464e551321208075184b09daaae",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.CleanupErasedAccountAvatars. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.DeleteExpiredGuardianInvitations",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.DeleteExpiredGuardianInvitations",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "84adc158eaeb027f01065756c6b3c35b",
+      "binding_digest": "7fac745b547da3fef29b85b7d9b56159",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredGuardianInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredGuardianInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed after #4855: the composition binds the same RunAdmin method value once and shares it with AccountRetention; the scope this method enters is unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35502,11 +35514,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.DeleteExpiredMFAEmailChallenges",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "84adc158eaeb027f01065756c6b3c35b",
+      "binding_digest": "7fac745b547da3fef29b85b7d9b56159",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredMFAEmailChallenges. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredMFAEmailChallenges. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed after #4855: the composition binds the same RunAdmin method value once and shares it with AccountRetention; the scope this method enters is unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35514,11 +35526,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.DeleteExpiredPasskeySessions",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "84adc158eaeb027f01065756c6b3c35b",
+      "binding_digest": "7fac745b547da3fef29b85b7d9b56159",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredPasskeySessions. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredPasskeySessions. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed after #4855: the composition binds the same RunAdmin method value once and shares it with AccountRetention; the scope this method enters is unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35543,18 +35555,6 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredSchoolInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EraseUnusedAccounts",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.EraseUnusedAccounts",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "496dac5afc418aabb2b2619f153dc1f6",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.RegisterAfterCommit (tenant-runtime) through modules/identityaccess/internal/application.engine.EraseUnusedAccounts. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
