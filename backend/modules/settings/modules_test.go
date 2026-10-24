@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -9,6 +10,72 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
+
+// fakeModuleReader answers module switches per tenant.
+type fakeModuleReader struct {
+	values map[int64]map[string]bool
+	err    error
+}
+
+func (r *fakeModuleReader) ResolveBoolForTenant(_ context.Context, tenantID int64, key string) (bool, error) {
+	if r.err != nil {
+		return false, r.err
+	}
+	value, ok := r.values[tenantID][key]
+	if !ok {
+		return true, nil // registry default: booked
+	}
+	return value, nil
+}
+
+// The fake reader holds no rows; the school IDs only key its map.
+const (
+	requestSchool int64 = 4101
+	otherSchool   int64 = 4102
+)
+
+func TestModuleBookingReadsEachSchoolsOwnBooking(t *testing.T) {
+	t.Parallel()
+	reader := &fakeModuleReader{values: map[int64]map[string]bool{
+		requestSchool: {configModel.KeyModuleZeiterfassung: false},
+	}}
+	booking, err := NewModuleBooking(reader)
+	require.NoError(t, err)
+	ctx := context.Background()
+
+	var notBooked *ModuleNotBookedError
+	require.ErrorAs(t, booking.RequireForTenant(ctx, requestSchool, ModuleDienstplan, ModuleZeiterfassung), &notBooked)
+	assert.Equal(t, ModuleZeiterfassung, notBooked.Module)
+	assert.Equal(t, requestSchool, notBooked.TenantID)
+	require.NoError(t, booking.RequireForTenant(ctx, otherSchool, ModuleZeiterfassung), "the other school keeps the default")
+}
+
+// A failed read is an error, never a booking decision.
+func TestModuleBookingPassesReadErrorsThrough(t *testing.T) {
+	t.Parallel()
+	readErr := errors.New("settings unavailable")
+	booking, err := NewModuleBooking(&fakeModuleReader{err: readErr})
+	require.NoError(t, err)
+
+	err = booking.RequireForTenant(context.Background(), otherSchool, ModuleMittagessen)
+	require.ErrorIs(t, err, readErr)
+	var notBooked *ModuleNotBookedError
+	assert.False(t, errors.As(err, &notBooked))
+}
+
+func TestModuleBookingRejectsUnknownModules(t *testing.T) {
+	t.Parallel()
+	booking, err := NewModuleBooking(&fakeModuleReader{})
+	require.NoError(t, err)
+	err = booking.RequireForTenant(context.Background(), requestSchool, ModuleKey("basis"))
+	require.ErrorIs(t, err, ErrUnknownModule)
+}
+
+func TestNewModuleBookingRequiresAReader(t *testing.T) {
+	t.Parallel()
+	_, err := NewModuleBooking(nil)
+	require.Error(t, err)
+}
 
 func TestBookedModulesFollowsTheModuleList(t *testing.T) {
 	t.Parallel()

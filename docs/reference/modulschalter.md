@@ -79,14 +79,12 @@ Die Folge-Issues setzen auf diese Teile auf. Neue Module kommen nur über die Mo
 - Je Modul die Einstellung `module.<schlüssel>`. Lesen heißt: `ResolveBool` des Settings-Service für die Schule der Anfrage, `ResolveBoolForTenant` außerhalb der Tenant-Middleware. Beide gehen über den Request-Cache, nie über eine Umgebungsvariable.
 - `settings.ModuleSettingKeys()` für ein gebündeltes Lesen, `settings.BookedModules(readBool)` für die gebuchten Module aus einem schon geladenen Satz Einstellungen (so liest die Mandanten-Auflösung).
 
-**Backend, Helfer `ModuleBooking` (kommt mit #4893):**
+**Backend, Helfer `ModuleBooking` (seit #4893):**
 
-Das Deadcode-Gate (`scripts/check-deadcode.sh`) lässt keine Produktionsfunktion zu, die nur Tests erreichen. Der Helfer entsteht deshalb im selben PR wie sein erster Aufrufer, der Routen-Sperre. Die Form ist festgelegt; ein fertiger Entwurf mit Tests steht im ersten Commit von #4892 (`backend/modules/settings/modules.go`, `modules_test.go`):
-
-- `settings.NewModuleBooking(reader)`; `reader` ist der Settings-Service (`ResolveBool`, `ResolveBoolForTenant`).
-- `IsBooked(ctx, module)` und `Require(ctx, tenantID, modules...)` für Routen in der Tenant-Middleware (#4893). `tenantID` benennt die Schule nur im Fehler.
-- `IsBookedForTenant(ctx, tenantID, module)` und `RequireForTenant(...)` außerhalb der Middleware: Scheduler, Login und Refresh der Portale, Geräte (#4895, #4896).
-- `Require` liefert `*settings.ModuleNotBookedError{TenantID, Module}` für das erste fehlende Modul. Daraus macht #4893 den Fehlercode für nicht gebuchte Module mit dem Modulschlüssel im Fehler-Umschlag. Ein Lesefehler bleibt ein Fehler und wird nie als „gebucht“ oder „nicht gebucht“ gewertet. Ein unbekannter Schlüssel ist ein Fehler.
+- `settings.NewModuleBooking(reader)`; `reader` ist der Settings-Service (`ResolveBoolForTenant`). Ohne Reader liefert der Aufruf einen Fehler, die Komposition bricht ab.
+- `RequireForTenant(ctx, tenantID, modules...)` liest in einer eigenen Tenant-Transaktion und über den Request-Cache. Das passt für die Routensperre vor der Transaktion der Anfrage ebenso wie für Scheduler, Login und Refresh der Portale und Geräte (#4895, #4896).
+- `RequireForTenant` liefert `*settings.ModuleNotBookedError{TenantID, Module}` für das erste fehlende Modul. Ein Lesefehler bleibt ein Fehler und wird nie als „gebucht“ oder „nicht gebucht“ gewertet. Ein unbekannter Schlüssel ist ein Fehler (`settings.ErrUnknownModule`).
+- Fehlercode `module.not_booked` (403, Klasse `permission`). `details.module` ist der Modulschlüssel, `details.module_label` der Name. Das Frontend erklärt damit den fehlenden Modulzustand (#4894).
 
 **Frontend:**
 
@@ -104,3 +102,34 @@ Das Modul-Register `frontend/src/lib/module-register.ts` ordnet jede Seite der M
 - **Startseite und Reiter.** Bausteine und Reiter der Personalakte eines nicht gebuchten Moduls fehlen für alle, ohne Schloss: eine Kachel ohne Daten belegt nur Platz, und die Leitung sieht das Modul in der Navigation und unter Einstellungen.
 - **Erklärender Zustand.** `TenantPage`, das Gerüst jeder Seite, zeigt auf jeder Seite eines nicht gebuchten Moduls statt des Inhalts, zu welchem Modul sie gehört und wer handelt: die Leitung das moto-Team, alle anderen ihre Leitung. Lehnt eine Anfrage mit `module.not_booked` ab, zeigen `TenantPage`, `LoadErrorAlert` und `FormErrorAlert` denselben Zustand als Hinweis statt als Fehler, und die Mandantendaten laden neu.
 - **Bewusste Abweichungen vom Backend.** Aktivitäten (`/activities`, `/database/activities`) gehören im Register zu NFC-Anwesenheit, weil sie vor den Modulen nur mit NFC zu sehen waren. Geräte (`/database/devices`) folgen NFC-Anwesenheit, obwohl das Backend sie erst mit #4896 sperrt.
+
+## Routen
+
+Seit #4893 gehört jede Route des Produktions-Routers genau einem Modul oder der Basis. Die Zuordnung steht in `backend/api/module_routes.go` (`moduleRouteRules`), die ganze Liste in `backend/api/testdata/route_modules.golden`.
+
+- **Regeln nach Pfad.** Eine Regel nennt einen Pfadanfang und ein Modul. Die genaueste Regel gewinnt. `*` steht für genau einen Pfadteil, etwa eine ID. Es gibt keine Regel für alles: Eine Route unter einem neuen Pfadanfang lässt `TestFullProductionRouterGolden` scheitern, bis eine Regel sie zuordnet.
+- **Sperre.** Ein Router-weiter Schritt ordnet jede Anfrage nach diesen Regeln ein. `api.TenantScopeMiddleware` prüft nach dem Binden der Schule, ob das Modul gebucht ist, und antwortet sonst mit 403 `module.not_booked`. Basis-Routen und das Operator-Portal sind nicht betroffen. Ein Plattform-Token ohne Schule läuft durch.
+- **Kosten.** Die Prüfung liest den Schalter in einer eigenen kurzen Lesetransaktion vor der Transaktion der Anfrage. Der Budget-Test der Anmeldungs-Rückläufe hält diese Form fest (genau ein Select des Schalters), das Budget der Route selbst bleibt unverändert.
+- **Öffentliche Anmeldung.** Die öffentlichen Routen lösen die Schule über den Pfad auf, nicht über eine Sitzung. `enrollment.enabled` gilt dort nur, wenn das Modul Online-Anmeldung gebucht ist. Phasenliste, Formular, Uploads und Absenden antworten dann mit `enrollment.disabled`. Formularaufbau, Angebotsliste, Rechtstexte und Captcha einer Phase enthalten keine Personendaten und bleiben lesbar. Auch der Statuslink einer abgeschickten Anmeldung schließt sich und antwortet wie ein abgelaufener Link. So erfährt die Familie nichts über den Vertrag der Schule. Die Anmeldung bleibt gespeichert; nach erneutem Buchen gilt der Link wieder.
+- **Später gesperrt.** Elternportal (`/parent`, Einladung annehmen unter `/auth/guardian-invitations`) und Schulportal (`/school`) sperrt #4895 an der Sitzung. Geräte (`/api/iot` samt Geräteverwaltung im Team-Portal, Armband zuordnen unter `/api/students/{id}/rfid`) sperrt #4896 zusammen mit PyrePortal. Bis dahin behält eine Schule ohne NFC-Anwesenheit ihre Geräteverwaltung. Ihre Regeln nennen das Modul schon. Welche Flächen anderswo gesperrt werden, steht in `moduleRoutesLockedElsewhere`; der Golden-Test verlangt für jede andere Modulroute die Sperre.
+
+### Grenzfälle
+
+| Route | Zuordnung | Begründung |
+|---|---|---|
+| `/api/guardians/...` | Basis | Erziehungsberechtigte und Abholberechtigte braucht jede Schule. |
+| `/api/guardians/invitations`, `invitable`, `bulk-invite`, `without-account`, `.../invite` | Eltern-App | Einladungen gibt es nur für das Elternportal. |
+| `/api/guardians/payment-overview`, `.../payment` | Basis | Bankdaten der Eltern gibt es heute ohne Abrechnung. Wenn Elternbeiträge und Abrechnung gebaut wird, wandern sie dorthin. |
+| `/api/students/change-requests`, `.../excused-absence-requests`, `.../offering-change-requests`, `.../care-schedule-change-requests`, `.../master-data-change-requests` | Basis | Der Anfragen-Eingang mischt Eltern-App und Online-Anmeldung. Ohne Eltern-App kommen keine neuen Anfragen, offene kann die Schule abschließen. |
+| `/api/messages`, `/api/parent-announcements`, `/api/announcement-attachments` | Eltern-App | Nachrichten und Elternbriefe an Eltern. Der Team-Chat (`/api/staff-messages`) ist Basis. |
+| `/api/time-tracking/assignments`, `.../holidays`, `.../closing-days` | Basis | Eigene Blöcke aus dem Betreuungsplan auf der Startseite, Feiertage und Schließtage der Planung. |
+| `/api/time-tracking/shifts` | Dienstplan | Eigene Dienste unter „Mein Dienstplan“. Die übrigen Routen unter `/api/time-tracking` sind Zeiterfassung. |
+| `/api/enrollment/...` | Online-Anmeldung | Auch die Betreuungsangebote: Ihre Verwaltung liegt im Bereich Anmeldungen. Die Angebote eines Kindes (`/api/students/care-offerings`, `.../pickup-schedules`) bleiben Basis. |
+| `/api/staff/{id}/schedule`, `.../payroll-number`, `.../target-overrides`, `.../vacation`, `.../absences`, `/api/staff/absences`, `/api/absence-types`, `/api/work-time-models` | Zeiterfassung | Arbeitszeitmodell, Urlaub und Personalnummer für den Lohnexport. |
+| `/api/settings/payroll-status`, `/api/import/opening-balances` | Zeiterfassung | Lohnbüro-Versand und Startsalden der Stundenkonten. |
+| `/api/staff/{id}/stammdaten`, `.../documents`, `documents-directory`, `documents-profile`, `financial-profile` | Personalakte | Personalstammdaten, Dokumente, Bank- und Steuerdaten. |
+| `/api/staff/dashboard-summary`, `/api/staff/externals` | Basis | Kachel „Personal heute“ und externe Betreuungskräfte. |
+| `/api/timetable/shift-coverage` | Dienstplan | Besetzung aus dem Dienstplan im Terminformular. Die übrige Planung ist Basis. |
+| `/api/substitutions`, `/api/timetable/substitutions` | Basis | Übergaben einer Gruppe gibt es ohne Dienstplan. |
+| `/api/class-list-entries`, `/api/students/class-arrival-*`, `/api/students/school-checkin` | Basis | Klassenlisten und Ankunft aus der Schule pflegt das OGS-Team. Das Schulportal der Lehrkräfte ist Unterricht am Vormittag. |
+| `/api/feedback` | Basis | Rückmeldungen der Kinder am Tablet, auch zum Essen. Die Rückmeldung gibt es ohne das Modul Mittagessen. |
