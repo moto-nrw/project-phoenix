@@ -42,7 +42,7 @@ describe("MealCaterer", () => {
     mocks.getMealCaterer
       .mockResolvedValueOnce({ supply: null, invitations: [] })
       .mockResolvedValue({ supply: null, invitations: [invitation] });
-    render(<MealCaterer />, { wrapper: ToastProvider });
+    render(<MealCaterer canManageSupply />, { wrapper: ToastProvider });
 
     fireEvent.change(await screen.findByLabelText(/Name des Caterers/), {
       target: { value: "Küche am Markt" },
@@ -92,7 +92,7 @@ describe("MealCaterer", () => {
       },
       invitations: [],
     });
-    render(<MealCaterer />, { wrapper: ToastProvider });
+    render(<MealCaterer canManageSupply />, { wrapper: ToastProvider });
 
     expect(await screen.findByText("Küche am Markt")).toBeInTheDocument();
     expect(
@@ -104,5 +104,38 @@ describe("MealCaterer", () => {
     expect(mocks.endMealCatererSupply).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole("button", { name: "Beenden" }));
     await waitFor(() => expect(mocks.endMealCatererSupply).toHaveBeenCalled());
+  });
+
+  it("shows the supply to non-admins without ending it", async () => {
+    mocks.getMealCaterer.mockResolvedValue({
+      supply: {
+        catererName: "Küche am Markt",
+        deliveryAddress: "Schulstraße 1",
+        startedAt: "2026-09-01T08:00:00Z",
+      },
+      invitations: [],
+    });
+    render(<MealCaterer canManageSupply={false} />, { wrapper: ToastProvider });
+
+    expect(await screen.findByText("Küche am Markt")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Belieferung beenden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("tells non-admins that only admins invite a caterer", async () => {
+    mocks.getMealCaterer.mockResolvedValue({
+      supply: null,
+      invitations: [invitation],
+    });
+    render(<MealCaterer canManageSupply={false} />, { wrapper: ToastProvider });
+
+    expect(
+      await screen.findByText(/Einen Caterer einladen können nur Admins/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Einladung senden" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("kueche@example.com")).not.toBeInTheDocument();
   });
 });

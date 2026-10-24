@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -50,7 +52,7 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 		},
 		Resets: catererPasswordResets(identity),
 	})
-	tenantRouter.Mount("/meal-caterer", resource.SchoolRouter(ProtectedTenantRoutes, requireMealPlanAccess(mealplanAPI.AccessWrite), requireMealPlanAccess(mealplanAPI.AccessParticipants)))
+	tenantRouter.Mount("/meal-caterer", resource.SchoolRouter(ProtectedTenantRoutes, requireMealPlanAccess(mealplanAPI.AccessWrite), common.RequiresPermission(permissions.AdminWildcard), requireMealPlanAccess(mealplanAPI.AccessParticipants)))
 	root.Mount("/caterer", resource.CatererRouter(limiters.authMiddleware(), CatererSessionChain))
 	return nil
 }

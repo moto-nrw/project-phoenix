@@ -900,7 +900,9 @@ export default function MealPlanPage() {
 
       {/* Der Caterer der Schule (ADR 0077): nur wer den Speiseplan
           verwaltet, lädt ihn ein oder beendet die Belieferung. */}
-      {canEdit && mealRegistrationEnabled === true ? <MealCaterer /> : null}
+      {canEdit && mealRegistrationEnabled === true ? (
+        <MealCaterer canManageSupply={isAdmin(session)} />
+      ) : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
       {canEdit && isDirty && !loading && !hasLoadError && (

@@ -110,6 +110,13 @@ tenant transaction.
    like parent accounts. A second factor is a follow-up: the existing MFA is
    bound to a school's policy, and a caterer has no school.
 
+8. **Only admins decide who supplies the school.** Inviting a caterer,
+   revoking an invitation and ending the supply require `admin:*`
+   (`common.RequiresPermission(permissions.AdminWildcard)`), like parent
+   announcements: the invitation lets an external business read the school's
+   orders. `meals:manage` still shows the caterer card and keeps the meal
+   plan.
+
 ## Consequences
 
 - The `chk_tokens_portal_scope` check of `auth.tokens.portal_scope` and every scope switch gain the value `caterer`;

@@ -4241,7 +4241,7 @@ function mealCatererTopic(): HelpTopic {
     icon: "Truck",
     requirements: [
       "`Anmeldung zum Mittagessen` ist eingeschaltet.",
-      "Ihr Konto darf den Speiseplan bearbeiten.",
+      "Sie sind Admin Ihrer Schule. Nur Admins laden einen Caterer ein oder beenden die Belieferung.",
     ],
     steps: [
       "Öffnen Sie in der Seitenleiste `Speiseplan`.",
@@ -4262,6 +4262,7 @@ function mealCatererTopic(): HelpTopic {
     troubleshootingDetails: [
       "Kam keine E-Mail an? Nehmen Sie die Einladung mit `Zurücknehmen` zurück und senden Sie eine neue.",
       "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
+      "Steht auf der Karte nur „Einen Caterer einladen können nur Admins Ihrer Schule.“? Dann bitten Sie einen Admin Ihrer Schule um die Einladung.",
     ],
     related: [HELP_TOPICS.leadMealOrdering, HELP_TOPICS.leadMealPlan],
   };
