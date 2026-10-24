@@ -471,6 +471,9 @@ func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	schoolID := testpkg.Tenant(t)
 	require.NoError(t, schoolErasureDown(t.Context(), db))
 	require.NoError(t, schoolErasureUp(t.Context(), db))
+	// Later migrations that amend the installed plan run again on top, as
+	// they do after a real rollback of this version.
+	require.NoError(t, mealOrderErasureUp(t.Context(), db))
 	orderID := beginErasure(t, db, schoolID)
 	require.Error(t, schoolErasureDown(t.Context(), db), "rollback must not discard any pending or completed proof")
 	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, schoolID, orderID).Status, "failed rollback preserves evidence and executable procedure")

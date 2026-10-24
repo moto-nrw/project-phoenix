@@ -34,7 +34,8 @@ von der Rückgabe ausgeschlossen.
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
-installierter Plan enthält 221 Löschziele mit `tenant`, `tenantChild` oder
+installierter Plan enthält 228 Löschziele (seit Migration 1.15.496 mit den
+Mittagessen-Tabellen) mit `tenant`, `tenantChild` oder
 `school`. Die explizit gesperrten Rechnungsreferenzen
 `platform.billing_key_date_counts` bleiben zehn Jahre ab Kalenderjahresende
 erhalten und sind von der Datenrückgabe an Dritte ausgeschlossen (ADR 0092). Ein Wächter gleicht ihn mit dem Produktionskatalog ab.
