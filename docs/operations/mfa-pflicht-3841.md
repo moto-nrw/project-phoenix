@@ -100,6 +100,15 @@ Wiederherstellung stellt den Faktor wieder her, nicht eine Passwort-Ausnahme.
 
 Datei: [mfa-pflicht-3841-counts.sql](sql/mfa-pflicht-3841-counts.sql).
 Nur über einen freigegebenen administrativen Datenbankzugang ausführen.
+Die Abfrage muss vor dem Release auch auf dem alten Schema lauffähig sein.
+Sie liest den erst mit `1.15.464` ergänzten Account-Löschmarker über
+`to_jsonb(account)`; fehlt die Spalte, gilt sie als nicht gesetzt. Auf dem neuen
+Schema bleiben gelöschte Konten ausgeschlossen. Die übrigen verwendeten
+Tabellen und Spalten existieren bereits vor `1.15.459`: Schulen und
+Schulzuordnungen seit `1.13.1/2`, schulbezogene Rollenzuordnung seit `1.14.2`,
+`schools.deleted_at` seit `1.15.21`, E-Mail-MFA seit `1.15.80` und Passkeys
+mit `revoked_at` seit `1.15.133`. Neuere Berechtigungsnamen sind reine
+Vergleichswerte, keine zusätzlichen Schema-Abhängigkeiten.
 Die Abfrage liefert ausschließlich Schul-IDs und Anzahlen, keine Konten,
 Adressen, Codes oder Schlüssel. `without_any_second_factor` zählt Konten ohne
 E-Mail-MFA und ohne gültigen Passkey. `without_email_address` zeigt Fälle ohne

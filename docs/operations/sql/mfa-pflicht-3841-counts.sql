@@ -1,4 +1,6 @@
 -- Read-only inventory. Output: school IDs and counts only, never account IDs.
+-- Pre-release compatibility: optional erasure marker arrives only in 1.15.464.
+-- Missing JSON keys and SQL NULL both mean no recorded erasure.
 -- Keep the named MFA minimum in mfa_privilege.go aligned (classification test).
 WITH privileged_permission(name) AS (
  VALUES
@@ -36,7 +38,7 @@ WITH privileged_permission(name) AS (
  JOIN auth.role_permissions rp ON rp.role_id = ar.role_id
  JOIN auth.permissions grant_permission ON grant_permission.id = rp.permission_id
  WHERE mapping.status = 'active' AND account.active
- AND account.personal_data_erased_at IS NULL
+ AND to_jsonb(account) ->> 'personal_data_erased_at' IS NULL
  AND EXISTS (
   SELECT FROM targets target
   WHERE (grant_permission.resource = split_part(target.name, ':', 1)
