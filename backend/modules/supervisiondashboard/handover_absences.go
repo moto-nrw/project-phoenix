@@ -62,7 +62,7 @@ func handoverCandidateIDs(projection *Projection) []int64 {
 	}
 	for _, room := range projection.OpenRooms {
 		for _, student := range room.Students {
-			add(student.Visit.StudentID)
+			add(student.StudentID)
 		}
 	}
 	for _, instance := range projection.PlannedNow {
