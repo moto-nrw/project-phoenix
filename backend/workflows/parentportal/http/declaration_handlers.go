@@ -299,7 +299,7 @@ type declarationProofResponse struct {
 // and say what they are.
 const (
 	methodLabel          = "Einfache elektronische Erklärung im angemeldeten Eltern-Konto"
-	signatureMethodLabel = "Einfache elektronische Signatur mit gezeichneter Unterschrift im angemeldeten Eltern-Konto"
+	signatureMethodLabel = "Einfache elektronische Signatur im angemeldeten Eltern-Konto"
 )
 
 // declarationProof returns the guardian's own proof for one child: JSON for

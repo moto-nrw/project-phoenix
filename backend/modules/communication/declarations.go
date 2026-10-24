@@ -188,7 +188,7 @@ func DeclarationMethodLabel(method string) string {
 	case DeclarationMethodSimpleElectronic:
 		return "Einfache elektronische Erklärung im angemeldeten Eltern-Konto"
 	case DeclarationMethodSimpleElectronicSignature:
-		return "Einfache elektronische Signatur mit gezeichneter Unterschrift im angemeldeten Eltern-Konto"
+		return "Einfache elektronische Signatur im angemeldeten Eltern-Konto"
 	default:
 		return method
 	}

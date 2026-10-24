@@ -34,6 +34,7 @@ func TestDeclarationProofResponseCarriesTheSignature(t *testing.T) {
 	t.Parallel()
 	out := toDeclarationProofResponse(signedProofFixture(), time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC))
 	assert.Equal(t, signatureMethodLabel, out.MethodLabel)
+	assert.NotContains(t, out.MethodLabel, "gezeichnet")
 	require.NotNil(t, out.Submissions[0].Signature)
 	assert.Equal(t, "data:image/png;base64,iVBORy1ieXRlcw==", out.Submissions[0].Signature.ImageDataURL)
 	assert.Equal(t, "Klaus Richter", *out.Submissions[0].Signature.TypedName)

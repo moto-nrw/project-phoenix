@@ -30,7 +30,7 @@ func TestDeclarationReportPrintsSignatures(t *testing.T) {
 	doc := declarationReport(signedStatusFixture())
 	text := reportTexts(doc)
 	assert.Contains(t, text, "Unterschrift=Ja, beim Zustimmen")
-	assert.Contains(t, text, "Verfahren=Einfache elektronische Signatur mit gezeichneter Unterschrift im angemeldeten Eltern-Konto")
+	assert.Contains(t, text, "Verfahren=Einfache elektronische Signatur im angemeldeten Eltern-Konto")
 	var printed []byte
 	for _, section := range doc.Sections {
 		for _, card := range section.Cards {

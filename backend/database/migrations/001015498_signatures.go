@@ -92,7 +92,7 @@ const signaturesUpSQL = `
 			ADD COLUMN IF NOT EXISTS signature_id BIGINT;
 		ALTER TABLE users.parent_announcement_declaration_submissions
 			ADD CONSTRAINT fk_parent_declaration_submissions_signature FOREIGN KEY (tenant_id, signature_id)
-				REFERENCES audit.signatures(tenant_id, id) ON DELETE SET NULL (signature_id);
+				REFERENCES audit.signatures(tenant_id, id) ON DELETE CASCADE;
 		ALTER TABLE users.parent_announcement_declaration_submissions
 			DROP CONSTRAINT IF EXISTS parent_announcement_declaration_submissions_method_check;
 		ALTER TABLE users.parent_announcement_declaration_submissions
