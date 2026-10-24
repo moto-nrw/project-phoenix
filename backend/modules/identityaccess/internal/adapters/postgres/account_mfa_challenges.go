@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-const accountMFAChallengeColumns = "id, account_id, scope, tenant_id, code_hash, expires_at, consumed_at, ip_address, created_at, updated_at"
+const accountMFAChallengeColumns = "id, account_id, scope, tenant_id, code_hash, expires_at, consumed_at, ip_address, created_at, updated_at, mfa_reset_generation"
 
 func (r *AccountMFARecords) CreateChallenge(ctx context.Context, challenge domain.AccountMFAChallenge) (domain.AccountMFAChallenge, error) {
 	if challenge.AccountID == 0 || challenge.CodeHash == "" || challenge.Scope == "" || challenge.ExpiresAt.IsZero() {
@@ -27,11 +27,11 @@ func (r *AccountMFARecords) CreateChallenge(ctx context.Context, challenge domai
 	}
 	var row domain.AccountMFAChallenge
 	err = db.NewRaw(`INSERT INTO auth.mfa_email_challenges
- (account_id, scope, tenant_id, code_hash, expires_at, consumed_at, ip_address, created_at, updated_at)
- VALUES (?, ?, NULLIF(?, 0), ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+ (account_id, scope, tenant_id, code_hash, expires_at, consumed_at, ip_address, created_at, updated_at, mfa_reset_generation)
+ VALUES (?, ?, NULLIF(?, 0), ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP), (SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?))
  RETURNING `+accountMFAChallengeColumns,
 		challenge.AccountID, challenge.Scope, challenge.TenantID, challenge.CodeHash, challenge.ExpiresAt,
-		challenge.ConsumedAt, nullableMFAIPAddress(challenge.IPAddress), createdAt, updatedAt).Scan(ctx, &row)
+		challenge.ConsumedAt, nullableMFAIPAddress(challenge.IPAddress), createdAt, updatedAt, challenge.AccountID).Scan(ctx, &row)
 	return row, err
 }
 
@@ -40,7 +40,7 @@ func (r *AccountMFARecords) ActivateChallenge(ctx context.Context, id int64) err
 	if err != nil {
 		return err
 	}
-	return requireMFATransition(db.NewRaw("UPDATE auth.mfa_email_challenges SET consumed_at = NULL WHERE id = ? AND consumed_at IS NOT NULL", id).Exec(ctx))
+	return requireMFATransition(db.NewRaw("UPDATE auth.mfa_email_challenges SET consumed_at = NULL WHERE id = ? AND consumed_at IS NOT NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id)", id).Exec(ctx))
 }
 
 func (r *AccountMFARecords) ConsumeChallenge(ctx context.Context, id int64, consumedAt time.Time) error {
@@ -48,7 +48,7 @@ func (r *AccountMFARecords) ConsumeChallenge(ctx context.Context, id int64, cons
 	if err != nil {
 		return err
 	}
-	return requireMFATransition(db.NewRaw("UPDATE auth.mfa_email_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL", consumedAt, id).Exec(ctx))
+	return requireMFATransition(db.NewRaw("UPDATE auth.mfa_email_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id)", consumedAt, id).Exec(ctx))
 }
 
 func (r *AccountMFARecords) CountChallengesSince(ctx context.Context, accountID int64, since time.Time) (int, error) {
@@ -67,7 +67,7 @@ func (r *AccountMFARecords) FindActiveChallengeForAccount(ctx context.Context, i
 		return domain.AccountMFAChallenge{}, false, err
 	}
 	var row domain.AccountMFAChallenge
-	err = db.NewRaw("SELECT "+accountMFAChallengeColumns+" FROM auth.mfa_email_challenges WHERE id = ? AND account_id = ? AND consumed_at IS NULL AND expires_at > ? LIMIT 1", id, accountID, time.Now()).Scan(ctx, &row)
+	err = db.NewRaw("SELECT "+accountMFAChallengeColumns+" FROM auth.mfa_email_challenges WHERE id = ? AND account_id = ? AND consumed_at IS NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id) AND expires_at > ? LIMIT 1", id, accountID, time.Now()).Scan(ctx, &row)
 	return row, err == nil, err
 }
 
@@ -80,7 +80,7 @@ func (r *AccountMFARecords) FindActiveChallengeInScope(ctx context.Context, acco
 	// Zero retains the account-wide lookup for callers without a selected school.
 	err = db.NewRaw("SELECT "+accountMFAChallengeColumns+` FROM auth.mfa_email_challenges
  WHERE account_id = ? AND scope = ? AND (? <= 0 OR tenant_id = ?)
- AND consumed_at IS NULL AND expires_at > ? ORDER BY expires_at DESC LIMIT 1`,
+ AND consumed_at IS NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id) AND expires_at > ? ORDER BY expires_at DESC LIMIT 1`,
 		accountID, scope, tenantID, tenantID, time.Now()).Scan(ctx, &row)
 	return row, err == nil, err
 }

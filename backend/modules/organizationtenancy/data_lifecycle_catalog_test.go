@@ -28,6 +28,9 @@ func TestDataLifecycleCatalogRuntimeContract(t *testing.T) {
 			require.Equal(t, "include", table.Export)
 			require.NotEmpty(t, table.ExcludeSecretColumns["password_hash"])
 			require.NotEmpty(t, table.ExcludeSecretColumns["calendar_feed_token"])
+			for _, column := range []string{"password_attempts", "password_locked_until", "mfa_reset_generation"} {
+				require.NotEmpty(t, table.ExcludeSecretColumns[column], "authentication protection state stays outside customer exports")
+			}
 			return
 		}
 	}

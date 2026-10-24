@@ -57,7 +57,8 @@ func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 	challenge, err := module.MFA.StartMFAChallenge(ctx, account.ID, school, identityaccess.MFAChallengeScopeTenant, nil)
 	require.NoError(t, err, "demo bootstrap must be able to deliver an enrollment code internally")
 	code := <-codes
-	require.NoError(t, module.MFA.VerifyMFACodeForAccount(ctx, account.ID, school, code, identityaccess.MFAChallengeScopeTenant))
+	_, err = module.MFA.VerifyMFACodeForAccount(ctx, account.ID, school, code, identityaccess.MFAChallengeScopeTenant)
+	require.NoError(t, err)
 	require.NoError(t, module.MFA.EnrollMFA(testpkg.TenantContext(school), account.ID))
 	_, _, err = module.Auth.IssueTokensForAuthenticatedAccount(ctx, account.ID, school, "", "")
 	require.NoError(t, err)

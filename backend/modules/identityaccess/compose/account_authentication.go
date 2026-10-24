@@ -23,7 +23,7 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 	}
 	switch {
 	case deps.Schools == nil, deps.Persons == nil, deps.Passwords == nil, deps.Codec == nil,
-		deps.MFALock == nil, deps.Audit == nil, deps.Push == nil:
+		deps.PasswordLoginPolicy == nil, deps.MFALock == nil, deps.Audit == nil, deps.Push == nil:
 		return nil, errors.New("identity access compose: every session dependency is required")
 	}
 	attach := deps.TenantRuntime
@@ -31,15 +31,15 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		Store:     store,
 		Schools:   application.SchoolDirectory{SchoolDirectory: deps.Schools},
 		Persons:   deps.Persons,
-		Passwords: deps.Passwords,
-		Codec:     application.TokenCodec{TokenCodec: deps.Codec},
-		MFA:       mfa,
-		MFALock:   deps.MFALock,
-		Audit:     application.AuthAudit{Source: deps.Audit},
-		Push:      deps.Push,
-		Runtime:   tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
-		Attach:    attach,
-		Rotation:  rotation.RotationPolicy{}, WithRecoveryProof: rotation.WithRecoveryProof,
+		Passwords: deps.Passwords, PasswordPolicy: deps.PasswordLoginPolicy,
+		Codec:    application.TokenCodec{TokenCodec: deps.Codec},
+		MFA:      mfa,
+		MFALock:  deps.MFALock,
+		Audit:    application.AuthAudit{Source: deps.Audit},
+		Push:     deps.Push,
+		Runtime:  tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
+		Attach:   attach,
+		Rotation: rotation.RotationPolicy{}, WithRecoveryProof: rotation.WithRecoveryProof,
 		Caterers: caterers,
 		Logger:   deps.Logger,
 	})

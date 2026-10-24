@@ -244,6 +244,7 @@ func TestOperatorRefresh_RotatesInsideOneAdminTransaction(t *testing.T) {
 	f := newOperatorFixture(t)
 	f.seedOperator(42)
 	handle := login(t, f)
+	f.runtime.adminTxCount = 0 // Observe refresh, excluding the separately committed login counter.
 	ctx := withProof(context.Background(), "first-proof")
 
 	access, refresh, err := f.auth.RefreshToken(ctx, 42, handle)
@@ -267,6 +268,7 @@ func TestOperatorRefresh_RejectsBlankForeignAndUnknownHandles(t *testing.T) {
 	f.seedOperator(42)
 	f.seedOperator(43)
 	handle := login(t, f)
+	f.runtime.adminTxCount = 0 // Observe the refusal, excluding login.
 
 	_, _, err := f.auth.RefreshToken(context.Background(), 42, " \t ")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
@@ -496,6 +498,7 @@ func TestChangeOperatorPassword(t *testing.T) {
 		login(t, f)
 		login(t, f)
 		f.store.calls = nil
+		f.runtime.adminTxCount = 0 // Observe the password change, excluding logins.
 
 		require.NoError(t, f.auth.ChangePassword(context.Background(), 42, "secret", "ChangedPass789!"))
 		assert.Equal(t, "hash:ChangedPass789!", f.store.operators[42].PasswordHash)

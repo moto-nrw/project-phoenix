@@ -70,7 +70,7 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 	if err := f.completeChallengeVerification(ctx, claims, account.ID, active.ID); err != nil {
 		return domain.VerifiedMFAChallenge{}, err
 	}
-	return domain.VerifiedMFAChallenge{AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID}, nil
+	return domain.VerifiedMFAChallenge{AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID, MFAResetGeneration: active.MFAResetGeneration}, nil
 }
 
 // VerifyCodeForAccount runs the same pipeline without the JWT round trip:
@@ -84,31 +84,36 @@ func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeTok
 // have that code consumed here and a tenant session minted from a second
 // factor issued for another portal.
 func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
+	_, err := f.VerifyEnrollmentCode(ctx, accountID, tenantID, code, expectedScope)
+	return err
+}
+
+func (f *AccountMFAFlows) VerifyEnrollmentCode(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (domain.VerifiedMFAChallenge, error) {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found {
-		return identityaccess.ErrMFACodeInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return identityaccess.ErrMFALocked
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFALocked
 	}
 	// The challenge and lockout policy use the explicit school. Audit events
 	// below use the authenticated school context.
 	active, activeFound, err := f.records.FindActiveChallengeInScope(ctx, accountID, tenantID, expectedScope)
 	if err != nil || !activeFound {
 		f.recordFailure(ctx, accountID, 0, "no active challenge")
-		return identityaccess.ErrMFACodeInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 	threshold, duration, err := f.resolveLockoutPolicy(ctx, tenantID)
 	if err != nil {
-		return err
+		return domain.VerifiedMFAChallenge{}, err
 	}
 	ok, verifyErr := f.codes.VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
 		if err := f.handleFailedAttempt(ctx, account, tenantID, threshold, duration); err != nil {
-			return err
+			return domain.VerifiedMFAChallenge{}, err
 		}
 		f.recordFailure(ctx, accountID, 0, "code mismatch")
-		return identityaccess.ErrMFACodeInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 	if err := f.records.ConsumeChallenge(ctx, active.ID, f.now()); err != nil {
 		f.logger.Warn("failed to mark challenge consumed; refusing verify",
@@ -116,7 +121,7 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 			slog.Int64("challenge_id", active.ID),
 			slog.String("error", err.Error()))
 		f.recordFailure(ctx, accountID, 0, "consume race")
-		return identityaccess.ErrMFACodeInvalid
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 	// The caller may run this inside its own transaction (passkey
 	// registration), where a failed statement aborts everything after it. The
@@ -127,13 +132,13 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 			slog.Int64("account_id", accountID),
 			slog.String("error", err.Error()),
 		)
-		return identityaccess.ErrMFAStatusUnavailable
+		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFAStatusUnavailable
 	}
 	f.recordAuthEvent(ctx, domain.AuthEvent{
 		AccountID: accountID, Type: domain.AuthEventMFAVerified, Success: true,
 		IPAddress: domain.MFAAuditFallbackIP,
 	})
-	return nil
+	return domain.VerifiedMFAChallenge{AccountID: accountID, TenantID: tenantID, Scope: expectedScope, MFAResetGeneration: active.MFAResetGeneration}, nil
 }
 
 // resolveLockoutPolicy runs before code comparison so an unavailable policy

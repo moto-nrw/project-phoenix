@@ -364,3 +364,7 @@ func TestMFAVerify_SessionFailureDoesNotExposeTrustedCookie(t *testing.T) {
 	assert.NotContains(t, rr.Body.String(), "private-trusted-cookie")
 	assert.Zero(t, mfa.gotIssueAccountID, "failed sessions must not persist a device or send its notification")
 }
+
+func (s *completeMFAExchangeStub) IssueTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
+	return s.IssueTokensForAuthenticatedAccount(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent)
+}

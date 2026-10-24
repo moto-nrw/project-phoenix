@@ -168,7 +168,8 @@ type mappingKey struct{ accountID, tenantID int64 }
 // session service is constructed with), ports.OperatorStore, the session
 // store and ports.AccountLoginStore over maps.
 type fakeStore struct {
-	mu sync.Mutex
+	passwordStates map[int64]domain.PasswordLoginState
+	mu             sync.Mutex
 
 	accounts    map[int64]domain.LoginAccount
 	mappings    []mappingKey // insertion order
@@ -209,7 +210,7 @@ type fakeStore struct {
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{
+	return &fakeStore{passwordStates: make(map[int64]domain.PasswordLoginState),
 		accounts: map[int64]domain.LoginAccount{}, inactive: map[mappingKey]bool{},
 		roles: map[mappingKey][]domain.RoleAssignment{}, permissions: map[mappingKey][]string{},
 		operators: map[int64]domain.Operator{}, sessions: map[int64]domain.AccountSession{}, operatorTokens: map[int64]domain.OperatorSession{},
@@ -1081,7 +1082,7 @@ func newAuthFixture(t *testing.T) *authFixture {
 	audit := &fakeAudit{}
 	push := &fakePush{}
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, Codec: fakeCodec{},
+		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
 		MFA: mfa, MFALock: lock, Audit: audit, Push: push, Runtime: runtime, Rotation: fakeRotation{},
 		Logger: slog.New(slog.NewTextHandler(testWriter{t}, nil)),
 	})
@@ -1115,4 +1116,19 @@ func lehrkraftRole() domain.RoleAssignment {
 
 func (fakeTransaction) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
+}
+
+func testPasswordLoginPolicy() (int, time.Duration, error) { return 5, 15 * time.Minute, nil }
+func (s *fakeStore) LockPasswordLoginState(_ context.Context, id int64, operator bool) (domain.PasswordLoginState, error) {
+	if operator {
+		return s.passwordStates[-id], nil
+	}
+	return s.passwordStates[id], nil
+}
+func (s *fakeStore) SavePasswordLoginState(_ context.Context, id int64, operator bool, state domain.PasswordLoginState) error {
+	if operator {
+		id = -id
+	}
+	s.passwordStates[id] = state
+	return nil
 }

@@ -107,3 +107,25 @@ func (s *AccountAuthentication) trustedDeviceMintGuard(accountID, tenantID int64
 		return nil
 	}
 }
+
+// Reset and mint hold the same account row lock. A code proved before reset
+// must never restore the session proof reset has just revoked, even where
+// the current school does not itself require MFA.
+func (s *AccountAuthentication) verifiedMFAMintGuard(proof *identityaccess.VerifiedMFAChallenge, scope string, next mintGuard) mintGuard {
+	if proof == nil {
+		return next
+	}
+	return func(ctx context.Context, account domain.LoginAccount) error {
+		current, err := s.fetchAndValidateAccountForUpdate(ctx, account.ID)
+		if err != nil {
+			return err
+		}
+		if proof.AccountID != account.ID || proof.Scope != scope || proof.MFAResetGeneration != current.MFAResetGeneration {
+			return identityaccess.ErrInvalidToken
+		}
+		if next != nil {
+			return next(ctx, current)
+		}
+		return nil
+	}
+}

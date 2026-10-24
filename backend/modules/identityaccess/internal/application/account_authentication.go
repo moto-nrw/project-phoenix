@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"golang.org/x/sync/singleflight"
 
@@ -20,18 +21,19 @@ import (
 // opens; foreign facts (schools, person names, audit, push subscriptions, the
 // MFA gate, the token codec) arrive through ports the composition binds.
 type AccountAuthentication struct {
-	sessions  *Service
-	store     ports.AccountLoginStore
-	schools   ports.SchoolDirectory
-	persons   ports.PersonDirectory
-	passwords ports.PasswordVerifier
-	codec     ports.TokenCodec
-	mfa       ports.MFAGate
-	mfaLock   ports.MFAPolicyLock
-	audit     ports.AuthAudit
-	push      ports.PushSubscriptionCleanup
-	runtime   ports.Runtime
-	attach    func(context.Context) context.Context
+	sessions       *Service
+	store          ports.AccountLoginStore
+	schools        ports.SchoolDirectory
+	persons        ports.PersonDirectory
+	passwordPolicy func() (int, time.Duration, error)
+	passwords      ports.PasswordVerifier
+	codec          ports.TokenCodec
+	mfa            ports.MFAGate
+	mfaLock        ports.MFAPolicyLock
+	audit          ports.AuthAudit
+	push           ports.PushSubscriptionCleanup
+	runtime        ports.Runtime
+	attach         func(context.Context) context.Context
 	// withRecoveryProof binds a refresh-token recovery proof to the request
 	// context, where the rotation policy reads its hash.
 	withRecoveryProof func(ctx context.Context, proof string) context.Context
@@ -47,16 +49,17 @@ type AccountAuthentication struct {
 
 // AccountAuthenticationDependencies are the ports the flows consume.
 type AccountAuthenticationDependencies struct {
-	Store     ports.AccountLoginStore
-	Schools   ports.SchoolDirectory
-	Persons   ports.PersonDirectory
-	Passwords ports.PasswordVerifier
-	Codec     ports.TokenCodec
-	MFA       ports.MFAGate
-	MFALock   ports.MFAPolicyLock
-	Audit     ports.AuthAudit
-	Push      ports.PushSubscriptionCleanup
-	Runtime   ports.Runtime
+	Store          ports.AccountLoginStore
+	Schools        ports.SchoolDirectory
+	Persons        ports.PersonDirectory
+	PasswordPolicy func() (int, time.Duration, error)
+	Passwords      ports.PasswordVerifier
+	Codec          ports.TokenCodec
+	MFA            ports.MFAGate
+	MFALock        ports.MFAPolicyLock
+	Audit          ports.AuthAudit
+	Push           ports.PushSubscriptionCleanup
+	Runtime        ports.Runtime
 	// Attach binds the composed unit of work ahead of every public flow.
 	Attach func(context.Context) context.Context
 	// WithRecoveryProof binds a refresh-token recovery proof to the request
@@ -80,6 +83,8 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 		return nil, fmt.Errorf("identity access account authentication: school directory is required")
 	case deps.Persons == nil:
 		return nil, fmt.Errorf("identity access account authentication: person directory is required")
+	case deps.PasswordPolicy == nil:
+		return nil, fmt.Errorf("identity access account authentication: password policy is required")
 	case deps.Passwords == nil:
 		return nil, fmt.Errorf("identity access account authentication: password verifier is required")
 	case deps.Codec == nil:
@@ -102,7 +107,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 		logger = slog.Default()
 	}
 	return &AccountAuthentication{
-		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords,
+		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
 		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, caterers: deps.Caterers, logger: logger,
 	}, nil
@@ -370,4 +375,12 @@ func (s *AccountAuthentication) FindSchoolPortalTenant(ctx context.Context, acco
 // BindRuntime attaches the unit of work the session flows were composed with.
 func (s *AccountAuthentication) BindRuntime(ctx context.Context) context.Context {
 	return bindRuntime(s.attach, ctx)
+}
+
+func (s *AccountAuthentication) IssueSchoolTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
+	if s == nil {
+		return "", "", errAccountAuthenticationUnavailable
+	}
+	access, refresh, err := s.issueSchoolTokensForAuthenticatedAccount(bindRuntime(s.attach, ctx), proof.AccountID, proof.TenantID, ipAddress, userAgent, proof)
+	return access, refresh, authenticationError(err)
 }

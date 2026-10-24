@@ -38,6 +38,7 @@ export type StudentExportColumn =
   | "current_location"
   | "birthday"
   | "age"
+  | "checklist"
   | "health_info";
 
 export interface StudentExportFilters {
@@ -225,6 +226,12 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     description:
       "Alter in Jahren am heutigen Tag, berechnet aus dem Geburtsdatum.",
   },
+  {
+    id: "checklist",
+    label: "Abhaken",
+    group: "base",
+    description: "Leere Spalte zum Abhaken auf der gedruckten Liste.",
+  },
 ];
 
 export const STUDENT_EXPORT_PRESETS: Array<{
@@ -327,7 +334,7 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     id: "blank_checklist",
     label: "Checkliste",
     description: "Einfache Liste zum manuellen Abhaken.",
-    columns: ["name", "school_class", "group"],
+    columns: ["name", "school_class", "group", "checklist"],
   },
   {
     id: "birthday_list",

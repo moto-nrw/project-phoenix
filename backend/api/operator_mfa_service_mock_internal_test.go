@@ -5,6 +5,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
@@ -155,11 +157,12 @@ func (m *MFAServiceMock) ResendMFAChallengeForScope(ctx context.Context, challen
 	return "", nil
 }
 
-func (m *MFAServiceMock) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
+func (m *MFAServiceMock) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (identityaccess.VerifiedMFAChallenge, error) {
+	var err error
 	if m.VerifyMFACodeForAccountFn != nil {
-		return m.VerifyMFACodeForAccountFn(ctx, accountID, tenantID, code, expectedScope)
+		err = m.VerifyMFACodeForAccountFn(ctx, accountID, tenantID, code, expectedScope)
 	}
-	return nil
+	return identityaccess.VerifiedMFAChallenge{AccountID: accountID, TenantID: tenantID, Scope: expectedScope}, err
 }
 
 func (m *MFAServiceMock) EnrollMFA(ctx context.Context, accountID int64) error {
