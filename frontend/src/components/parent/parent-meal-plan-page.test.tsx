@@ -1469,7 +1469,7 @@ describe("ParentMealPlanPage", () => {
         await waitFor(() => expect(weekStatus).toHaveTextContent(label));
       }
       await waitFor(() => expect(nextWeek).toBeDisabled());
-      expect(screen.getAllByText("Essensplan folgt")).toHaveLength(5);
+      expect(screen.getAllByText("Speiseplan folgt")).toHaveLength(5);
       expect(mocks.getChildMealPlan).not.toHaveBeenCalledWith(
         "child-1",
         "2026-08-24",

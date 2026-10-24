@@ -34,7 +34,7 @@ export const categoryLabels: Record<string, string> = {
   einladungen: "Einladungen",
   elternmeldungen: "Meldungen von Eltern",
   elternportal: "Elternportal",
-  essensplan: "Essensplan",
+  essensplan: "Speiseplan",
   feedback: "Feedback der Kinder",
   formular: "Anmeldeformular",
   "fristen-essen": "Fristen",

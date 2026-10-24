@@ -173,7 +173,7 @@ describe("meal plan feature gate", () => {
     features.mealPlanEnabled = false;
     const { rerender } = renderPage();
 
-    expect(screen.getByText("Essensplan")).toBeInTheDocument();
+    expect(screen.getByText("Speiseplan")).toBeInTheDocument();
     expect(getMealPlanWeek).not.toHaveBeenCalled();
 
     features.mealPlanEnabled = true;

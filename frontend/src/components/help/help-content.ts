@@ -4207,13 +4207,13 @@ function mealOrderingTopic(): HelpTopic {
       "An Schließtagen und Feiertagen isst niemand. In den Ferien gelten die festen Tage nicht, einzeln angemeldete Tage zählen.",
       "`Entschuldigt` und `Klassenfahrt` melden das Essen ab wie eine Krankmeldung.",
       "Für die Küche legen Sie eine Rolle mit den Rechten unter `Mittagessen` an. Sie braucht keinen Zugriff auf alle Kinderdaten.",
-      "Zur Frist friert moto die Bestellung ein. Unter `Essensplan` zeigt `Bestellung` je Tag `Offen`, `Bestellt` oder `Vom Caterer bestätigt`, dazu die `Frist`, die Zahl der Essen und die `Nachmeldungen` danach.",
+      "Zur Frist friert moto die Bestellung ein. Unter `Speiseplan` zeigt `Bestellung` je Tag `Offen`, `Bestellt` oder `Vom Caterer bestätigt`, dazu die `Frist`, die Zahl der Essen und die `Nachmeldungen` danach.",
       "Tage vor dem Start der Bestellung stehen auf `Nicht bestellt`. Sie zählen nicht.",
       "Mit `… als Excel` oder `… als PDF` laden Sie die bestellten Essen je Kind für einen Monat herunter, zum Beispiel für die Essenspauschale. Liegt die Woche in zwei Monaten, wählen Sie vorher den Monat.",
     ],
     differences: [
       "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
-      "Die Schule ändert eine Anmeldung auch nach der Frist: unter `Essensplan` mit `Anmeldung ändern`. Das geht für einen Tag, zurück `Wie an festen Tagen` oder für die festen Tage ab einem Datum. moto hält jede Änderung mit Konto und Zeit fest.",
+      "Die Schule ändert eine Anmeldung auch nach der Frist: unter `Speiseplan` mit `Anmeldung ändern`. Das geht für einen Tag, zurück `Wie an festen Tagen` oder für die festen Tage ab einem Datum. moto hält jede Änderung mit Konto und Zeit fest.",
     ],
     troubleshootingDetails: [
       "Fehlen die Fristen? Dann ist `Anmeldung zum Mittagessen` noch aus.",
@@ -4225,7 +4225,7 @@ function mealOrderingTopic(): HelpTopic {
 
 /**
  * Der Caterer der Schule (ADR 0077): Einladung per E-Mail unter
- * `Essensplan`, Ende der Belieferung, und was der Caterer sieht.
+ * `Speiseplan`, Ende der Belieferung, und was der Caterer sieht.
  */
 function mealCatererTopic(): HelpTopic {
   return {
@@ -4239,10 +4239,10 @@ function mealCatererTopic(): HelpTopic {
     icon: "Truck",
     requirements: [
       "`Anmeldung zum Mittagessen` ist eingeschaltet.",
-      "Ihr Konto darf den Essensplan bearbeiten.",
+      "Ihr Konto darf den Speiseplan bearbeiten.",
     ],
     steps: [
-      "Öffnen Sie in der Seitenleiste `Essensplan`.",
+      "Öffnen Sie in der Seitenleiste `Speiseplan`.",
       "Gehen Sie unten zur Karte `Caterer`.",
       "Tragen Sie `Name des Caterers` und `E-Mail-Adresse des Caterers` ein. Die Lieferadresse ist freiwillig.",
       "Wählen Sie `Einladung senden`.",
@@ -4259,7 +4259,7 @@ function mealCatererTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Kam keine E-Mail an? Nehmen Sie die Einladung mit `Zurücknehmen` zurück und senden Sie eine neue.",
-      "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Essensplan nicht bearbeiten.",
+      "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
     ],
     related: [HELP_TOPICS.leadMealOrdering, HELP_TOPICS.leadMealPlan],
   };
@@ -7104,7 +7104,7 @@ function parentMealPlanTopic(): HelpTopic {
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
       "Bei jedem Tag steht, bis wann Sie ändern können, zum Beispiel `Abmelden bis Do., 17.09., 12:00`.",
       "Mit `Woche anmelden` oder `Woche abmelden` ändern Sie alle Tage der Woche auf einmal, die Sie noch ändern können.",
-      "Die Anmeldung sehen Sie bis zu vier Wochen im Voraus. Den Essensplan gibt es für diese und nächste Woche.",
+      "Die Anmeldung sehen Sie bis zu vier Wochen im Voraus. Den Speiseplan gibt es für diese und nächste Woche.",
     ],
     differences: [
       "Steht an einem Tag `Kein Essen eingetragen`, hat die OGS dafür nichts hinterlegt.",

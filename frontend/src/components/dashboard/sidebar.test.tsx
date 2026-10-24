@@ -484,12 +484,12 @@ describe("Sidebar", () => {
         vi.mocked(useMealPlanEnabled).mockReturnValue(true);
 
         const { unmount } = render(<Sidebar />);
-        expect(screen.getByText("Essensplan")).toBeInTheDocument();
+        expect(screen.getByText("Speiseplan")).toBeInTheDocument();
         unmount();
 
         vi.mocked(useMealPlanEnabled).mockReturnValue(false);
         render(<Sidebar />);
-        expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
+        expect(screen.queryByText("Speiseplan")).not.toBeInTheDocument();
       },
     );
 

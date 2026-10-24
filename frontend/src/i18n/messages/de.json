@@ -250,7 +250,7 @@
     "errorObjectWeek": "die Essensliste dieser Woche",
     "errorObjectParticipation": "die Anmeldung zum Mittagessen",
     "inWeeks": "In {count} Wochen",
-    "mealPlanLater": "Essensplan folgt",
+    "mealPlanLater": "Speiseplan folgt",
     "participationDeadlines": "Bis wann Sie ändern können, steht bei jedem Tag.",
     "deadlineBoth": "Änderbar bis {date}",
     "deadlineRegister": "Anmelden bis {date}",

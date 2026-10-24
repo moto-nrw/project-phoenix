@@ -195,8 +195,8 @@ const permissionDescriptions: Record<string, string> = {
     "Alle Einstellungen der Schule ändern, auch Anmeldung, Formulare und Datenschutz",
 
   // Mittagessen (#3873)
-  "meals:read": "Essensplan und Essenszahlen ansehen",
-  "meals:manage": "Essensplan pflegen und den Caterer verwalten",
+  "meals:read": "Speiseplan und Essenszahlen ansehen",
+  "meals:manage": "Speiseplan pflegen und den Caterer verwalten",
   "meals:orders": "Essenslisten mit Namen sehen",
   "meals:register": "Anmeldung eines Kindes ändern, auch nach der Frist",
 
