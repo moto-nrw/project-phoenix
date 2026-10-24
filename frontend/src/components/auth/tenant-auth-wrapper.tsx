@@ -27,7 +27,7 @@ import {
 } from "~/lib/analytics-consent";
 import { useTenant } from "~/lib/tenant-context";
 import { TENANT_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
-import { AnalyticsConsentPrompt } from "~/components/analytics/analytics-consent-prompt";
+import { AnalyticsConsentPromptGate } from "~/components/analytics/analytics-consent-prompt-gate";
 
 const logger = createLogger({ component: "TenantAuthWrapper" });
 
@@ -154,7 +154,7 @@ function TeacherSpecificHooks() {
   }, [sseStatus, contextReady, status]);
 
   return (
-    <AnalyticsConsentPrompt
+    <AnalyticsConsentPromptGate
       portal="tenant"
       copy={TENANT_ANALYTICS_CONSENT_COPY}
       recording={freigabe}

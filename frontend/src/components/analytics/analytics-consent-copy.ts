@@ -1,10 +1,8 @@
-"use client";
-
-import { useTranslations } from "next-intl";
-
 /**
  * Texts of the consent prompt and the consent setting (#4901). The OGS and
- * the school portal are German-only; the parents portal translates them.
+ * the school portal are German-only; the parents portal translates them in
+ * `parent-analytics-consent-copy.ts`, which keeps next-intl out of the staff
+ * bundles.
  */
 export interface AnalyticsConsentCopy {
   readonly title: string;
@@ -67,26 +65,3 @@ export const TENANT_ANALYTICS_CONSENT_COPY = germanCopy("Profil", true);
 
 /** moto schule: changed under „Einstellungen“, never recorded. */
 export const SCHOOL_ANALYTICS_CONSENT_COPY = germanCopy("Einstellungen", false);
-
-export function useParentAnalyticsConsentCopy(): AnalyticsConsentCopy {
-  const t = useTranslations("analyticsConsent");
-  return {
-    title: t("title"),
-    promptTitle: t("promptTitle"),
-    promptIntro: t("promptIntro"),
-    promptPrivacy: t("promptPrivacy"),
-    promptNoDisadvantage: t("promptNoDisadvantage"),
-    promptChangeLater: t("promptChangeLater"),
-    allow: t("allow"),
-    refuse: t("refuse"),
-    saving: t("saving"),
-    closeLabel: t("closeLabel"),
-    sectionDescription: t("sectionDescription"),
-    switchLabel: t("switchLabel"),
-    schoolOff: t("schoolOff"),
-    // The parents portal is never recorded.
-    recordingActive: "",
-    recordingPossible: "",
-    errorObject: t("errorObject"),
-  };
-}

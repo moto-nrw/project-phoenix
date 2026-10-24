@@ -31,8 +31,8 @@ vi.mock("~/lib/analytics-consent", () => ({
   stopAnalyticsConsent: mocks.stopAnalyticsConsent,
   setAnalyticsConsentSchool: mocks.setAnalyticsConsentSchool,
 }));
-vi.mock("~/components/analytics/analytics-consent-prompt", () => ({
-  AnalyticsConsentPrompt: () => null,
+vi.mock("~/components/analytics/analytics-consent-prompt-gate", () => ({
+  AnalyticsConsentPromptGate: () => null,
 }));
 
 function renderWrapper() {

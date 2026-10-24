@@ -1,4 +1,5 @@
 import { act, render, waitFor } from "@testing-library/react";
+import type { AnalyticsConsentCopy } from "~/components/analytics/analytics-consent-copy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PortalAnalyticsSession } from "./portal-analytics-session";
 
@@ -28,13 +29,12 @@ vi.mock("~/lib/analytics-consent", () => ({
   stopAnalyticsConsent: mocks.stopAnalyticsConsent,
   setAnalyticsConsentSchool: mocks.setAnalyticsConsentSchool,
 }));
-vi.mock("~/components/analytics/analytics-consent-prompt", () => ({
-  AnalyticsConsentPrompt: () => null,
+vi.mock("~/components/analytics/analytics-consent-prompt-gate", () => ({
+  AnalyticsConsentPromptGate: () => null,
 }));
-vi.mock("~/components/analytics/analytics-consent-copy", () => ({
-  SCHOOL_ANALYTICS_CONSENT_COPY: {},
-  useParentAnalyticsConsentCopy: () => ({}),
-}));
+
+// The prompt is mocked; its texts do not matter here.
+const COPY = {} as AnalyticsConsentCopy;
 
 describe("PortalAnalyticsSession", () => {
   beforeEach(() => {
@@ -70,7 +70,9 @@ describe("PortalAnalyticsSession", () => {
       const visible = vi
         .spyOn(document, "visibilityState", "get")
         .mockReturnValue("visible");
-      const view = render(<PortalAnalyticsSession surface={surface} />);
+      const view = render(
+        <PortalAnalyticsSession surface={surface} consentCopy={COPY} />,
+      );
       await act(async () => {});
       expect(mocks.registerPortalSession).toHaveBeenCalledOnce();
       visible.mockReturnValue("hidden");
@@ -105,7 +107,7 @@ describe("PortalAnalyticsSession", () => {
       data: { user: { id: "7", scope: "parent", roles: ["guardian"] } },
     });
 
-    render(<PortalAnalyticsSession surface="parents" />);
+    render(<PortalAnalyticsSession surface="parents" consentCopy={COPY} />);
 
     await waitFor(() =>
       expect(mocks.registerPortalSession).toHaveBeenCalledWith(
@@ -126,7 +128,7 @@ describe("PortalAnalyticsSession", () => {
         data: { user: { id: "7", scope, tenantId: 42 } },
       });
 
-      render(<PortalAnalyticsSession surface={surface} />);
+      render(<PortalAnalyticsSession surface={surface} consentCopy={COPY} />);
 
       expect(mocks.startAnalyticsConsent).toHaveBeenCalledWith(portal, "7");
       await waitFor(() =>
@@ -144,7 +146,7 @@ describe("PortalAnalyticsSession", () => {
       data: { user: { id: "9", scope: "school", tenantId: 42 } },
     });
 
-    render(<PortalAnalyticsSession surface="school" />);
+    render(<PortalAnalyticsSession surface="school" consentCopy={COPY} />);
 
     await waitFor(() =>
       expect(mocks.registerPortalSession).toHaveBeenCalledWith(
@@ -164,7 +166,7 @@ describe("PortalAnalyticsSession", () => {
       vi.mocked(global.fetch).mockResolvedValue(
         new Response(JSON.stringify({ data: { enabled } })),
       );
-      render(<PortalAnalyticsSession surface="parents" />);
+      render(<PortalAnalyticsSession surface="parents" consentCopy={COPY} />);
       await waitFor(() =>
         expect(mocks.registerPortalSession).toHaveBeenCalledWith(
           {
@@ -184,10 +186,14 @@ describe("PortalAnalyticsSession", () => {
       status: "authenticated",
       data: { user: { id: "9", scope: "school", tenantId: 42 } },
     });
-    const view = render(<PortalAnalyticsSession surface="school" />);
+    const view = render(
+      <PortalAnalyticsSession surface="school" consentCopy={COPY} />,
+    );
 
     mocks.useSession.mockReturnValue({ status: "unauthenticated", data: null });
-    view.rerender(<PortalAnalyticsSession surface="school" />);
+    view.rerender(
+      <PortalAnalyticsSession surface="school" consentCopy={COPY} />,
+    );
 
     expect(mocks.clearPortalSession).toHaveBeenCalledOnce();
     expect(mocks.stopAnalyticsConsent).toHaveBeenCalledWith("school");
@@ -198,7 +204,9 @@ describe("PortalAnalyticsSession", () => {
       status: "authenticated",
       data: { user: { id: "9", scope: "school", tenantId: 42 } },
     });
-    const view = render(<PortalAnalyticsSession surface="school" />);
+    const view = render(
+      <PortalAnalyticsSession surface="school" consentCopy={COPY} />,
+    );
     await waitFor(() =>
       expect(mocks.registerPortalSession).toHaveBeenCalledOnce(),
     );
@@ -207,7 +215,9 @@ describe("PortalAnalyticsSession", () => {
       status: "authenticated",
       data: { user: { id: "9", scope: "school", tenantId: 43 } },
     });
-    view.rerender(<PortalAnalyticsSession surface="school" />);
+    view.rerender(
+      <PortalAnalyticsSession surface="school" consentCopy={COPY} />,
+    );
 
     await waitFor(() =>
       expect(mocks.registerPortalSession).toHaveBeenLastCalledWith(
@@ -228,7 +238,9 @@ describe("PortalAnalyticsSession", () => {
         status: "authenticated",
         data: { user },
       });
-      const view = render(<PortalAnalyticsSession surface={surface} />);
+      const view = render(
+        <PortalAnalyticsSession surface={surface} consentCopy={COPY} />,
+      );
       await waitFor(() =>
         expect(mocks.registerPortalSession).toHaveBeenCalledOnce(),
       );
@@ -237,7 +249,9 @@ describe("PortalAnalyticsSession", () => {
         status: "authenticated",
         data: { user: { ...user, id: "8" } },
       });
-      view.rerender(<PortalAnalyticsSession surface={surface} />);
+      view.rerender(
+        <PortalAnalyticsSession surface={surface} consentCopy={COPY} />,
+      );
 
       await waitFor(() =>
         expect(mocks.registerPortalSession).toHaveBeenLastCalledWith(
@@ -259,7 +273,7 @@ describe("PortalAnalyticsSession", () => {
       data: { user: { id: "9", scope: "", tenantId: 42 } },
     });
 
-    render(<PortalAnalyticsSession surface="school" />);
+    render(<PortalAnalyticsSession surface="school" consentCopy={COPY} />);
 
     expect(mocks.registerPortalSession).not.toHaveBeenCalled();
     expect(mocks.clearPortalSession).toHaveBeenCalledOnce();
@@ -268,7 +282,7 @@ describe("PortalAnalyticsSession", () => {
   it("waits while the session loads", () => {
     mocks.useSession.mockReturnValue({ status: "loading", data: null });
 
-    render(<PortalAnalyticsSession surface="parents" />);
+    render(<PortalAnalyticsSession surface="parents" consentCopy={COPY} />);
 
     expect(mocks.registerPortalSession).not.toHaveBeenCalled();
     expect(mocks.clearPortalSession).not.toHaveBeenCalled();

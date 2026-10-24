@@ -5,7 +5,6 @@ import { ChartLine } from "lucide-react";
 import {
   SCHOOL_ANALYTICS_CONSENT_COPY,
   TENANT_ANALYTICS_CONSENT_COPY,
-  useParentAnalyticsConsentCopy,
   type AnalyticsConsentCopy,
 } from "~/components/analytics/analytics-consent-copy";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
@@ -31,7 +30,7 @@ const logger = createLogger({ component: "AnalyticsConsentSection" });
  * is saved. The school's switch still decides whether anything runs; while it
  * is off, the card says so and keeps the person's choice for later.
  */
-function AnalyticsConsentSection({
+export function AnalyticsConsentSection({
   portal,
   copy,
   recording = false,
@@ -139,15 +138,6 @@ export function SchoolAnalyticsConsentSection() {
     <AnalyticsConsentSection
       portal="school"
       copy={SCHOOL_ANALYTICS_CONSENT_COPY}
-    />
-  );
-}
-
-export function ParentAnalyticsConsentSection() {
-  return (
-    <AnalyticsConsentSection
-      portal="parent"
-      copy={useParentAnalyticsConsentCopy()}
     />
   );
 }

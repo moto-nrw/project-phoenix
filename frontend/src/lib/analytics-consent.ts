@@ -11,8 +11,6 @@
  */
 
 import { useSyncExternalStore } from "react";
-// zod/mini: the full "zod" build adds ~20 kB to every route's client bundle.
-import * as z from "zod/mini";
 import { clientEnv } from "~/env.client";
 import { analyticsDeployment } from "~/lib/analytics-deployment";
 import type { AnalyticsSurface } from "~/lib/analytics-policy";
@@ -61,14 +59,19 @@ const IDLE: AnalyticsConsentState = {
   dismissed: false,
 };
 
-const consentResponseSchema = z.object({
-  data: z.object({ granted: z.nullable(z.boolean()) }),
-});
+/** The stored answer from `{ data: { granted } }`; any other shape fails. */
+function grantedOf(body: unknown): boolean | null {
+  const granted = (body as { data?: { granted?: unknown } } | null)?.data
+    ?.granted;
+  if (granted === null || typeof granted === "boolean") return granted;
+  throw new Error("analytics consent: unexpected response shape");
+}
 
 let state = IDLE;
 let sessionKey: string | null = null;
 let sequence = 0;
 let revocationPending = false;
+let refreshFailed = false;
 let deciding = false;
 let stopRefresh: (() => void) | null = null;
 
@@ -108,15 +111,19 @@ async function requestConsent(
       `Nutzungsstatistik-Einwilligung fehlgeschlagen (${response.status}).`,
     );
   }
-  return consentResponseSchema.parse(await response.json()).data.granted;
+  // Mounted on every portal page: a hand check instead of a schema library.
+  return grantedOf(await response.json());
 }
 
 /**
  * Collection follows the stored answer, except after a revocation that could
- * not be saved: that one keeps this page off until a decision is stored.
+ * not be saved or a re-read that failed: those keep this page off until a
+ * decision is stored or a read succeeds.
  */
 function publishStored(): void {
-  publishConsent(state.granted === true && !revocationPending);
+  publishConsent(
+    state.granted === true && !revocationPending && !refreshFailed,
+  );
 }
 
 /**
@@ -148,6 +155,7 @@ export function startAnalyticsConsent(
   }
   sessionKey = key;
   revocationPending = false;
+  refreshFailed = false;
   publishConsent(false);
   update({ ...IDLE, portal, status: "loading" });
   watchOtherTabs();
@@ -181,12 +189,15 @@ async function refreshAnalyticsConsent(): Promise<void> {
   try {
     const granted = await requestConsent(portal);
     if (current !== sequence) return;
+    refreshFailed = false;
     update({ granted });
     publishStored();
   } catch {
     // A failed re-read is not shown: the card keeps the last stored answer,
     // and collection stays off until a read or decision succeeds.
-    if (current === sequence) publishConsent(false);
+    if (current !== sequence) return;
+    refreshFailed = true;
+    publishConsent(false);
   }
 }
 
@@ -199,6 +210,7 @@ export async function loadAnalyticsConsent(): Promise<void> {
   try {
     const granted = await requestConsent(portal);
     if (current !== sequence) return;
+    refreshFailed = false;
     update({ status: "ready", granted });
     publishStored();
   } catch (error) {
@@ -214,6 +226,7 @@ export function stopAnalyticsConsent(portal: AnalyticsConsentPortal): void {
   sessionKey = null;
   sequence++;
   revocationPending = false;
+  refreshFailed = false;
   stopRefresh?.();
   if (state.portal) publishConsent(false);
   update(IDLE);
@@ -254,6 +267,7 @@ export async function decideAnalyticsConsent(granted: boolean): Promise<void> {
   }
   if (current !== sequence) return;
   revocationPending = false;
+  refreshFailed = false;
   update({ status: "ready", granted: stored, error: null, dismissed: true });
   publishStored();
 }

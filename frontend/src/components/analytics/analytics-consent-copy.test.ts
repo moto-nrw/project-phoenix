@@ -3,8 +3,8 @@ import en from "~/i18n/messages/en.json";
 import {
   SCHOOL_ANALYTICS_CONSENT_COPY,
   TENANT_ANALYTICS_CONSENT_COPY,
-  useParentAnalyticsConsentCopy,
 } from "./analytics-consent-copy";
+import { useParentAnalyticsConsentCopy } from "./parent-analytics-consent-copy";
 
 vi.mock("next-intl", () => ({
   useTranslations: (namespace: keyof typeof en) => (key: string) =>

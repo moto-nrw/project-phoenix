@@ -230,6 +230,26 @@ describe("analytics consent", () => {
     visibility.mockRestore();
   });
 
+  it("keeps collection off after a failed re-read until a read succeeds", async () => {
+    fetchMock.mockResolvedValueOnce(answer(true));
+    const { startAnalyticsConsent } = await load();
+    startAnalyticsConsent("tenant", "7");
+    await vi.waitFor(() => expect(published()).toEqual([false, true]));
+
+    fetchMock.mockResolvedValueOnce(answer(null, 500));
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(published()).toEqual([false, true, false]));
+
+    // A remount of the same session must not restore the stale answer.
+    startAnalyticsConsent("tenant", "7");
+    expect(published().at(-1)).toBe(false);
+
+    fetchMock.mockResolvedValueOnce(answer(true));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(published().at(-1)).toBe(true));
+  });
+
   it("keeps a revocation that could not be saved in force on this page", async () => {
     fetchMock.mockResolvedValueOnce(answer(true));
     const { startAnalyticsConsent, decideAnalyticsConsent } = await load();

@@ -9,36 +9,27 @@ import {
   startAnalyticsConsent,
   stopAnalyticsConsent,
 } from "~/lib/analytics-consent";
-import {
-  SCHOOL_ANALYTICS_CONSENT_COPY,
-  useParentAnalyticsConsentCopy,
-} from "~/components/analytics/analytics-consent-copy";
-import { AnalyticsConsentPrompt } from "~/components/analytics/analytics-consent-prompt";
+import type { AnalyticsConsentCopy } from "~/components/analytics/analytics-consent-copy";
+import { AnalyticsConsentPromptGate } from "~/components/analytics/analytics-consent-prompt-gate";
 
 const PORTALS = {
   parents: { scope: "parent", role: "guardian", consent: "parent" },
   school: { scope: "school", role: "lehrkraft", consent: "school" },
 } as const;
 
-function ParentConsentPrompt() {
-  return (
-    <AnalyticsConsentPrompt
-      portal="parent"
-      copy={useParentAnalyticsConsentCopy()}
-    />
-  );
-}
-
 /**
  * Registers the analytics context of the parents or school portal at login
  * and clears it at logout, like TenantAuthWrapper does for the OGS portal.
  * Mounted inside the portal's SessionProvider. It also reads the person's
- * consent (#4901) and renders the consent prompt after login.
+ * consent (#4901) and renders the consent prompt after login, in the texts
+ * the portal hands in (translated in the parents portal).
  */
 export function PortalAnalyticsSession({
   surface,
+  consentCopy,
 }: {
   readonly surface: keyof typeof PORTALS;
+  readonly consentCopy: AnalyticsConsentCopy;
 }) {
   const { data: session, status } = useSession();
   const { scope, role, consent } = PORTALS[surface];
@@ -109,12 +100,5 @@ export function PortalAnalyticsSession({
     };
   }, [status, inScope, accountId, schoolId, surface, scope, role, consent]);
 
-  return surface === "parents" ? (
-    <ParentConsentPrompt />
-  ) : (
-    <AnalyticsConsentPrompt
-      portal="school"
-      copy={SCHOOL_ANALYTICS_CONSENT_COPY}
-    />
-  );
+  return <AnalyticsConsentPromptGate portal={consent} copy={consentCopy} />;
 }
