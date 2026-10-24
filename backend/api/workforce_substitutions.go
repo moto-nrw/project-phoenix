@@ -6,6 +6,7 @@ import (
 
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	substitutionsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/substitutions"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -21,15 +22,15 @@ func (e *capabilityError) Error() string        { return e.cause.Error() }
 func (e *capabilityError) Is(target error) bool { return target == e.kind }
 func (e *capabilityError) Unwrap() error        { return e.cause }
 
-// substitutionCapability serves workforceModule.Substitutions from the retained
+// substitutionCapability serves the /api/substitutions entry from the retained
 // substitution module while that module's own move into the Workforce owner is
 // pending (#2688). It only maps the storage-neutral contract types; every
 // access rule and write stays in the module.
-type substitutionCapability struct{ module education.SubstitutionModule }
+type substitutionCapability struct{ module SubstitutionOperations }
 
 // SubstitutionCapability binds the /api/substitutions capability to the
 // substitution module.
-func SubstitutionCapability(module education.SubstitutionModule) workforceModule.Substitutions {
+func SubstitutionCapability(module SubstitutionOperations) substitutionsHTTP.Substitutions {
 	if module == nil {
 		panic("substitution capability: substitution module is required")
 	}

@@ -34,7 +34,7 @@ func NewStaffOffboardingWorkflow(deps offboardingcompose.Dependencies) (*staffof
 			return ids, nil
 		},
 	}, func(ctx context.Context, absence workforce.StaffAbsence, actorID int64) error {
-		record, err := deps.AbsenceDeletionRecord(absence, actorID)
+		record, err := staffAbsenceDeletionRecord(absence, actorID)
 		if err != nil {
 			return err
 		}

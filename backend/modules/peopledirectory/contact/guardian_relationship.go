@@ -26,6 +26,50 @@ func IsValidRelationshipType(value string) bool {
 	return validRelationshipTypes[strings.ToLower(strings.TrimSpace(value))]
 }
 
+// relationshipTypeLabels maps the German and English labels of a guardian's
+// relationship to its stored type.
+var relationshipTypeLabels = map[string]string{
+	// Parent types
+	"mutter":     "parent",
+	"vater":      "parent",
+	"mama":       "parent",
+	"papa":       "parent",
+	"elternteil": "parent",
+	"parent":     "parent",
+
+	// Guardian types
+	"vormund":                "guardian",
+	"erziehungsberechtigter": "guardian",
+	"erziehungsberechtigte":  "guardian",
+	"guardian":               "guardian",
+
+	// Relative types
+	"großmutter":  "relative",
+	"großvater":   "relative",
+	"oma":         "relative",
+	"opa":         "relative",
+	"tante":       "relative",
+	"onkel":       "relative",
+	"geschwister": "relative",
+	"bruder":      "relative",
+	"schwester":   "relative",
+	"relative":    "relative",
+
+	// Other types
+	"sonstige": "other",
+	"andere":   "other",
+	"other":    "other",
+}
+
+// MapRelationshipType converts a German or English relationship label to its
+// stored type. An unknown label is "other".
+func MapRelationshipType(label string) string {
+	if mapped, ok := relationshipTypeLabels[strings.ToLower(strings.TrimSpace(label))]; ok {
+		return mapped
+	}
+	return "other"
+}
+
 // NormalizeGuardianRelationship preserves the retained validator's ordering,
 // including values normalized before it returns an error.
 func NormalizeGuardianRelationship(value *GuardianRelationshipValues) error {
