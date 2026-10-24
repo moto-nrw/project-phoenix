@@ -210,7 +210,7 @@ func (s *SurveyStore) CreateSurvey(ctx context.Context, in communication.SurveyI
 	if row.Targets == nil {
 		row.Targets = []communication.SurveyTarget{}
 	}
-	if _, err := db.NewInsert().Model(row).ExcludeColumn("participant_count").
+	if _, err := db.NewInsert().Model(row).
 		Returning("id, created_at, updated_at").Exec(ctx); err != nil {
 		return nil, fmt.Errorf("create survey: %w", err)
 	}
