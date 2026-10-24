@@ -48,7 +48,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 	}
 	runtime := tenantRuntime{attach: sessions.TenantRuntime, runner: tenant.NewTransactionRunner()}
 	operatorAuth, err := application.NewOperatorAuthentication(service, application.OperatorAuthenticationDependencies{
-		Passwords:   sessions.Passwords,
+		Passwords: sessions.Passwords, PasswordPolicy: sessions.PasswordLoginPolicy,
 		Hasher:      deps.Passwords,
 		Codec:       application.TokenCodec{TokenCodec: sessions.Codec},
 		MFA:         mfa,

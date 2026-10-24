@@ -45,6 +45,7 @@ type Store interface {
 // and the operator refresh-session table. Both are platform-wide: no row
 // carries a tenant.
 type OperatorStore interface {
+	PasswordLoginStore
 	FindOperator(ctx context.Context, id int64, forUpdate bool) (domain.Operator, bool, domain.OperationStats, error)
 	FindOperatorByEmail(ctx context.Context, email string) (domain.Operator, bool, domain.OperationStats, error)
 	ListOperators(ctx context.Context) ([]domain.Operator, domain.OperationStats, error)
@@ -264,7 +265,13 @@ type Observer func(Observation)
 // tenant-scoped roles and permissions. Every statement runs on the
 // connection the caller's context carries; the locking variants require an
 // ambient transaction.
+type PasswordLoginStore interface {
+	LockPasswordLoginState(ctx context.Context, id int64, operator bool) (domain.PasswordLoginState, error)
+	SavePasswordLoginState(ctx context.Context, id int64, operator bool, state domain.PasswordLoginState) error
+}
+
 type AccountLoginStore interface {
+	PasswordLoginStore
 	// DemoAccountExists reports whether a demo access of the public demo
 	// signed the account in (#3462). It needs the administrative transaction.
 	DemoAccountExists(ctx context.Context, accountID int64) (bool, error)
@@ -335,16 +342,16 @@ type TokenCodec interface {
 	RefreshExpiry() time.Duration
 }
 
-// MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
+// MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
 type MFAPolicy interface {
-	RequiredFor(roleNames []string) bool
+	RequiredFor(permissions []string) bool
 }
 
 // MFAGate is the consumer-owned port over the retained MFA service. An
 // unconfigured gate (Configured false) means "not required / not enrolled".
 type MFAGate interface {
 	Configured() bool
-	IsRequired(ctx context.Context, accountID int64, email string, roleNames []string, tenantID int64) (bool, error)
+	IsRequired(ctx context.Context, accountID int64, email string, permissions []string, tenantID int64) (bool, error)
 	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	// ResolvePolicyInTx re-reads the policy on the caller's transaction, past
 	// every request-scoped cache.

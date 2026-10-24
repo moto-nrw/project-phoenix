@@ -17,7 +17,7 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	case PresetPickupList:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDeparture, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetBlankChecklist:
-		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnChecklist}
 	case PresetBirthdayList:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnBirthday, ColumnAge}
 	case PresetStaffBirthdayList:

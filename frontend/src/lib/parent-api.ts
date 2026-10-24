@@ -18,6 +18,10 @@ import type { AppLocale } from "~/i18n/locales";
 import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
+import {
+  normalizeMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
@@ -277,6 +281,8 @@ export interface MealPlanEntry {
   readonly position: number;
   readonly dish: string;
   readonly note?: string | null;
+  /** Codes of the main allergens, in legend order; empty when unmarked. */
+  readonly allergens: readonly MealAllergen[];
 }
 
 // One day's pickup override plus OGS-owned arrival state for display.
@@ -836,11 +842,17 @@ export async function getChildMealPlan(
   studentId: string,
   weekStart: string,
 ): Promise<MealPlanEntry[]> {
-  return getJson<MealPlanEntry[]>(
+  const entries = await getJson<
+    Array<Omit<MealPlanEntry, "allergens"> & { allergens?: string[] | null }>
+  >(
     `/api/parent/me/children/${encodeURIComponent(
       studentId,
     )}/meal-plan?week_start=${encodeURIComponent(weekStart)}`,
   );
+  return (entries ?? []).map((entry) => ({
+    ...entry,
+    allergens: normalizeMealAllergens(entry.allergens),
+  }));
 }
 
 type MealParticipationSource =
@@ -935,7 +947,12 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
 // own messages, "staff" for replies from the OGS. For staff messages
 // `sender_name` is the "OGS [Schulname]" label.
 // The wire message shape is shared with the staff client; see ChatMessage.
-export type ParentMessage = ChatMessage;
+export type ParentMessage = ChatMessage & {
+  // The group thread this own message answers (#4784). Only the guardian and
+  // the OGS see the answer.
+  readonly group_thread_id?: string;
+  readonly group_thread_title?: string;
+};
 
 // One row on the messages landing page: a child's conversation, with the
 // guardian's unread (staff-sent) count and last-activity metadata.
@@ -1351,10 +1368,62 @@ export async function getChildConversation(
 export async function postChildMessage(
   studentId: string,
   body: string,
+  groupThreadId?: string,
 ): Promise<ThreadView> {
   return postJson<ThreadView>(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-    { body },
+    groupThreadId ? { body, group_thread_id: groupThreadId } : { body },
+  );
+}
+
+// Gruppennachrichten (#4784): the OGS writes to a group, class or AG. The
+// guardian sees only what reached them, for their own children; an answer
+// goes into the child's conversation with the OGS.
+
+/** One of the guardian's own children a group thread reached. */
+export interface GroupThreadChild {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+}
+
+/** One row of the guardian's group thread list. */
+export interface GroupThreadSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly target_label: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly closed: boolean;
+  readonly last_message_at?: string; // ISO timestamp
+  readonly last_message_body: string;
+  readonly unread: number;
+  readonly children: readonly GroupThreadChild[];
+}
+
+/** One OGS message of a group thread; the sender is always the OGS. */
+interface GroupThreadMessage {
+  readonly id: string;
+  readonly body: string;
+  readonly created_at: string; // ISO timestamp
+}
+
+/** An opened group thread. */
+export interface GroupThreadView extends GroupThreadSummary {
+  readonly messages: readonly GroupThreadMessage[];
+}
+
+/** Lists the group threads that reached the guardian, newest first. */
+export async function listGroupThreads(): Promise<GroupThreadSummary[]> {
+  return getJson<GroupThreadSummary[]>("/api/parent/me/messages/group-threads");
+}
+
+/** Opens one group thread. Reading marks it read server-side. */
+export async function getGroupThread(
+  groupThreadId: string,
+): Promise<GroupThreadView> {
+  return getJson<GroupThreadView>(
+    `/api/parent/me/messages/group-threads/${encodeURIComponent(groupThreadId)}`,
   );
 }
 

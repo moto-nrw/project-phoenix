@@ -116,16 +116,17 @@ type MFAAdminState struct {
 // VerifiedMFAChallenge is what a redeemed challenge hands the caller, so the
 // session mint needs no second look at the challenge JWT.
 type VerifiedMFAChallenge struct {
-	AccountID int64
-	Scope     string
-	TenantID  int64
+	MFAResetGeneration int64
+	AccountID          int64
+	Scope              string
+	TenantID           int64
 }
 
 // AccountMFAGate is the read side every login path consults.
 type AccountMFAGate interface {
-	// IsRequired applies the resolved policy to the account's roles.
-	IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error)
-	// ResolveMFAPolicy performs the reads and leaves the role predicate
+	// IsRequired applies the resolved policy to the account's effective permissions.
+	IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error)
+	// ResolveMFAPolicy performs the reads and leaves the permission predicate
 	// unapplied.
 	ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	// ResolveMFAPolicyInTx re-reads the policy on the caller's transaction,
@@ -158,7 +159,7 @@ type AccountMFAChallenges interface {
 	// authenticated the user out of band. The scope and school are required:
 	// without a challenge id they are what keeps the lookup inside its own
 	// portal.
-	VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
+	VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (VerifiedMFAChallenge, error)
 	// ResendMFAChallengeForScope re-issues a code for a challenge of this
 	// portal and returns the renewed JWT.
 	ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)

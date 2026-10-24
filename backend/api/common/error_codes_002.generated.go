@@ -2,6 +2,16 @@
 package common
 
 const (
+	CodeTimetableSubstituteAbsentOnDate              = "timetable.substitute_absent_on_date"
+	CodeTimetableSubstituteConflict                  = "timetable.substitute_conflict"
+	CodeTimetableSubstituteNotOnInstances            = "timetable.substitute_not_on_instances"
+	CodeTimetableSubstituteSelf                      = "timetable.substitute_self"
+	CodeTimetableSubstituteSingleOnly                = "timetable.substitute_single_only"
+	CodeTimetableTemplateCareOfferingConflict        = "timetable.template_care_offering_conflict"
+	CodeTimetableTemplateCategoryUnavailable         = "timetable.template_category_unavailable"
+	CodeTimetableTemplateEducationGroupInvalid       = "timetable.template_education_group_invalid"
+	CodeTimetableTemplateEndBeforeStart              = "timetable.template_end_before_start"
+	CodeTimetableTemplateGradeAboveMax               = "timetable.template_grade_above_max"
 	CodeTimetableTemplateInvalid                     = "timetable.template_invalid"
 	CodeTimetableTemplateMaxParticipantsInvalid      = "timetable.template_max_participants_invalid"
 	CodeTimetableTemplateNotFound                    = "timetable.template_not_found"
@@ -90,6 +100,16 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.substitute_absent_on_date":               "input",
+	"timetable.substitute_conflict":                     "business_rejection",
+	"timetable.substitute_not_on_instances":             "input",
+	"timetable.substitute_self":                         "input",
+	"timetable.substitute_single_only":                  "input",
+	"timetable.template_care_offering_conflict":         "input",
+	"timetable.template_category_unavailable":           "business_rejection",
+	"timetable.template_education_group_invalid":        "input",
+	"timetable.template_end_before_start":               "input",
+	"timetable.template_grade_above_max":                "input",
 	"timetable.template_invalid":                        "input",
 	"timetable.template_max_participants_invalid":       "input",
 	"timetable.template_not_found":                      "business_rejection",

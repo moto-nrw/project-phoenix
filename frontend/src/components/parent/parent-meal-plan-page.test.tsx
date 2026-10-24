@@ -79,7 +79,7 @@ describe("ParentMealPlanPage", () => {
       screen.getByRole("heading", { name: "Mittagessen", level: 1 }),
     ).toBeInTheDocument();
     const loadingStatus = screen.getByRole("status", {
-      name: "Essensplan wird geladen",
+      name: "Speiseplan wird geladen",
     });
     const skeleton = screen.getByTestId("meal-plan-week-skeleton");
     const desktopGrid = skeleton.querySelector(".grid-cols-5");
@@ -111,7 +111,7 @@ describe("ParentMealPlanPage", () => {
     expect(previousWeek).toBeDisabled();
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(nextWeek).toBeEnabled();
@@ -272,7 +272,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     const navigation = screen.getByRole("navigation", {
@@ -302,7 +302,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(
@@ -333,9 +333,48 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getAllByText("mit Salat")).not.toHaveLength(0);
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("marks each dish with its allergens and explains the letters (#4777)", async () => {
+    mocks.getChildMealPlan.mockResolvedValue([
+      {
+        date: "2026-08-12",
+        position: 0,
+        dish: "Gemüse-Lasagne",
+        note: "mit Salat",
+        allergens: ["gluten", "milk"],
+      },
+      { date: "2026-08-12", position: 1, dish: "Obst", allergens: [] },
+    ]);
+
+    render(<ParentMealPlanPage />);
+
+    // Letters for the eye, full names for screen readers.
+    expect(
+      (await screen.findAllByText("Allergene: A, G")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        "Enthält: Glutenhaltiges Getreide, Milch (auch Laktose)",
+      ).length,
+    ).toBeGreaterThan(0);
+    // The unmarked dish carries no marks: only the Lasagne's appear.
+    expect(screen.getAllByText(/^Allergene: /)).toHaveLength(
+      screen.getAllByText("Allergene: A, G").length,
+    );
+    const legend = screen.getByLabelText("Allergene");
+    // Only the letters used this week, each with its name.
+    expect(
+      within(legend)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent),
+    ).toEqual(["A Glutenhaltiges Getreide", "G Milch (auch Laktose)"]);
+    expect(
+      screen.getByText(/Die Angaben kommen von der Schule oder vom Caterer\./),
+    ).toBeInTheDocument();
   });
 
   it("combines meals and participation while keeping regular days compact", async () => {
@@ -655,7 +694,7 @@ describe("ParentMealPlanPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).not.toBeInTheDocument();
 
@@ -674,7 +713,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).toBeInTheDocument();
   });
@@ -688,7 +727,7 @@ describe("ParentMealPlanPage", () => {
     expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
   });
@@ -701,7 +740,7 @@ describe("ParentMealPlanPage", () => {
     expect(await screen.findByText(WEEK_ERROR)).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).not.toBeInTheDocument();
   });
@@ -775,7 +814,7 @@ describe("ParentMealPlanPage", () => {
     render(<ParentMealPlanPage key="empty-week" />);
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
@@ -820,7 +859,7 @@ describe("ParentMealPlanPage", () => {
     rerender(<ParentMealPlanPage key="disabled-school" />);
     expect(
       await screen.findByText(
-        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+        "Für Ihre Schule ist der Speiseplan derzeit nicht freigeschaltet.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
@@ -843,7 +882,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(SCHOOLS_ERROR)).not.toBeInTheDocument();
@@ -859,7 +898,7 @@ describe("ParentMealPlanPage", () => {
 
     expect(
       await screen.findByText(
-        "Für diese Woche ist noch kein Essensplan eingetragen",
+        "Für diese Woche ist noch kein Speiseplan eingetragen",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(WEEK_ERROR)).not.toBeInTheDocument();

@@ -2,6 +2,15 @@
 package common
 
 const (
+	CodeIotDeviationReasonRequired                    = "iot.deviation_reason_required"
+	CodeIotDeviceApiKeyFormatInvalid                  = "iot.device_api_key_format_invalid"
+	CodeIotDeviceApiKeyInvalid                        = "iot.device_api_key_invalid"
+	CodeIotDeviceApiKeyRequired                       = "iot.device_api_key_required"
+	CodeIotDeviceIdTaken                              = "iot.device_id_taken"
+	CodeIotDeviceInactive                             = "iot.device_inactive"
+	CodeIotDevicePinInvalid                           = "iot.device_pin_invalid"
+	CodeIotDevicePinRequired                          = "iot.device_pin_required"
+	CodeIotInvalidRfidTag                             = "iot.invalid_rfid_tag"
 	CodeIotInvalidStaffClockRequest                   = "iot.invalid_staff_clock_request"
 	CodeIotInvalidStaffClockState                     = "iot.invalid_staff_clock_state"
 	CodeIotNoActiveGroupsInRoom                       = "iot.no_active_groups_in_room"
@@ -27,6 +36,7 @@ const (
 	CodeIotStudentNotPresent                          = "iot.student_not_present"
 	CodeIotWcNeedsStaff                               = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                            = "iot.wc_not_configured"
+	CodeMealsInvalidAllergens                         = "meals.invalid_allergens"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
@@ -292,19 +302,18 @@ const (
 	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
 	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
 	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
-	CodeTimetableSubstituteAbsentOnDate               = "timetable.substitute_absent_on_date"
-	CodeTimetableSubstituteConflict                   = "timetable.substitute_conflict"
-	CodeTimetableSubstituteNotOnInstances             = "timetable.substitute_not_on_instances"
-	CodeTimetableSubstituteSelf                       = "timetable.substitute_self"
-	CodeTimetableSubstituteSingleOnly                 = "timetable.substitute_single_only"
-	CodeTimetableTemplateCareOfferingConflict         = "timetable.template_care_offering_conflict"
-	CodeTimetableTemplateCategoryUnavailable          = "timetable.template_category_unavailable"
-	CodeTimetableTemplateEducationGroupInvalid        = "timetable.template_education_group_invalid"
-	CodeTimetableTemplateEndBeforeStart               = "timetable.template_end_before_start"
-	CodeTimetableTemplateGradeAboveMax                = "timetable.template_grade_above_max"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.deviation_reason_required":                       "input",
+	"iot.device_api_key_format_invalid":                   "permission",
+	"iot.device_api_key_invalid":                          "permission",
+	"iot.device_api_key_required":                         "permission",
+	"iot.device_id_taken":                                 "business_rejection",
+	"iot.device_inactive":                                 "permission",
+	"iot.device_pin_invalid":                              "permission",
+	"iot.device_pin_required":                             "permission",
+	"iot.invalid_rfid_tag":                                "input",
 	"iot.invalid_staff_clock_request":                     "input",
 	"iot.invalid_staff_clock_state":                       "business_rejection",
 	"iot.no_active_groups_in_room":                        "input",
@@ -330,6 +339,7 @@ var errorCodeClasses1 = map[string]string{
 	"iot.student_not_present":                             "business_rejection",
 	"iot.wc_needs_staff":                                  "server",
 	"iot.wc_not_configured":                               "server",
+	"meals.invalid_allergens":                             "input",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
@@ -595,16 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_not_found":                         "business_rejection",
 	"timetable.students_not_present":                      "business_rejection",
 	"timetable.substitute_absent":                         "input",
-	"timetable.substitute_absent_on_date":                 "input",
-	"timetable.substitute_conflict":                       "business_rejection",
-	"timetable.substitute_not_on_instances":               "input",
-	"timetable.substitute_self":                           "input",
-	"timetable.substitute_single_only":                    "input",
-	"timetable.template_care_offering_conflict":           "input",
-	"timetable.template_category_unavailable":             "business_rejection",
-	"timetable.template_education_group_invalid":          "input",
-	"timetable.template_end_before_start":                 "input",
-	"timetable.template_grade_above_max":                  "input",
 }
 
 func init() {

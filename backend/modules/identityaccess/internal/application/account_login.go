@@ -84,7 +84,11 @@ func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, pas
 		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.ScopeTenant, ipAddress)
 	}
 
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
+	var guard mintGuard
+	if mfaRequired && enrolled {
+		guard = s.trustedDeviceMintGuard(account.ID, metadata.TenantID, trustedDeviceCookie, nil)
+	}
+	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, guard, "", mfaRequired && enrolled)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +107,7 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 	if !s.mfa.Configured() {
 		return false, false, nil
 	}
-	required, err = s.mfa.IsRequired(ctx, account.ID, account.Email, metadata.RoleNames, metadata.TenantID)
+	required, err = s.mfa.IsRequired(ctx, account.ID, account.Email, metadata.Permissions, metadata.TenantID)
 	if err != nil {
 		return false, false, failed("check mfa required", identityaccess.ErrMFAStatusUnavailable)
 	}
@@ -166,7 +170,15 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 // passkey). It skips the credential check but otherwise reuses the login
 // pipeline, so the session is indistinguishable from a password login.
 // tenantID is the school carried in the MFA challenge.
-func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (_ string, _ string, err error) {
+func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+	return s.issueAuthenticatedTokens(ctx, accountID, tenantID, ipAddress, userAgent, nil)
+}
+
+func (s *AccountAuthentication) IssueTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
+	return s.issueAuthenticatedTokens(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent, &proof)
+}
+
+func (s *AccountAuthentication) issueAuthenticatedTokens(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, proof *identityaccess.VerifiedMFAChallenge) (_ string, _ string, err error) {
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
@@ -188,7 +200,7 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant token issue")
 		return "", "", failed("issue tokens", identityaccess.ErrMustUseSchoolPortal)
 	}
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
+	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeTenant, nil), "", true)
 	if err != nil {
 		return "", "", err
 	}
@@ -222,15 +234,29 @@ func (s *AccountAuthentication) authenticatedAccount(ctx context.Context, operat
 // (#3376).
 func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, email, password, ipAddress, userAgent string) (domain.LoginAccount, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
-	account, found, _, err := findLoginAccountByEmail(ctx, s.runtime, s.store, email)
-	if err != nil || !found {
-		s.logFailedLogin(ctx, 0, ipAddress, userAgent, "Account not found")
-		return domain.LoginAccount{}, failed("login", domain.ErrAccountNotFound)
+	var account domain.LoginAccount
+	var accepted bool
+	err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		var found bool
+		var err error
+		account, found, _, err = s.store.LockLoginAccountByEmail(txCtx, email)
+		if err != nil {
+			return err
+		}
+		if !found {
+			account = domain.LoginAccount{}
+		}
+		accepted, err = checkPasswordLogin(txCtx, s.store, s.passwords, s.passwordPolicy, account.ID, account.PasswordHash, password, false)
+		return err
+	})
+	if err != nil {
+		return domain.LoginAccount{}, failed("password login protection", err)
 	}
-	if err := s.verifyPassword(account, password); err != nil {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Invalid password")
-		return domain.LoginAccount{}, err
+	if !accepted {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Password login refused")
+		return domain.LoginAccount{}, failed("login", identityaccess.ErrInvalidCredentials)
 	}
+
 	if !account.Active {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
 		return domain.LoginAccount{}, failed("login", identityaccess.ErrAccountInactive)
@@ -239,11 +265,8 @@ func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, em
 }
 
 func (s *AccountAuthentication) verifyPassword(account domain.LoginAccount, password string) error {
-	if account.PasswordHash == "" {
-		return failed("login", identityaccess.ErrInvalidCredentials)
-	}
 	valid, err := s.passwords.VerifyPassword(password, account.PasswordHash)
-	if err != nil || !valid {
+	if err != nil || !valid || account.PasswordHash == "" {
 		return failed("login", identityaccess.ErrInvalidCredentials)
 	}
 	return nil
@@ -251,8 +274,8 @@ func (s *AccountAuthentication) verifyPassword(account domain.LoginAccount, pass
 
 // createRefreshSession mints a refresh session with retry logic for
 // concurrent logins that collide on the token family.
-func (s *AccountAuthentication) createRefreshSession(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string) (domain.AccountSession, error) {
-	return s.createRefreshSessionGuarded(ctx, account, tenantID, scope, nil, "")
+func (s *AccountAuthentication) createRefreshSession(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, verified ...bool) (domain.AccountSession, error) {
+	return s.createRefreshSessionGuarded(ctx, account, tenantID, scope, nil, "", verified...)
 }
 
 // createRefreshSessionGuarded is createRefreshSession with an authorization
@@ -260,8 +283,9 @@ func (s *AccountAuthentication) createRefreshSession(ctx context.Context, accoun
 // the retry loop exists for token-family collisions only. retireFamilyID
 // names the caller's current family, retired in the same transaction before
 // the session cap runs so the new session replaces it (tenant switch, #2952).
-func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
+func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string, verified ...bool) (domain.AccountSession, error) {
 	session := s.newRefreshSession(account.ID, scope)
+	session.MFAVerified = len(verified) > 0 && verified[0]
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		stored, err := s.persistSessionInTransaction(ctx, account, session, tenantID, guard, retireFamilyID)
@@ -311,14 +335,9 @@ func (s *AccountAuthentication) newRefreshSession(accountID int64, scope string)
 func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
 	var stored domain.AccountSession
 	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if guard != nil {
-			if err := guard(txCtx, account); err != nil {
-				return &mintGuardError{err: err}
-			}
-		}
-		loginTime := time.Now()
-		if _, err := s.store.RecordAccountLogin(txCtx, account.ID, loginTime); err != nil {
-			return fmt.Errorf("update last login before token issuance: %w", err)
+		loginTime, err := s.prepareSessionMint(txCtx, account, &session, tenantID, guard, retireFamilyID)
+		if err != nil {
+			return err
 		}
 		if err := s.retireReplacedFamily(txCtx, account.ID, retireFamilyID, loginTime); err != nil {
 			return err

@@ -20,7 +20,7 @@ const RESOURCES = [
   { value: "iot", label: "IoT-Geräte" },
   { value: "auth", label: "Authentifizierung" },
   { value: "time_tracking", label: "Zeiterfassung" },
-  { value: "grade_transitions", label: "Klassenwechsel" },
+  { value: "grade_transitions", label: "Schuljahreswechsel" },
   { value: "system", label: "System" },
   { value: "admin", label: "Administration" },
 ] as const;

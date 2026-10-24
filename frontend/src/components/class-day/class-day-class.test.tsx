@@ -420,6 +420,47 @@ describe("ClassDayClass", () => {
       );
     });
 
+    it("keeps the draft and shows the error when saving fails", async () => {
+      const record = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("save failed"))
+        .mockResolvedValueOnce(undefined);
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(morningReport())}
+          recordMorningAttendance={record}
+        />,
+      );
+
+      fireEvent.click(
+        within(
+          await screen.findByRole("group", {
+            name: "Anwesenheit von Klara Klassentag",
+          }),
+        ).getByRole("button", { name: "Da" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anwesenheit speichern" }),
+      );
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      expect(
+        within(group("Klara Klassentag")).getByRole("button", { name: "Da" }),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anwesenheit speichern" }),
+      );
+      await waitFor(() => expect(record).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("button", { name: "Anwesenheit speichern" }),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
     it("discards the draft", async () => {
       render(
         <ClassDayClass

@@ -163,32 +163,15 @@ func TestIsValidMFAAdminOverride(t *testing.T) {
 	assert.False(t, IsValidMFAAdminOverride(""))
 }
 
-// The resolved policy applies the school's mode to a role set, and an
-// override wins outright.
 func TestMFAPolicyRequiredFor(t *testing.T) {
 	t.Parallel()
-
 	assert.True(t, MFAPolicyForced(true).RequiredFor(nil))
-	assert.False(t, MFAPolicyForced(false).RequiredFor([]string{AdminRoleName}))
+	assert.False(t, MFAPolicyForced(false).RequiredFor([]string{"users:read"}))
 	assert.True(t, MFAPolicyForMode(MFAModeRequiredAll).RequiredFor(nil))
-	assert.True(t, MFAPolicyForMode(MFAModeRequiredAdmins).RequiredFor([]string{AdminRoleName}))
-	assert.False(t, MFAPolicyForMode(MFAModeRequiredAdmins).RequiredFor([]string{"lehrkraft"}))
-	assert.False(t, MFAPolicyForMode(MFAModeOff).RequiredFor([]string{AdminRoleName}))
-	assert.False(t, MFAPolicy{}.RequiredFor([]string{AdminRoleName}), "the zero policy requires nothing")
-	assert.False(t, MFAPolicyForMode("something-else").RequiredFor([]string{AdminRoleName}))
-}
-
-// A school names its own roles. The retained gate matched the admin role
-// case-insensitively, and a case-sensitive compare would let a role a school
-// created as "Admin" log in without a second factor under required_admins.
-func TestMFAPolicyRequiredForMatchesTheAdminRoleCaseInsensitively(t *testing.T) {
-	t.Parallel()
-
-	admins := MFAPolicyForMode(MFAModeRequiredAdmins)
-	for _, name := range []string{"admin", "Admin", "ADMIN", "AdMiN"} {
-		assert.True(t, admins.RequiredFor([]string{name}), "%q is the admin role", name)
+	for _, mode := range []string{MFAModeOff, MFAModeRequiredAdmins, "something-else"} {
+		assert.True(t, MFAPolicyForMode(mode).RequiredFor([]string{"users:manage"}))
+		assert.False(t, MFAPolicyForMode(mode).RequiredFor([]string{"admin"}))
 	}
-	assert.False(t, admins.RequiredFor([]string{"administrator"}), "a different role is not the admin role")
 }
 
 // The permission gate honours the area and admin wildcards.

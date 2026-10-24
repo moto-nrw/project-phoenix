@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Sign off for the whole week?",
     "unregisterWeekText": "{name} will be signed off from lunch on {count, plural, one {# day} other {# days}} of this week. Signing up again is only possible until the change deadline."
   },
+  "mealAllergens": {
+    "legendTitle": "Allergens",
+    "choose": "Choose allergens",
+    "marksShort": "Allergens: {letters}",
+    "marksLabel": "Contains: {names}",
+    "noneThisWeek": "No allergens are listed for this week.",
+    "source": "This information comes from the school or the caterer. A dish without a letter is not guaranteed to be free of allergens. If you have questions, please ask the OGS.",
+    "names": {
+      "gluten": "Cereals containing gluten",
+      "crustaceans": "Crustaceans",
+      "eggs": "Eggs",
+      "fish": "Fish",
+      "peanuts": "Peanuts",
+      "soybeans": "Soy",
+      "milk": "Milk (including lactose)",
+      "nuts": "Tree nuts",
+      "celery": "Celery",
+      "mustard": "Mustard",
+      "sesame": "Sesame",
+      "sulphites": "Sulphur dioxide and sulphites",
+      "lupin": "Lupin",
+      "molluscs": "Molluscs"
+    }
+  },
   "mealParticipantList": {
     "title": "Daily list for the kitchen",
     "description": "The list shows all children registered for lunch on this day.",
@@ -1153,7 +1177,8 @@
       "pickupConfirm": "Please confirm the pickup arrangement (select days or leave empty).",
       "weekdayRequired": "Please select at least one weekday.",
       "weekdayModeConfirm": "Please confirm the departure arrangement.",
-      "weekdayMultiModeRequired": "Please choose at least one way home for each care day."
+      "weekdayMultiModeRequired": "Please choose at least one way home for each care day.",
+      "file": "Please upload at least one file."
     },
     "actions": {
       "addChild": "Add another child",
@@ -1305,6 +1330,23 @@
       "noCare": "No offerings booked.",
       "hint": "Changes for {name} now go through the parents app.",
       "noAccess": "Cannot access the parents app? Please contact the OGS."
+    },
+    "upload": {
+      "errorObject": "the file",
+      "choose": "Choose file",
+      "chooseMore": "Choose another file",
+      "allowed": "Allowed: {types}, at most {max} MB per file.",
+      "upTo": "Up to {count} files.",
+      "camera": "On a phone you can also take a photo.",
+      "uploading": "Uploading …",
+      "remove": "Remove {name}",
+      "wrongType": "This file has the wrong type. Allowed: {types}.",
+      "tooLarge": "This file is too large. At most {max} MB is allowed.",
+      "empty": "This file is empty. Please choose another file.",
+      "onlyOne": "You can only upload one file here.",
+      "tooMany": "You can upload at most {count} files here.",
+      "pendingSubmit": "Please wait until all files are uploaded.",
+      "previewDisabled": "You cannot upload files in the preview."
     }
   },
   "enrollmentStatus": {
@@ -2048,6 +2090,25 @@
     "errorObjectMessage": "the message",
     "errorObjectList": "the list of conversations"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Group messages from the OGS",
+    "sectionDescription": "Here the OGS writes to your child's group, class or club.",
+    "closed": "Closed",
+    "forChildren": "For {names}",
+    "privacyNote": "Your reply goes only to the OGS. Other parents do not see it.",
+    "replyTitle": "Reply to the OGS",
+    "replyChildLabel": "Reply for",
+    "replyPlaceholder": "Write a reply to the OGS",
+    "replyFieldLabel": "Reply",
+    "sentConfirmation": "The OGS has received your reply.",
+    "toChat": "Go to the chat with the OGS",
+    "closedNote": "This group message is closed. You can still write to the OGS in the chat about your child.",
+    "writingDisabled": "You cannot reply to this message. You can still read it.",
+    "answerTo": "Reply to: {title}",
+    "errorObjectThread": "the group message",
+    "errorObjectAnswer": "the reply",
+    "errorObjectList": "the group messages"
+  },
   "parentCalendar": {
     "kicker": "Appointments at a glance",
     "title": "Calendar",
@@ -2251,7 +2312,9 @@
         "staff_messaging_disabled": "You cannot access {object}. Please contact the school.",
         "staff_notice_outdated": "{object} could not be changed. Please check its current status.",
         "system_announcement_immutable": "{object} could not be changed. Please check its current status.",
-        "announcement_not_found": "{object} could not be changed. Please check its current status."
+        "announcement_not_found": "{object} could not be changed. Please check its current status.",
+        "group_thread_closed": "This group message is closed. You can no longer reply.",
+        "group_thread_no_recipients": "No child in this group has parents with access to moto. The message was not sent."
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",
@@ -2336,6 +2399,11 @@
         "legal_block_key_invalid": "{object} could not be saved. Please check your entries.",
         "legal_block_required_not_allowed": "{object} could not be saved. Please check your entries.",
         "legal_document_invalid": "{object} could not be saved. Please check your entries.",
+        "form_field_file_options_invalid": "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
+        "upload_invalid": "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
+        "upload_expired": "An uploaded file has expired. Please upload it again.",
+        "upload_rate_limited": "Too many files were uploaded. Please try again later.",
+        "upload_not_found": "This file no longer exists. Please upload it again.",
         "message_required": "Please write a message.",
         "offering_adjustment_invalid": "{object} could not be saved. Please check your entries.",
         "phase_care_offering_conflict": "{object} could not be changed. Please check its current status.",
@@ -2435,6 +2503,8 @@
         "email_change_rate_limited": "{object} is unavailable right now. Please try again.",
         "email_change_same_email": "{object} could not be saved. Please check your entries.",
         "email_change_link_invalid": "{object} could not be changed. Please check its current status.",
+        "mfa_status_unavailable": "Sign-in verification is currently unavailable. Please try again.",
+        "mfa_session_required": "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
         "mfa_not_enrolled": "{object} could not be changed. Please check its current status.",
         "mfa_already_enrolled": "{object} could not be changed. Please check its current status.",
         "passkey_not_found": "{object} could not be changed. Please check its current status.",
@@ -2493,6 +2563,7 @@
         "wc_not_configured": "{object} could not be processed. Please try again later."
       },
       "meals": {
+        "invalid_allergens": "The allergens could not be saved. Please select them again.",
         "invalid_dishes": "{object} could not be saved. Please check your entries.",
         "invalid_meal_date": "{object} could not be saved. Please check your entries.",
         "invalid_participation": "{object} contains invalid details. Please check your entries.",

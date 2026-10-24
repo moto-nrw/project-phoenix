@@ -352,7 +352,7 @@ function getSupervisionInfo(
   }
   // Priority 2: Time clock home office → always wins
   else if (workStatus === "home_office") {
-    currentLocation = "Homeoffice";
+    currentLocation = "Unterwegs";
   }
   // Priority 3: Not clocked in - check for absence reason
   // (checked_out, no work_status, or legacy fallback)

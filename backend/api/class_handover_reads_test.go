@@ -57,7 +57,8 @@ func TestClassHandoversNameTheLehrkraftOnce(t *testing.T) {
 	assert.Equal(t, childClassHandover{schoolClass: "2b", handedOverAt: at.In(calendar.Berlin), handedOverBy: "Petra Lehrkraft"}, got[4], "handed over and there")
 	assert.True(t, got[3].absent)
 	assert.Empty(t, got[3].handedOverBy, "a removed staff member leaves the handover unnamed")
-	assert.NotContains(t, got, int64(9), "not handed over")
+	_, listed := got[9]
+	assert.False(t, listed, "not handed over")
 	assert.Equal(t, calendar.Berlin, got[1].handedOverAt.Location())
 
 	unnamed := &staffNamerFake{}

@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Tüm hafta için kayıt silinsin mi?",
     "unregisterWeekText": "{name}, bu haftanın {count, plural, one {# günü} other {# günü}} için öğle yemeğinden çıkarılacak. Yeniden kayıt yalnızca değişiklik süresine kadar mümkündür."
   },
+  "mealAllergens": {
+    "legendTitle": "Alerjenler",
+    "choose": "Alerjenleri seçin",
+    "marksShort": "Alerjenler: {letters}",
+    "marksLabel": "İçerir: {names}",
+    "noneThisWeek": "Bu hafta için alerjen bilgisi girilmedi.",
+    "source": "Bu bilgiler okuldan veya yemek firmasından gelir. Harfi olmayan bir yemek kesin olarak alerjensiz değildir. Sorularınız için OGS'ye başvurun.",
+    "names": {
+      "gluten": "Gluten içeren tahıllar",
+      "crustaceans": "Kabuklu deniz ürünleri",
+      "eggs": "Yumurta",
+      "fish": "Balık",
+      "peanuts": "Yer fıstığı",
+      "soybeans": "Soya",
+      "milk": "Süt (laktoz dahil)",
+      "nuts": "Sert kabuklu yemişler",
+      "celery": "Kereviz",
+      "mustard": "Hardal",
+      "sesame": "Susam",
+      "sulphites": "Kükürt dioksit ve sülfitler",
+      "lupin": "Acı bakla (lupin)",
+      "molluscs": "Yumuşakçalar"
+    }
+  },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
     "description": "Liste, o gün öğle yemeğine kayıtlı tüm çocukları gösterir.",
@@ -1155,7 +1179,8 @@
       "pickupConfirm": "Lütfen teslim alma düzenini onaylayın (günleri seçin veya boş bırakın).",
       "weekdayRequired": "Lütfen haftanın en az bir gününü seçin.",
       "weekdayModeConfirm": "Lütfen eve gidiş ve teslim alma düzenini onaylayın.",
-      "weekdayMultiModeRequired": "Lütfen her bakım günü için en az bir eve dönüş yolu seçin."
+      "weekdayMultiModeRequired": "Lütfen her bakım günü için en az bir eve dönüş yolu seçin.",
+      "file": "Lütfen en az bir dosya yükleyin."
     },
     "actions": {
       "addChild": "Başka çocuk ekle",
@@ -1305,6 +1330,23 @@
       "noCare": "Seçilen teklif yok.",
       "hint": "{name} için değişiklikler artık veli uygulaması üzerinden yapılır.",
       "noAccess": "Veli uygulamasına giremiyor musunuz? Lütfen OGS ile iletişime geçin."
+    },
+    "upload": {
+      "errorObject": "dosya",
+      "choose": "Dosya seç",
+      "chooseMore": "Başka dosya seç",
+      "allowed": "İzin verilenler: {types}, dosya başına en fazla {max} MB.",
+      "upTo": "En fazla {count} dosya.",
+      "camera": "Telefonda fotoğraf da çekebilirsiniz.",
+      "uploading": "Yükleniyor …",
+      "remove": "{name} kaldır",
+      "wrongType": "Bu dosyanın türü yanlış. İzin verilenler: {types}.",
+      "tooLarge": "Bu dosya çok büyük. En fazla {max} MB izin verilir.",
+      "empty": "Bu dosya boş. Lütfen başka bir dosya seçin.",
+      "onlyOne": "Buraya yalnızca bir dosya yükleyebilirsiniz.",
+      "tooMany": "Buraya en fazla {count} dosya yükleyebilirsiniz.",
+      "pendingSubmit": "Lütfen tüm dosyalar yüklenene kadar bekleyin.",
+      "previewDisabled": "Önizlemede dosya yükleyemezsiniz."
     }
   },
   "enrollmentStatus": {
@@ -2048,6 +2090,25 @@
     "errorObjectMessage": "mesaj",
     "errorObjectList": "yazışma listesi"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "OGS'den grup mesajları",
+    "sectionDescription": "OGS burada çocuğunuzun grubuna, sınıfına veya kulübüne yazar.",
+    "closed": "Kapatıldı",
+    "forChildren": "{names} için",
+    "privacyNote": "Yanıtınız yalnızca OGS'ye gider. Diğer veliler göremez.",
+    "replyTitle": "OGS'ye yanıt",
+    "replyChildLabel": "Yanıt kimin için",
+    "replyPlaceholder": "OGS'ye bir yanıt yazın",
+    "replyFieldLabel": "Yanıt",
+    "sentConfirmation": "Yanıtınız OGS'ye ulaştı.",
+    "toChat": "OGS ile sohbete git",
+    "closedNote": "Bu grup mesajı kapatıldı. Çocuğunuzla ilgili sohbette OGS'ye yazmaya devam edebilirsiniz.",
+    "writingDisabled": "Bu mesaja yanıt veremezsiniz. Okumaya devam edebilirsiniz.",
+    "answerTo": "Yanıtlanan: {title}",
+    "errorObjectThread": "grup mesajı",
+    "errorObjectAnswer": "yanıt",
+    "errorObjectList": "grup mesajları"
+  },
   "parentCalendar": {
     "kicker": "Randevulara genel bakış",
     "title": "Takvim",
@@ -2251,7 +2312,9 @@
         "staff_messaging_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "staff_notice_outdated": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "system_announcement_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "announcement_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "announcement_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "group_thread_closed": "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
+        "group_thread_no_recipients": "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi."
       },
       "enrollment": {
         "form_attachment_invalid": "Lütfen adı ve PDF dosyasını kontrol edin.",
@@ -2336,6 +2399,11 @@
         "legal_block_key_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "legal_block_required_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "legal_document_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "form_field_file_options_invalid": "Lütfen dosya sorusunu kontrol edin. En az bir dosya türü ve 1 ile 10 MB arasında bir boyut seçin.",
+        "upload_invalid": "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
+        "upload_expired": "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
+        "upload_rate_limited": "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",
+        "upload_not_found": "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
         "message_required": "Lütfen bir mesaj yazın.",
         "offering_adjustment_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "phase_care_offering_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2435,6 +2503,8 @@
         "email_change_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "email_change_same_email": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "email_change_link_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "mfa_status_unavailable": "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
+        "mfa_session_required": "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
         "mfa_not_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "mfa_already_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "passkey_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2493,6 +2563,7 @@
         "wc_not_configured": "{object} işlenemedi. Daha sonra yeniden deneyin."
       },
       "meals": {
+        "invalid_allergens": "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
         "invalid_dishes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_meal_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_participation": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",

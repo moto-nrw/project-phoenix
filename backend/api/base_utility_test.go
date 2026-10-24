@@ -42,6 +42,7 @@ func TestMealPlanErrorRendererContracts(t *testing.T) {
 	}{
 		{name: "disabled", targetCode: "meal_plan_disabled", status: http.StatusForbidden, errorText: "feature_disabled", code: "meals.plan_disabled", anchor: "anleitung-zugriff-pruefen"},
 		{name: "invalid date", targetCode: "invalid_meal_date", status: http.StatusBadRequest, errorText: "meal plan covers weekdays only (Monday-Friday)", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
+		{name: "invalid allergens", targetCode: "invalid_allergens", status: http.StatusBadRequest, errorText: "allergens must be codes of the 14 main allergens", code: "meals.invalid_allergens", anchor: "anleitung-eingabe-pruefen"},
 		{name: "invalid dishes", targetCode: "invalid_dishes", status: http.StatusBadRequest, errorText: "invalid_dishes", code: "general.input", anchor: "anleitung-eingabe-pruefen"},
 		{name: "internal", err: errors.New("database unavailable"), status: http.StatusInternalServerError, internalMessage: "failed to load meal plan", errorText: "failed to load meal plan", code: "general.server", anchor: "anleitung-unerwarteter-fehler"},
 	}

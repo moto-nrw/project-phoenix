@@ -206,7 +206,7 @@ describe("ParentBottomNav", () => {
     await waitFor(() => expect(logoutMock).toHaveBeenCalledOnce());
   });
 
-  it("hides Elternbriefe and Essensplan when no school offers them", () => {
+  it("hides Elternbriefe and Speiseplan when no school offers them", () => {
     renderNav({ gates: { news: false, mealPlan: false } });
 
     fireEvent.click(screen.getByRole("button", { name: "Mehr" }));

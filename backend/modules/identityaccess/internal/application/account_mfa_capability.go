@@ -27,8 +27,8 @@ func (c ComposedAccountMFA) ctx(ctx context.Context) context.Context {
 	return c.Attach(ctx)
 }
 
-func (c ComposedAccountMFA) IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error) {
-	required, err := c.Flows.IsRequired(c.ctx(ctx), accountID, roleNames, tenantID)
+func (c ComposedAccountMFA) IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error) {
+	required, err := c.Flows.IsRequired(c.ctx(ctx), accountID, permissions, tenantID)
 	return required, MFAError(err)
 }
 
@@ -83,10 +83,6 @@ func (c ComposedAccountMFA) VerifyMFAChallengeForScope(ctx context.Context, chal
 func (c ComposedAccountMFA) VerifyMFAChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (identityaccess.VerifiedMFAChallenge, error) {
 	verified, err := c.Flows.VerifyChallengeForOwner(c.ctx(ctx), challengeToken, code, expectedScope, accountID, tenantID)
 	return identityaccess.VerifiedMFAChallenge(verified), MFAError(err)
-}
-
-func (c ComposedAccountMFA) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
-	return MFAError(c.Flows.VerifyCodeForAccount(c.ctx(ctx), accountID, tenantID, code, expectedScope))
 }
 
 func (c ComposedAccountMFA) ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
@@ -190,11 +186,11 @@ type CapabilityGate struct{ Capability identityaccess.AccountMFA }
 
 func (g CapabilityGate) Configured() bool { return g.Capability != nil }
 
-func (g CapabilityGate) IsRequired(ctx context.Context, accountID int64, _ string, roleNames []string, tenantID int64) (bool, error) {
+func (g CapabilityGate) IsRequired(ctx context.Context, accountID int64, _ string, permissions []string, tenantID int64) (bool, error) {
 	if g.Capability == nil {
 		return false, nil
 	}
-	return g.Capability.IsRequired(ctx, accountID, roleNames, tenantID)
+	return g.Capability.IsRequired(ctx, accountID, permissions, tenantID)
 }
 
 func (g CapabilityGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {
@@ -248,4 +244,9 @@ func (g CapabilityGate) TrustedDeviceDays(ctx context.Context, tenantID int64) i
 		return 0
 	}
 	return g.Capability.TrustedDeviceDays(ctx, tenantID)
+}
+
+func (c ComposedAccountMFA) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, scope string) (identityaccess.VerifiedMFAChallenge, error) {
+	proof, err := c.Flows.VerifyEnrollmentCode(c.ctx(ctx), accountID, tenantID, code, scope)
+	return identityaccess.VerifiedMFAChallenge(proof), MFAError(err)
 }

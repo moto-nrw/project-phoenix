@@ -13,9 +13,9 @@ func TestWorkSessionSideRequiresTheCapabilityAndTheStaffLookup(t *testing.T) {
 	require.EqualError(t, err, "time tracking: the Workforce capability and the staff lookup are required")
 }
 
-func TestWithSickCascadeRequiresTheCascade(t *testing.T) {
+func TestTimeTrackingRequiresTheClock(t *testing.T) {
 	t.Parallel()
 
-	_, err := (&WorkSessionSide{}).WithSickCascade(nil)
-	require.EqualError(t, err, "time tracking: the sick cascade is required")
+	_, err := (&WorkSessionSide{}).TimeTracking()
+	require.EqualError(t, err, "time tracking: the clock is required")
 }

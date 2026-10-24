@@ -6,8 +6,8 @@ import (
 	"fmt"
 )
 
-// GuardianAnnouncementTenant answers the file storage's only question about a
-// parent-facing attachment (#2890): may this guardian account see the
+// GuardianAnnouncementTenant answers the attachment entry's audience question
+// about a parent-facing attachment (#2890): may this guardian account see the
 // attachments of this announcement, and if so, which school do they belong to.
 //
 // It is the same gate the read/acknowledge path uses, in the same order, and
@@ -19,14 +19,14 @@ import (
 //  2. the account is in its audience right now,
 //  3. the school still has the feature switched on.
 //
-// A caller who fails any step gets tenant id 0 and no error. The file side
-// turns that into a 404, so "outside the audience" and "no such announcement"
+// A caller who fails any step gets tenant id 0 and no error. The attachment
+// entry turns that into a 404, so "outside the audience" and "no such announcement"
 // are indistinguishable and announcement ids cannot be enumerated across
 // schools.
 //
 // The lookup runs in an admin transaction because a guardian's children span
-// schools; the caller then opens a tenant transaction for exactly the school
-// returned here, so the attachment rows are read under that school's RLS.
+// schools; File Storage then reads the attachment rows in a tenant transaction
+// for exactly the school returned here, under that school's RLS.
 func (s *Service) GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error) {
 	if accountID <= 0 || announcementID <= 0 {
 		return 0, nil

@@ -284,7 +284,7 @@ var gdpr_init_sch_lerdaten_4Definitions = []config.Definition{
 	{
 		Key:             config.KeyGDPRStudentRetentionDays,
 		Label:           "Kinder nach dem letzten Betreuungstag aufbewahren (Tage)",
-		Description:     "So lange speichert moto ein Kind nach seinem letzten Betreuungstag. Danach löscht moto das Kind mit allen Angaben. Kinder, die wieder betreut werden, bleiben. Jahrgangswechsel löscht moto nach derselben Zeit.",
+		Description:     "So lange speichert moto ein Kind nach seinem letzten Betreuungstag. Danach löscht moto das Kind mit allen Angaben. Kinder, die wieder betreut werden, bleiben. Schuljahreswechsel löscht moto nach derselben Zeit.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",

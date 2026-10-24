@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { asUploadValues, isUploadValueList } from "~/lib/enrollment-uploads";
 
 export interface CustomValueField {
   type: string;
@@ -122,6 +123,24 @@ export function formatCustomValue(
   if (typeof v === "boolean") return v ? "Ja" : "Nein";
   if (typeof v === "string") return formatStringValue(v, field);
   if (typeof v === "number") return String(v);
+
+  // File answers (#4783) show their file names, never the raw entries.
+  if (field?.type === "file" || isUploadValueList(v)) {
+    const files = asUploadValues(v);
+    if (files.length === 0) return null;
+    return (
+      <ul className="space-y-1 text-sm">
+        {files.map((file) => (
+          <li
+            key={"token" in file ? file.token : file.upload_id}
+            className="break-all text-gray-800"
+          >
+            {file.filename || "Datei"}
+          </li>
+        ))}
+      </ul>
+    );
+  }
 
   if (Array.isArray(v)) {
     if (v.length === 0) return null;

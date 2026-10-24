@@ -25,6 +25,10 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     UNION ALL
     SELECT 1 FROM active.attendance AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM active.class_handover_children AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM active.class_handovers AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM active.combined_groups AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.excused_absence_requests AS r WHERE r.tenant_id = p_school_id
@@ -34,6 +38,8 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     SELECT 1 FROM active.group_supervisors AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.groups AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM active.morning_attendance AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.presence_backfill_batches AS r WHERE r.tenant_id = p_school_id
     UNION ALL
@@ -263,6 +269,10 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     UNION ALL
     SELECT 1 FROM enrollment.request_reads AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM enrollment.request_upload_cleanup AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM enrollment.request_uploads AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM enrollment.requests AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM enrollment.submission_rate_limits AS r WHERE r.tenant_id = p_school_id
@@ -380,6 +390,14 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     SELECT 1 FROM users.parent_announcement_targets AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM users.parent_announcements AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.parent_group_message_recipients AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.parent_group_messages AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.parent_group_thread_reads AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.parent_group_threads AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM users.parent_message_count_preferences AS r WHERE r.tenant_id = p_school_id
     UNION ALL

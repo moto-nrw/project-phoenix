@@ -177,22 +177,26 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		rs.mapMFAError(w, r, err)
 		return
 	}
-	rs.completeSchoolExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
+	rs.completeSchoolExchange(w, r, verified, req.RememberDevice)
 }
 
 // completeSchoolExchange mints the school-scope token pair once the second
 // factor is proven — shared by the challenge verify and the enrollment
 // confirm, so the role re-check, error mapping, and trusted-device cookie
 // stay in one place.
-func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Request, accountID, tenantID int64, rememberDevice bool) {
+func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Request, proof VerifiedChallenge, rememberDevice bool) {
+	accountID := proof.AccountID
 	ipAddress := common.GetClientIPString(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
+	issueTrustedDevice := rs.prepareTrustedDevice(r, proof, rememberDevice)
 	accessToken, refreshToken, err := rs.AuthService.IssueTokens(
-		r.Context(), accountID, tenantID, ipAddress, userAgent,
+		r.Context(), proof, ipAddress, userAgent,
 	)
 	if err != nil {
 		switch {
+		case rs.AuthService.InvalidSession(err):
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrInvalidCredentials, common.CodeIdentityMfaCodeInvalid))
 		case rs.AuthService.InvalidCredentials(err):
 			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
 		case rs.AuthService.AccountInactive(err):
@@ -216,8 +220,8 @@ func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if rememberDevice {
-		if err := rs.issueTrustedDeviceCookie(w, r, accountID, tenantID); err != nil {
+	if issueTrustedDevice != nil {
+		if err := rs.issueTrustedDeviceCookie(w, r, issueTrustedDevice); err != nil {
 			// Don't fail the whole login — log and proceed.
 			slog.Default().Warn("failed to issue trusted-device cookie",
 				slog.Int64("account_id", accountID),
@@ -362,7 +366,7 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rs.completeSchoolExchange(w, r, claims.AccountID, claims.TenantID, req.RememberDevice)
+	rs.completeSchoolExchange(w, r, verified, req.RememberDevice)
 }
 
 // switchSchool handles POST /school/auth/switch-school. The account id comes
@@ -379,7 +383,7 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, refreshToken, err := rs.AuthService.SwitchSchool(
 		r.Context(), int64(claims.ID), req.TenantSlug,
-		common.GetClientIPString(r), r.Header.Get(headerUserAgent),
+		common.GetClientIPString(r), r.Header.Get(headerUserAgent), claims.FamilyID,
 	)
 	if err != nil {
 		switch {
@@ -395,6 +399,10 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 		case rs.AuthService.NoSchoolPortalRole(err):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
 				ErrAccountNoSchoolPortalRole, common.CodeSchoolNoSchoolPortalRole))
+		case rs.AuthService.InvalidSession(err):
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(err, common.CodeIdentityMfaSessionRequired))
+		case rs.AuthService.MFAUnavailable(err):
+			common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -434,10 +442,8 @@ func (rs *Resource) mapMFAError(w http.ResponseWriter, r *http.Request, err erro
 // issueTrustedDeviceCookie mirrors the tenant portal's cookie issuance.
 // When the tenant has disabled trusted devices, the service returns an
 // empty cookie value and no Set-Cookie header is written.
-func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, accountID, tenantID int64) error {
-	cookieValue, expiresAt, err := rs.MFAService.IssueTrustedDevice(
-		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), common.ParseClientIP(r),
-	)
+func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, issue TrustedDeviceIssue) error {
+	cookieValue, expiresAt, err := issue(r.Context())
 	if err != nil {
 		return err
 	}
@@ -485,4 +491,20 @@ func renderSchoolLogin(w http.ResponseWriter, r *http.Request, result *LoginResu
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 	})
+}
+
+// Freeze the reset generation before mint, just like the tenant portal.
+func (rs *Resource) prepareTrustedDevice(r *http.Request, proof VerifiedChallenge, remember bool) TrustedDeviceIssue {
+	if !remember {
+		return nil
+	}
+	issue, err := rs.MFAService.PrepareTrustedDevice(r.Context(), proof.AccountID, proof.TenantID, r.Header.Get(headerUserAgent), common.ParseClientIP(r))
+	if err != nil {
+		slog.Default().Warn("trusted-device policy unavailable; skipping cookie",
+			slog.Int64("account_id", proof.AccountID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return issue
 }

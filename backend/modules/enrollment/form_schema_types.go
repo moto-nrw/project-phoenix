@@ -128,6 +128,7 @@ type FormField struct {
 	// on the allowed-departure-modes field; rejected everywhere else.
 	SingleModeGrades []int                `json:"single_mode_grades,omitempty"`
 	Validation       *FormFieldValidation `json:"validation,omitempty"`
+	FileOptions      *FormFileOptions     `json:"file_options,omitempty"` // only on FormFieldFile (#4783)
 	SortOrder        int                  `json:"sort_order"`
 	AppliesToCh      bool                 `json:"applies_to_child,omitempty"` // false (default) = guardian-level field; true = per-child field
 	Target           string               `json:"target,omitempty"`           // "" = free custom field; otherwise one of ReservedTargets

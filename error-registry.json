@@ -1469,6 +1469,12 @@
       "legacy": "iot.wc_not_configured"
     },
     {
+      "code": "meals.invalid_allergens",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.invalid_allergens"
+    },
+    {
       "code": "meals.invalid_dishes",
       "class": "input",
       "parameters": [],
@@ -3687,6 +3693,38 @@
       "legacy": "enrollment.legal_document_invalid"
     },
     {
+      "code": "enrollment.form_field_file_options_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_file_options_invalid"
+    },
+    {
+      "code": "enrollment.upload_invalid",
+      "class": "input",
+      "parameters": [
+        "max_mb"
+      ],
+      "legacy": "enrollment.upload_invalid"
+    },
+    {
+      "code": "enrollment.upload_expired",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.upload_expired"
+    },
+    {
+      "code": "enrollment.upload_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "enrollment.upload_rate_limited"
+    },
+    {
+      "code": "enrollment.upload_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.upload_not_found"
+    },
+    {
       "code": "enrollment.request_not_found",
       "class": "business_rejection",
       "parameters": [],
@@ -3955,6 +3993,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "identity.email_change_link_invalid"
+    },
+    {
+      "code": "identity.mfa_status_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.mfa_status_unavailable"
+    },
+    {
+      "code": "identity.mfa_session_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.mfa_session_required"
     },
     {
       "code": "identity.mfa_not_enrolled",
@@ -4267,6 +4317,18 @@
       "class": "input",
       "parameters": [],
       "legacy": "staff.external_access_invalid"
+    },
+    {
+      "code": "communication.group_thread_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_closed"
+    },
+    {
+      "code": "communication.group_thread_no_recipients",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_no_recipients"
     },
     {
       "code": "operator.audit_unavailable",

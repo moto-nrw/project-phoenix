@@ -69,6 +69,9 @@ const (
 	// Withdrawn and lapsed enrollments no child was created from, with
 	// their invitations to enroll late (#3960).
 	DeletionTypeSettledEnrollmentRetention = "settled_enrollment_retention"
+	// Files parents attached to an enrollment: unclaimed uploads after a day,
+	// those of a decided request after the school's window (#4783).
+	DeletionTypeEnrollmentUploadRetention = "enrollment_upload_retention"
 	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
 	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
 	// Daily attendance after the school's window (#3957).
@@ -149,6 +152,7 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeCareWithdrawalRetention,
 		DeletionTypeSubmissionRateLimitRetention,
 		DeletionTypeSettledEnrollmentRetention,
+		DeletionTypeEnrollmentUploadRetention,
 		DeletionTypeStaffSickNoteRetention,
 		DeletionTypeStudentDeletionLogRetention,
 		DeletionTypeEnrollmentDeletionLogRetention,

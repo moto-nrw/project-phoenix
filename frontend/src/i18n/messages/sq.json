@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Të çregjistrohet për gjithë javën?",
     "unregisterWeekText": "{name} do të çregjistrohet nga dreka për {count, plural, one {# ditë} other {# ditë}} të kësaj jave. Regjistrimi sërish është i mundur vetëm deri në afatin e ndryshimeve."
   },
+  "mealAllergens": {
+    "legendTitle": "Alergjenët",
+    "choose": "Zgjidhni alergjenët",
+    "marksShort": "Alergjenët: {letters}",
+    "marksLabel": "Përmban: {names}",
+    "noneThisWeek": "Për këtë javë nuk janë dhënë alergjenë.",
+    "source": "Këto të dhëna vijnë nga shkolla ose nga furnizuesi i ushqimit. Një gjellë pa shkronjë nuk është patjetër pa alergjenë. Për pyetje drejtohuni te OGS.",
+    "names": {
+      "gluten": "Drithëra me gluten",
+      "crustaceans": "Krustace",
+      "eggs": "Vezë",
+      "fish": "Peshk",
+      "peanuts": "Kikirikë",
+      "soybeans": "Sojë",
+      "milk": "Qumësht (përfshirë laktozën)",
+      "nuts": "Arra",
+      "celery": "Selino",
+      "mustard": "Mustardë",
+      "sesame": "Susam",
+      "sulphites": "Dioksid squfuri dhe sulfite",
+      "lupin": "Lupinë",
+      "molluscs": "Molusqe"
+    }
+  },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
     "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",
@@ -1176,7 +1200,8 @@
       "pickupConfirm": "Ju lutemi konfirmoni rregullimin e marrjes (zgjidhni ditët ose lëreni bosh).",
       "weekdayRequired": "Ju lutemi zgjidhni të paktën një ditë të javës.",
       "weekdayModeConfirm": "Ju lutemi konfirmoni rregullimin e largimit.",
-      "weekdayMultiModeRequired": "Ju lutemi zgjidhni të paktën një mënyrë kthimi për çdo ditë kujdesi."
+      "weekdayMultiModeRequired": "Ju lutemi zgjidhni të paktën një mënyrë kthimi për çdo ditë kujdesi.",
+      "file": "Ngarkoni të paktën një skedar."
     },
     "care": {
       "requiredTitle": "Oferta të detyrueshme",
@@ -1305,6 +1330,23 @@
       "noCare": "Asnjë ofertë e rezervuar.",
       "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
       "noAccess": "Nuk mund të hyni në aplikacionin për prindër? Ju lutemi kontaktoni OGS-në."
+    },
+    "upload": {
+      "errorObject": "skedari",
+      "choose": "Zgjidhni skedarin",
+      "chooseMore": "Zgjidhni një skedar tjetër",
+      "allowed": "Të lejuara: {types}, më së shumti {max} MB për skedar.",
+      "upTo": "Deri në {count} skedarë.",
+      "camera": "Në telefon mund të bëni edhe një foto.",
+      "uploading": "Po ngarkohet …",
+      "remove": "Hiq {name}",
+      "wrongType": "Ky skedar ka llojin e gabuar. Të lejuara: {types}.",
+      "tooLarge": "Ky skedar është shumë i madh. Lejohen më së shumti {max} MB.",
+      "empty": "Ky skedar është bosh. Zgjidhni një skedar tjetër.",
+      "onlyOne": "Këtu mund të ngarkoni vetëm një skedar.",
+      "tooMany": "Këtu mund të ngarkoni më së shumti {count} skedarë.",
+      "pendingSubmit": "Prisni derisa të ngarkohen të gjithë skedarët.",
+      "previewDisabled": "Në pamjen paraprake nuk mund të ngarkoni skedarë."
     }
   },
   "enrollmentStatus": {
@@ -2048,6 +2090,25 @@
     "errorObjectMessage": "mesazhi",
     "errorObjectList": "lista e bisedave"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Mesazhe grupi nga OGS",
+    "sectionDescription": "Këtu OGS i shkruan grupit, klasës ose kursit të fëmijës suaj.",
+    "closed": "Mbyllur",
+    "forChildren": "Për {names}",
+    "privacyNote": "Përgjigjja juaj shkon vetëm te OGS. Prindërit e tjerë nuk e shohin.",
+    "replyTitle": "Përgjigje për OGS",
+    "replyChildLabel": "Përgjigje për",
+    "replyPlaceholder": "Shkruani një përgjigje për OGS",
+    "replyFieldLabel": "Përgjigje",
+    "sentConfirmation": "OGS e ka marrë përgjigjen tuaj.",
+    "toChat": "Te biseda me OGS",
+    "closedNote": "Ky mesazh grupi është mbyllur. Mund t'i shkruani akoma OGS në bisedën për fëmijën tuaj.",
+    "writingDisabled": "Nuk mund t'i përgjigjeni këtij mesazhi. Mund ta lexoni akoma.",
+    "answerTo": "Përgjigje për: {title}",
+    "errorObjectThread": "mesazhi i grupit",
+    "errorObjectAnswer": "përgjigjja",
+    "errorObjectList": "mesazhet e grupit"
+  },
   "parentCalendar": {
     "kicker": "Terminet me një vështrim",
     "title": "Kalendari",
@@ -2251,7 +2312,9 @@
         "staff_messaging_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "staff_notice_outdated": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "system_announcement_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "announcement_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "group_thread_closed": "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
+        "group_thread_no_recipients": "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua."
       },
       "enrollment": {
         "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",
@@ -2336,6 +2399,11 @@
         "legal_block_key_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "legal_block_required_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "legal_document_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "form_field_file_options_invalid": "Kontrolloni pyetjen për skedarin. Zgjidhni të paktën një lloj skedari dhe një madhësi nga 1 deri në 10 MB.",
+        "upload_invalid": "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
+        "upload_expired": "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
+        "upload_rate_limited": "U ngarkuan shumë skedarë. Provoni përsëri më vonë.",
+        "upload_not_found": "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
         "message_required": "Ju lutemi shkruani një mesazh.",
         "offering_adjustment_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "phase_care_offering_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2435,6 +2503,8 @@
         "email_change_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "email_change_same_email": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "email_change_link_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "mfa_status_unavailable": "Verifikimi i hyrjes nuk është i disponueshëm tani. Provoni përsëri.",
+        "mfa_session_required": "Hyrja në {object} kërkon një verifikim të dytë. Butoni ju nxjerr nga llogaria dhe hap hyrjen e asaj shkolle. Hyni atje përsëri dhe konfirmoni hyrjen.",
         "mfa_not_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "mfa_already_enrolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "passkey_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2493,6 +2563,7 @@
         "wc_not_configured": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
       },
       "meals": {
+        "invalid_allergens": "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",

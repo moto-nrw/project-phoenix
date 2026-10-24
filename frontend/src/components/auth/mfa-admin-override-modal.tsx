@@ -466,13 +466,17 @@ export function MFAAdminOverrideModal({
               className="border-t border-gray-100 pt-6"
             >
               <h3 className="mb-2 text-sm font-semibold text-gray-900">
-                2FA für diesen Mitarbeiter aktivieren oder deaktivieren
+                Zusätzlichen Anmeldecode festlegen
               </h3>
               <p className="mb-3 text-sm text-gray-600">
-                Wählen Sie, ob für diesen Account die Schul-Einstellung gelten
-                soll oder ob 2FA für diesen Mitarbeiter individuell aktiviert
-                oder deaktiviert wird — z. B. wenn der Mitarbeiter keinen
-                Zugriff auf sein E-Mail-Postfach hat.
+                Für Verwaltung bleibt der zusätzliche Nachweis immer Pflicht.
+                Ebenso für Personalstammdaten, Personaldokumente und
+                Personalfinanzen. Das gilt auch für Gesundheitsdokumente und das
+                Verwalten fremder Arbeitszeiten. Ebenso, wenn Sie Urlaub
+                genehmigen dürfen. Sie können diese Pflicht nicht ausschalten.
+                Gesundheitshinweise der Kinder allein lösen diese Pflicht nicht
+                aus. Bei verlorenem Zugang helfen Sie zuerst, den Zugang zum
+                E-Mail-Postfach wiederherzustellen.
               </p>
               <div className="border-moto-amber/20 bg-moto-amber-soft text-moto-amber-strong mb-3 rounded-md border p-3 text-xs">
                 <strong className="font-semibold">Wichtig:</strong> Diese
@@ -493,17 +497,17 @@ export function MFAAdminOverrideModal({
                     {
                       value: "none",
                       title: "Standard",
-                      desc: "Die in den Schul-Einstellungen festgelegte 2FA-Pflicht gilt.",
+                      desc: "Die Schulregel gilt. Besondere Zugriffsrechte verlangen immer einen zusätzlichen Nachweis.",
                     },
                     {
                       value: "force_on",
                       title: "Aktiv",
-                      desc: "2FA ist für diesen Mitarbeiter immer erforderlich, unabhängig von der Schul-Einstellung.",
+                      desc: "Diese Person braucht immer einen zusätzlichen Nachweis.",
                     },
                     {
                       value: "force_off",
                       title: "Deaktiv",
-                      desc: "2FA ist für diesen Mitarbeiter abgeschaltet. Vertraute Geräte werden beim Speichern entfernt.",
+                      desc: "Nur ohne besondere Zugriffsrechte möglich. Gemerkte Geräte werden entfernt.",
                     },
                   ] as const
                 ).map((opt) => (
@@ -613,12 +617,12 @@ export function MFAAdminOverrideModal({
                     {
                       value: "none",
                       title: "Standard (keine Account-weite Vorgabe)",
-                      desc: "Jede Schule entscheidet einzeln über die 2FA-Pflicht für diesen Account.",
+                      desc: "Die Schulregeln gelten oberhalb der verpflichtenden Untergrenze für privilegierte Rechte.",
                     },
                     {
                       value: "force_off",
                       title: "Account-weit deaktivieren",
-                      desc: "2FA ist in jeder Schule abgeschaltet, in der der Account aktiv ist. Alle vertrauenswürdigen Geräte werden entfernt.",
+                      desc: "Nur möglich, wenn an keiner aktiven Schule privilegierte Rechte bestehen. Alle gemerkten Geräte werden entfernt.",
                     },
                     {
                       value: "force_on",

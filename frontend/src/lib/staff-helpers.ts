@@ -25,7 +25,7 @@ const STAFF_STATUS_COLORS: Record<string, string> = {
   // Eigener Ton, weil Homeoffice weder Anwesenheit vor Ort noch Abwesenheit
   // ist. Der Hex muss byte-gleich zu MOTO_COLOR_PALETTE.timeTracking.base
   // bleiben, denn LOCATION_BADGE_TONES ist genau darauf geschlüsselt.
-  Homeoffice: MOTO_COLOR_PALETTE.timeTracking.base,
+  Unterwegs: MOTO_COLOR_PALETTE.timeTracking.base,
 };
 
 // Absence types all share the "genehmigt abwesend" purple — dasselbe Lila,

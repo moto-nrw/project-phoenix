@@ -79,6 +79,7 @@ func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {
 	// already authenticated), and forwards to the same owner
 	// submission the public path uses.
 	r.Post("/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
+	r.Post("/enrollments/{tenantSlug}/uploads", rs.uploadParentEnrollment)
 }
 
 func (rs *Resource) mountChildStatusRoutes(r chi.Router) {
@@ -126,6 +127,10 @@ func (rs *Resource) mountCommunicationRoutes(r chi.Router, authRateLimiter func(
 	r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 	r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 	r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+	// Group threads (#4784): what the OGS wrote to a group, class or AG of
+	// the guardian's children. Answers go to the child's conversation above.
+	r.Get("/me/messages/group-threads", rs.listGroupThreads)
+	r.Get("/me/messages/group-threads/{groupThreadId}", rs.getGroupThread)
 	// Parent-news feed (#1669): announcements the guardian is targeted by
 	// across their children's news-enabled schools, to read, acknowledge,
 	// answer or declare on. Audience and visibility come from the JWT

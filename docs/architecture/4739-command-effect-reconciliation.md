@@ -213,6 +213,12 @@ Remaining recognition cuts, proposed but not created:
    locks and after-commit guarantees. The few exposed domain terminal effects
    above are not a claim of a complete platform/protocol census.
 
+[ADR 0098](../adr/0098-command-effect-binding-flow-and-platform-protocols.md)
+implements the function-valued, generic and platform/protocol parts of points 1
+and 2 for #4836. Direct foreign calls outside supplied interfaces, anonymous-only
+source ports and protocol proofs (transaction, lock order, authorization,
+after-commit timing) remain outside the static inventory.
+
 The original 17-source-domain follow-up is complete. Issue closure concerns the
 inventory gate's acceptance criteria, not migrating the new placement findings.
 

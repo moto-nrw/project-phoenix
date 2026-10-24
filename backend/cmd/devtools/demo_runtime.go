@@ -54,6 +54,7 @@ type demoAccessExpiry interface {
 // The calls whose signatures carry owner types are bound as functions in
 // NewDemoRuntime, so the dev tools import no owner's public package.
 type DemoRuntime struct {
+	seedAdapter  func(string, bool) seedCommandAdapter
 	schools      demoSchoolStore
 	queue        demoSchoolQueue
 	expiry       demoAccessExpiry
@@ -68,7 +69,7 @@ type DemoRuntime struct {
 // NewDemoRuntime composes the sidecar on its restricted demo connection, the
 // standing demo's database with its own unit of work; now is the clock the
 // expiry of demo accesses reads (#3470).
-func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*DemoRuntime, error) {
+func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAdapter func(string, bool) seedCommandAdapter) (*DemoRuntime, error) {
 	schools, err := organizationcompose.NewDemoSchools(db.Pool())
 	if err != nil {
 		return nil, err
@@ -86,7 +87,8 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 		return nil, err
 	}
 	return &DemoRuntime{
-		schools: schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
+		seedAdapter: seedAdapter,
+		schools:     schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
 		loadSchool: func(ctx context.Context, name string) (*DemoSchoolRecord, error) {
 			state, err := schools.LoadDemoSchool(ctx, name)
 			if state == nil || err != nil {

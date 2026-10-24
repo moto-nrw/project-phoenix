@@ -310,14 +310,14 @@ const ROW_ACTION_BASELINE = new Map(
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
     "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1303"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@770",
+      "Gericht entfernen@837",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
       "Antwort entfernen@1574",
       "Entfernen@2017",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2033",
+      "Bedingung löschen@2050",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2512",
@@ -1590,10 +1590,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@606",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
-      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@266",
+      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@266",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@988",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@983",
     ],
     "src/components/enrollment/phases-editor.tsx": [
       "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@948",

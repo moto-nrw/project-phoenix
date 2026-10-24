@@ -2,9 +2,13 @@ package account
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -53,4 +57,26 @@ func TestRefreshToken_PassesRecoveryProofHeaderToSessions(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Equal(t, "presented-refresh-token", sessions.gotRefreshToken)
 	assert.Equal(t, "independent-recovery-secret", sessions.gotRecoveryProof)
+}
+
+// The locked policy read can fail after a valid refresh token was accepted.
+// This is a retryable dependency failure, not an expired session or a 500.
+type unavailableMFARefreshStub struct{ AccountSessions }
+
+func (*unavailableMFARefreshStub) RefreshTokenWithAudit(context.Context, string, string, string, string) (string, string, error) {
+	return "", "", &identityaccess.AuthenticationError{Op: "refresh", Err: fmt.Errorf("policy lookup: %w", identityaccess.ErrMFAStatusUnavailable)}
+}
+func TestRefreshToken_UnavailableMFAPolicyReturns503(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{Sessions: &unavailableMFARefreshStub{}}
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxRefreshToken, "presented-refresh-token"))
+	rr := httptest.NewRecorder()
+	rs.refreshToken(rr, req)
+	require.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	var problem struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem))
+	assert.Equal(t, "identity.mfa_status_unavailable", problem.Code)
 }

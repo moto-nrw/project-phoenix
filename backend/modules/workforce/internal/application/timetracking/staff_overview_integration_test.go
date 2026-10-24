@@ -299,8 +299,6 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 		f.workforce, wtmIntSettings{}, f.monthSvc, timetracking.WithAbsenceUnitOfWork(testpkg.
 			RunInTenantTransaction,
 		),
-
-		timetracking.WithAbsenceShiftPlanSyncer(noSickCascade{}),
 	)
 
 	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{})
@@ -735,18 +733,3 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 }
 
 func monthOfDate(d calendar.Date) int { return d.Year()*12 + int(d.Month()) }
-
-// noSickCascade is the sick cascade of a suite without shift plans: a sick
-// report leaves the plans untouched.
-type noSickCascade struct{}
-
-func (noSickCascade) MarkSickForRange(context.Context, timetracking.SickCascadeInput) error {
-	return nil
-}
-func (noSickCascade) ClearSickForRange(context.Context, timetracking.SickCascadeInput) error {
-	return nil
-}
-func (noSickCascade) ReconcileSickRange(context.Context, timetracking.SickCascadeInput, timetracking.SickCascadeInput) error {
-	return nil
-}
-func (noSickCascade) ReassignSickStamps(context.Context, int64, int64) error { return nil }

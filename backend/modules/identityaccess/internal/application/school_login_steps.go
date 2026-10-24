@@ -42,7 +42,7 @@ func (s *AccountAuthentication) schoolLoginTenant(ctx context.Context, account d
 	return portalTenantID, nil
 }
 
-func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accountID, portalTenantID int64, roleNames []string) (mfaRequired, enrolled bool, err error) {
+func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accountID, portalTenantID int64, permissions []string) (mfaRequired, enrolled bool, err error) {
 	// Same fail-closed MFA semantics as the tenant login. The verdict
 	// resolved here decides the branch only; the guard re-resolves the
 	// policy inside its own transaction (see schoolMintGuard).
@@ -52,7 +52,7 @@ func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accou
 		if policyErr != nil {
 			return false, false, failed("check mfa required", identityaccess.ErrMFAStatusUnavailable)
 		}
-		mfaRequired = policy.RequiredFor(roleNames)
+		mfaRequired = policy.RequiredFor(permissions)
 	}
 	enrolled = false
 	if s.mfa.Configured() {
@@ -64,7 +64,7 @@ func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accou
 	return mfaRequired, enrolled, nil
 }
 
-func (s *AccountAuthentication) mintSchoolLogin(ctx context.Context, account domain.LoginAccount, portalTenantID int64, mfaRequired, enrolled bool, email, ipAddress, userAgent string) (*domain.LoginResult, error) {
+func (s *AccountAuthentication) mintSchoolLogin(ctx context.Context, account domain.LoginAccount, portalTenantID int64, mfaRequired, enrolled bool, email, ipAddress, userAgent, trustedDeviceCookie string) (*domain.LoginResult, error) {
 	// The guard re-checks school liveness, membership and portal role inside
 	// the transaction that writes the session and assembles the claims there.
 	// Where the gate concluded "no second factor needed", it also re-decides
@@ -75,7 +75,11 @@ func (s *AccountAuthentication) mintSchoolLogin(ctx context.Context, account dom
 		guardOpts = append(guardOpts, withMFAGateRecheck(s.freshSchoolMFAPolicy(account.ID, portalTenantID)))
 	}
 	var claims *domain.AccountClaimsPayload
-	session, err := s.createRefreshSessionGuarded(ctx, account, portalTenantID, domain.ScopeSchool, s.schoolMintGuard(account.ID, portalTenantID, &claims, guardOpts...), "")
+	guard := s.schoolMintGuard(account.ID, portalTenantID, &claims, guardOpts...)
+	if mfaRequired && enrolled {
+		guard = s.trustedDeviceMintGuard(account.ID, portalTenantID, trustedDeviceCookie, guard)
+	}
+	session, err := s.createRefreshSessionGuarded(ctx, account, portalTenantID, domain.ScopeSchool, guard, "", mfaRequired && enrolled)
 	if errors.Is(err, errSchoolMFARequiredAtMint) {
 		// Nothing was written; send the login down the branch it would have
 		// taken had the requirement been there from the start.
@@ -110,7 +114,7 @@ func (s *AccountAuthentication) requireSchoolMintMFAPolicy(ctx context.Context, 
 				slog.String("error", policyErr.Error()))
 			return identityaccess.ErrMFAStatusUnavailable
 		}
-		if policy.RequiredFor(payload.RoleNames) {
+		if policy.RequiredFor(payload.Permissions) {
 			s.logger.Info("mfa requirement appeared during school login; refusing to mint",
 				slog.Int64("account_id", accountID),
 				slog.Int64("tenant_id", tenantID))

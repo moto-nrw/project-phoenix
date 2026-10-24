@@ -251,10 +251,6 @@
     "fingerprint": "0669f453e5ef89dcbbf01b3a0022619d",
     "reason": "Forwarder for process-local scheduler cache updates after durable job/checkpoint commits. Losing a cache hint causes an idempotent rescan; the database leases and persisted cleanup-run/checkpoint records remain authoritative."
   },
-  "modules/schoolstructure/internal/application/groups/substitution_module.go:notifyScheduleChange:AfterCommit@add9a57e9f378aecd4b73f09f9e57b37#1": {
-    "fingerprint": "add9a57e9f378aecd4b73f09f9e57b37",
-    "reason": "Post-commit schedule notification returns only realtime activity/staffing invalidations. Schedule writes are in the transaction; losing the notification delays refetch, not materialization or persistence."
-  },
   "modules/settings/compose/operator.go:operatorSettingsRuntime.AfterCommit:RegisterAfterCommit@3d79e06dc114db3c08b02ba709d51ff3#1": {
     "fingerprint": "3d79e06dc114db3c08b02ba709d51ff3",
     "reason": "Realtime settings/cache invalidation or optional managed-upload cleanup fast path only. Provisioning/withdrawal writes execute before commit; photo/legal-PDF deletion intents are in the cleanup outbox and its worker rescans missed fast paths."
@@ -462,6 +458,10 @@
   "workflows/shiftplansync/internal/application/helpers.go:broadcastStaffingChanged:RegisterAfterCommit@cec6eaf4cb1cd7d932d8c4c0894d1c3e#1": {
     "fingerprint": "cec6eaf4cb1cd7d932d8c4c0894d1c3e",
     "reason": "Realtime timetable/activity/staffing invalidation only. The schedule and running-instance changes persist in the transaction; losing this wake merely delays open-tab refresh."
+  },
+  "workflows/shiftplansync/internal/application/schedule_substitutions.go:notifyScheduleChange:AfterCommit@add9a57e9f378aecd4b73f09f9e57b37#1": {
+    "fingerprint": "add9a57e9f378aecd4b73f09f9e57b37",
+    "reason": "Post-commit schedule notification returns only realtime activity/staffing invalidations. Schedule writes are in the transaction; losing the notification delays refetch, not materialization or persistence."
   },
   "workflows/shiftplansync/internal/application/substitution.go:SubstitutionAdapter.broadcastStaffingChanged:RegisterAfterCommit@0c3c4a5e46089a74c4d127d73d9a49c0#1": {
     "fingerprint": "0c3c4a5e46089a74c4d127d73d9a49c0",
