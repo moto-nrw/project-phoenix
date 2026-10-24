@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.496 (#3873): the static deletion of 1.15.481 with the meal ordering
+// 1.15.505 (#3873): the installed static deletion with the meal ordering
 // tables: an order's changes and lines before its days, its days before
 // the order, all before the children and the school root.
 func installMealOrderErasureDelete(ctx context.Context, tx bun.Tx) error {

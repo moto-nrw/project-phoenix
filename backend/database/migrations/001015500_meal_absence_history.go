@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealAbsenceHistoryVersion     = "1.15.491"
+	mealAbsenceHistoryVersion     = "1.15.500"
 	mealAbsenceHistoryDescription = "Mittagessen: entschuldigt und Ausflug melden das Essen ab wie eine Krankmeldung (#3873)"
 )
 
@@ -18,8 +18,8 @@ func init() {
 		Version:     mealAbsenceHistoryVersion,
 		Description: mealAbsenceHistoryDescription,
 		DependsOn: []string{
-			statusDayRetentionPurgeVersion, // the trigger function this one replaces
-			"1.15.490",                     // the latest development migration, school erasure files
+			statusDayRetentionPurgeVersion,  // the trigger function this one replaces
+			enrollmentRequestUploadsVersion, // the latest development migration, enrollment request uploads
 		},
 	})
 	Migrations.MustRegister(mealAbsenceHistoryUp, mealAbsenceHistoryDown)

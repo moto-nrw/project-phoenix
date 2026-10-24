@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.496 (#3873): the residual check of 1.15.481 that also finds rows
+// 1.15.505 (#3873): the installed residual check that also finds rows
 // left in the meal ordering tables.
 func installMealOrderErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasureResidualSQL)
