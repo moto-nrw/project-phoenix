@@ -35670,11 +35670,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35682,11 +35682,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35694,11 +35694,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35706,11 +35706,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35718,11 +35718,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9640ac6f6258e017531415a20fdf9633",
+      "binding_digest": "b212a93e4cd4f31b90bbbfdabc6e652e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35730,11 +35730,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "999d29266c80132aae4ade9c158e312c",
+      "binding_digest": "faa48507d72b77ad42de13b0e371eae7",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35742,11 +35742,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b13f04002c78d5a8130cff14c5aaf920",
+      "binding_digest": "4fee5b27d3394111b7e823b55d8fc439",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35754,11 +35754,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "7b2f59327ea1585da7de66ff04ac8649",
+      "binding_digest": "77e4a167f264d422f10594e7b79fe922",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35790,11 +35790,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35802,11 +35802,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35814,11 +35814,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35826,11 +35826,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36375,11 +36375,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36387,11 +36387,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36399,11 +36399,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36411,11 +36411,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36423,11 +36423,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9640ac6f6258e017531415a20fdf9633",
+      "binding_digest": "b212a93e4cd4f31b90bbbfdabc6e652e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36435,11 +36435,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "999d29266c80132aae4ade9c158e312c",
+      "binding_digest": "faa48507d72b77ad42de13b0e371eae7",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36447,11 +36447,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b13f04002c78d5a8130cff14c5aaf920",
+      "binding_digest": "4fee5b27d3394111b7e823b55d8fc439",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36459,11 +36459,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "7b2f59327ea1585da7de66ff04ac8649",
+      "binding_digest": "77e4a167f264d422f10594e7b79fe922",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -38098,10 +38098,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PasswordVerifier.VerifyPassword",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.VerifyPassword",
       "target_owner": "security-runtime",
-      "binding_digest": "b0ccdee7b0a94fba32de75f42aed1341",
+      "binding_digest": "38d455ccbbf04c2aa2e8190cf1b7c413",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/securityruntime.VerifyPassword (security-runtime) through modules/identityaccess/ports.PasswordVerifier.VerifyPassword. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed #3841-c: credential comparison, including a runtime-generated dummy hash for absent credentials. The binding calls Security Runtime verification and has no persistent, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -40266,10 +40266,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.passwordVerifier.VerifyPassword",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.VerifyPassword",
       "target_owner": "security-runtime",
-      "binding_digest": "b0ccdee7b0a94fba32de75f42aed1341",
+      "binding_digest": "38d455ccbbf04c2aa2e8190cf1b7c413",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/securityruntime.VerifyPassword (security-runtime) through roots/owners.passwordVerifier.VerifyPassword. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed #3841-c: credential comparison through the root, including a runtime-generated dummy hash for absent credentials. No persistent, lock or scope effect."
     },
     {
       "source_owner": "identity-access",

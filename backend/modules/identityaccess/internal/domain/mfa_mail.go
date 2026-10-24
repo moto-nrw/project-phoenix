@@ -8,11 +8,12 @@ import (
 // AccountIdentity is the account facts the MFA gate reads: who to mail and
 // whether the account is inside its failure cooldown.
 type AccountIdentity struct {
-	ID             int64
-	Email          string
-	Active         bool
-	MFAAttempts    int
-	MFALockedUntil *time.Time
+	MFAResetGeneration int64
+	ID                 int64
+	Email              string
+	Active             bool
+	MFAAttempts        int
+	MFALockedUntil     *time.Time
 }
 
 // MFACodeMail is one e-mail code message. The template deliberately carries

@@ -85,10 +85,6 @@ func (c ComposedAccountMFA) VerifyMFAChallengeForOwner(ctx context.Context, chal
 	return identityaccess.VerifiedMFAChallenge(verified), MFAError(err)
 }
 
-func (c ComposedAccountMFA) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
-	return MFAError(c.Flows.VerifyCodeForAccount(c.ctx(ctx), accountID, tenantID, code, expectedScope))
-}
-
 func (c ComposedAccountMFA) ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
 	token, err := c.Flows.ResendChallengeForScope(c.ctx(ctx), challengeToken, ip, expectedScope)
 	return token, MFAError(err)
@@ -248,4 +244,9 @@ func (g CapabilityGate) TrustedDeviceDays(ctx context.Context, tenantID int64) i
 		return 0
 	}
 	return g.Capability.TrustedDeviceDays(ctx, tenantID)
+}
+
+func (c ComposedAccountMFA) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, scope string) (identityaccess.VerifiedMFAChallenge, error) {
+	proof, err := c.Flows.VerifyEnrollmentCode(c.ctx(ctx), accountID, tenantID, code, scope)
+	return identityaccess.VerifiedMFAChallenge(proof), MFAError(err)
 }

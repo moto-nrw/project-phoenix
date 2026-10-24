@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
-// These queries bootstrap authentication against global account records before
+// These operations bootstrap authentication against global account records before
 // a school/session exists. They are explicit global identity boundaries, not
 // a fallback for school-scoped reads. Locks must belong to an outer command.
 func findLoginAccount(ctx context.Context, runtime ports.Runtime, store ports.AccountLoginStore, id int64, forUpdate bool) (account domain.LoginAccount, found bool, stats domain.OperationStats, err error) {
@@ -30,6 +30,9 @@ func findLoginAccountByEmail(ctx context.Context, runtime ports.Runtime, store p
 	return account, found, stats, err
 }
 
+// globalIdentityRead is the existing global credential unit of work. Despite
+// its historical name, password-reset and login-attempt commands also use it
+// to commit counters independently of a subsequent authentication refusal.
 func globalIdentityRead(ctx context.Context, runtime ports.Runtime, read func(context.Context) error) error {
 	if runtime.HasTransaction(ctx) {
 		return read(ctx)

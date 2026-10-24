@@ -137,7 +137,7 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	_, _, err = mfaRecordRows(t, db).FindActiveChallengeInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeTenant)
 	assert.Error(t, err, "a school-scope code must be invisible to the tenant portal's lookup")
 
-	err = svc.VerifyMFACodeForAccount(ctx, accountID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(ctx, accountID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
 		"the tenant enroll-confirm must find no challenge at all while only a school challenge is in flight")
 

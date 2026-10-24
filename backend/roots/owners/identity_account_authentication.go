@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
@@ -15,6 +16,7 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -61,14 +63,15 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
 	base.Sessions = &identityBindingPorts.SessionDependencies{
-		Schools:   repos.schools,
-		Persons:   PersonDirectory{Persons: repos.persons},
-		Passwords: passwordVerifier{},
-		Codec:     codec,
-		MFALock:   mfaPolicyLock{settings: settings},
-		Audit:     AuthAudit{Command: audit, Events: repos.authEvents},
-		Push:      PushSubscriptionCleanup{Subscriptions: repos.pushSubscriptions},
-		Logger:    logger,
+		Schools:             repos.schools,
+		Persons:             PersonDirectory{Persons: repos.persons},
+		Passwords:           passwordVerifier{},
+		PasswordLoginPolicy: passwordLoginPolicy,
+		Codec:               codec,
+		MFALock:             mfaPolicyLock{settings: settings},
+		Audit:               AuthAudit{Command: audit, Events: repos.authEvents},
+		Push:                PushSubscriptionCleanup{Subscriptions: repos.pushSubscriptions},
+		Logger:              logger,
 	}
 	return identityaccessCompose.New(base)
 }
@@ -246,7 +249,40 @@ func (d PersonDirectory) FindPersonName(ctx context.Context, accountID int64) (s
 type passwordVerifier struct{}
 
 func (passwordVerifier) VerifyPassword(password, hash string) (bool, error) {
+	if hash == "" {
+		var err error
+		hash, err = dummyPasswordHash()
+		if err != nil {
+			return false, err
+		}
+	}
 	return securityruntime.VerifyPassword(password, hash)
+}
+
+// This is not an account credential. Equal-cost verification prevents a missing
+// identity or password from skipping Argon2id work; nothing is persisted/logged.
+var dummyPasswordHash = sync.OnceValues(func() (string, error) {
+	value, err := securityruntime.RandomLowerAlphanumeric(32)
+	if err != nil {
+		return "", err
+	}
+	return securityruntime.HashPassword(value)
+})
+
+// A platform identity can span schools and portals. A school's override must
+// not weaken protection by choosing a different login host or portal.
+func passwordLoginPolicy() (int, time.Duration, error) {
+	threshold := configModel.GetDefinition(configModel.KeyAccountLockoutThreshold)
+	duration := configModel.GetDefinition(configModel.KeyAccountLockoutDurationMinutes)
+	if threshold == nil || duration == nil {
+		return 0, 0, errors.New("password login policy is not registered")
+	}
+	attempts, okAttempts := threshold.Default.(int)
+	minutes, okMinutes := duration.Default.(int)
+	if !okAttempts || !okMinutes || attempts <= 0 || minutes <= 0 {
+		return 0, 0, errors.New("invalid password login policy")
+	}
+	return attempts, time.Duration(minutes) * time.Minute, nil
 }
 
 type mfaPolicyLock struct {

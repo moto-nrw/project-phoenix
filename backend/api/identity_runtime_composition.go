@@ -120,7 +120,9 @@ func SchoolPortalAuth(sessions identityaccess.SchoolAccountLogin) schoolPortal.A
 			result, err := sessions.LoginSchoolAtTenantWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug)
 			return schoolPortalLoginResult(result), err
 		},
-		IssueTokens:        sessions.IssueSchoolTokensForAuthenticatedAccount,
+		IssueTokens: func(ctx context.Context, proof schoolPortal.VerifiedChallenge, ipAddress, userAgent string) (string, string, error) {
+			return sessions.IssueSchoolTokensForVerifiedMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, TenantID: proof.TenantID, Scope: identityaccess.MFAChallengeScopeSchool, MFAResetGeneration: proof.MFAResetGeneration}, ipAddress, userAgent)
+		},
 		SwitchSchool:       sessions.SwitchSchool,
 		InvalidSession:     identityIs(identityaccess.ErrInvalidToken),
 		Cause:              identityCause,
@@ -156,11 +158,11 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 	return schoolPortal.MFARuntime{
 		VerifyChallenge: func(ctx context.Context, challengeToken, code string) (schoolPortal.VerifiedChallenge, error) {
 			verified, err := mfa.VerifyMFAChallengeForScope(ctx, challengeToken, code, identityaccess.MFAChallengeScopeSchool)
-			return schoolPortal.VerifiedChallenge{AccountID: verified.AccountID, TenantID: verified.TenantID}, err
+			return schoolPortal.VerifiedChallenge{AccountID: verified.AccountID, TenantID: verified.TenantID, MFAResetGeneration: verified.MFAResetGeneration}, err
 		},
 		VerifyChallengeForOwner: func(ctx context.Context, challengeToken, code string, accountID, tenantID int64) (schoolPortal.VerifiedChallenge, error) {
 			verified, err := mfa.VerifyMFAChallengeForOwner(ctx, challengeToken, code, identityaccess.MFAChallengeScopeSchool, accountID, tenantID)
-			return schoolPortal.VerifiedChallenge{AccountID: verified.AccountID, TenantID: verified.TenantID}, err
+			return schoolPortal.VerifiedChallenge{AccountID: verified.AccountID, TenantID: verified.TenantID, MFAResetGeneration: verified.MFAResetGeneration}, err
 		},
 		ResendChallenge: func(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 			return mfa.ResendMFAChallengeForScope(ctx, challengeToken, ip, identityaccess.MFAChallengeScopeSchool)
@@ -168,12 +170,15 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 		StartChallenge: func(ctx context.Context, accountID, tenantID int64, ip net.IP) (string, error) {
 			return mfa.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, ip)
 		},
-		Enroll:             mfa.EnrollMFA,
-		IssueTrustedDevice: mfa.IssueTrustedDevice,
-		ChallengeUnusable:  identityChallengeUnusable,
-		Blocked:            identityMFABlocked,
-		Unavailable:        identityIs(identityaccess.ErrMFAStatusUnavailable),
-		AlreadyEnrolled:    identityIs(identityaccess.ErrMFAAlreadyEnrolled),
+		Enroll: mfa.EnrollMFA,
+		PrepareTrustedDevice: func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (schoolPortal.TrustedDeviceIssue, error) {
+			issue, err := mfa.PrepareTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+			return schoolPortal.TrustedDeviceIssue(issue), err
+		},
+		ChallengeUnusable: identityChallengeUnusable,
+		Blocked:           identityMFABlocked,
+		Unavailable:       identityIs(identityaccess.ErrMFAStatusUnavailable),
+		AlreadyEnrolled:   identityIs(identityaccess.ErrMFAAlreadyEnrolled),
 	}
 }
 
