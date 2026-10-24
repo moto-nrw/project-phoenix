@@ -247,7 +247,7 @@ interface Props {
   readonly offeringBookingStats?: Record<string, CareOfferingBookingStats>;
   /**
    * Leaves the signature field out although the form requires one (#4786):
-   * a change request is decided by the school and carries no signature.
+   * change requests and manual staff entries carry no parent signature.
    */
   readonly withoutSignature?: boolean;
 }

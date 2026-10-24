@@ -203,6 +203,9 @@ type statusView struct {
 	editMode  string
 	proof     *SignatureProof
 	signature *StatusSignature
+	// signatureUnavailable means the optional status read failed. The public
+	// response then fails closed and only offers the full edit form.
+	signatureUnavailable bool
 }
 
 // loadStatusView reads the request behind the token. A failed lookup
@@ -248,6 +251,7 @@ func (rs *Resource) loadStatusSignature(ctx context.Context, token string, view 
 		return loadErr
 	})
 	if err != nil {
+		view.signatureUnavailable = true
 		rs.logger().Warn("enrollment status: load signature failed",
 			slog.String("error", err.Error()))
 		return
@@ -269,7 +273,9 @@ func (rs *Resource) loadStatusSignatureProof(ctx context.Context, token string, 
 func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token string, view statusView) {
 	req := view.req
 	resp, anyLocked := newStatusResponse(req, view.editMode, view.children, view.guardians)
-	if view.signature != nil {
+	if view.signatureUnavailable {
+		resp.SignatureRequired = true
+	} else if view.signature != nil {
 		resp.SignatureRequired = view.signature.SignatureRequired
 		resp.Signature = newRequestSignatureResponse(view.signature.Signature, false)
 	}

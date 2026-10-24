@@ -391,6 +391,7 @@ export function ManualApprovedEnrollmentModal({
               submitter={submitter}
               skipCaptcha
               lockChildStructure
+              withoutSignature
               showBlockedOfferings
               offeringBookingStats={bookingStats}
               submitLabel="Kind anlegen und freigeben"

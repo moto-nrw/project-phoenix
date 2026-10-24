@@ -2,6 +2,7 @@ package enrollmenthttp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -80,6 +81,13 @@ func TestStatusSignatureFailureDoesNotHideJSONStatus(t *testing.T) {
 	rs.getStatus(response, request)
 
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var body struct {
+		Data struct {
+			SignatureRequired bool `json:"signature_required"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+	assert.True(t, body.Data.SignatureRequired, "an unavailable signature status must disable inline editing")
 	assert.Equal(t, 1, service.statusSignatureCalls)
 	assert.Zero(t, service.signatureProofCalls, "the JSON status must not load the PDF proof")
 	assert.Equal(t, 1, adminTransactions, "the optional signature read stays inside the status transaction")

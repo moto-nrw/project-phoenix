@@ -253,6 +253,7 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
   EnrollmentForm: (props: {
     lockChildStructure?: boolean;
     gradeLevelMax?: number;
+    withoutSignature?: boolean;
   }) => {
     mocks.enrollmentFormProps.push(props);
     return (
@@ -2598,6 +2599,7 @@ describe("PhasesEditor", () => {
     expect(mocks.enrollmentFormProps.at(-1)).toMatchObject({
       lockChildStructure: true,
       gradeLevelMax: 13,
+      withoutSignature: true,
     });
   });
 
