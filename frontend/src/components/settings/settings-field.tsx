@@ -1864,6 +1864,17 @@ function renderField(
           disabled={disabled}
         />
       );
+    case "multiselect":
+      return (
+        <SelectField
+          ariaLabel={setting.label}
+          value={localValue}
+          onChange={onImmediateSave}
+          options={setting.options?.static ?? []}
+          disabled={disabled}
+          multiple
+        />
+      );
     default:
       return (
         <TextField

@@ -1,6 +1,8 @@
 // lib/active-helpers.ts
 // Type definitions for active entities
 
+import type { ClassHandoverAbsence } from "~/lib/class-handover";
+
 // Tracking indicators response from POST /api/active/tracking-indicators
 export interface TrackingIndicatorsResponse {
   labels: string[];
@@ -55,6 +57,9 @@ export interface BackendVisit {
   sick_since?: string;
   excused?: boolean;
   excused_since?: string;
+  // Übergabe nach dem Unterricht (#4794): bei der heutigen Übergabe der
+  // Klasse als „nicht da“ markiert, obwohl das Kind jetzt hier ist.
+  handover_absent?: ClassHandoverAbsence;
   // Authenticated proxy URL — backend rewrites the raw /uploads path
   // to /api/students/{id}/photo/{filename} before sending it down.
   photo_url?: string;
@@ -122,6 +127,7 @@ export interface Visit {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  handoverAbsent?: ClassHandoverAbsence;
   // Authenticated photo URL (forwarded as-is from the BFF/proxy).
   photoUrl?: string;
   createdAt: Date;
@@ -192,6 +198,7 @@ export function mapVisitResponse(backendVisit: BackendVisit): Visit {
     sickSince: backendVisit.sick_since,
     excused: backendVisit.excused,
     excusedSince: backendVisit.excused_since,
+    handoverAbsent: backendVisit.handover_absent,
     photoUrl: backendVisit.photo_url,
     createdAt: new Date(backendVisit.created_at),
     updatedAt: new Date(backendVisit.updated_at),

@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  HANDOVER_ABSENT_WORDING,
+  handoverAbsenceDetail,
+} from "~/lib/class-handover";
+import {
   useState,
   useEffect,
   Suspense,
@@ -253,6 +257,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     day_planning_reason: student.day_planning_reason,
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
+    handover_absent: student.handover_absent,
     actual_arrival_time: student.actual_arrival_time,
     actual_pickup_time: student.actual_pickup_time,
     // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -1184,6 +1189,12 @@ function OGSGroupPageContent() {
                       {student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow
                           note={student.pending_excused_note}
+                        />
+                      )}
+                      {student.handover_absent && (
+                        <StudentAbsenceRow
+                          wording={HANDOVER_ABSENT_WORDING}
+                          label={handoverAbsenceDetail(student.handover_absent)}
                         />
                       )}
                       {studentAbsence && !student.actual_pickup_time ? (

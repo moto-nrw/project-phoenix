@@ -1,5 +1,6 @@
 import type { CareDayStatus } from "./timetable-types";
 
+import type { ClassHandoverAbsence } from "~/lib/class-handover";
 export interface PlannedTimetableInstance {
   id: string;
   title: string;
@@ -104,6 +105,11 @@ export interface TimetableRosterRow {
   visitEntryTime: string | null;
   /** Effective pickup time for the roster's block date. */
   pickupTime?: string | null;
+  /**
+   * Übergabe nach dem Unterricht (#4794): bei der heutigen Übergabe der
+   * Klasse als „nicht da“ markiert. Nur in der Aufsicht geliefert.
+   */
+  handoverAbsent?: ClassHandoverAbsence;
   warnings: TimetableRosterWarning[];
   /**
    * Care-plan verdict for this child on the instance's date (#1747).

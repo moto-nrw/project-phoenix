@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  HANDOVER_ABSENT_WORDING,
+  handoverAbsenceDetail,
+} from "~/lib/class-handover";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
@@ -295,6 +299,12 @@ export function SupervisionStudentGrid({
                   {student.pending_excused_note !== undefined && (
                     <StudentPendingExcusedRow
                       note={student.pending_excused_note}
+                    />
+                  )}
+                  {student.handover_absent && (
+                    <StudentAbsenceRow
+                      wording={HANDOVER_ABSENT_WORDING}
+                      label={handoverAbsenceDetail(student.handover_absent)}
                     />
                   )}
                   {(() => {

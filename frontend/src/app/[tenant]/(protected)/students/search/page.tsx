@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  HANDOVER_ABSENT_WORDING,
+  handoverAbsenceDetail,
+} from "~/lib/class-handover";
+import {
   Suspense,
   useCallback,
   useEffect,
@@ -3605,6 +3609,15 @@ function SearchPageContent() {
                             student.pending_excused_note !== undefined && (
                               <StudentPendingExcusedRow
                                 note={student.pending_excused_note}
+                              />
+                            )}
+                          {student.has_full_access !== false &&
+                            student.handover_absent && (
+                              <StudentAbsenceRow
+                                wording={HANDOVER_ABSENT_WORDING}
+                                label={handoverAbsenceDetail(
+                                  student.handover_absent,
+                                )}
                               />
                             )}
                           {student.has_full_access !== false &&
