@@ -464,7 +464,10 @@ func withSubmissionSignature(record DeclarationSubmissionView, sub *StaffDeclara
 		record.IntegrityOK = false
 		return record
 	}
-	signature.IntegrityOK = signature.IntegrityOK && signature.DocumentSHA256 == sub.ContentHash
+	signature.IntegrityOK = signature.IntegrityOK &&
+		signature.IsDeclaration &&
+		signature.StudentID != nil && *signature.StudentID == sub.StudentID &&
+		signature.DocumentSHA256 == sub.ContentHash
 	record.Signature = &signature
 	record.IntegrityOK = record.IntegrityOK && signature.IntegrityOK
 	return record

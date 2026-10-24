@@ -67,4 +67,28 @@ func TestImageBoxKeepsAspectRatio(t *testing.T) {
 	if w, h := imageBox([]byte("not a png")); w != 0 || h != 0 {
 		t.Fatalf("unreadable image takes space %vx%v", w, h)
 	}
+	truncated := signaturePNG(t, 800, 300)
+	truncated = truncated[:len(truncated)-1]
+	if _, err := png.DecodeConfig(bytes.NewReader(truncated)); err != nil {
+		t.Fatalf("DecodeConfig rejects truncated PNG: %v", err)
+	}
+	if w, h := imageBox(truncated); w != 0 || h != 0 {
+		t.Fatalf("corrupt image takes space %vx%v", w, h)
+	}
+}
+
+func TestRenderRecordsSkipsCorruptImageFields(t *testing.T) {
+	t.Parallel()
+	truncated := signaturePNG(t, 800, 300)
+	truncated = truncated[:len(truncated)-1]
+	doc := listrecords.RecordDocument{
+		Title: "Nachweis", GeneratedAt: time.Date(2026, 10, 24, 9, 0, 0, 0, time.UTC),
+		Records: []listrecords.Record{{
+			Title:  "Zugestimmt",
+			Fields: []listrecords.Field{{Label: "Unterschrift", PNG: truncated}},
+		}},
+	}
+	if _, err := NewService().RenderRecords(doc, "nachweis"); err != nil {
+		t.Fatalf("RenderRecords corrupt image: %v", err)
+	}
 }

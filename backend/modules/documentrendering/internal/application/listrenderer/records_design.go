@@ -431,10 +431,10 @@ func (l *recordLayout) writeImageField(x float64, f listrecords.Field, paged boo
 // imageBox is the printed size of a PNG: its aspect ratio scaled into the
 // image box. An unreadable image takes no space.
 func imageBox(data []byte) (float64, float64) {
-	config, err := png.DecodeConfig(bytes.NewReader(data))
-	if err != nil || config.Width <= 0 || config.Height <= 0 {
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil || img.Bounds().Dx() <= 0 || img.Bounds().Dy() <= 0 {
 		return 0, 0
 	}
-	scale := min(recImageMaxW/float64(config.Width), recImageMaxH/float64(config.Height))
-	return float64(config.Width) * scale, float64(config.Height) * scale
+	scale := min(recImageMaxW/float64(img.Bounds().Dx()), recImageMaxH/float64(img.Bounds().Dy()))
+	return float64(img.Bounds().Dx()) * scale, float64(img.Bounds().Dy()) * scale
 }

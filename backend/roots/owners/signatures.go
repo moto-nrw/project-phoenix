@@ -31,6 +31,7 @@ func (c CommunicationSignatures) DeclarationSignatures(ctx context.Context, ids 
 	out := make(map[int64]communication.DeclarationSignature, len(stored))
 	for id, s := range stored {
 		out[id] = communication.DeclarationSignature{
+			IsDeclaration: s.Purpose == auditlog.SignaturePurposeDeclaration, StudentID: s.StudentID,
 			Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, ImageSHA256: s.ImageSHA256,
 			DocumentSHA256: s.DocumentSHA256, SignedAt: s.SignedAt, IntegrityOK: s.IntegrityOK,
 		}

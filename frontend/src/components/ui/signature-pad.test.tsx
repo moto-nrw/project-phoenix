@@ -184,6 +184,19 @@ describe("SignaturePad", () => {
       imagePngBase64: "iVBORw0KGgoAAAANSUhEUg==",
       typedName: "😀A",
     });
+
+    fireEvent.click(screen.getByRole("button", { name: "Neu unterschreiben" }));
+    const nextInput = screen.getByLabelText("Ihr Name");
+    const atLimit = `${"A".repeat(119)}😀`;
+    fireEvent.change(nextInput, { target: { value: `${atLimit}B` } });
+    expect(nextInput).toHaveValue(atLimit);
+
+    fireEvent.keyDown(nextInput, { key: "Enter" });
+    expect(onValue).toHaveBeenLastCalledWith({
+      method: "typed",
+      imagePngBase64: "iVBORw0KGgoAAAANSUhEUg==",
+      typedName: atLimit,
+    });
   });
 
   it("describes the field with the given error", () => {

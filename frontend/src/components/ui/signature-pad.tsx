@@ -313,15 +313,18 @@ export function SignaturePad({
           name={`${baseId}-typed`}
           label={labels.typedName}
           value={typedName}
-          // HTML counts UTF-16 code units; the server limits Unicode code
-          // points, which can occupy two code units each.
+          // HTML counts UTF-16 code units; onChange also enforces the server's
+          // 120-code-point limit, including for pasted mixed Unicode text.
           maxLength={SIGNATURE_TYPED_NAME_MAX * 2}
           autoComplete="name"
           disabled={disabled}
           onChange={(event) => {
-            setTypedName(event.target.value);
+            const name = Array.from(event.target.value)
+              .slice(0, SIGNATURE_TYPED_NAME_MAX)
+              .join("");
+            setTypedName(name);
             setLocalError(null);
-            renderTyped(event.target.value);
+            renderTyped(name);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {

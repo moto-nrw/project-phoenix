@@ -23103,7 +23103,7 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CommunicationSignatures.DeclarationSignatures",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.Signatures",
       "target_owner": "audit-platform",
-      "binding_digest": "756aa77622707cd83d41799464f36aae",
+      "binding_digest": "7651bbe9f1c7870b5097a7ec75322280",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read: communication reads stored signatures (#4785) through modules/auditlog.SignatureLedger.Signatures (audit-platform), a tenant-scoped SELECT of audit.signatures by id inside the caller's tenant transaction. No owned-row mutation, lock or scope effect."

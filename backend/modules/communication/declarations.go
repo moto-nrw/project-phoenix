@@ -94,8 +94,12 @@ type DeclarationSubmissionRecord struct {
 // DeclarationSignature is the stored signature of one answer: the image the
 // guardian drew (or the typed name rendered into it), when, and the checksum
 // of the version it was given on. IntegrityOK is false when the image, the
-// signature row or its link to the version no longer match.
+// signature row, its declaration submission or its version no longer match.
 type DeclarationSignature struct {
+	// IsDeclaration and StudentID remain internal to the capability. They bind
+	// an audit-platform row to the declaration submission that names it.
+	IsDeclaration  bool
+	StudentID      *int64
 	Method         string
 	TypedName      string
 	PNG            []byte
