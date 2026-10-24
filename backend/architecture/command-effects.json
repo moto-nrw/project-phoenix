@@ -29559,6 +29559,72 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.UploadAccessLog.RecordUploadAccess",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentUploadAccessLog.RecordUploadAccess",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform",
+      "binding_digest": "028145e218ff9e11411044b4dee64355",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.UploadIntake.PrepareUpload",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.PrepareUpload",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime",
+      "binding_digest": "4b96727a1aa402889e0419a628090ce2",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.UploadObjectSweep.SweepUploadObjects",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment.RequestUploads.SweepUploadObjects",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.Remove",
+      "target_owner": "file-storage",
+      "binding_digest": "d4234f9115826635c086c974b184a071",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.UploadObjectSweep.SweepUploadObjects",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment.RequestUploads.SweepUploadObjects",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/objects.PrivateUploadsBackend",
+      "target_owner": "delivery-platform",
+      "binding_digest": "70853f10c8694e1ceed5341c2e97ceee",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.UploadObjectSweep.SweepUploadObjects",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment.RequestUploads.SweepUploadObjects",
+      "target": "github.com/moto-nrw/project-phoenix/modules/filestorage/compose.NewDocumentCoordinator",
+      "target_owner": "file-storage",
+      "binding_digest": "70853f10c8694e1ceed5341c2e97ceee",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.UploadRetentionSettings.ResolveInt",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target_owner": "settings-platform",
+      "binding_digest": "55dd897a1e8488ea9fa4accce6e41db7",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateLateInvite",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.CreateLateInvite",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
@@ -29693,17 +29759,6 @@
     },
     {
       "source_owner": "enrollment",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.AdminMailSubscribers.AdminNotificationRecipients",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentAdminSubscribers.AdminNotificationRecipients",
-      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.EmailRecipientResolver.Recipients",
-      "target_owner": "delivery-platform",
-      "binding_digest": "93be9dac2144e3ced48b409b14e89e77",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/delivery/internal/notifications.EmailRecipientResolver.Recipients (delivery-platform) through roots/owners.enrollmentAdminSubscribers.AdminNotificationRecipients. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadFileStore.Save",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.Save",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.Save",
@@ -29725,6 +29780,83 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/filestorage/internal/adapters/documents.Coordinator.ServeInline; modules/filestorage/internal/adapters/documents/coordinator.go:122. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.DiscardUpload",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.DiscardUpload",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "7f1f91420a3a214f627966c4a5859f42",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.DiscardUpload",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.DiscardUpload",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "8b786aa033ae24a37774c0e0c15228ea",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.OpenRequestUpload",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.OpenRequestUpload",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "98aa353b0e5ee7de11cd6e3407c63410",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.PrepareUpload",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.PrepareUpload",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime",
+      "binding_digest": "1ff36fc4c4324efec18c4e5b79f73e99",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.PrepareUpload",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.PrepareUpload",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "01cc39aa892f8745fec4b600c2654bf4",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.PrepareUpload",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.PrepareUpload",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "efbce7a8c46646812676e6e1d463d2e8",
+      "effect": "unknown",
+      "classification": "",
+      "reason": ""
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.AdminMailSubscribers.AdminNotificationRecipients",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentAdminSubscribers.AdminNotificationRecipients",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.EmailRecipientResolver.Recipients",
+      "target_owner": "delivery-platform",
+      "binding_digest": "93be9dac2144e3ced48b409b14e89e77",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/delivery/internal/notifications.EmailRecipientResolver.Recipients (delivery-platform) through roots/owners.enrollmentAdminSubscribers.AdminNotificationRecipients. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
