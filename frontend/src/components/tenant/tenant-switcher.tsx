@@ -176,6 +176,16 @@ export function BrandTenantSwitcher({
           }
           setSchoolPortalHint({ url: portalUrl });
         } else {
+          const openTargetLogin = () => {
+            void reloginAtTenant(targetTenant.subdomain).catch(
+              (error: unknown) => {
+                void showSwitchError(error, {
+                  object: "die Abmeldung",
+                  retry: openTargetLogin,
+                });
+              },
+            );
+          };
           // Kein Zugang zur Schule kommt als 401: ohne den Code-Abgleich
           // spränge der Fehlerweg wortlos zur Anmeldung (#2517).
           void showSwitchError(credentialError(err, SWITCH_REFUSALS), {
@@ -189,16 +199,7 @@ export function BrandTenantSwitcher({
               ? {
                   action: {
                     label: "Zur Schulanmeldung",
-                    onClick: () => {
-                      void reloginAtTenant(targetTenant.subdomain).catch(
-                        (error: unknown) => {
-                          void showSwitchError(error, {
-                            object: "die Abmeldung",
-                            retry: () => latestSwitchRef.current(targetTenant),
-                          });
-                        },
-                      );
-                    },
+                    onClick: openTargetLogin,
                   },
                 }
               : { retry: () => latestSwitchRef.current(targetTenant) }),

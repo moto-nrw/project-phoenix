@@ -84,6 +84,10 @@ test("failed family revocation keeps the shared session and shows a recoverable 
   ).toBeVisible();
   expect(page.url()).toBe(`${source}/home`);
   expect((await browserSession(context, target)).tenantId).toBe(1);
+  await page.unroute("**/api/auth/logout");
+  await page.getByRole("button", { name: "Wiederholen" }).click();
+  await page.waitForURL(`${target}/`);
+  await expect(page.locator('input[type="email"]')).toBeVisible();
 });
 
 test("a failed Auth.js cookie deletion stops at the target guard and permits explicit recovery", async ({
