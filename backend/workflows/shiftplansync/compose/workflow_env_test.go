@@ -109,6 +109,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Staff:             owners.NewPlanStaffDirectory(members.Staff),
 		Broadcaster:       broadcaster,
 		Logger:            logger,
+		Runtime:           testpkg.TenantTransactionRuntime{},
 	})
 	require.NoError(t, err)
 

@@ -145,9 +145,3 @@ func NewGradeTransitionSuiteOwners(db transactionruntime.Database, clock func() 
 		LockRecurrenceWrites: owners.MustNewTimetableRecurrenceLock(db).LockRecurrenceWrites,
 	}, people, membership, nil
 }
-
-// NewScheduleSubstitutionSuiteModule constructs only the module's schedule
-// port for the shift-plan-sync integration suites, without the service graph.
-func NewScheduleSubstitutionSuiteModule(schedule education.ScheduleAdapter, runtime education.Runtime, logger *slog.Logger) education.SubstitutionModule {
-	return education.NewSubstitutionModule(education.SubstitutionDependencies{Schedule: schedule, Runtime: runtime, Logger: logger})
-}

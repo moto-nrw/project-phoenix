@@ -52,8 +52,9 @@ func buildGroupManagement(db transactionruntime.Database, hub *realtime.Hub, str
 	)
 }
 
-// buildSubstitutions binds the substitution module; the shift-plan-sync
-// workflow serves its schedule port.
+// buildSubstitutions binds /api/substitutions: School Structure's substitution
+// module serves the group targets, the shift-plan-sync workflow's
+// Terminvertretung entry the schedule target (#4825).
 func buildSubstitutions(
 	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, structure owners.StructureRows, people owners.PeopleRows,
 	substitutions owners.GroupSubstitutions, workTime workforce.Capability, callerContext identityaccess.CallerContext,
@@ -62,8 +63,9 @@ func buildSubstitutions(
 	invitations identityaccess.SchoolInvitations,
 ) (education.SubstitutionModule, error) {
 	repos := owner.Repositories
+	runtime := education.NewLegacyRepositoryRuntime(db.Pool())
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: deviations, Staff: owners.NewPlanStaffDirectory(people.Staff), Broadcaster: hub,
+		Deviations: deviations, Staff: owners.NewPlanStaffDirectory(people.Staff), Broadcaster: hub, Runtime: runtime,
 		Logger:            env.Logger.With("service", "schedule-substitution"),
 		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance.Reads),
 		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
@@ -72,7 +74,7 @@ func buildSubstitutions(
 		return nil, err
 	}
 	logger := env.Logger.With("service", "substitution")
-	return education.NewSubstitutionModule(education.SubstitutionDependencies{
+	groups := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: structure.Groups, Substitutions: NewEducationHandovers(substitutions, workTime),
 		Persons: structure.SubstitutionPersons, Teachers: structure.Caregivers,
 		Staff: structure.StaffChecks, ExternalCaregivers: structure.ExternalCaregivers.WithInvitations(invitations),
@@ -80,10 +82,42 @@ func buildSubstitutions(
 		ActiveGroups: sessions, ActiveSupervisors: supervisions,
 		ActiveSupervisorCreator: active,
 		Audit:                   NewEducationSubstitutionAudit(audit.Persistence.SubstitutionChange),
-		Runtime:                 education.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(hub, logger),
-		Logger: logger, Schedule: schedule,
+		Runtime:                 runtime, Broadcaster: NewGroupEvents(hub, logger),
+		Logger:    logger,
 		CanSeeAll: substitutionOverviewScope(settings), Now: env.Now,
-	}), nil
+	})
+	return SubstitutionEntries{Groups: groups, Schedule: schedule}, nil
+}
+
+// SubstitutionEntries serves /api/substitutions over its two entries: School
+// Structure's substitution module for the group targets and the
+// shift-plan-sync workflow's Terminvertretung entry for the schedule target
+// (#4825). It routes by the requested target as the module did before; each
+// entry keeps its own authorization, transaction and refusals.
+type SubstitutionEntries struct {
+	Groups   education.SubstitutionModule
+	Schedule education.SubstitutionModule
+}
+
+func (e SubstitutionEntries) Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error) {
+	if query.ScheduleFrom != nil || query.ScheduleTo != nil || query.IncludeScheduleTargets {
+		return e.Schedule.Overview(ctx, caller, query)
+	}
+	return e.Groups.Overview(ctx, caller, query)
+}
+
+func (e SubstitutionEntries) Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error) {
+	if assignment.Type == education.TargetScheduleSubstitution {
+		return e.Schedule.Assign(ctx, caller, assignment)
+	}
+	return e.Groups.Assign(ctx, caller, assignment)
+}
+
+func (e SubstitutionEntries) End(ctx context.Context, caller education.Caller, request education.EndRequest) error {
+	if request.Type == education.TargetScheduleSubstitution {
+		return e.Schedule.End(ctx, caller, request)
+	}
+	return e.Groups.End(ctx, caller, request)
 }
 
 // buildEmergencySnapshot binds the Notfallliste (#2704): the owner facades

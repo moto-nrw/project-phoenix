@@ -24,6 +24,7 @@ import (
 // lifecycle calls; this workflow implements it.
 type SickCascade = workforce.ShiftPlanSync
 
-// ScheduleSubstitution is the schedule half of the substitution module.
-// services/education stays the port owner until #2742.
-type ScheduleSubstitution = education.ScheduleAdapter
+// ScheduleSubstitution is the Terminvertretung entry of /api/substitutions in
+// School Structure's substitution vocabulary: the root routes the schedule
+// target to it (#4825).
+type ScheduleSubstitution = education.SubstitutionModule

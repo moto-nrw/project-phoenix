@@ -3,7 +3,6 @@ package compose_test
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -525,11 +524,11 @@ func scheduleSubstitutionCaller(t *testing.T) substitution.Caller {
 	}
 }
 
-// newScheduleSubstitutionModule drives the substitution module's schedule half
-// through the composed workflow: the module keeps its own authorization and
-// transaction handling, the workflow performs the deviation writes.
+// newScheduleSubstitutionModule drives the Terminvertretung entry the root
+// routes the schedule target to: it authorizes the caller, joins the request
+// transaction and performs the deviation writes.
 func newScheduleSubstitutionModule(t *testing.T) (*bun.DB, owners.TimetableTestRepositories, substitution.SubstitutionModule) {
 	t.Helper()
 	env := newPlanSyncEnv(t, nil, nil)
-	return env.db, env.repos, api.NewScheduleSubstitutionSuiteModule(env.substitution, testpkg.TenantTransactionRuntime{}, slog.Default())
+	return env.db, env.repos, env.substitution
 }
