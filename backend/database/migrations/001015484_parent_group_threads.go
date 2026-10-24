@@ -20,6 +20,7 @@ func init() {
 		DependsOn: []string{
 			parentMessagingVersion,         // users.parent_messages gains the thread reference
 			maskParentHealthHistoryVersion, // previous head
+			schoolErasureVersion,           // school erasure procedures are refreshed for the new tables
 		},
 	})
 	Migrations.MustRegister(parentGroupThreadsUp, parentGroupThreadsDown)
