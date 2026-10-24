@@ -373,6 +373,15 @@ describe("Header", () => {
     );
   });
 
+  it("names the moto schule calendar in the page title", () => {
+    shellAuth.mode = "school";
+    mockUsePathname.mockReturnValue("/kalender");
+
+    render(<Header />);
+
+    expect(screen.getByTestId("page-title")).toHaveTextContent("Kalender");
+  });
+
   it("normalizes tenant-prefixed paths before resolving page titles", () => {
     mockUsePathname.mockReturnValue("/test-tenant/rooms");
 
