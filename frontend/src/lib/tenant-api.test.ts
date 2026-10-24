@@ -729,10 +729,19 @@ describe("tenant-api", () => {
 
       const result = await switchTenant("school-b");
 
-      expect(mockSessionFetch).toHaveBeenCalledWith("/api/auth/switch-tenant", {
-        method: "POST",
-        body: JSON.stringify({ tenant_slug: "school-b" }),
-      });
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/auth/switch-tenant",
+        {
+          method: "POST",
+          body: JSON.stringify({ tenant_slug: "school-b" }),
+        },
+        {
+          authRefusals: [
+            "identity.tenant_access_denied",
+            "identity.mfa_session_required",
+          ],
+        },
+      );
       expect(result).toEqual(tokens);
     });
 
@@ -892,10 +901,19 @@ describe("tenant-api", () => {
       expect(result).toEqual(tokens);
 
       // Step 1: switch-tenant called
-      expect(mockSessionFetch).toHaveBeenCalledWith("/api/auth/switch-tenant", {
-        method: "POST",
-        body: JSON.stringify({ tenant_slug: "school-b" }),
-      });
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/auth/switch-tenant",
+        {
+          method: "POST",
+          body: JSON.stringify({ tenant_slug: "school-b" }),
+        },
+        {
+          authRefusals: [
+            "identity.tenant_access_denied",
+            "identity.mfa_session_required",
+          ],
+        },
+      );
 
       // Step 2: signIn called with new tokens
       expect(mockSignIn).toHaveBeenCalledWith("credentials", {

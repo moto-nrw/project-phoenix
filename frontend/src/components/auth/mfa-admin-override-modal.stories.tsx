@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { MFAAdminOverrideModal } from "./mfa-admin-override-modal";
 
@@ -28,6 +29,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const TenantScope: Story = {
+  beforeEach: () =>
+    installStorybookFetch(({ url }) =>
+      url.includes("/mfa")
+        ? jsonResponse({ enrolled: true, override: "none" })
+        : undefined,
+    ),
   args: {
     scope: "tenant",
   },

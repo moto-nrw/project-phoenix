@@ -50,7 +50,7 @@ func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbea
 	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
 		return err
 	}
-	adapter := newSeedCommandAdapter(baseURL, false)
+	adapter := schools.seedAdapter(baseURL, false)
 	if err := waitDemoServer(ctx, adapter); err != nil {
 		return err
 	}

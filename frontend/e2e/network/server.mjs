@@ -2,6 +2,20 @@ import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
+const sharedTenantCookie = process.env.TENANT_SWITCH_EVIDENCE === "1";
+const frontendPort = sharedTenantCookie ? 13845 : 13843;
+const apiPort = sharedTenantCookie ? 18445 : 18443;
+let switchRequests = 0;
+let logoutRequests = 0;
+const schools = ["school-a", "school-b"].map((subdomain, index) => ({
+  tenant_id: index + 1,
+  slug: subdomain,
+  subdomain,
+  name: index === 0 ? "School A" : "School B",
+  organization_id: 1,
+  organization_name: "Fixture",
+}));
+
 // Only synthetic fixtures. This is not a backend/authentication test.
 const envelope = (data) => ({ status: "success", success: true, data });
 const claims = (scope = "") => ({
@@ -27,17 +41,21 @@ const profile = {
   settings: {},
 };
 const api = createServer(async (req, res) => {
-  const url = new URL(req.url, "http://localhost:18443");
+  const url = new URL(req.url, `http://localhost:${apiPort}`);
   const path = url.pathname;
   let data;
   if (path === "/health") data = {};
   else if (path === "/auth/tenant/resolve") {
     const slug = url.searchParams.get("slug") ?? "proof-off";
     data = envelope({
-      tenant_id: 1,
+      tenant_id: sharedTenantCookie && slug === "school-b" ? 2 : 1,
       slug,
       subdomain: slug,
-      name: "Netzwerktest",
+      name: sharedTenantCookie
+        ? slug === "school-b"
+          ? "School B"
+          : "School A"
+        : "Netzwerktest",
       organization_id: 1,
       organization_name: "Fixture",
       settings: {},
@@ -47,6 +65,18 @@ const api = createServer(async (req, res) => {
       student_photos_enabled: true,
       timetable_enabled: false,
     });
+  } else if (sharedTenantCookie && path === "/__fixture/switch-state") {
+    data = { switchRequests, logoutRequests };
+  } else if (sharedTenantCookie && path === "/auth/switch-tenant") {
+    switchRequests++;
+    res.writeHead(401, { "Content-Type": "application/problem+json" });
+    res.end(
+      JSON.stringify({ status: 401, code: "identity.mfa_session_required" }),
+    );
+    return;
+  } else if (sharedTenantCookie && path === "/auth/logout") {
+    logoutRequests++;
+    data = {};
   } else if (
     ["/auth/login", "/school/auth/login", "/parent/auth/login"].includes(path)
   ) {
@@ -72,7 +102,8 @@ const api = createServer(async (req, res) => {
       incomplete: false,
       unavailable_sections: [],
     });
-  else if (path === "/auth/account/tenants") data = envelope([]);
+  else if (path === "/auth/account/tenants")
+    data = envelope(sharedTenantCookie ? schools : []);
   else {
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(
@@ -83,7 +114,7 @@ const api = createServer(async (req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
 });
-api.listen(18443, "127.0.0.1");
+api.listen(apiPort, "127.0.0.1");
 
 // Do not inherit user-specific service configuration or credentials. Explicit
 // empty values also take precedence over Next's automatic .env.local loading.
@@ -94,19 +125,19 @@ const env = {
   NODE_ENV: "development",
   NEXT_TELEMETRY_DISABLED: "1",
   AUTH_TRUST_HOST: "true",
-  API_URL: "http://127.0.0.1:18443",
-  NEXT_PUBLIC_API_URL: "http://127.0.0.1:18443",
-  NEXTAUTH_URL: "http://localhost:13843",
+  API_URL: `http://127.0.0.1:${apiPort}`,
+  NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
+  NEXTAUTH_URL: `http://localhost:${frontendPort}`,
   NEXTAUTH_SECRET: randomBytes(32).toString("hex"),
   AUTH_JWT_EXPIRY: "15m",
   AUTH_JWT_REFRESH_EXPIRY: "12h",
-  TENANT_DOMAIN: "localhost",
+  TENANT_DOMAIN: sharedTenantCookie ? "mfa.localhost" : "localhost",
   METRICS_BEARER_TOKEN: randomBytes(32).toString("hex"),
   NEXT_PUBLIC_APP_ENV: "development",
-  NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
-  NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:13843",
-  NEXT_PUBLIC_PARENTS_HOSTNAME: "eltern.localhost:13843",
-  NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:13843",
+  NEXT_PUBLIC_TENANT_DOMAIN: sharedTenantCookie ? "mfa.localhost" : "localhost",
+  NEXT_PUBLIC_OPERATOR_HOSTNAME: `operator.localhost:${frontendPort}`,
+  NEXT_PUBLIC_PARENTS_HOSTNAME: `eltern.localhost:${frontendPort}`,
+  NEXT_PUBLIC_SCHOOL_HOSTNAME: `${sharedTenantCookie ? "schule.mfa.localhost" : "schule.localhost"}:${frontendPort}`,
   NEXT_PUBLIC_POSTHOG_KEY: "network-evidence-placeholder",
   // SaaS-shaped, nonfunctional placeholder so the real SDK uses /monitoring.
   NEXT_PUBLIC_SENTRY_DSN: "https://network_evidence@o0.ingest.sentry.io/1",
@@ -118,7 +149,7 @@ const env = {
 };
 const next = spawn(
   process.execPath,
-  ["node_modules/next/dist/bin/next", "dev", "--port", "13843"],
+  ["node_modules/next/dist/bin/next", "dev", "--port", String(frontendPort)],
   { env, stdio: "ignore" },
 );
 const stop = () => {

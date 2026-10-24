@@ -257,6 +257,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/demo_roles.go:(*FixedSeeder).seedDemoRoles": 16,
 	// ADR 0087.
+	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:seedWeeklyProfileContents": 29,
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 23,

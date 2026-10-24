@@ -35494,7 +35494,7 @@
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.CleanupErasedAccountAvatars. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform scope protocol: CleanupErasedAccountAvatars uses CommandTransactions.RunAdmin and tenant.WithinAdmin for the durable avatar-cleanup queue introduced by #4855. Its standaloneAdminScopeKey rejects an ambient transaction, so file deletion and queue acknowledgements run only inside the owned administrative unit; this grants no foreign-owner write capability (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35506,7 +35506,7 @@
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredGuardianInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed after #4855: the composition binds the same RunAdmin method value once and shares it with AccountRetention; the scope this method enters is unchanged."
+      "reason": "Platform scope protocol: DeleteExpiredGuardianInvitations still uses the composed CommandTransactions.RunAdmin binding to tenant.WithinAdmin. The merged avatar-cleanup standalone guard changes the shared binding digest; ordinary retention joins an existing unit or enters its administrative unit unchanged. No foreign-owner write or effect classification changes (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35518,7 +35518,7 @@
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredMFAEmailChallenges. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed after #4855: the composition binds the same RunAdmin method value once and shares it with AccountRetention; the scope this method enters is unchanged."
+      "reason": "Platform scope protocol: DeleteExpiredMFAEmailChallenges still uses the composed CommandTransactions.RunAdmin binding to tenant.WithinAdmin. The merged avatar-cleanup standalone guard changes the shared binding digest; ordinary retention joins an existing unit or enters its administrative unit unchanged. No foreign-owner write or effect classification changes (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35530,7 +35530,7 @@
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredPasskeySessions. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed after #4855: the composition binds the same RunAdmin method value once and shares it with AccountRetention; the scope this method enters is unchanged."
+      "reason": "Platform scope protocol: DeleteExpiredPasskeySessions still uses the composed CommandTransactions.RunAdmin binding to tenant.WithinAdmin. The merged avatar-cleanup standalone guard changes the shared binding digest; ordinary retention joins an existing unit or enters its administrative unit unchanged. No foreign-owner write or effect classification changes (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35666,6 +35666,78 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "9640ac6f6258e017531415a20fdf9633",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "999d29266c80132aae4ade9c158e312c",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
@@ -35711,6 +35783,54 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RevokeTenantSchoolInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36248,6 +36368,78 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.ListRoles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "9640ac6f6258e017531415a20fdf9633",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "999d29266c80132aae4ade9c158e312c",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -37746,12 +37938,23 @@
       "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFASettings.TrustedDeviceEnabled",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "034fcce8bbad8fa461ce85c6d851e88f",
+      "binding_digest": "b538142b4b62d200d8799da54fc7876f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFASettings.TrustedDeviceEnabled",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "885372f08f97b4de7394d524cdfa717e",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.BatchSettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -37759,10 +37962,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "3fc54188637671bbbc493239f9c64dae",
+      "binding_digest": "7698ead0bd23f1417dbba942cf8d3de1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.BatchSettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFASettings.TrustedDeviceEnabled",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenantInTx",
+      "target_owner": "settings-platform",
+      "binding_digest": "fbf1bd7d29446a186a869d64de9fa617",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenantInTx through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -37770,10 +37984,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "17c407023578047f29e8a72d98979767",
+      "binding_digest": "f92e611cca2fca760d5ed92b43791c56",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.SettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -37781,10 +37995,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "3599cf1e51257cd0a6c0f9b0199ce506",
+      "binding_digest": "d6e1386d3b5ee6b8e2ec54fe0e9e64b9",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveBool (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -39685,12 +39899,23 @@
       "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "034fcce8bbad8fa461ce85c6d851e88f",
+      "binding_digest": "b538142b4b62d200d8799da54fc7876f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenant (settings-platform) through roots/owners.mfaSettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx through roots/owners.mfaSettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "885372f08f97b4de7394d524cdfa717e",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.BatchSettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -39698,10 +39923,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "3fc54188637671bbbc493239f9c64dae",
+      "binding_digest": "7698ead0bd23f1417dbba942cf8d3de1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.mfaSettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.BatchSettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenantInTx",
+      "target_owner": "settings-platform",
+      "binding_digest": "fbf1bd7d29446a186a869d64de9fa617",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenantInTx through roots/owners.mfaSettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -39709,10 +39945,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "17c407023578047f29e8a72d98979767",
+      "binding_digest": "f92e611cca2fca760d5ed92b43791c56",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenant (settings-platform) through roots/owners.mfaSettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.SettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -39720,10 +39956,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "3599cf1e51257cd0a6c0f9b0199ce506",
+      "binding_digest": "d6e1386d3b5ee6b8e2ec54fe0e9e64b9",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveBool (settings-platform) through roots/owners.mfaSettings.TrustedDeviceEnabled. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
     },
     {
       "source_owner": "identity-access",

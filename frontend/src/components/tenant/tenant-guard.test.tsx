@@ -125,7 +125,7 @@ describe("TenantGuard", () => {
     originalLocation = window.location;
     Object.defineProperty(window, "location", {
       writable: true,
-      value: { ...originalLocation, href: "", assign: vi.fn() },
+      value: { ...originalLocation, href: "", pathname: "/", assign: vi.fn() },
     });
   });
 
@@ -268,6 +268,32 @@ describe("TenantGuard", () => {
     });
 
     expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it("stops automatic switching and offers explicit target login when MFA proof is missing", async () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1, token: "access-token" } },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockUseTenant.mockReturnValue({ tenantSlug: "school-b", tenant: tenantB });
+    mockPerformTenantSwitch.mockRejectedValue(
+      new ApiError("second factor required", 401, {
+        code: "identity.mfa_session_required",
+      }),
+    );
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+    expect(
+      await screen.findByRole("button", { name: "Zur Schulanmeldung" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("School B");
+    expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(window.location.assign).not.toHaveBeenCalled();
   });
 
   it("signs out when switchTenant reports access denied", async () => {

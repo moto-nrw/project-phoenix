@@ -2472,6 +2472,8 @@
         "email_change_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "email_change_same_email": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "email_change_link_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "mfa_status_unavailable": "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
+        "mfa_session_required": "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
         "mfa_not_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "mfa_already_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "passkey_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
