@@ -1208,6 +1208,8 @@ export const ERROR_CATALOG = {
         "Diese E-Mail-Adresse hat schon eine offene Einladung für eine andere Person. Bitte nehmen Sie eine andere Adresse.",
       "staff.external_access_invalid":
         "Bitte wählen Sie, welchen Zugang die Person bekommt.",
+      "operator.audit_unavailable":
+        "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
     },
   },
   en: {

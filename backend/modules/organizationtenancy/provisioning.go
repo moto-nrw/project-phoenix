@@ -12,6 +12,7 @@ import (
 // dashboard. Every write records an operator audit entry; clientIP is the
 // request address stored with it.
 type Provisioning interface {
+	OperatorReadAudit
 	OrganizationProvisioning
 	SchoolProvisioning
 	AccountProvisioning

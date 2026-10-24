@@ -6,13 +6,13 @@ import "embed"
 // Read data_lifecycle_catalog.json and decode it into DataLifecycleCatalog.
 // embed.FS returns a fresh byte slice on ReadFile; readers do not share mutable
 // maps or slices. Migration guards read the same serialized source directly.
-// No erasure/export executor is introduced here.
+// The tenant-export adapter consumes this artifact; erasure remains separate.
 //
 //go:embed data_lifecycle_catalog.json
 var DataLifecycleCatalogSource embed.FS
 
 // DataLifecycleCatalog is the common inventory for tenant erasure and return
-// (ADR 0092). Classification is not an implemented erasure or export procedure.
+// (ADR 0092). Classification alone is not an implemented lifecycle procedure.
 // Scope and export values are documented in docs/reference/datenkatalog.md.
 type DataLifecycleCatalog struct {
 	Version int                 `json:"version"`
@@ -22,7 +22,7 @@ type DataLifecycleCatalog struct {
 
 // LifecycleTable describes selection and export restrictions, not SQL to run.
 // An include entry never authorizes SELECT *, unfiltered account reads or
-// recursive export of JSON containers. Future executors must apply authorization
+// recursive export of JSON containers. Executors must apply authorization
 // and field projections, including the exclusions recorded here.
 type LifecycleTable struct {
 	Name                    string            `json:"name"`

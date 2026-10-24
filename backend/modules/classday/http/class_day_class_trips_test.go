@@ -154,23 +154,23 @@ func TestSchoolClassTripWithReturnTimeSetsArrivals(t *testing.T) {
 	f := setupClassTripFixture(t)
 	f.openTrips(t)
 
-	body := fmt.Sprintf(`{"from":%q,"to":%q,"student_ids":[%d],"return_time":"13:30","reason":"Zoo"}`, classTripMonday, classTripMonday, f.first)
+	body := fmt.Sprintf(`{"from":%q,"to":%q,"student_ids":[%d],"return_time":"13:30","reason":"Zoo"}`, classTripMonday, classTripMonday, f.second)
 	code, resp := f.post(t, body, classTripWritePermission)
 	require.Equal(t, http.StatusCreated, code, resp)
 	assert.Contains(t, resp, `"kind":"return_time"`)
-	arrival, reason, ok := f.arrival(t, f.first, classTripMonday)
+	arrival, reason, ok := f.arrival(t, f.second, classTripMonday)
 	require.True(t, ok)
 	assert.Equal(t, "13:30", arrival)
 	assert.Equal(t, "Ausflug: Zoo", reason)
-	assert.Zero(t, f.classTripDays(t, f.first), "an outing with a return time writes no status day")
+	assert.Zero(t, f.classTripDays(t, f.second), "an outing with a return time writes no status day")
 
 	body = fmt.Sprintf(`{"from":%q,"to":%q,"student_ids":[%d,%d],"return_time":"14:00"}`, classTripMonday, classTripMonday, f.second, f.first)
 	code, resp = f.post(t, body, classTripWritePermission)
 	require.Equal(t, http.StatusConflict, code, resp)
 	assert.Contains(t, resp, "classday.class_trip_arrival_conflict")
-	_, _, ok = f.arrival(t, f.second, classTripMonday)
+	_, _, ok = f.arrival(t, f.first, classTripMonday)
 	assert.False(t, ok, "the refused report rolls back the child written before the conflict")
-	arrival, _, _ = f.arrival(t, f.first, classTripMonday)
+	arrival, _, _ = f.arrival(t, f.second, classTripMonday)
 	assert.Equal(t, "13:30", arrival, "the OGS entry stays")
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	schoolDayHintsVersion     = "1.15.492"
+	schoolDayHintsVersion     = "1.15.494"
 	schoolDayHintsDescription = "Tageshinweis der Lehrkraft: Tagesnotiz aus moto schule für die OGS (#4795)"
 )
 

@@ -2894,6 +2894,9 @@
         "external_email_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "external_has_account": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "not_external": "Не удалось изменить: {object}. Проверьте текущее состояние."
+      },
+      "operator": {
+        "audit_unavailable": "{object} сейчас недоступен. Повторите попытку."
       }
     },
     "actions": {

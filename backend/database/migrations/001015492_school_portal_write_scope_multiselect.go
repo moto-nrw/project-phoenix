@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	schoolPortalWriteScopeMultiSelectVersion = "1.15.489"
+	schoolPortalWriteScopeMultiSelectVersion = "1.15.492"
 	schoolPortalWriteScopeMultiSelectKey     = "operations.school_portal_write_scope"
 )
 

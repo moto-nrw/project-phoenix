@@ -1,8 +1,9 @@
 # Gemeinsamer Datenkatalog für Löschung und Rückgabe
 
 Stand: 23.10.2026. Entscheidung:
-[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md).
-Grundlage für #3837 und #3838, Slices 3837-a/b.
+[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md) und
+[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md).
+Grundlage für #3837 und #3838, Slices 3837-a/b und 3838-a.
 
 ## Stand und Quelle
 
@@ -25,6 +26,17 @@ Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
+**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
+liest den freigegebenen Katalogbestand in einer schreibgeschützten
+`REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.
+Direkte Tabellen werden per `tenant_id`, Kindtabellen per Katalog-FK-Pfad,
+Schul-/Trägerwurzeln und gemeinsame Konten per ausdrücklicher Schulzuordnung
+ausgewählt. Originaldateien, JSONL-Tabellen, Modellmetadaten und SHA-256-
+Prüfsummen liegen in einem neuen privaten Verzeichnis. Ein Teilfehler
+verhindert den Fertig-Marker. Zwei-Mandanten-Tests prüfen jede Katalogtabelle,
+alle Datei-Kinds und alle ausgeschlossenen Spalten. Ausführung, Übergabe und
+Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
+
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
@@ -40,10 +52,16 @@ dem DB-Schritt bei `db_done`, nicht `completed`.
 **CLI und Dateiphase im Code umgesetzt (3837-c):**
 [Runbook](../operations/tenant-erasure.md), Migration `1.15.490`.
 **Offen:** produktiver Nachweis, manuelle Nebensystemschritte, Trägerwurzel,
-Wiederholung nach Restore (3837-d), Personen-/Gesamtexport (#3838). Die Katalogeinträge selbst sind
+Wiederholung nach Restore (3837-d) und Personenauskunft (3838-b).
+Die Katalogeinträge selbst sind
 keine Berechtigungen und kein produktiver Durchführungsnachweis.
+Die breiten Ausschlüsse geheimer/undurchsichtiger Container bleiben wirksam;
+nicht geheimer Settings-/Nachrichtenkontext und rechtlich erforderlicher
+Kontext aus internen Protokollen brauchen weitere geprüfte Projektionen.
+Der technische Export des freigegebenen Umfangs ist daher noch kein Nachweis
+aller Rückgabe-/Data-Act-Pflichten von #3838.
 
-**Produktiv nachzuweisen:** Einsatz und Wirksamkeit der späteren Verfahren,
+**Produktiv nachzuweisen:** Einsatz und Wirksamkeit der Verfahren,
 Nebensysteme, Sicherungszyklus und erneute Löschung nach Wiederherstellung.
 Dieser Slice verwendet nur lokale Schema-Metadaten, keine produktiven Daten.
 
@@ -124,4 +142,5 @@ gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
 Loki, Sentry, PostHog, journald und Sicherungen sind separate Systeme.
 Deren Bestände, Fristen, Zuständigkeiten, Fehlerbehandlung und menschliche
 Nachweise müssen die Folge-Slices samt Betrieb konkret abdecken. Es wird
-hier kein produktiver Lösch-/Exportablauf oder Runbook vorgetäuscht.
+hier kein produktiver Lösch-/Exportnachweis vorgetäuscht. Der interne
+Rückgabeablauf ist im oben verlinkten Runbook vorbereitet.

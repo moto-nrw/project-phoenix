@@ -338,7 +338,7 @@ func (s *StudentNoteStore) insertPermanentHint(
 }
 
 // schoolDayHintConflict is the arbiter of uniq_student_notes_school_day_hint
-// (1.15.492): one live hint per author, child, day and target, the class
+// (1.15.494): one live hint per author, child, day and target, the class
 // compared the way every class is (trimmed, case-insensitive).
 const schoolDayHintConflict = `CONFLICT (tenant_id, student_id, subject_date, author_account_id, ` +
 	`(LOWER(BTRIM(COALESCE(school_class, ''))))) ` +

@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableTemplateCareOfferingConflict        = "timetable.template_care_offering_conflict"
 	CodeTimetableTemplateCategoryUnavailable         = "timetable.template_category_unavailable"
 	CodeTimetableTemplateEducationGroupInvalid       = "timetable.template_education_group_invalid"
 	CodeTimetableTemplateEndBeforeStart              = "timetable.template_end_before_start"
@@ -94,6 +95,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.template_care_offering_conflict":         "input",
 	"timetable.template_category_unavailable":           "business_rejection",
 	"timetable.template_education_group_invalid":        "input",
 	"timetable.template_end_before_start":               "input",

@@ -360,13 +360,13 @@ type OperatorMFAEvidence struct {
 	Reason string
 	// LockedUntil is the cooldown an mfa_locked entry started.
 	LockedUntil *time.Time
-	// Override is set on the operator's account-wide MFA override.
+	// Override describes an operator's privileged account MFA change.
 	Override *OperatorMFAOverrideEvidence
 }
 
-// OperatorMFAOverrideEvidence records one platform-wide override
-// transition.
+// OperatorMFAOverrideEvidence records one privileged account MFA change.
 type OperatorMFAOverrideEvidence struct {
+	SchoolID         int64
 	Action           string
 	Scope            string
 	Override         string
