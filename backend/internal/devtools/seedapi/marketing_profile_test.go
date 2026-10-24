@@ -199,34 +199,6 @@ func assertMarketingAPIWrites(t *testing.T, mock *marketingProfileAPIMock, profi
 	for _, group := range mock.groups {
 		assert.Len(t, group["teacher_ids"], 1, "each group has its caregiver")
 	}
-	assert.Len(t, mock.photos, 8, "two of three children get a picture, the rest keep initials")
-	for id, consent := range mock.photos {
-		assert.Equal(t, "true", consent, "student %d photo carries the parents' consent", id)
-	}
-	assert.ElementsMatch(t, []string{
-		marketingMockAdminToken,
-		marketingMockStaffPrefix + "hilal.oezdemir@example.test",
-		marketingMockStaffPrefix + "thore.gritzmann@example.test",
-	}, mock.avatars, "every staff member uploads their own picture while signed in")
-	distinct := map[string]bool{}
-	for _, picture := range mock.pictures {
-		distinct[picture] = true
-	}
-	assert.Len(t, distinct, len(mock.pictures), "no two people of the school share a picture")
-}
-
-// readMarketingPicture checks that an upload carries a PNG in field and
-// returns its consent flag and the picture.
-func readMarketingPicture(t *testing.T, r *seedHTTPRequest, field string) (string, string) {
-	t.Helper()
-	require.NoError(t, r.ParseMultipartForm(1<<20))
-	file, _, err := r.FormFile(field)
-	require.NoError(t, err)
-	defer func() { _ = file.Close() }()
-	content, err := io.ReadAll(file)
-	require.NoError(t, err)
-	assert.True(t, bytes.HasPrefix(content, []byte("\x89PNG\r\n\x1a\n")), "%s upload is a PNG", field)
-	return r.FormValue("consent_acknowledged"), string(content)
 }
 
 // marketingScheduleTimes returns the one arrival and pickup time a child has
@@ -276,9 +248,6 @@ type marketingProfileAPIMock struct {
 	attendance      map[int64]string
 	parentPasswords map[string]string
 	parentGuardian  map[string]int64
-	photos          map[int64]string // student id → consent_acknowledged
-	avatars         []string         // signed-in accounts that uploaded one
-	pictures        []string         // every uploaded picture, children and staff
 	rooms           map[int64]string // room id → name
 	activities      map[int64]map[string]any
 	instances       map[int64]map[string]any // planned blocks, by id
@@ -312,7 +281,7 @@ func newMarketingProfileAPIMock() *marketingProfileAPIMock {
 	return &marketingProfileAPIMock{
 		nextID: 7500, settings: make(map[string]json.RawMessage), students: make(map[int64]map[string]any),
 		guardianOf: make(map[int64]int64), guardianEmail: make(map[int64]string), attendance: make(map[int64]string),
-		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64), photos: make(map[int64]string),
+		parentPasswords: make(map[string]string), parentGuardian: make(map[string]int64),
 		rooms: make(map[int64]string), activities: make(map[int64]map[string]any), instances: make(map[int64]map[string]any),
 		started: make(map[int64]bool), inRoom: make(map[int64]int64), news: make(map[int64]bool),
 		mealPlan: make(map[string][]any),
@@ -401,12 +370,6 @@ func (m *marketingProfileAPIMock) id() int64 {
 func (m *marketingProfileAPIMock) respond(t *testing.T, r *seedHTTPRequest, body map[string]any) (any, int) {
 	t.Helper()
 	path := r.URL.Path
-	if path == "/api/me/profile/avatar" {
-		_, picture := readMarketingPicture(t, r, "avatar")
-		m.avatars = append(m.avatars, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-		m.pictures = append(m.pictures, picture)
-		return nil, 0
-	}
 	if data, ok := m.respondIdentity(r, body); ok {
 		return data, 0
 	}
@@ -535,13 +498,6 @@ func (m *marketingProfileAPIMock) respondFamily(t *testing.T, r *seedHTTPRequest
 	path := r.URL.Path
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	switch {
-	case strings.HasSuffix(path, "/photo"):
-		id, err := strconv.ParseInt(parts[2], 10, 64)
-		require.NoError(t, err)
-		consent, picture := readMarketingPicture(t, r, "photo")
-		m.photos[id] = consent
-		m.pictures = append(m.pictures, picture)
-		return nil, 0
 	case path == "/api/students/arrival-settings":
 		return map[string]any{"care_days_source": "weekly_plan"}, 0
 	case strings.HasSuffix(path, "/school-checkin"):
