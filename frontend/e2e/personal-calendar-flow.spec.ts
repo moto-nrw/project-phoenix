@@ -20,6 +20,14 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
+function nextWeekday(date: Date): Date {
+  const next = new Date(date);
+  const weekday = next.getDay();
+  if (weekday === 6) next.setDate(next.getDate() + 2);
+  if (weekday === 0) next.setDate(next.getDate() + 1);
+  return next;
+}
+
 // Der angelegte Termin wird wieder gelöscht. Sonst stapeln sich bei
 // wiederholten Läufen gleichzeitige Blöcke im Wochenraster und überdecken
 // einander.
@@ -51,9 +59,12 @@ test.describe("Personal calendar flow", () => {
     // Kalt kompiliert der Next-Dev-Server /calendar und die Detailansicht
     // spürbar langsam; gleiches Budget wie die übrigen Tenant-Flows.
     test.setTimeout(90000);
-    const today = new Date();
-    const startDate = toISODate(today);
-    const recurrenceEnd = toISODate(addDays(today, 7));
+    // Der Kalender blendet Wochenenden zunächst aus. Ein am Samstag oder
+    // Sonntag angelegter Termin wäre nach dem Speichern daher nicht im
+    // Wochenraster sichtbar und ließe den Ablauf fälschlich scheitern.
+    const start = nextWeekday(new Date());
+    const startDate = toISODate(start);
+    const recurrenceEnd = toISODate(addDays(start, 7));
     const title = `Playwright Kalendertermin ${Date.now()}`;
 
     await page.goto("/calendar");
