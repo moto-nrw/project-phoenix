@@ -41,9 +41,12 @@ type DeclarationSignatureEntry struct {
 }
 
 // DeclarationSignature is a stored signature. IntegrityOK is the ledger's
-// own check of image and row.
+// own check of image and row. IsDeclaration and StudentID bind the
+// audit-platform row to the declaration submission that names it.
 type DeclarationSignature struct {
 	ID             int64
+	IsDeclaration  bool
+	StudentID      *int64
 	Method         string
 	TypedName      string
 	PNG            []byte
@@ -120,11 +123,15 @@ func (s *Service) loadProofSignatures(ctx context.Context, proof *DeclarationPro
 }
 
 // proofSignatureIntact reports whether a signed answer's signature is stored,
-// unchanged, and was given on the version the answer names.
+// unchanged, belongs to this child and declaration flow, and was given on
+// the version the answer names.
 func proofSignatureIntact(proof *DeclarationProof, sub *DeclarationSubmission) bool {
 	if sub.SignatureID == nil {
 		return true
 	}
 	signature, ok := proof.Signatures[*sub.SignatureID]
-	return ok && signature.IntegrityOK && signature.DocumentSHA256 == sub.ContentHash
+	return ok && signature != nil && signature.IntegrityOK &&
+		signature.IsDeclaration &&
+		signature.StudentID != nil && *signature.StudentID == sub.StudentID &&
+		signature.DocumentSHA256 == sub.ContentHash
 }

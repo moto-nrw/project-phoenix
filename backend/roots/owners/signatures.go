@@ -73,7 +73,8 @@ func (p ParentDeclarationSignatures) DeclarationSignatures(ctx context.Context, 
 	out := make(map[int64]*parentportal.DeclarationSignature, len(stored))
 	for id, s := range stored {
 		out[id] = &parentportal.DeclarationSignature{
-			ID: s.ID, Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, ImageSHA256: s.ImageSHA256,
+			ID: s.ID, IsDeclaration: s.Purpose == auditlog.SignaturePurposeDeclaration, StudentID: s.StudentID,
+			Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, ImageSHA256: s.ImageSHA256,
 			DocumentSHA256: s.DocumentSHA256, SignedAt: s.SignedAt, IntegrityOK: s.IntegrityOK,
 		}
 	}
