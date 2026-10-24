@@ -36,7 +36,9 @@ DELETE /api/guardians/{id}/phone-numbers/{phoneId}
 DELETE /api/iot/*/{id}
 DELETE /api/iot/staff/{staffId}/rfid
 DELETE /api/me/profile/avatar
-DELETE /api/meal-plan/participants/{studentId}/{date}
+DELETE /api/meal-caterer/invitations/{invitationId}
+DELETE /api/meal-caterer/supply
+DELETE /api/meal-plan/participation/{studentId}/days/{date}
 DELETE /api/meal-plan/{date}
 DELETE /api/notifications/preferences/
 DELETE /api/notifications/push/subscriptions
@@ -283,11 +285,16 @@ GET /api/me/profile
 GET /api/me/profile/avatar/{filename}
 GET /api/me/staff
 GET /api/me/teacher
+GET /api/meal-caterer/
+GET /api/meal-caterer/orders/export
 GET /api/meal-plan/
+GET /api/meal-plan/orders
+GET /api/meal-plan/orders/month/export
 GET /api/meal-plan/participants
 GET /api/meal-plan/participants/export
 GET /api/meal-plan/participants/week
 GET /api/meal-plan/participants/week/export
+GET /api/meal-plan/participation/{studentId}
 GET /api/messages/
 GET /api/messages/count-scope
 GET /api/messages/group-threads
@@ -486,6 +493,10 @@ GET /auth/roles/{roleId}/permissions/
 GET /auth/staff-preview/candidates
 GET /auth/tenant/resolve
 GET /auth/tenants
+GET /caterer/invitations/{schoolId}/{token}
+GET /caterer/orders/export
+GET /caterer/schools
+GET /caterer/schools/{schoolId}/orders
 GET /health
 GET /internal/metrics
 GET /operator/accounts
@@ -727,6 +738,7 @@ POST /api/iot/staff-clock
 POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
+POST /api/meal-caterer/invitations
 POST /api/messages/group-threads
 POST /api/messages/group-threads/{groupThreadId}/close
 POST /api/messages/group-threads/{groupThreadId}/messages
@@ -895,6 +907,11 @@ POST /auth/session/validate
 POST /auth/staff-preview
 POST /auth/staff-preview/end
 POST /auth/switch-tenant
+POST /caterer/auth/login
+POST /caterer/auth/password-reset
+POST /caterer/auth/password-reset/confirm
+POST /caterer/invitations/{schoolId}/{token}/accept
+POST /caterer/schools/{schoolId}/orders/{orderId}/confirm
 POST /internal/metrics
 POST /operator/accounts/{accountId}/tenants
 POST /operator/accounts/{accountId}/tenants/
@@ -1008,7 +1025,8 @@ PUT /api/guardians/{id}/phone-numbers/{phoneId}
 PUT /api/iot/*/{id}
 PUT /api/iot/session/{sessionId}/supervisors
 PUT /api/me/profile
-PUT /api/meal-plan/participants/{studentId}/{date}
+PUT /api/meal-plan/participation/{studentId}/days/{date}
+PUT /api/meal-plan/participation/{studentId}/schedule
 PUT /api/meal-plan/{date}
 PUT /api/messages/count-scope
 PUT /api/notifications/email-subscriptions/{type}
@@ -1089,6 +1107,7 @@ PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
 PUT /parent/me/children/{studentId}/master-data/requests/{requestId}
 PUT /parent/me/children/{studentId}/meal-participation
+PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}
 PUT /parent/me/children/{studentId}/meal-participation/{date}
 PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
