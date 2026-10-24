@@ -166,6 +166,13 @@ func (p *Provisioning) UpdateSchool(ctx context.Context, id int64, changes organ
 		if existing.IsDeleted() {
 			return nil, &organizationtenancy.SchoolAlreadyDeletedError{SchoolID: id}
 		}
+		// Only a changed address is checked: a school that predates the rule
+		// keeps its other edits until the operator adds the address (#2872).
+		if changes.Email != existing.Email {
+			if err := organizationtenancy.ValidateSchoolContactEmail(changes.Email); err != nil {
+				return nil, &organizationtenancy.InvalidProvisioningDataError{Err: err}
+			}
+		}
 		diff, err := p.schoolChangeSet(adminCtx, existing, changes)
 		if err != nil {
 			return nil, err
