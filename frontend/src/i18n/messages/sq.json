@@ -2885,6 +2885,9 @@
         "external_email_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_has_account": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "not_external": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+      },
+      "operator": {
+        "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       }
     },
     "actions": {

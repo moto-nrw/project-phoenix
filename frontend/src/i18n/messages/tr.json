@@ -2885,6 +2885,9 @@
         "external_email_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "external_has_account": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "not_external": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+      },
+      "operator": {
+        "audit_unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin."
       }
     },
     "actions": {

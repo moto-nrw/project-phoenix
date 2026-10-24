@@ -319,8 +319,8 @@ func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
 // Disable cascades: the credential goes, every trusted device is revoked and
 // the lockout counter is reset. The three writes share one transaction so a
 // partial failure cannot leave the account half-disabled — a credential gone
-// while devices still verify, say.
-func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64) error {
+// while devices still verify, say. An operator audit participates through record.
+func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record ...func(context.Context) error) error {
 	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		if err := f.records.DeleteCredentials(txCtx, accountID); err != nil {
 			return fmt.Errorf("delete credential: %w", err)
@@ -330,6 +330,9 @@ func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64) error {
 		}
 		if err := f.records.ResetMFAAttempts(txCtx, accountID); err != nil {
 			return fmt.Errorf("reset mfa attempts: %w", err)
+		}
+		if len(record) > 0 && record[0] != nil {
+			return record[0](txCtx)
 		}
 		return nil
 	})

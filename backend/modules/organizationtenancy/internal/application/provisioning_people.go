@@ -108,10 +108,12 @@ func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, ope
 		if err := p.people.AnonymizeAndSoftDelete(adminCtx, personID); err != nil {
 			return fmt.Errorf("SoftDeletePerson: anonymize and soft delete: %w", err)
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionSoftDelete, domain.AuditResourcePerson, &personID, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionSoftDelete, domain.AuditResourcePerson, &personID, clientIP, map[string]any{
 			"person_id": personID,
 			"school_id": person.TenantID,
-		})
+		}); err != nil {
+			return err
+		}
 		p.logger.Info("person_soft_deleted",
 			slog.Int64("person_id", personID),
 			slog.Int64("school_id", person.TenantID),
