@@ -39,6 +39,8 @@ type ClassDayDependencies struct {
 	StudentArrivals studentArrivals
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
+	// ClassHandoverDependencies are the class handover seam (#4794).
+	ClassHandoverDependencies
 }
 
 // classDayService is the capability: the caller's classes and staff row
@@ -52,6 +54,7 @@ type classDayService struct {
 	arrivalExceptions
 	classTrips
 	morningAttendance
+	classHandover
 }
 
 // NewClassDay creates the school-portal capability. Caller and Rosters are
@@ -73,6 +76,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 			arrivals: deps.StudentArrivals, announcer: deps.Announcer,
 		},
 		morningAttendance: newMorningAttendance(deps),
+		classHandover:     newClassHandover(deps),
 	}
 }
 

@@ -28,14 +28,16 @@ func TestScopePredicatesOpenOnlyForTheirValue(t *testing.T) {
 	if !OverviewOpenToAllStaff(OverviewScopeAllStaff) || OverviewOpenToAllStaff(OverviewScopeOwn) || OverviewOpenToAllStaff(OverviewScopeAdmins) || OverviewOpenToAllStaff("") {
 		t.Error("only the all-staff overview scope opens every group")
 	}
-	both := []string{SchoolPortalWriteScopeClassArrivalExceptions, SchoolPortalWriteScopeClassTrips}
-	if !SchoolPortalWritesClassArrivalExceptions([]string{SchoolPortalWriteScopeClassArrivalExceptions}) || !SchoolPortalWritesClassArrivalExceptions(both) ||
-		SchoolPortalWritesClassArrivalExceptions([]string{SchoolPortalWriteScopeClassTrips}) || SchoolPortalWritesClassArrivalExceptions([]string{}) || SchoolPortalWritesClassArrivalExceptions(nil) {
-		t.Error("only a scope listing class arrival exceptions opens that school portal write")
-	}
-	if !SchoolPortalWritesClassTrips([]string{SchoolPortalWriteScopeClassTrips}) || !SchoolPortalWritesClassTrips(both) ||
-		SchoolPortalWritesClassTrips([]string{SchoolPortalWriteScopeClassArrivalExceptions}) || SchoolPortalWritesClassTrips([]string{}) || SchoolPortalWritesClassTrips(nil) {
-		t.Error("only a scope listing class trips opens the class trip report")
+	// The write scope is a multi-select (#4794): stored values decode as
+	// []any, the registry default is []string.
+	stored := []any{SchoolPortalWriteScopeClassArrivalExceptions}
+	if !SchoolPortalWriteScopeIncludes(stored, SchoolPortalWriteScopeClassArrivalExceptions) ||
+		SchoolPortalWriteScopeIncludes(stored, SchoolPortalWriteScopeClassHandover) ||
+		!SchoolPortalWriteScopeIncludes([]string{SchoolPortalWriteScopeClassHandover}, SchoolPortalWriteScopeClassHandover) ||
+		SchoolPortalWriteScopeIncludes([]string{}, SchoolPortalWriteScopeClassArrivalExceptions) ||
+		SchoolPortalWriteScopeIncludes(SchoolPortalWriteScopeClassArrivalExceptions, SchoolPortalWriteScopeClassArrivalExceptions) ||
+		SchoolPortalWriteScopeIncludes(nil, SchoolPortalWriteScopeClassArrivalExceptions) {
+		t.Error("only a selected write scope opens its school portal write")
 	}
 	if !IsBinaryPresence(PresenceModeBinary) || IsBinaryPresence(PresenceModeDetailed) || IsBinaryPresence("") {
 		t.Error("only the binary value is the binary presence mode")

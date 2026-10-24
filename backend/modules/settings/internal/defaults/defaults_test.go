@@ -724,8 +724,9 @@ func TestClassArrivalExceptionEditorsSetting(t *testing.T) {
 }
 
 // TestSchoolPortalWriteScopeSetting pins what a Lehrkraft may write through
-// moto schule (#2970, #4799): a multi-select that opens nothing by default,
-// right under the OGS-side editors setting.
+// moto schule (#2970): nothing unless the school ticks a write, right under
+// the OGS-side editors setting. Since #4794 it is a multi-select of the class
+// arrival exception and the class handover.
 func TestSchoolPortalWriteScopeSetting(t *testing.T) {
 	t.Parallel()
 
@@ -740,9 +741,9 @@ func TestSchoolPortalWriteScopeSetting(t *testing.T) {
 	require.NotNil(t, def.Options)
 	require.Equal(t, []config.SelectOption{
 		{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
+		{Label: "Klasse nach dem Unterricht an die OGS übergeben", Value: config.SchoolPortalWriteScopeClassHandover},
 		{Label: "Ausflug oder Klassenfahrt der Klasse melden", Value: config.SchoolPortalWriteScopeClassTrips},
 	}, def.Options.Static)
-	assert.Equal(t, "class_trips", config.SchoolPortalWriteScopeClassTrips, "the stored value is part of the contract")
 
 	editors := config.GetDefinition(config.KeyClassArrivalExceptionEditors)
 	require.NotNil(t, editors)

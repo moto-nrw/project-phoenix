@@ -31,7 +31,6 @@ import {
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { MultiSelect } from "~/components/ui/multi-select";
 import { MODULE_SETTING_KEYS } from "~/lib/modules";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
@@ -617,7 +616,7 @@ export function SettingsField({
     toastSuccess,
   ]);
 
-  // Immediate save — for booleans, selects and multi-selects.
+  // Immediate save — for booleans and selects.
   // If the setting requires confirmation on enable OR disable (some
   // toggles trigger destructive backend side effects), show the modal
   // first and only persist the new value once the user confirms.
@@ -1881,35 +1880,17 @@ function renderField(
           disabled={disabled}
         />
       );
-    case "multiselect": {
-      const options = setting.options?.static ?? [];
-      const chosen = Array.isArray(localValue) ? localValue.map(String) : [];
+    case "multiselect":
       return (
-        <MultiSelect
+        <SelectField
           ariaLabel={setting.label}
-          placeholder="Nichts ausgewählt"
-          summaryLabel={(count) => `${count} ausgewählt`}
-          value={chosen}
-          options={options.map((option) => ({
-            value: String(option.value),
-            label: option.label,
-          }))}
-          onChange={(next) =>
-            onImmediateSave(
-              options
-                .map((option) => option.value)
-                .filter((value) => next.includes(String(value))),
-            )
-          }
+          value={localValue}
+          onChange={onImmediateSave}
+          options={setting.options?.static ?? []}
           disabled={disabled}
-          triggerClassName={
-            disabled
-              ? "h-10 w-auto min-w-[8rem] max-w-full border-gray-200 sm:max-w-xs"
-              : "moto-content-surface h-10 w-auto min-w-[8rem] max-w-full hover:border-gray-300 sm:max-w-xs"
-          }
+          multiple
         />
       );
-    }
     default:
       return (
         <TextField

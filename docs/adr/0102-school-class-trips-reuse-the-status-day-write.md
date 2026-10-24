@@ -38,7 +38,7 @@ the same.
   `BulkCreateForDates`, `CreateForDates` and `DeleteStatusDay`
   (3 unresolved entries).
 
-These 9 entries cite `approval_adr: "0101"`. The counterprobe that removes
+These 9 entries cite `approval_adr: "0102"`. The counterprobe that removes
 this ADR rejects exactly those 9 entries. This approves only the changed
 evidence; it does not review the Student Presence → Care Plan lock protocol.
 That review remains follow-up work under ADR 0098. Once this ADR is in the

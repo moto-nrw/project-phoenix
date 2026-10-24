@@ -78,6 +78,10 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayClassHandoverNoSchoolDay                 = "classday.class_handover_no_school_day"
+	CodeClassdayClassHandoverNotFound                    = "classday.class_handover_not_found"
+	CodeClassdayClassHandoverNotToday                    = "classday.class_handover_not_today"
+	CodeClassdayClassHandoverUnknownChild                = "classday.class_handover_unknown_child"
 	CodeClassdayClassTripArrivalConflict                 = "classday.class_trip_arrival_conflict"
 	CodeClassdayClassTripInvalidRange                    = "classday.class_trip_invalid_range"
 	CodeClassdayClassTripNoStudents                      = "classday.class_trip_no_students"
@@ -298,10 +302,6 @@ const (
 	CodeIdentityUsernameTaken                            = "identity.username_taken"
 	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
 	CodeImportFileMissing                                = "import.file_missing"
-	CodeImportFileNoRows                                 = "import.file_no_rows"
-	CodeImportFileRowInvalid                             = "import.file_row_invalid"
-	CodeImportFileTooLarge                               = "import.file_too_large"
-	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -381,6 +381,10 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.class_handover_no_school_day":                "input",
+	"classday.class_handover_not_found":                    "business_rejection",
+	"classday.class_handover_not_today":                    "input",
+	"classday.class_handover_unknown_child":                "business_rejection",
 	"classday.class_trip_arrival_conflict":                 "business_rejection",
 	"classday.class_trip_invalid_range":                    "input",
 	"classday.class_trip_no_students":                      "input",
@@ -601,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.username_taken":                              "business_rejection",
 	"import.file_columns_missing":                          "input",
 	"import.file_missing":                                  "input",
-	"import.file_no_rows":                                  "input",
-	"import.file_row_invalid":                              "input",
-	"import.file_too_large":                                "input",
-	"import.file_type_invalid":                             "input",
 }
 
 func init() {

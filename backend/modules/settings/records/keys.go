@@ -1,7 +1,6 @@
 package records
 
 import (
-	"slices"
 	"strconv"
 
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
@@ -375,29 +374,42 @@ const (
 	ClassArrivalExceptionEditorsAllStaff = "all_staff"
 )
 
-// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970,
-// #4799). The OGS decides what a Lehrkraft may write into OGS data through
-// "moto schule". The setting is a multi-select: every chosen value opens one
-// write, and the default empty list keeps the school portal read-only.
+// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
+// The OGS decides what a Lehrkraft may write into OGS data through "moto
+// schule"; the setting is a multi-select (#4794), and the default selects
+// nothing, which keeps the school portal read-only.
 const (
 	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
 	// class-wide arrival day exception (#2962) for her assigned classes.
 	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
+	// SchoolPortalWriteScopeClassHandover lets a Lehrkraft hand her
+	// assigned class over to the OGS after lessons and mark the children
+	// who are not there (#4794).
+	SchoolPortalWriteScopeClassHandover = "class_handover"
 	// SchoolPortalWriteScopeClassTrips lets a Lehrkraft report a class trip
 	// (Ausflug or Klassenfahrt) for her assigned classes (#4799).
 	SchoolPortalWriteScopeClassTrips = "class_trips"
 )
 
-// SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
-// the school portal set class-wide arrival day exceptions.
-func SchoolPortalWritesClassArrivalExceptions(scope []string) bool {
-	return slices.Contains(scope, SchoolPortalWriteScopeClassArrivalExceptions)
-}
-
-// SchoolPortalWritesClassTrips reports a write scope that lets the school
-// portal report class trips.
-func SchoolPortalWritesClassTrips(scope []string) bool {
-	return slices.Contains(scope, SchoolPortalWriteScopeClassTrips)
+// SchoolPortalWriteScopeIncludes reports whether the resolved write scope
+// (the JSON array of KeySchoolPortalWriteScope) selects scope. A value that
+// is no list selects nothing.
+func SchoolPortalWriteScopeIncludes(value any, scope string) bool {
+	switch v := value.(type) {
+	case []string:
+		for _, item := range v {
+			if item == scope {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s == scope {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The

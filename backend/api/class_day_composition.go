@@ -35,8 +35,9 @@ import (
 // remaining ports are bound here over the reports, the status days, the
 // student, person and contact rows, the access log, the write-scope and
 // morning attendance settings and the broadcaster. deps also carries
-// Student Presence's morning attendance (#4790). Without a broadcaster no arrival schedule change is
-// announced.
+// Student Presence's morning attendance (#4790) and class handovers with the
+// staff names (#4794). Without a broadcaster no arrival schedule change and
+// no class handover is announced.
 func NewClassDay(
 	deps classdayCompose.ClassDayDependencies, reports enrollmentOwner.Reports, statusDays classDayStatusDayReader,
 	students classDayStudentRows, persons classDayPersonRows, studentGuardians classDayContactRows,
@@ -49,8 +50,17 @@ func NewClassDay(
 		deps.Scope = func(ctx context.Context) (bool, error) {
 			return settings.ResolveBool(ctx, configModels.KeySchoolPortalMorningAttendance)
 		}
+		// operations.school_portal_write_scope (#4794): only a ticked class
+		// handover opens the handover.
+		deps.HandoverScope = func(ctx context.Context) (bool, error) {
+			return schoolPortalWriteScopeIncludes(ctx, settings, configModels.SchoolPortalWriteScopeClassHandover)
+		}
 	}
-	deps.Announcer = classDayArrivalAnnouncer{broadcaster: broadcaster, logger: logger}
+	announcer := classDayArrivalAnnouncer{broadcaster: broadcaster, logger: logger}
+	deps.Announcer = announcer
+	// A handover is the class's arrival in the OGS: the same event makes
+	// Aufsicht, Gruppe and Kindersuche refetch once the write committed.
+	deps.HandoverAnnouncer = announcer.AnnounceArrivalScheduleChange
 	if reports != nil {
 		deps.Rosters = classDayRosters{reports: reports}
 	}
@@ -290,4 +300,34 @@ func (a classDayArrivalAnnouncer) AnnounceArrivalScheduleChange(ctx context.Cont
 		return
 	}
 	deliveryCompose.QueueArrivalScheduleChanged(ctx, a.broadcaster, a.logger)
+}
+
+// classHandoverStaffRows is the People Directory staff read that names the
+// staff member of a class handover (#4794).
+type classHandoverStaffRows interface {
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.Staff, error)
+}
+
+// classHandoverStaffNames maps staff ids to their person's display name in
+// one read; nil rows leave the handovers unnamed.
+func classHandoverStaffNames(staff classHandoverStaffRows) func(context.Context, []int64) (map[int64]string, error) {
+	if staff == nil {
+		return nil
+	}
+	return func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		if len(ids) == 0 {
+			return map[int64]string{}, nil
+		}
+		rows, err := staff.FindWithPersonByIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		names := make(map[int64]string, len(rows))
+		for id, row := range rows {
+			if row != nil && row.Person != nil {
+				names[id] = row.Person.GetFullName()
+			}
+		}
+		return names, nil
+	}
 }

@@ -18,17 +18,15 @@ const (
 	FieldTextarea FieldType = "textarea"
 	FieldPassword FieldType = "password"
 	FieldSelect   FieldType = "select"
-	// FieldMultiSelect stores a JSON array of option values. Each element is
-	// one of Options.Static; an empty array is a valid choice ("nothing").
-	// Read it with MultiSelectValues.
+	// FieldMultiSelect stores a JSON array of option values; an empty array
+	// selects nothing.
 	FieldMultiSelect FieldType = "multiselect"
 )
 
 // validFieldTypes contains all known field types for validation.
 var validFieldTypes = map[FieldType]bool{
 	FieldBoolean: true, FieldNumber: true, FieldTime: true, FieldDate: true,
-	FieldText: true, FieldTextarea: true, FieldPassword: true, FieldSelect: true,
-	FieldMultiSelect: true,
+	FieldText: true, FieldTextarea: true, FieldPassword: true, FieldSelect: true, FieldMultiSelect: true,
 }
 
 // AccessPolicy classifies which audience can read and write a setting.
@@ -123,12 +121,13 @@ func Range(minVal, maxVal float64) *ValidationRules {
 	return &ValidationRules{Min: &minVal, Max: &maxVal}
 }
 
-// SelectOptions provides static choices for a FieldSelect or FieldMultiSelect setting.
+// SelectOptions provides static choices for a FieldSelect or FieldMultiSelect
+// setting.
 type SelectOptions struct {
 	Static []SelectOption `json:"static,omitempty"`
 }
 
-// SelectOption is a single static option for a FieldSelect or FieldMultiSelect.
+// SelectOption is a single static option for a FieldSelect.
 type SelectOption struct {
 	Label string `json:"label"`
 	Value any    `json:"value"`
@@ -172,77 +171,17 @@ func (d *Definition) validateShape() error {
 	if d.Category == "" {
 		return fmt.Errorf("category is required for setting %s", d.Key)
 	}
-	if d.Options != nil && !d.Type.hasOptions() {
+	selectType := d.Type == FieldSelect || d.Type == FieldMultiSelect
+	if d.Options != nil && !selectType {
 		return fmt.Errorf("options can only be set for select fields, setting %s has type %s", d.Key, d.Type)
 	}
-	if d.Type.hasOptions() && d.Options == nil {
+	if selectType && d.Options == nil {
 		return fmt.Errorf("select field %s must have options", d.Key)
 	}
 	if d.AccessPolicy != "" && !validAccessPolicies[d.AccessPolicy] {
 		return fmt.Errorf("invalid AccessPolicy %q for setting %s", d.AccessPolicy, d.Key)
 	}
-	if d.Type == FieldMultiSelect {
-		return d.validateMultiSelectShape()
-	}
 	return nil
-}
-
-// hasOptions reports the field types that pick from Options.Static.
-func (t FieldType) hasOptions() bool {
-	return t == FieldSelect || t == FieldMultiSelect
-}
-
-// validateMultiSelectShape requires string option values and a default that
-// lists only those options, each once.
-func (d *Definition) validateMultiSelectShape() error {
-	allowed := make(map[string]bool, len(d.Options.Static))
-	for _, option := range d.Options.Static {
-		value, ok := option.Value.(string)
-		if !ok {
-			return fmt.Errorf("multiselect field %s needs string option values, got %T", d.Key, option.Value)
-		}
-		allowed[value] = true
-	}
-	if _, ok := d.Default.([]string); !ok {
-		return fmt.Errorf("multiselect field %s needs a []string default, got %T", d.Key, d.Default)
-	}
-	values, err := MultiSelectValues(d.Default)
-	if err != nil {
-		return fmt.Errorf("default of %s: %w", d.Key, err)
-	}
-	seen := make(map[string]bool, len(values))
-	for _, value := range values {
-		if !allowed[value] || seen[value] {
-			return fmt.Errorf("default of multiselect field %s lists %q, which is no option or repeats", d.Key, value)
-		}
-		seen[value] = true
-	}
-	return nil
-}
-
-// MultiSelectValues turns a resolved FieldMultiSelect value (the registry
-// default or a decoded tenant override) into its option values. A missing
-// value reads as no selection; anything but a list of strings is an error, so
-// a consumer never mistakes a broken row for a choice.
-func MultiSelectValues(value any) ([]string, error) {
-	switch values := value.(type) {
-	case nil:
-		return []string{}, nil
-	case []string:
-		return append([]string{}, values...), nil
-	case []any:
-		result := make([]string, 0, len(values))
-		for _, element := range values {
-			text, ok := element.(string)
-			if !ok {
-				return nil, fmt.Errorf("multiselect value holds %T, want string", element)
-			}
-			result = append(result, text)
-		}
-		return result, nil
-	default:
-		return nil, fmt.Errorf("multiselect value is %T, want a list of strings", value)
-	}
 }
 
 // compilePattern compiles the validation pattern onto the definition.

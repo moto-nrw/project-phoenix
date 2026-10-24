@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeImportFileNoRows                              = "import.file_no_rows"
+	CodeImportFileRowInvalid                          = "import.file_row_invalid"
+	CodeImportFileTooLarge                            = "import.file_too_large"
+	CodeImportFileTypeInvalid                         = "import.file_type_invalid"
 	CodeImportFileUnreadable                          = "import.file_unreadable"
 	CodeImportImportBatchFailed                       = "import.import_batch_failed"
 	CodeImportModeForbidden                           = "import.mode_forbidden"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
 	CodeTimetableStaffNotFound                        = "timetable.staff_not_found"
 	CodeTimetableStaffNotOnSource                     = "timetable.staff_not_on_source"
-	CodeTimetableStaffPresentAndAbsent                = "timetable.staff_present_and_absent"
-	CodeTimetableStartTooEarly                        = "timetable.start_too_early"
-	CodeTimetableStartWindowExpired                   = "timetable.start_window_expired"
-	CodeTimetableStudentAlreadyActive                 = "timetable.student_already_active"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"import.file_no_rows":                                 "input",
+	"import.file_row_invalid":                             "input",
+	"import.file_too_large":                               "input",
+	"import.file_type_invalid":                            "input",
 	"import.file_unreadable":                              "input",
 	"import.import_batch_failed":                          "server",
 	"import.mode_forbidden":                               "permission",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.staff_already_on_target":                   "business_rejection",
 	"timetable.staff_not_found":                           "business_rejection",
 	"timetable.staff_not_on_source":                       "input",
-	"timetable.staff_present_and_absent":                  "input",
-	"timetable.start_too_early":                           "business_rejection",
-	"timetable.start_window_expired":                      "business_rejection",
-	"timetable.student_already_active":                    "business_rejection",
 }
 
 func init() {
