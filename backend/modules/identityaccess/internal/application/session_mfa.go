@@ -53,7 +53,7 @@ func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account 
 	if _, err := s.store.RecordAccountLogin(ctx, account.ID, loginTime); err != nil {
 		return time.Time{}, fmt.Errorf("update last login before token issuance: %w", err)
 	}
-	if retireFamilyID != "" && scopeNeedsMFA(session.PortalScope) {
+	if retireFamilyID != "" && (session.PortalScope == domain.PortalScopeTenant || session.PortalScope == domain.PortalScopeSchool) {
 		verified, err := s.switchMFAProof(ctx, account.ID, retireFamilyID, session.PortalScope)
 		if err != nil {
 			return time.Time{}, &mintGuardError{err: err}

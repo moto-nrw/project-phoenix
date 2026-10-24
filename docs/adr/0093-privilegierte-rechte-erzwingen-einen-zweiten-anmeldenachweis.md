@@ -36,9 +36,9 @@ Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../sec
    vorhandenen Nachweis nur aus der vorgelegten, lebenden Sitzungsfamilie desselben Portals
    und desselben Kontos, auch beim Wechsel in einen anderen Träger. Nicht die Schule
    oder der Träger, sondern diese Sitzung bindet den Nachweis. Identity & Access
-   liest ihn unter der Kontosperre erneut. MFA-Zurücksetzung, Widerruf, Ablauf
-   und fremde Portalbereiche dürfen keinen
-   Nachweis liefern. Die Rechte und MFA-Regel der Zielschule gelten unverändert.
+   liest ihn unter der Kontosperre erneut. OGS-Portal und Schulportal übernehmen
+   ihn jeweils nur innerhalb ihres eigenen Portalbereichs. MFA-Zurücksetzung,
+   Widerruf, Ablauf und fremde Portalbereiche dürfen keinen Nachweis liefern. Die Rechte und MFA-Regel der Zielschule gelten unverändert.
    Ohne gültigen Nachweis verlangt eine MFA-pflichtige Zielschule eine direkte
    Anmeldung; die API lehnt den Wechsel mit 401 und
    `identity.mfa_session_required` ab. Das gilt auch nach Ablauf der Schonfrist
@@ -67,5 +67,12 @@ Grundlage ist die [Zugriffsbewertung für Gesundheits- und Personaldaten](../sec
   Anmeldeweg wiederherstellen. Es gibt keine Passwort-Notfallausnahme.
 - Der dev-only Seed-Adapter bestätigt dieselben E-Mail-Codes über Mailpit.
   Die API erhält keinen Entwicklungs-Bypass.
+- Der Demo-Sidecar bestätigt dieselben Codes über einen In-Memory-Empfänger
+  auf `127.0.0.1:10026` in seiner mit dem Server geteilten Netzwerknamespace.
+  Nur der Demo-Mailer liefert dort an. Der TCP-Empfänger bestätigt Zustellung,
+  bietet aber keinen Lese-Endpunkt; nur der Sidecar liest die Codes im eigenen
+  Prozess. Ohne Empfänger schlägt die Zustellung fehl. So bleiben externe
+  Demo-Mails gesperrt und Einrichtung und Code-Prüfung beim Aufbau unverändert.
+  Die öffentliche Demo-Einlösung ist die bewusste Ausnahme aus Punkt 5.
 - [Runbook](../operations/mfa-pflicht-3841.md) trennt Implementierung und offene
   produktive Nachweise. Der AVV/TOM-Text ist ein Vorschlag, kein Betriebsnachweis.

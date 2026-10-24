@@ -121,3 +121,45 @@ func TestTenantSessionCacheTracksSeederSwitchAndRevokedProof(t *testing.T) {
 		require.NotEmpty(t, saved.RefreshToken)
 	}
 }
+
+func TestTenantSessionCacheSwitchWithoutMFAFallsBackToTargetLogin(t *testing.T) {
+	t.Parallel()
+	var logins atomic.Int32
+	api := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/login":
+			logins.Add(1)
+			var request struct {
+				TenantSlug string `json:"tenant_slug"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			if logins.Load() == 2 {
+				require.Equal(t, "target", request.TenantSlug)
+			}
+			_, _ = w.Write([]byte(`{"access_token":"example-login-access","refresh_token":"example-login-refresh"}`))
+		case "/auth/refresh":
+			_, _ = w.Write([]byte(`{"access_token":"example-restored-access","refresh_token":"example-restored-refresh"}`))
+		case "/auth/switch-tenant":
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"code":"identity.mfa_session_required"}`))
+		default:
+			t.Errorf("unexpected request path: %s", r.URL.Path)
+		}
+	})
+	defer api.Close()
+	dir := t.TempDir()
+	newAdapter := func() *Adapter {
+		a := NewCommandAdapter(api.URL, false)
+		a.tenantSessions = newTenantSessionCache(dir)
+		return a
+	}
+	password := testpkg.NewTestPassword()
+	_, err := newAdapter().LoginTenant(context.Background(), "admin@example.test", password, "source")
+	require.NoError(t, err)
+	auth, err := newAdapter().LoginTenant(context.Background(), "admin@example.test", password, "target")
+	require.NoError(t, err)
+	require.EqualValues(t, 2, logins.Load())
+	require.Equal(t, "target", auth.Label)
+	require.Equal(t, "example-login-access", auth.Token)
+}

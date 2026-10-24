@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	MigrationRegistry.Register(&Migration{Version: "1.15.484", Description: "Persist second-factor proof across account session rotation (#3841-f)", DependsOn: []string{"1.15.479"}})
+	MigrationRegistry.Register(&Migration{Version: "1.15.484", Description: "Persist second-factor proof across account session rotation (#3841-f)", DependsOn: []string{"1.15.483"}})
 	Migrations.MustRegister(sessionMFAProofUp, sessionMFAProofDown)
 }
 
