@@ -31,7 +31,16 @@ The project-specific security reference. The load-bearing rules live where they 
 
 ## Certificates
 
-When touching X.509 material (`config/ssl/`, PEM strings, crypto calls): flag expired certs as CRITICAL; RSA < 2048 or EC < P-256 and MD5/SHA-1 signatures as high-priority; self-signed (issuer == subject) is dev-only. DB connections: `sslmode=require` in dev, `verify-full` in production.
+When touching X.509 material (`config/ssl/`, PEM strings, crypto calls): flag expired certs as CRITICAL; RSA < 2048 or EC < P-256 and MD5/SHA-1 signatures as high-priority; self-signed server certificates are dev-only. A private CA's self-signed trust anchor is not a self-signed server certificate.
+
+DB transport: use `sslmode=require` for local development; use `verify-full`
+with a trusted CA and matching server name for production TCP and external
+diagnostics. A same-host alternative needs documented equivalent protection,
+effective network/access evidence and a risk decision before affected processing;
+a Docker bridge or loopback binding alone is insufficient. Existing deployed
+`require`/`disable` declarations are open findings, not an approved exception.
+When changing DB clients, networks, ports or certificates, follow the path-specific
+[assessment and human verification](../../../docs/operations/db-transportschutz-3842.md).
 
 ## File uploads
 

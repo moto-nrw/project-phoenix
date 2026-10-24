@@ -210,12 +210,24 @@ func readProjectionLoosenings(base, candidate *Policy, createdPackages map[strin
 			_, packageCreated := createdPackages[packagePath]
 			owner, ownerExists := candidateOwners[pkg.Owner]
 			_, ownerExisted := baseOwners[pkg.Owner]
+			if classified && packageCreated && candidate.hasTenantLifecycleRead(packagePath, pkg) {
+				continue
+			}
 			if !classified || !packageCreated || !ownerExists || ownerExisted || owner.Kind != "projection" {
 				problems = append(problems, "new tenant-safe read projection grant "+grant)
 			}
 		}
 	}
 	return problems
+}
+
+func (p *Policy) hasTenantLifecycleRead(packagePath string, pkg Package) bool {
+	for _, projection := range p.ReadProjections {
+		if p.absolutePackage(projection.Package) == packagePath && p.isTenantLifecycleRead(projection, pkg) {
+			return true
+		}
+	}
+	return false
 }
 
 // ADR 0020 renames a grant only after the package's owner, all roles and

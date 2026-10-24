@@ -65,6 +65,36 @@ von CASCADE-FKs ist unvollständig und kann gemeinsam genutzte Daten treffen.
 
 ## Grenzen und Folgen
 
+### Umsetzung Rückgabe, Slice 3838-a
+
+Der interne CLI-Einstieg `tenant export` liegt bei Organisation & Tenancy.
+Der neue Adapter `modules/organizationtenancy/internal/adapters/tenantexport`
+besitzt keine Schreiboperation. Die Policy bildet die oben beschlossene
+Ausnahme unter `organization-tenancy.tenant-data-lifecycle` mit genau den
+bekannten exportierten Datenobjekten ab, ohne einen neuen Owner zu schaffen.
+Die fünf Katalogtabellen ohne Runtime-Datenobjekt bleiben kataloggeführt;
+es wird ihnen nicht nur für eine Lesefreigabe ein Schreib-Owner zugewiesen.
+Der Architekturwächter akzeptiert ausschließlich diesen benannten
+Owner-/Paket-/Rollenpunkt und dessen kataloggebauten `exportTable`-Lesecall.
+Andere dynamische SQL-Aufrufe und owner-fremde Schreibzugriffe bleiben verboten.
+
+Migration 1.15.489 führt `phoenix_tenant_export` ein: `NOLOGIN`, `BYPASSRLS`,
+Leserechte über PostgreSQLs `pg_read_all_data`, keine Schreibrechte und keine
+Zuweisung an die HTTP-Rolle. Das Wartungs-CLI wechselt lokal in diese Rolle
+und prüft `REPEATABLE READ READ ONLY`. RLS-Bypass und Leserechte sind nicht
+selbst die Mandantengrenze: ausdrückliche Tabellen-/Spaltenprojektionen aus
+dem Katalog und Zwei-Schulen-Tests sichern den Exportumfang. Die Leserolle
+darf technisch auch geheime Spalten lesen; deren Ausgabe verhindern die
+getesteten Katalogprojektionen. Sie wird deshalb nicht als interaktiver
+Kundenzugang bereitgestellt. Das Zurückrollen einer einzelnen Datenbank
+entfernt die clusterweite Rolle nicht, da andere Datenbanken sie noch nutzen
+können.
+
+Der Fertig-Marker gilt nur für den technischen Katalogexport. Fachlich
+erforderliche Ergänzungen, Verschlüsselung und produktiver Nachweis folgen
+dem [Runbook](../operations/auskunft-und-rueckgabe.md). Die folgenden Aussagen
+beschreiben den Ausgangsstand von Slice 3837-a und die weiter geltenden Grenzen.
+
 - Der Katalog sagt **im Code klassifiziert**, nicht **Löschung/Export
   umgesetzt**. Slice 3837-a führt keine Migration, Löschung, Auskunft, CLI,
   Nachweistabelle oder Wiederholungsliste ein. 3837-b/c und 3838-a/b bauen
