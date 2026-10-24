@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIotDevicePinRequired                          = "iot.device_pin_required"
+	CodeIotInvalidRfidTag                             = "iot.invalid_rfid_tag"
 	CodeIotInvalidStaffClockRequest                   = "iot.invalid_staff_clock_request"
 	CodeIotInvalidStaffClockState                     = "iot.invalid_staff_clock_state"
 	CodeIotNoActiveGroupsInRoom                       = "iot.no_active_groups_in_room"
@@ -300,11 +302,11 @@ const (
 	CodeTimetableTemplateCareOfferingConflict         = "timetable.template_care_offering_conflict"
 	CodeTimetableTemplateCategoryUnavailable          = "timetable.template_category_unavailable"
 	CodeTimetableTemplateEducationGroupInvalid        = "timetable.template_education_group_invalid"
-	CodeTimetableTemplateEndBeforeStart               = "timetable.template_end_before_start"
-	CodeTimetableTemplateGradeAboveMax                = "timetable.template_grade_above_max"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.device_pin_required":                             "permission",
+	"iot.invalid_rfid_tag":                                "input",
 	"iot.invalid_staff_clock_request":                     "input",
 	"iot.invalid_staff_clock_state":                       "business_rejection",
 	"iot.no_active_groups_in_room":                        "input",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_care_offering_conflict":           "input",
 	"timetable.template_category_unavailable":             "business_rejection",
 	"timetable.template_education_group_invalid":          "input",
-	"timetable.template_end_before_start":                 "input",
-	"timetable.template_grade_above_max":                  "input",
 }
 
 func init() {

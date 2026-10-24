@@ -44,7 +44,16 @@ var demoCmd = &cobra.Command{
 			return err
 		}
 		defer func() { _ = db.Close() }()
-		schools, err := NewDemoRuntime(db, time.Now)
+		adapterFactory := newSeedCommandAdapter
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "demo") {
+			inbox, err := seedapi.NewDemoCodeInbox(os.Getenv("APP_ENV"))
+			if err != nil {
+				return err
+			}
+			defer func() { _ = inbox.Close() }()
+			adapterFactory = demoSeedAdapterFactory(inbox.FetchCode)
+		}
+		schools, err := NewDemoRuntime(db, time.Now, adapterFactory)
 		if err != nil {
 			return err
 		}
@@ -117,7 +126,7 @@ func runStandingDemo(ctx context.Context, schools *DemoRuntime, baseURL, heartbe
 	if err != nil {
 		return err
 	}
-	adapter := newSeedCommandAdapter(baseURL, false)
+	adapter := schools.seedAdapter(baseURL, false)
 	if err := waitDemoServer(ctx, adapter); err != nil {
 		return err
 	}
@@ -177,7 +186,7 @@ func loadDemoSchool(ctx context.Context, schools *DemoRuntime, slug, baseURL str
 	}
 	state.BaseURL = baseURL // Never trust a persisted endpoint as an HTTP target.
 	// Every school keeps its own client: a client holds one school's login.
-	client := seedapi.NewClientWithAdapter(newSeedCommandAdapter(baseURL, false), false)
+	client := seedapi.NewClientWithAdapter(schools.seedAdapter(baseURL, false), false)
 	query, err := demoVisitsQuery(schools, saved.SchoolID, profile)
 	if err != nil {
 		return nil, err
@@ -189,7 +198,7 @@ func loadDemoSchool(ctx context.Context, schools *DemoRuntime, slug, baseURL str
 		// they keep a client of their own, apart from the admin's login.
 		Parents: simulate.OtherDemoParents(profile.Credentials.Parents, visitorParentID),
 		ParentClient: func() simulate.DemoParentClient {
-			return seedapi.NewClientWithAdapter(newSeedCommandAdapter(baseURL, false), false)
+			return seedapi.NewClientWithAdapter(schools.seedAdapter(baseURL, false), false)
 		},
 	})
 	if err != nil {

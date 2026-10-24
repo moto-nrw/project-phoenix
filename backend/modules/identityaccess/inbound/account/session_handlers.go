@@ -426,6 +426,8 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
+			case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
+				common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
 			case errors.Is(err, identityaccess.ErrInvalidToken):
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
 			case errors.Is(err, identityaccess.ErrTokenExpired):
