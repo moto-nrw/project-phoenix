@@ -2,6 +2,16 @@
 package common
 
 const (
+	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
+	CodeImportFileMissing                             = "import.file_missing"
+	CodeImportFileNoRows                              = "import.file_no_rows"
+	CodeImportFileRowInvalid                          = "import.file_row_invalid"
+	CodeImportFileTooLarge                            = "import.file_too_large"
+	CodeImportFileTypeInvalid                         = "import.file_type_invalid"
+	CodeImportFileUnreadable                          = "import.file_unreadable"
+	CodeImportImportBatchFailed                       = "import.import_batch_failed"
+	CodeImportModeForbidden                           = "import.mode_forbidden"
+	CodeIotActivityCapacityExceeded                   = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                    = "iot.deviation_reason_required"
 	CodeIotDeviceApiKeyFormatInvalid                  = "iot.device_api_key_format_invalid"
 	CodeIotDeviceApiKeyInvalid                        = "iot.device_api_key_invalid"
@@ -292,19 +302,19 @@ const (
 	CodeTimetableStaffAbsentOnDate                    = "timetable.staff_absent_on_date"
 	CodeTimetableStaffAbsentOnSource                  = "timetable.staff_absent_on_source"
 	CodeTimetableStaffAbsentOnTarget                  = "timetable.staff_absent_on_target"
-	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
-	CodeTimetableStaffNotFound                        = "timetable.staff_not_found"
-	CodeTimetableStaffNotOnSource                     = "timetable.staff_not_on_source"
-	CodeTimetableStaffPresentAndAbsent                = "timetable.staff_present_and_absent"
-	CodeTimetableStartTooEarly                        = "timetable.start_too_early"
-	CodeTimetableStartWindowExpired                   = "timetable.start_window_expired"
-	CodeTimetableStudentAlreadyActive                 = "timetable.student_already_active"
-	CodeTimetableStudentCareEnded                     = "timetable.student_care_ended"
-	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
-	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"import.file_columns_missing":                         "input",
+	"import.file_missing":                                 "input",
+	"import.file_no_rows":                                 "input",
+	"import.file_row_invalid":                             "input",
+	"import.file_too_large":                               "input",
+	"import.file_type_invalid":                            "input",
+	"import.file_unreadable":                              "input",
+	"import.import_batch_failed":                          "server",
+	"import.mode_forbidden":                               "permission",
+	"iot.activity_capacity_exceeded":                      "business_rejection",
 	"iot.deviation_reason_required":                       "input",
 	"iot.device_api_key_format_invalid":                   "permission",
 	"iot.device_api_key_invalid":                          "permission",
@@ -595,16 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.staff_absent_on_date":                      "business_rejection",
 	"timetable.staff_absent_on_source":                    "input",
 	"timetable.staff_absent_on_target":                    "business_rejection",
-	"timetable.staff_already_on_target":                   "business_rejection",
-	"timetable.staff_not_found":                           "business_rejection",
-	"timetable.staff_not_on_source":                       "input",
-	"timetable.staff_present_and_absent":                  "input",
-	"timetable.start_too_early":                           "business_rejection",
-	"timetable.start_window_expired":                      "business_rejection",
-	"timetable.student_already_active":                    "business_rejection",
-	"timetable.student_care_ended":                        "business_rejection",
-	"timetable.student_graduated":                         "business_rejection",
-	"timetable.student_not_checked_in":                    "business_rejection",
 }
 
 func init() {

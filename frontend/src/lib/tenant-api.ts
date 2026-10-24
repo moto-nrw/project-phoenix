@@ -52,6 +52,12 @@ export interface TenantInfo {
   subdomain: string;
   organizationId: number;
   organizationName: string;
+  /**
+   * The Träger the school portal names next to the school (#4656). Set only
+   * while the Träger runs more than one school; a Träger with a single OGS
+   * sees no Träger level, so the field stays empty.
+   */
+  traegerName?: string;
   hidden?: boolean;
   settings: TenantSettings;
   presenceMode: PresenceMode;
@@ -190,6 +196,7 @@ interface TenantResolveResponse {
   subdomain: string;
   organization_id: number;
   organization_name: string;
+  traeger_name?: string;
   hidden?: boolean;
   settings: TenantSettings;
   presence_mode?: string;
@@ -335,6 +342,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       subdomain: data.subdomain,
       organizationId: data.organization_id,
       organizationName: data.organization_name,
+      traegerName: data.traeger_name,
       hidden: data.hidden === true,
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),

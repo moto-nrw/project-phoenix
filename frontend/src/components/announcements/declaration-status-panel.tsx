@@ -534,8 +534,14 @@ function HistorySection({
                   ? ` · ${GUARDIAN_ROLE_LABEL[entry.guardian_role]}`
                   : ""}
                 {entry.password_confirmed ? " · mit Passwort" : ""}
+                {entry.signature
+                  ? entry.signature.method === "typed"
+                    ? " · Unterschrift getippt"
+                    : " · mit Unterschrift"
+                  : ""}
               </p>
-              {!entry.integrity_ok && (
+              {(!entry.integrity_ok ||
+                entry.signature?.integrity_ok === false) && (
                 <p className="text-moto-red-strong mt-1 text-xs font-semibold">
                   Nachträglich verändert
                 </p>

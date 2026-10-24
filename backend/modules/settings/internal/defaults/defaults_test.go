@@ -742,6 +742,7 @@ func TestSchoolPortalWriteScopeSetting(t *testing.T) {
 	require.Equal(t, []config.SelectOption{
 		{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
 		{Label: "Klasse nach dem Unterricht an die OGS übergeben", Value: config.SchoolPortalWriteScopeClassHandover},
+		{Label: "Ausflug oder Klassenfahrt der Klasse melden", Value: config.SchoolPortalWriteScopeClassTrips},
 	}, def.Options.Static)
 
 	editors := config.GetDefinition(config.KeyClassArrivalExceptionEditors)

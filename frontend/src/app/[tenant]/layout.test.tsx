@@ -44,6 +44,8 @@ vi.mock("~/env", () => ({
 }));
 
 const { bareTenantHost, default: TenantLayout } = await import("./layout");
+const { tenantResolutionRateLimitedError } = await import("~/sentry.shared");
+const { setTestClock, TEST_CLOCK_INSTANT } = await import("~/test/clock");
 
 beforeEach(() => {
   authMock.mockClear();
@@ -124,6 +126,44 @@ describe("TenantLayout", () => {
       "http://server:8080/auth/tenant/resolve?slug=school-a",
       { next: { revalidate: 300, tags: ["tenant-school-a"] } },
     );
+  });
+
+  it("asks the backend about an unknown tenant only once per minute", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response(null, { status: 404 }));
+    const renderUnknown = () =>
+      TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "scanner-probe" }),
+      });
+
+    await expect(renderUnknown()).rejects.toThrow(
+      "Tenant redirect did not complete",
+    );
+    await expect(renderUnknown()).rejects.toThrow(
+      "Tenant redirect did not complete",
+    );
+    expect(fetchSpy).toHaveBeenCalledOnce();
+
+    setTestClock(new Date(TEST_CLOCK_INSTANT.getTime() + 61_000));
+    await expect(renderUnknown()).rejects.toThrow(
+      "Tenant redirect did not complete",
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("marks a rate-limited lookup so Sentry can drop it", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 429 }),
+    );
+
+    await expect(
+      TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-busy" }),
+      }),
+    ).rejects.toMatchObject({ name: tenantResolutionRateLimitedError });
   });
 
   it("does not run refresh-capable auth callbacks from the server layout", async () => {

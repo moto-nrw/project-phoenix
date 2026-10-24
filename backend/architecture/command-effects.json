@@ -23099,6 +23099,17 @@
     },
     {
       "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.DeclarationSignatureReader.DeclarationSignatures",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CommunicationSignatures.DeclarationSignatures",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.Signatures",
+      "target_owner": "audit-platform",
+      "binding_digest": "7651bbe9f1c7870b5097a7ec75322280",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: communication reads stored signatures (#4785) through modules/auditlog.SignatureLedger.Signatures (audit-platform), a tenant-scoped SELECT of audit.signatures by id inside the caller's tenant transaction. No owned-row mutation, lock or scope effect."
+    },
+    {
+      "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementAttachmentPurger.AttachmentDigests",
       "binding": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.AttachmentDigests",
       "target": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.AttachmentDigests",
@@ -36693,10 +36704,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
       "target_owner": "organization-tenancy",
-      "binding_digest": "348e17aa5e6339e9618175e8726db853",
+      "binding_digest": "15d1153c26950d90f9d988632064034b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36704,10 +36715,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy",
-      "binding_digest": "5bbd6b1773d43a047b158fd7aba8f2ac",
+      "binding_digest": "9211f9564411940fe0c41cac08f8da24",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchoolBySubdomain; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchoolBySubdomain; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36715,10 +36726,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9759c4927d409ea23c91ea8804eb884b",
+      "binding_digest": "96f6baf93e30c7d67d461cdb95813a33",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.SchoolDirectory.GetSchoolBySubdomain",
+      "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindVisibleTraegerName",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "8f8844132a20c730254175c1a506d5d6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: identity-access reaches modules/organizationtenancy.Capability.FindVisibleTraegerName (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain for the tenant shell (#4656). One read transaction counts the organization's operational schools and reads its name; no owned-row mutation, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -36726,10 +36748,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListOrganizationsByID",
       "target_owner": "organization-tenancy",
-      "binding_digest": "4c55f7cb5da0e65de8156dcfa978ce17",
+      "binding_digest": "aaedfeaaf2bbbdea348a0f4bb9f3517f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36737,10 +36759,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
       "target_owner": "organization-tenancy",
-      "binding_digest": "4e0c658996ae974f60d33f8785a44b9f",
+      "binding_digest": "ad0e3153e77096b552178c9655a320b7",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36748,10 +36770,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy",
-      "binding_digest": "822528a302d3f26f5dbaf69f44aab340",
+      "binding_digest": "0229689584b6394ef2047581c48522f8",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchoolBySubdomain; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchoolBySubdomain; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36759,10 +36781,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
       "target_owner": "organization-tenancy",
-      "binding_digest": "da9c1656d0b1d4e71ccca22b329f097f",
+      "binding_digest": "dee8ad582497b397460942e15bfebd67",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.SchoolDirectory.GetSchoolBySubdomain",
+      "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindVisibleTraegerName",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "db2f1b529ea9a55e9150ffa54a99aef0",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: identity-access reaches modules/organizationtenancy.Query.FindVisibleTraegerName (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain for the tenant shell (#4656). One read transaction counts the organization's operational schools and reads its name; no owned-row mutation, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -36770,10 +36803,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListOrganizationsByID",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9985adffea65ed563ed81a4c6e610b9b",
+      "binding_digest": "807b7c18991d10e43f730d4088a2bb23",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36781,10 +36814,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9edd7c5a7e56dbadfc82a521f257bce1",
+      "binding_digest": "f4c388aeeb0adc3860faaff5ccadc9b9",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -77004,12 +77037,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "b182b9e62af2f2e0b969ed55a2aac070",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77017,12 +77050,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "d054a0647b0009996a70ea8ad58d2761",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77030,12 +77063,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayService.now",
       "target_owner": "",
-      "binding_digest": "cec304a118c04b152ba54d67bff86175",
+      "binding_digest": "d60b031c35cbb437bc8237250849a17e",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0102",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77043,12 +77076,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.CreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "b182b9e62af2f2e0b969ed55a2aac070",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77056,12 +77089,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.CreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "d054a0647b0009996a70ea8ad58d2761",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77069,12 +77102,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.CreateForDates",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayService.now",
       "target_owner": "",
-      "binding_digest": "cec304a118c04b152ba54d67bff86175",
+      "binding_digest": "d60b031c35cbb437bc8237250849a17e",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0102",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77082,12 +77115,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.DeleteStatusDay",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayService.now",
       "target_owner": "",
-      "binding_digest": "cec304a118c04b152ba54d67bff86175",
+      "binding_digest": "d60b031c35cbb437bc8237250849a17e",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0102",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77207,12 +77240,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.UpsertReported",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "b182b9e62af2f2e0b969ed55a2aac070",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77220,12 +77253,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.UpsertReported",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "d054a0647b0009996a70ea8ad58d2761",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",

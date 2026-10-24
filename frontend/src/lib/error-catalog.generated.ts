@@ -53,6 +53,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
       "care.declaration_password_required": "Bitte geben Sie Ihr Passwort ein.",
+      "care.declaration_signature_invalid":
+        "Die Unterschrift konnte nicht gespeichert werden. Bitte unterschreiben Sie noch einmal.",
+      "care.declaration_signature_required":
+        "Bitte unterschreiben Sie, bevor Sie zustimmen.",
       "care.declaration_version_changed":
         "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
       "care.excused_request_not_pending":
@@ -131,6 +135,22 @@ export const ERROR_CATALOG = {
         "Eine Klasse lässt sich nur heute übergeben. Bitte öffnen Sie den heutigen Tag.",
       "classday.class_handover_unknown_child":
         "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.class_trip_arrival_conflict":
+        "Die OGS hat für ein Kind schon eine andere Ankunftszeit eingetragen. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+      "classday.class_trip_invalid_range":
+        "Dieser Zeitraum geht nicht. Bitte wählen Sie höchstens 31 Tage, das Ende nach dem Beginn.",
+      "classday.class_trip_no_students":
+        "Bitte wählen Sie mindestens ein Kind aus.",
+      "classday.class_trip_past_date":
+        "Der erste Tag liegt in der Vergangenheit. Bitte wählen Sie heute oder einen späteren Tag.",
+      "classday.class_trip_return_time_multi_day":
+        "Eine Rückkehrzeit geht nur für einen einzelnen Tag. Bitte löschen Sie die Uhrzeit oder wählen Sie einen Tag.",
+      "classday.class_trip_return_time_weekend":
+        "Am Wochenende kommt kein Kind in die OGS. Bitte löschen Sie die Rückkehrzeit.",
+      "classday.class_trip_status_conflict":
+        "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+      "classday.class_trip_student_not_in_class":
+        "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
         "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
       "classday.morning_attendance_not_today":
@@ -1272,6 +1292,9 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "The password is not correct. Please try again.",
       "care.declaration_password_required": "Please enter your password.",
+      "care.declaration_signature_invalid":
+        "The signature could not be saved. Please sign again.",
+      "care.declaration_signature_required": "Please sign before you agree.",
       "care.declaration_version_changed":
         "The school has changed the text. Please read it again and then answer again.",
       "care.excused_request_not_pending":
@@ -1593,6 +1616,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неверный. Пожалуйста, попробуйте ещё раз.",
       "care.declaration_password_required": "Пожалуйста, введите пароль.",
+      "care.declaration_signature_invalid":
+        "Не удалось сохранить подпись. Пожалуйста, распишитесь ещё раз.",
+      "care.declaration_signature_required":
+        "Пожалуйста, распишитесь, прежде чем согласиться.",
       "care.declaration_version_changed":
         "Школа изменила текст. Прочитайте его ещё раз и затем ответьте заново.",
       "care.excused_request_not_pending":
@@ -1896,6 +1923,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
       "care.declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+      "care.declaration_signature_invalid":
+        "Nënshkrimi nuk u ruajt dot. Ju lutemi nënshkruani përsëri.",
+      "care.declaration_signature_required":
+        "Ju lutemi nënshkruani para se të jepni pëlqimin.",
       "care.declaration_version_changed":
         "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
       "care.excused_request_not_pending":
@@ -2213,6 +2244,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Hasło jest nieprawidłowe. Spróbuj ponownie.",
       "care.declaration_password_required": "Wpisz swoje hasło.",
+      "care.declaration_signature_invalid":
+        "Nie udało się zapisać podpisu. Podpisz się ponownie.",
+      "care.declaration_signature_required":
+        "Podpisz się, zanim wyrazisz zgodę.",
       "care.declaration_version_changed":
         "Szkoła zmieniła tekst. Przeczytaj go ponownie, a potem odpowiedz jeszcze raz.",
       "care.excused_request_not_pending":
@@ -2517,6 +2552,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Şifre doğru değil. Lütfen tekrar deneyin.",
       "care.declaration_password_required": "Lütfen şifrenizi girin.",
+      "care.declaration_signature_invalid":
+        "İmza kaydedilemedi. Lütfen yeniden imza atın.",
+      "care.declaration_signature_required":
+        "Lütfen onay vermeden önce imza atın.",
       "care.declaration_version_changed":
         "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
       "care.excused_request_not_pending":
@@ -2827,6 +2866,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неправильний. Будь ласка, спробуйте ще раз.",
       "care.declaration_password_required": "Будь ласка, введіть пароль.",
+      "care.declaration_signature_invalid":
+        "Не вдалося зберегти підпис. Будь ласка, підпишіться ще раз.",
+      "care.declaration_signature_required":
+        "Будь ласка, підпишіться, перш ніж погодитися.",
       "care.declaration_version_changed":
         "Школа змінила текст. Будь ласка, прочитайте його ще раз і дайте відповідь заново.",
       "care.excused_request_not_pending":
