@@ -114,6 +114,7 @@ type OperatorRetention struct {
 // in the hourly cleanup.
 type AccountRetention interface {
 	EraseUnusedAccounts(ctx context.Context) (int, error)
+	CleanupErasedAccountAvatars(ctx context.Context) (int, error)
 }
 
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in

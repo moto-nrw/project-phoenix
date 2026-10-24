@@ -3926,6 +3926,10 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.account_avatar_file_cleanup",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "auth.accounts",
       "write_owner": "identity-access"
     },
