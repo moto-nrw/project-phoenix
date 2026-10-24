@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -158,4 +159,23 @@ func pickupSignatureProofs(ctx context.Context, ledger auditlog.SignatureLedger,
 		}
 	}
 	return out, nil
+}
+
+// StaffPickupSignatures binds the ledger to the OGS proof of a signed parent
+// request (#4780).
+type StaffPickupSignatures struct{ Ledger auditlog.SignatureLedger }
+
+func (s StaffPickupSignatures) PickupSignatureProof(ctx context.Context, studentID, signatureID int64, statement string) (*careStudentsHTTP.PickupSignatureProof, error) {
+	proofs, err := pickupSignatureProofs(ctx, s.Ledger, studentID, map[int64]string{signatureID: statement})
+	if err != nil {
+		return nil, err
+	}
+	proof, ok := proofs[signatureID]
+	if !ok {
+		return nil, nil
+	}
+	return &careStudentsHTTP.PickupSignatureProof{
+		Method: proof.Method, TypedName: proof.TypedName, SignerName: proof.SignerName,
+		PNG: proof.PNG, SignedAt: proof.SignedAt, Intact: proof.Intact,
+	}, nil
 }

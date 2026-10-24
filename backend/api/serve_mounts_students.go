@@ -219,6 +219,8 @@ func mountStudentRoutes(
 			Persons:                      peopleCompose.NewStudentRoutePersons(services.Users),
 			PickupAdjustmentService:      requests.CareOfferings,
 			PickupScheduleService:        schedules.Pickups,
+			PickupSignatureProofs:        owners.StaffPickupSignatures{Ledger: owners.SignatureLedger()},
+			Reports:                      newDeclarationReports(),
 			SettingsService:              settings,
 			StudentAuditService:          persons,
 			StudentConsents:              services.StudentConsents,
