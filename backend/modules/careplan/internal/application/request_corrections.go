@@ -99,8 +99,9 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 		}
 		pickupID, pickupOK := correctionExceptionID(event.Payload["pickup_exception_id"])
 		departureID, departureOK := correctionExceptionID(event.Payload["departure_exception_id"])
-		if pickupOK || departureOK {
-			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID}
+		noteID, noteOK := correctionExceptionID(event.Payload["pickup_note_id"])
+		if pickupOK || departureOK || noteOK {
+			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID, PickupNoteID: noteID}
 			found = true
 		}
 	}
@@ -113,7 +114,13 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 		}
 	}
 	if applied.DepartureExceptionID > 0 {
-		return s.revertDepartureException(ctx, request, applied.DepartureExceptionID)
+		if err := s.revertDepartureException(ctx, request, applied.DepartureExceptionID); err != nil {
+			return err
+		}
+	}
+	if applied.PickupNoteID > 0 {
+		// The day's collector note the approval wrote (#4780).
+		return s.Records.DeletePickupNote(ctx, applied.PickupNoteID)
 	}
 	return nil
 }

@@ -130,6 +130,9 @@ func appliedLedgerPayload(payload map[string]any, applied carerequests.PickupApp
 	if applied.DepartureExceptionID > 0 {
 		payload["departure_exception_id"] = applied.DepartureExceptionID
 	}
+	if applied.PickupNoteID > 0 {
+		payload["pickup_note_id"] = applied.PickupNoteID
+	}
 }
 
 func (s *RequestDecisions) apply(ctx context.Context, request *carerequests.Request, input carerequests.DecideInput) (bool, carerequests.PickupApplied, error) {

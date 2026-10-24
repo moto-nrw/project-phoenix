@@ -34,6 +34,9 @@ type PickupApproval struct {
 type PickupApplied struct {
 	PickupExceptionID    int64
 	DepartureExceptionID int64
+	// PickupNoteID is the dated pickup note that names the day's collector
+	// (#4780).
+	PickupNoteID int64
 }
 
 // PickupApprovals applies the pickup leg of an already authorized request

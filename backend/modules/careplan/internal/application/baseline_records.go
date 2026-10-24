@@ -242,6 +242,11 @@ func (a pickupApprovalExceptions) SaveDeparture(ctx context.Context, value carep
 	return row.ID, err
 }
 
+func (a pickupApprovalExceptions) CreateNote(ctx context.Context, value careplan.PickupNote) (int64, error) {
+	row, err := a.records.CreatePickupNote(ctx, value)
+	return row.ID, err
+}
+
 // NewPickupExcusalRows serves the pointer-based excusal rows from records.
 func NewPickupExcusalRows(records carePlanPorts.PickupExcusalRecords) PickupExcusalRows {
 	return PickupExcusalRows{records}
