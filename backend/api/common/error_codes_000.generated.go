@@ -78,6 +78,10 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayClassHandoverNoSchoolDay                 = "classday.class_handover_no_school_day"
+	CodeClassdayClassHandoverNotFound                    = "classday.class_handover_not_found"
+	CodeClassdayClassHandoverNotToday                    = "classday.class_handover_not_today"
+	CodeClassdayClassHandoverUnknownChild                = "classday.class_handover_unknown_child"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -381,6 +385,10 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.class_handover_no_school_day":                "input",
+	"classday.class_handover_not_found":                    "business_rejection",
+	"classday.class_handover_not_today":                    "input",
+	"classday.class_handover_unknown_child":                "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",

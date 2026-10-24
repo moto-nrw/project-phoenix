@@ -23,6 +23,7 @@ func init() {
 		Version:     surveysVersion,
 		Description: surveysDescription,
 		DependsOn: []string{
+			classHandoverVersion,       // previous head; its erasure plan entries stay in the refreshed plan
 			"1.15.501",                 // previous head
 			"1.15.499",                 // previous head
 			"1.15.497",                 // previous head

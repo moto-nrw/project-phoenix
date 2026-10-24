@@ -5148,7 +5148,7 @@ function leadTeacherAccessTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Die Lehrkraft sieht keine Kinder? Dann fehlt die Klasse im Reiter `Klassen` oder sie ist anders geschrieben.",
-      "Soll die Lehrkraft die Ankunftszeit selbst ändern dürfen? Geben Sie das in den `Einstellungen` frei.",
+      "Soll die Lehrkraft die Ankunftszeit selbst ändern oder ihre Klasse an die OGS übergeben dürfen? Haken Sie das in den `Einstellungen` unter `Was Lehrkräfte in moto schule eintragen dürfen` an.",
     ],
     related: [
       HELP_TOPICS.leadInviteStaff,
@@ -7762,6 +7762,51 @@ function teacherMorningAttendanceTopic(): HelpTopic {
 }
 
 /**
+ * Übergabe nach dem Unterricht (#4794): die Lehrkraft übergibt ihre Klasse
+ * heute an die OGS und markiert Kinder, die nicht da sind. Die OGS sieht sie
+ * in Aufsicht, Gruppe und Kindersuche als „Nach dem Unterricht da“ oder
+ * „Nach dem Unterricht nicht da“.
+ */
+function teacherClassHandoverTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherClassHandover,
+    title: "Klasse an die OGS übergeben",
+    question: "Wie übergebe ich meine Klasse nach dem Unterricht?",
+    summary:
+      "Sie bestätigen die Übergabe und markieren Kinder, die nicht da sind.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "ArrowsLeftRight",
+    steps: [
+      "Öffnen Sie in der `Klassenansicht` Ihre Klasse für heute.",
+      "Tippen Sie auf `Klasse übergeben`.",
+      "Tippen Sie bei jedem Kind, das nicht da ist, auf `Nicht da`.",
+      "Tippen Sie auf `Übergeben`.",
+    ],
+    result:
+      "Oben steht, wann Sie übergeben haben. Die OGS sieht sofort bei jedem Kind, ob es da ist.",
+    notes: [
+      "In der Liste stehen nur die Kinder, die heute in die OGS gehen.",
+      "Kinder, die am Morgen als `Fehlt` eingetragen sind, stehen schon auf `Nicht da`.",
+      "Die Anwesenheit am Morgen ändert sich dadurch nicht.",
+      "Mit `Übergabe ändern` korrigieren Sie einzelne Kinder. Die OGS sieht dann den neuen Stand.",
+      "Mit `Übergabe zurücknehmen` nehmen Sie die Übergabe heute wieder zurück.",
+    ],
+    differences: [
+      "Fehlt `Klasse übergeben`? Übergeben geht nur heute und an Schultagen. Oder Ihre OGS hat es nicht freigegeben.",
+    ],
+    troubleshootingDetails: [
+      "Übergeben klappt nicht und ein Kind gehört nicht mehr zur Klasse? Laden Sie die Seite neu.",
+    ],
+    related: [
+      HELP_TOPICS.teacherMorningAttendance,
+      HELP_TOPICS.teacherClassList,
+      HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
+/**
  * Kindangaben. Die harte Grenze: Abhol- und Notfallkontakte gibt es nur zu
  * Kindern einer laufenden Aufsicht (`student-sheet-modal.tsx`).
  */
@@ -8145,6 +8190,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherClassDayTopic(),
   teacherClassListTopic(),
   teacherMorningAttendanceTopic(),
+  teacherClassHandoverTopic(),
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
 

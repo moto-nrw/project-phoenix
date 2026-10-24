@@ -85,6 +85,8 @@ var tableRetentions = map[string]tableRetention{
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),
 	"active.activity_sessions":                              parent("schedule.activity_instances"),
 	"active.attendance":                                     own("nightly retention step attendance_retention (api/worker_retention.go), Student Presence DeleteExpiredAttendance (school window gdpr.attendance_retention_days after the care day, #3957)"),
+	"active.class_handover_children":                        parent("active.class_handovers"),
+	"active.class_handovers":                                own("nightly retention step morning_attendance_retention (roots/owners/worker_retention.go), Student Presence DeleteExpiredMorningAttendance deletes the handovers with the morning attendance (school window gdpr.morning_attendance_retention_days after the school day, #4794)"),
 	"active.combined_groups":                                notPersonal("runtime group-combination configuration"),
 	"active.excused_absence_requests":                       parent("users.student_profiles"),
 	"active.group_mappings":                                 notPersonal("group-to-combination mapping"),
