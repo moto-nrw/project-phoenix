@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 const errPasswordsNotMatch = "passwords do not match"
@@ -39,10 +40,13 @@ type TenantResolveResponse struct {
 	// decide whether to render avatars on student cards. Defaults to false
 	// when the setting is missing or unresolvable.
 	StudentPhotosEnabled bool `json:"student_photos_enabled"`
-	// NFCEnabled is the tenant's resolved attendance.nfc_enabled setting.
-	// It is public tenant-shell metadata because non-admin staff also need to
-	// know whether NFC-only areas like classic activities should appear.
-	NFCEnabled bool `json:"nfc_enabled"`
+	// BookedModules lists the additional modules the school booked
+	// (module.<key> switches, #4892), in module-list order. Public
+	// tenant-shell metadata like the flags below: every staff member's
+	// navigation follows it, also without config:read. NFC-only areas
+	// follow "nfc_anwesenheit" (it replaced attendance.nfc_enabled). A
+	// failed read fails the shell instead of guessing a booking.
+	BookedModules []settings.ModuleKey `json:"booked_modules"`
 	// ParentMessagingEnabled is the tenant's resolved operations.parent_notes_enabled
 	// setting. Surfaced here (like the photo flag) so non-admin staff — who don't
 	// carry config:read — can hide the "Neue Nachricht" compose entry points when
@@ -160,7 +164,7 @@ type tenantShellSettings struct {
 	mealPlanEnabled           bool
 	mealRegistrationEnabled   bool
 	studentPhotosEnabled      bool
-	nfcEnabled                bool
+	bookedModules             []settings.ModuleKey
 	parentMessagingEnabled    bool
 	staffMessagingEnabled     bool
 	displayEnabled            bool

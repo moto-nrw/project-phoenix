@@ -183,7 +183,7 @@ var operations_init_nach_hause_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "nach-hause",
 		SortOrder:       5,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyPerStudentCheckoutEnabled,
@@ -196,7 +196,7 @@ var operations_init_nach_hause_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "nach-hause",
 		SortOrder:       6,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyPerStudentCheckoutDeltaMinutes,

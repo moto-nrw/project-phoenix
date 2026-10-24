@@ -14,6 +14,7 @@ const binaryTenant: TenantInfo = {
   presenceMode: "binary",
   studentPhotosEnabled: true,
   nfcEnabled: true,
+  bookedModules: ["nfc_anwesenheit"],
   messagingEnabled: true,
   staffMessagingEnabled: false,
   displayEnabled: false,

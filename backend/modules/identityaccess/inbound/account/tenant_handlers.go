@@ -107,7 +107,7 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		Settings:                  schoolSettings,
 		PresenceMode:              resolved.presenceMode,
 		StudentPhotosEnabled:      resolved.studentPhotosEnabled,
-		NFCEnabled:                resolved.nfcEnabled,
+		BookedModules:             resolved.bookedModules,
 		ParentMessagingEnabled:    resolved.parentMessagingEnabled,
 		StaffMessagingEnabled:     resolved.staffMessagingEnabled,
 		DisplayEnabled:            resolved.displayEnabled,
@@ -147,10 +147,9 @@ func analyticsSamplePercent(resolved tenantShellSettings) int {
 // tenantShellSettingKeys lists every setting the tenant shell reads, for the
 // one batched resolve.
 func tenantShellSettingKeys() []string {
-	return []string{
+	return append([]string{
 		settings.KeyPresenceMode,
 		settings.KeyStudentPhotosEnabled,
-		settings.KeyAttendanceNFCEnabled,
 		settings.KeyDisplayEnabled,
 		settings.KeyCalendarCalDAVEnabled,
 		settings.KeyEnrollmentCareOfferingsEnabled,
@@ -178,7 +177,7 @@ func tenantShellSettingKeys() []string {
 		// resolveTenantGradeLevelMax call hits the request cache instead of
 		// opening a second tenant transaction (issue #2065).
 		settings.KeyEnrollmentGradeLevelMax,
-	}
+	}, settings.ModuleSettingKeys()...)
 }
 
 func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) (tenantShellSettings, error) {
@@ -258,7 +257,6 @@ func (resolved *tenantShellSettings) resolveFeatureFlags(readBool func(string) (
 		target *bool
 	}{
 		{settings.KeyStudentPhotosEnabled, &resolved.studentPhotosEnabled},
-		{settings.KeyAttendanceNFCEnabled, &resolved.nfcEnabled},
 		{settings.KeyDisplayEnabled, &resolved.displayEnabled},
 		{settings.KeyCalendarCalDAVEnabled, &resolved.calDAVEnabled},
 		{settings.KeyEnrollmentCareOfferingsEnabled, &resolved.careOfferingsEnabled},
@@ -284,6 +282,11 @@ func (resolved *tenantShellSettings) resolveFeatureFlags(readBool func(string) (
 		}
 		*field.target = value
 	}
+	booked, err := settings.BookedModules(readBool)
+	if err != nil {
+		return err
+	}
+	resolved.bookedModules = booked
 	return nil
 }
 

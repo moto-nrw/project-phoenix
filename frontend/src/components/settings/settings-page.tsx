@@ -57,6 +57,7 @@ const TAB_LABELS: Record<string, string> = {
   system: "Kalender und Export",
   general: "Allgemein",
   security: "Sicherheit",
+  modules: "Module",
 };
 
 function tabLabel(tab: SchemaTab): string {

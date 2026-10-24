@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetableStudentAlreadyActive                = "timetable.student_already_active"
+	CodeTimetableStudentCareEnded                    = "timetable.student_care_ended"
 	CodeTimetableStudentGraduated                    = "timetable.student_graduated"
 	CodeTimetableStudentNotCheckedIn                 = "timetable.student_not_checked_in"
 	CodeTimetableStudentNotFound                     = "timetable.student_not_found"
@@ -105,6 +107,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.student_already_active":                  "business_rejection",
+	"timetable.student_care_ended":                      "business_rejection",
 	"timetable.student_graduated":                       "business_rejection",
 	"timetable.student_not_checked_in":                  "business_rejection",
 	"timetable.student_not_found":                       "business_rejection",

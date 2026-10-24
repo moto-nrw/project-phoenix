@@ -141,6 +141,23 @@ const tenantProviderMock = vi.hoisted(() => ({
   // (activities/devices). Default to true so those tests keep rendering the
   // page unless they explicitly cover the NFC-off branch.
   useNFCEnabled: vi.fn(() => true),
+  // Every module switch defaults to booked in the registry (#4892); tests of
+  // a module that is not booked override these locally.
+  useBookedModules: vi.fn(() => [
+    "nfc_anwesenheit",
+    "mittagessen",
+    "eltern_app",
+    "online_anmeldung",
+    "unterricht_vormittag",
+    "dienstplan",
+    "zeiterfassung",
+    "personalakte",
+    "traeger_uebersicht",
+    "ferienbetreuung",
+    "vertraege",
+    "elternbeitraege",
+  ]),
+  useModuleBooked: vi.fn(() => true),
   // Info-Point Dashboard is opt-in and defaults off in production; mirror
   // that default here so unrelated tests don't accidentally exercise the
   // hidden nav item. Tests covering the feature override this mock locally.

@@ -5796,6 +5796,16 @@ function settingsGuideTopic(): HelpTopic {
         ],
       },
       {
+        title: "Module",
+        description: "Welche Zusatzmodule Ihre OGS gebucht hat.",
+        ordered: false,
+        steps: [
+          "`Gebuchte Module`: Zeigt die Zusatzmodule Ihrer OGS.",
+          "Die Schalter sind nur zur Information. Sie können sie nicht ändern.",
+          "Die gebuchten Module stehen im Vertrag mit moto. Wenn Sie etwas ändern möchten, wenden Sie sich an das moto-Team.",
+        ],
+      },
+      {
         title: "Anmeldung",
         description: "Wie Eltern ihr Kind bei Ihnen anmelden.",
         ordered: false,

@@ -133,7 +133,7 @@ Die Migration installiert einen eingefrorenen, generierten Plan und statische
 SQL-Blöcke aus dem
 [gemeinsamen Katalog](datenkatalog.md), keinen zweiten fachlichen Katalog.
 Er umfasst 235 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
-Migration `1.15.505` installiert Plan, Sperrliste, Löschung, Restprüfung und
+Migration `1.15.512` installiert Plan, Sperrliste, Löschung, Restprüfung und
 Probelauf erneut mit den sieben schulbezogenen Mittagessen-Tabellen
 (Bestellungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen, #3873).
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.

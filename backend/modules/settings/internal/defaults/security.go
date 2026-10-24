@@ -28,7 +28,7 @@ var security_init_pin_0Definitions = []config.Definition{
 		SortOrder:       1,
 		Validation:      &config.ValidationRules{Pattern: &pinPattern},
 		AccessPolicy:    config.AccessAdminOnly,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 }
 

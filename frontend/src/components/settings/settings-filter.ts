@@ -40,6 +40,7 @@ export const categoryLabels: Record<string, string> = {
   "fristen-essen": "Fristen",
   "frueh-abgeholt": "Früh abgeholt",
   geburtstage: "Geburtstage",
+  "gebuchte-module": "Gebuchte Module",
   "info-displays": "Info-Displays",
   kalender: "Kalender",
   kapazität: "Volle Räume und Aktivitäten",

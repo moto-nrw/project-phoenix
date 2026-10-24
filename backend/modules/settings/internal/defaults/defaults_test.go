@@ -92,7 +92,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_enabled",
-		"attendance.nfc_enabled",
+		"module.nfc_anwesenheit",
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
 		"operations.require_pickup_offering_review",
@@ -649,13 +649,17 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, "anwesenheit-erfassen", webDef.Category)
 	assert.Equal(t, "config:manage", webDef.WritePermission)
 
-	nfcDef := config.GetDefinition(config.KeyAttendanceNFCEnabled)
-	require.NotNil(t, nfcDef, "attendance.nfc_enabled should be registered")
+	// The module switch NFC-Anwesenheit replaced attendance.nfc_enabled
+	// (#4892). Like every module switch it defaults to booked; migration
+	// 1.15.501 wrote each existing school's old NFC state explicitly.
+	assert.Nil(t, config.GetDefinition("attendance.nfc_enabled"), "attendance.nfc_enabled is replaced by the module switch")
+	nfcDef := config.GetDefinition(config.KeyModuleNFCAnwesenheit)
+	require.NotNil(t, nfcDef, "module.nfc_anwesenheit should be registered")
 	assert.Equal(t, config.FieldBoolean, nfcDef.Type)
-	assert.Equal(t, false, nfcDef.Default, "nfc attendance should default off")
-	assert.Equal(t, config.AccessOperatorOnly, nfcDef.AccessPolicy, "nfc attendance is provisioned by operators after NFC setup")
-	assert.Equal(t, "operations", nfcDef.Tab)
-	assert.Equal(t, "anwesenheit-erfassen", nfcDef.Category)
+	assert.Equal(t, true, nfcDef.Default, "module switches default to booked")
+	assert.Equal(t, config.AccessOperatorManaged, nfcDef.AccessPolicy, "the moto team books NFC; the school sees the booking")
+	assert.Equal(t, "modules", nfcDef.Tab)
+	assert.Equal(t, "gebuchte-module", nfcDef.Category)
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
 	assert.Nil(t, webDef.DependsOn, "web must remain independent from NFC")
 	assert.Nil(t, nfcDef.DependsOn, "NFC must remain independent from web")
@@ -1691,7 +1695,7 @@ func TestSecuritySettings(t *testing.T) {
 	require.NotNil(t, def.Validation)
 	assert.False(t, def.Validation.AllowEmpty)
 	require.NotNil(t, def.DependsOn)
-	assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+	assert.Equal(t, config.KeyModuleNFCAnwesenheit, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)
 	assert.Equal(t, true, def.DependsOn.Value)
 }
@@ -1822,14 +1826,14 @@ func TestDependsOn_PerStudentCheckoutGroup(t *testing.T) {
 	dailyCheckoutDef := config.GetDefinition("operations.student_daily_checkout_time")
 	require.NotNil(t, dailyCheckoutDef)
 	require.NotNil(t, dailyCheckoutDef.DependsOn)
-	assert.Equal(t, config.KeyAttendanceNFCEnabled, dailyCheckoutDef.DependsOn.Key)
+	assert.Equal(t, config.KeyModuleNFCAnwesenheit, dailyCheckoutDef.DependsOn.Key)
 	assert.Equal(t, "eq", dailyCheckoutDef.DependsOn.Condition)
 	assert.Equal(t, true, dailyCheckoutDef.DependsOn.Value)
 
 	toggleDef := config.GetDefinition("operations.per_student_checkout_enabled")
 	require.NotNil(t, toggleDef)
 	require.NotNil(t, toggleDef.DependsOn)
-	assert.Equal(t, config.KeyAttendanceNFCEnabled, toggleDef.DependsOn.Key)
+	assert.Equal(t, config.KeyModuleNFCAnwesenheit, toggleDef.DependsOn.Key)
 	assert.Equal(t, "eq", toggleDef.DependsOn.Condition)
 	assert.Equal(t, true, toggleDef.DependsOn.Value)
 
@@ -1922,7 +1926,7 @@ func TestDevicesSettings(t *testing.T) {
 		assert.Equal(t, category, def.Category, "setting %q should be in %s category", key, category)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
-		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, config.KeyModuleNFCAnwesenheit, def.DependsOn.Key)
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
@@ -1956,7 +1960,7 @@ func TestCheckinCapacityDetailSettings(t *testing.T) {
 		assert.Equal(t, "kapazität", def.Category, "setting %q should be in kapazität category", key)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
-		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, config.KeyModuleNFCAnwesenheit, def.DependsOn.Key)
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}

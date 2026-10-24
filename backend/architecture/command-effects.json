@@ -39451,11 +39451,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "d41ace1fb7afef2534cf674987a0f4fb",
+      "binding_digest": "8a10f81573e41a947a7293398b2aed5d",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39463,10 +39463,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "b58b8032bfa9efec74c3d7e954444e5d",
+      "binding_digest": "1cfdb8d9bb69b6b9cde1bf1a51820481",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39474,10 +39474,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "e2fb0889b4e047520843af075edb74fe",
+      "binding_digest": "77039c8ba058b9b7a8e186c27c87f11a",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39485,10 +39485,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "58cfda2cbed0fd78852f7d79052f006b",
+      "binding_digest": "640b3966664b172a25ca87a138f8745f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39496,10 +39496,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform",
-      "binding_digest": "d7edcd0bd514f09c1940392da9efa832",
+      "binding_digest": "a55e1a21345b09c7723e7d180d17fc1e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -41055,10 +41055,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "bcba410f94eb284f111f6b56bd64aa94",
+      "binding_digest": "c0af36fb2db4bab4f329abe7c2616efc",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -41066,10 +41066,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "33ca8271ff8a6a85b9c6d6c2ecfc3c83",
+      "binding_digest": "3a7e24388f5337f9a9071e589a038b2b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -41077,10 +41077,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "8d6200ae474d3cbe1e21b9b7124db71a",
+      "binding_digest": "0d4c0f5cac836572494517b525493c0a",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -41088,10 +41088,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform",
-      "binding_digest": "c0db0e8d04d6c96dd078746cdd40aaa7",
+      "binding_digest": "6a5c195df2588c1ce43fa37465400d0f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",

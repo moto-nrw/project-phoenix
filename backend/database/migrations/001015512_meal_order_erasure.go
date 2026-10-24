@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	mealOrderErasureVersion     = "1.15.505"
+	mealOrderErasureVersion     = "1.15.512"
 	mealOrderErasureDescription = "Mandantenlöschung: Bestellungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen einer Schule (#3873, #3837)"
 )
 

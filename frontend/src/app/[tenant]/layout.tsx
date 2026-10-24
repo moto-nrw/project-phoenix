@@ -8,6 +8,7 @@ import type { ShellBootstrap } from "~/lib/shell-seed";
 import { readTenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
+  bookedModuleFields,
   normalizeAttendanceEditScope,
   normalizeEarlyCheckoutTolerance,
   normalizeOverviewScope,
@@ -29,7 +30,7 @@ interface TenantResolveResponse {
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
-  nfc_enabled?: boolean;
+  booked_modules?: string[];
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
@@ -87,7 +88,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     settings: data.settings ?? {},
     presenceMode: normalizePresenceMode(data.presence_mode),
     studentPhotosEnabled: data.student_photos_enabled === true,
-    nfcEnabled: data.nfc_enabled === true,
+    ...bookedModuleFields(data.booked_modules),
     messagingEnabled: data.parent_messaging_enabled === true,
     staffMessagingEnabled: data.staff_messaging_enabled === true,
     displayEnabled: data.display_enabled === true,

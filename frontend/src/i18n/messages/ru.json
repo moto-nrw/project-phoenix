@@ -2990,7 +2990,9 @@
         "presence_mode_switch_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "booking_authority_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "attendance_visible_exceeds_retention": "Не удалось сохранить: {object}. Проверьте введённые данные.",
-        "attendance_retention_below_visible": "Не удалось сохранить: {object}. Проверьте введённые данные."
+        "attendance_retention_below_visible": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "module_requires": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "module_required_by": "Не удалось сохранить: {object}. Проверьте введённые данные."
       },
       "devices": {
         "tag_scan_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",

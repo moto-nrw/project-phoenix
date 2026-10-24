@@ -21,7 +21,6 @@ const (
 	KeyAnalyticsRecordingSamplePercent       = configModel.KeyAnalyticsRecordingSamplePercent
 	KeyAttendanceEditScope                   = configModel.KeyAttendanceEditScope
 	KeyAttendanceLogEnabled                  = configModel.KeyAttendanceLogEnabled
-	KeyAttendanceNFCEnabled                  = configModel.KeyAttendanceNFCEnabled
 	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
 	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
 	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled

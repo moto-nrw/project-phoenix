@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealOrdersVersion     = "1.15.502"
+	mealOrdersVersion     = "1.15.509"
 	mealOrdersDescription = "Mittagessen: Bestellung zur Frist einfrieren und spätere Änderungen nummeriert festhalten (#3873)"
 )
 
