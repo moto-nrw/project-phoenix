@@ -965,6 +965,7 @@ online_anmeldung
 
 unterricht_vormittag
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
+	DELETE /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/notifications/preferences/  (#4895 Schulportal, an der Schul-Sitzung)
 	DELETE /school/notifications/push/subscriptions  (#4895 Schulportal, an der Schul-Sitzung)
 	GET /school-sse/events  (#4895 Schulportal, an der Schul-Sitzung)
@@ -1001,6 +1002,7 @@ unterricht_vormittag
 	POST /school/supervisions/{id}/students/{student_id}/check-in  (#4895 Schulportal, an der Schul-Sitzung)
 	POST /school/supervisions/{id}/students/{student_id}/check-out  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
+	PUT /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/class-day/morning-attendance/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
 	PUT /school/notifications/preferences/{type}  (#4895 Schulportal, an der Schul-Sitzung)
 
