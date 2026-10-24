@@ -30,8 +30,7 @@ type (
 )
 
 // ClassDayDependencies wire the day report, the supervision sheet and the
-// write seams of moto schule (#2970, #4790, #4794, #4799); a nil seam is
-// unconfigured.
+// write seams of moto schule (#2970, #4790, #4794, #4799); a nil seam is unconfigured.
 type ClassDayDependencies struct {
 	Caller                 CallerReader
 	Rosters                DayRosters
@@ -62,8 +61,8 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
 		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, TripScope: deps.WriteScope, Announcer: deps.Announcer,
-		TripStatusDays: deps.TripStatusDays, MorningAttendanceDependencies: deps.MorningAttendanceDependencies,
-		ClassHandoverDependencies: deps.ClassHandoverDependencies,
+		StudentArrivals: deps.ClassArrivalExceptions, TripStatusDays: deps.TripStatusDays,
+		MorningAttendanceDependencies: deps.MorningAttendanceDependencies, ClassHandoverDependencies: deps.ClassHandoverDependencies,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}
@@ -73,7 +72,6 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	}
 	if deps.ClassArrivalExceptions != nil {
 		app.ClassArrivalExceptions = application.ClassArrivalExceptionBinding{Store: deps.ClassArrivalExceptions}
-		app.StudentArrivals = deps.ClassArrivalExceptions
 	}
 	if deps.BlockStarts != nil {
 		app.BlockStarts = application.BlockStartBinding{Starts: deps.BlockStarts}
