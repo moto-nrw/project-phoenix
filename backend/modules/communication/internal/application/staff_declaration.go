@@ -454,6 +454,9 @@ func (s *service) submissionSignatures(ctx context.Context, submissions []*Staff
 // given on the version the answer names.
 func withSubmissionSignature(record DeclarationSubmissionView, sub *StaffDeclarationSubmission, signatures map[int64]declarations.DeclarationSignature) DeclarationSubmissionView {
 	if sub.SignatureID == nil {
+		if sub.Method == declarations.DeclarationMethodSimpleElectronicSignature {
+			record.IntegrityOK = false
+		}
 		return record
 	}
 	signature, ok := signatures[*sub.SignatureID]

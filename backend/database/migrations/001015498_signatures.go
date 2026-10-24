@@ -34,12 +34,11 @@ func init() {
 //     only read and insert. Every row belongs to a child or an enrollment
 //     request and goes with it; the school deletion removes the rest.
 //   - An Einverständnis can require a signature for agreeing
-//     (declaration_requires_signature). A submission made with one names it
-//     in signature_id and uses the method simple_electronic_signature. The
-//     reference clears instead of restricting: a signature only disappears
-//     with its child or school, which remove the submission in the same
-//     statement, so the school erasure may delete the signatures with the
-//     other audit rows.
+//     (declaration_requires_signature). A signed submission names it in
+//     signature_id and uses the method simple_electronic_signature. A
+//     signature only disappears with its child or school, which also removes
+//     the submission in the same statement, so the school erasure may delete
+//     the signatures with the other audit rows.
 //   - The demo visitor erasure (1.15.456) deletes the visitor's signatures
 //     with their declarations: both carry the visitor's name.
 const signaturesUpSQL = `
@@ -99,7 +98,7 @@ const signaturesUpSQL = `
 		ALTER TABLE users.parent_announcement_declaration_submissions
 			ADD CONSTRAINT chk_parent_declaration_submissions_method CHECK (
 				method IN ('simple_electronic','simple_electronic_signature')
-				AND (signature_id IS NULL OR method = 'simple_electronic_signature')
+				AND (method = 'simple_electronic_signature') = (signature_id IS NOT NULL)
 			);
 		CREATE INDEX IF NOT EXISTS idx_parent_declaration_submissions_signature
 			ON users.parent_announcement_declaration_submissions (tenant_id, signature_id)
@@ -620,6 +619,9 @@ func signaturesDown(ctx context.Context, db *bun.DB) error {
 	}
 	if _, err := tx.ExecContext(ctx, signaturesDemoVisitorErasureDownSQL); err != nil {
 		return fmt.Errorf("restore demo visitor erasure: %w", err)
+	}
+	if err := restoreSchoolErasureWithoutSignatures(ctx, tx); err != nil {
+		return fmt.Errorf("restore school erasure without signatures: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, signaturesDownSQL); err != nil {
 		return fmt.Errorf("revert signatures: %w", err)
