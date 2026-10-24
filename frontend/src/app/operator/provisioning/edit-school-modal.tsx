@@ -76,7 +76,12 @@ export function EditSchoolModal({
         });
         return;
       }
-      if (!schoolName.trim() || !schoolSlug.trim() || !schoolSubdomain.trim())
+      if (
+        !schoolName.trim() ||
+        !schoolSlug.trim() ||
+        !schoolSubdomain.trim() ||
+        !schoolEmail.trim()
+      )
         return;
       if (!isValidSlug(schoolSlug)) {
         const hint =
@@ -104,7 +109,7 @@ export function EditSchoolModal({
           city: schoolCity?.trim() ?? "",
           zip: schoolZip?.trim() ?? "",
           phone: schoolPhone?.trim() ?? "",
-          email: schoolEmail?.trim() ?? "",
+          email: schoolEmail.trim(),
           active: school.active,
           hidden: schoolHidden,
         });
@@ -164,7 +169,8 @@ export function EditSchoolModal({
               !schoolOrgId ||
               !schoolName.trim() ||
               !schoolSlug.trim() ||
-              !schoolSubdomain.trim()
+              !schoolSubdomain.trim() ||
+              !schoolEmail.trim()
             }
             className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -336,6 +342,7 @@ export function EditSchoolModal({
               <FormField
                 label="E-Mail"
                 htmlFor="edit-school-email"
+                required
                 error={formErrors.fieldError("email")}
               >
                 <input
@@ -345,8 +352,12 @@ export function EditSchoolModal({
                   value={schoolEmail}
                   onChange={(e) => setSchoolEmail(e.target.value)}
                   maxLength={255}
+                  required
                   className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Antworten von Eltern gehen an diese Adresse.
+                </p>
               </FormField>
             </div>
           </div>
