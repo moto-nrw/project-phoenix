@@ -5338,6 +5338,7 @@ function dayListsTopic(): HelpTopic {
     notes: [
       "Unter `Quelle` stehen `Randstunden`, `Lernzeit`, `AG-Angebote`, `Mensa`, `Ganztag (frühe Abholung)`, `Ganztag (späte Abholung)` und `Freie Angebotsauswahl`.",
       "Als Datenbasis wählen Sie `Plan`, `Ist` oder `Abgleich`.",
+      "Eine Liste mit `Plan` hat eine leere Spalte `Abhaken`. Dort haken Sie die Kinder auf dem Ausdruck ab.",
       "Unter der Datumszeile steht, woher die Daten kommen.",
     ],
     differences: [
