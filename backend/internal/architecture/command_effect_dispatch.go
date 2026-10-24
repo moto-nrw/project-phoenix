@@ -38,7 +38,13 @@ func (s *effectScanner) resolveOrDiagnose(port, binding string, callable types.O
 
 func (s *effectScanner) resolveCallableOnce(port, binding string, object types.Object, trail []string) bool {
 	object = effectOriginObject(object)
-	key := s.sourceOwner + "\x00" + object.Pkg().Path() + "\x00" + effectCallableIdentity(object) + "\x00" + effectObjectPosition(object)
+	// Construction context changes which own arguments are followed, so it is
+	// part of the cache identity and carried into the nested resolution.
+	stored := 0
+	if s.storedFlow > 0 {
+		stored = 1
+	}
+	key := s.sourceOwner + "\x00" + object.Pkg().Path() + "\x00" + effectCallableIdentity(object) + "\x00" + effectObjectPosition(object) + "\x00" + strconv.Itoa(stored)
 	capture, cached := s.callableSites[key]
 	if !cached {
 		if s.callableActive[key] {
@@ -49,7 +55,7 @@ func (s *effectScanner) resolveCallableOnce(port, binding string, object types.O
 		}
 		capture = &effectCapture{targets: map[string]map[string]bool{}}
 		outer, outerStored := s.capture, s.storedFlow
-		s.capture, s.callableActive[key], s.storedFlow = capture, true, 0
+		s.capture, s.callableActive[key], s.storedFlow = capture, true, stored
 		capture.resolved = s.resolveCallable("", "", object, map[string]bool{}, map[types.Object]bool{}, nil)
 		s.capture, s.storedFlow = outer, outerStored
 		delete(s.callableActive, key)

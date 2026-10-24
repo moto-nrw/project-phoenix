@@ -357,7 +357,13 @@ func (s *effectScanner) resolveFunction(port, binding string, fn *types.Func, se
 	}
 	classification := s.policy[fn.Pkg().Path()]
 	identity := fn.Pkg().Path() + "." + fn.Name()
-	if classification.Owner == "" || classification.Owner == s.sourceOwner {
+	if classification.Owner == s.sourceOwner {
+		// A root body calling the owner's own function hands it callables;
+		// follow those it invokes, never the owner's other effects.
+		s.resolveOwnCallables(port, binding, s.ownReachable(fn.Origin()), seen, trail)
+		return
+	}
+	if classification.Owner == "" {
 		return
 	}
 	if classification.Owner != "root-composition" {

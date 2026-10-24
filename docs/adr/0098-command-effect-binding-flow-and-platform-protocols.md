@@ -122,7 +122,7 @@ Generation never labels entries. These rules were applied in review:
 5. Everything else follows the platform table above or is a `query`.
 
 The first 96 new debt entries are visible coordination findings, not approvals
-(52 more follow in the follow-up section below):
+(56 more follow in the follow-up section below):
 
 - Care Plan, Enrollment and School Calendar take `LockRecurrenceWrites` (48).
 - Enrollment decisions use Care Plan's weekly-pickup lock and excusal resync (12)
@@ -139,21 +139,23 @@ Their protocol review is follow-up work under ADR 0067.
 
 ## Register delta and approval
 
-Against development `1fb9eac4fa`, the register goes from 5,353 to 8,527
-entries: 3,791 added, 617 removed and 25 changed fingerprints. The removed
+Against development `1fb9eac4fa`, the register goes from 5,353 to 10,257
+entries: 5,521 added, 617 removed and 25 changed fingerprints. The removed
 entries are only diagnostics: 296 cycles, 152 failed helper lookups, 130
 callables and 39 function fields. No previously resolved terminal disappears.
-Added: 1,950 queries, 227 leaves, 148 debt, 536 platform (224 scope,
-128 mutation, 115 notice, 60 durable, 9 lock) and 930 unresolved. The 25
+Added: 2,067 queries, 259 leaves, 152 debt, 737 platform (425 scope,
+128 mutation, 115 notice, 60 durable, 9 lock) and 2,306 unresolved. The 25
 changed entries are queries; their reasons record the new evidence.
 
-The register then contains 955 unresolved entries across 51 identities.
-340 of them are one Student Presence `observe` field that a `testhooks`
-constructor also feeds. Effects: 4,738 query, 1,836 mutation, 584 lock,
-231 scope, 122 notice, 61 durable and 955 unresolved. 1,078 entries
-(930 unresolved, 148 debt) cite `approval_adr: "0098"`. The counterprobe that
-removes this ADR rejects exactly those new exceptions. Once this ADR is in the
-base, it approves nothing further.
+The register then contains 2,331 unresolved entries across 56 identities.
+Three observer callables account for 1,697 of them: People Directory (750),
+Workforce (607) and Student Presence (340). A diagnostic run traced every
+untraceable source to `api` `testhooks` helpers (`*_test_helpers.go`) and two
+`roots/owners` clock parameters whose callers live only in `_test.go`. Effects:
+4,855 query, 1,840 mutation, 616 lock, 432 scope, 122 notice, 61 durable and
+2,331 unresolved. 2,458 entries (2,306 unresolved, 152 debt) cite
+`approval_adr: "0098"`. The counterprobe that removes this ADR rejects exactly
+those new exceptions. Once this ADR is in the base, it approves nothing further.
 
 ## Remaining limits
 
@@ -196,6 +198,20 @@ also expose 52 further debt entries:
 - Workforce writes Timetable's `SetCategoryShiftTypeLinks` (2).
 - People Directory takes School Membership's `StudentClassWriteGate`
   advisory lock (1).
+
+A further review round found two more silent losses, both fixed with fixtures:
+
+- A construction context is now kept for nested resolutions, such as a
+  constructor storing `wrap(list)` whose closure calls `list`. The context is
+  part of the callable cache identity.
+- A root body calling the source owner's own function, such as
+  `enrollment.Invoke(f)`, follows the callables that function invokes. It does
+  not follow the owner's other effects.
+
+Keeping construction context exposes real scope effects through stored runners
+(for example Appointments → `tenant.WithinTenant`) and the observer diagnostics
+above. It adds 4 debt entries: Timetable template writes reach Care Plan's
+roster resync through one more interface each.
 
 Policy, legacy baseline, composition inventory and runtime code remain
 unchanged.

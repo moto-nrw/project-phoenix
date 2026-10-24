@@ -495,6 +495,10 @@ func TestCommandEffectsResolveForwardedAndMethodCallables(t *testing.T) {
 			"func Build() { enrollment.Run(enrollment.NewReads(foreign.Ledger{}.Record)) }"},
 		{"own named callable", "var hook func(); func SetHook(f func()) { hook = f }; func signal() { hook() }; type reads struct { command func() }; func NewReads() Writer { return reads{command: signal} }; func (r reads) Record() { r.command() }",
 			"func Build() { enrollment.SetHook(foreign.Ledger{}.Record); enrollment.Run(enrollment.NewReads()) }"},
+		{"own wrapping factory", "func wrap(f func()) func() { return func() { f() } }; type reads struct { list func() }; func NewReads(list func()) Writer { return reads{list: wrap(list)} }; func (r reads) Record() { r.list() }",
+			"func Build() { enrollment.Run(enrollment.NewReads(foreign.Ledger{}.Record)) }"},
+		{"root closure forwarding to own function", "func Invoke(f func()) { f() }",
+			"type binding struct { command func() }\nfunc (b binding) Record() { b.command() }\nfunc make(f func()) func() { return func() { enrollment.Invoke(f) } }\nfunc Build() { enrollment.Run(binding{command: make(foreign.Ledger{}.Record)}) }"},
 		{"root factory method", "",
 			"type factory struct{}\nfunc (factory) Make(f func()) func() { return f }\ntype binding struct { command func() }\nfunc (b binding) Record() { b.command() }\nfunc Build() { enrollment.Run(binding{command: factory{}.Make(foreign.Ledger{}.Record)}) }"},
 	} {
