@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	surveysVersion     = "1.15.513"
+	surveysVersion     = "1.15.514"
 	surveysDescription = "Umfragen an Eltern oder Mitarbeitende, wahlweise anonym: Teilnahme und Antwort getrennt gespeichert (#4781)"
 
 	surveysManagePermissionName = "surveys:manage"
@@ -23,14 +23,15 @@ func init() {
 		Version:     surveysVersion,
 		Description: surveysDescription,
 		DependsOn: []string{
-			classHandoverVersion,       // previous head; its erasure plan entries stay in the refreshed plan
-			"1.15.501",                 // previous head
-			"1.15.499",                 // previous head
-			"1.15.497",                 // previous head
-			morningAttendanceVersion,   // previous subject check of audit.data_deletions
-			parentGroupThreadsVersion,  // the erasure plan refreshed here names its tables
-			parentAnnouncementsVersion, // a parent survey is carried by a system announcement
-			schoolErasureVersion,       // the erasure plan this migration extends
+			schoolPortalClassTripsVersion, // previous head
+			classHandoverVersion,          // previous head; its erasure plan entries stay in the refreshed plan
+			"1.15.501",                    // previous head
+			"1.15.499",                    // previous head
+			"1.15.497",                    // previous head
+			morningAttendanceVersion,      // previous subject check of audit.data_deletions
+			parentGroupThreadsVersion,     // the erasure plan refreshed here names its tables
+			parentAnnouncementsVersion,    // a parent survey is carried by a system announcement
+			schoolErasureVersion,          // the erasure plan this migration extends
 		},
 	})
 	Migrations.MustRegister(surveysUp, surveysDown)
