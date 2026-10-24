@@ -83,24 +83,20 @@ func NewModuleBooking(reader ModuleBookingReader) (*ModuleBooking, error) {
 	return &ModuleBooking{reader: reader}, nil
 }
 
-// IsBookedForTenant reports whether school tenantID booked module.
-func (b *ModuleBooking) IsBookedForTenant(ctx context.Context, tenantID int64, module ModuleKey) (bool, error) {
-	definition, ok := configModel.LookupModule(module)
-	if !ok {
-		return false, fmt.Errorf("%w: %q", ErrUnknownModule, module)
-	}
-	return b.reader.ResolveBoolForTenant(ctx, tenantID, definition.SettingKey)
-}
-
 // RequireForTenant returns a *ModuleNotBookedError for the first of modules
-// school tenantID has not booked; read errors pass through.
+// school tenantID has not booked. Read errors and unknown module keys
+// (ErrUnknownModule) pass through as errors.
 func (b *ModuleBooking) RequireForTenant(ctx context.Context, tenantID int64, modules ...ModuleKey) error {
 	for _, module := range modules {
-		ok, err := b.IsBookedForTenant(ctx, tenantID, module)
+		definition, ok := configModel.LookupModule(module)
+		if !ok {
+			return fmt.Errorf("%w: %q", ErrUnknownModule, module)
+		}
+		booked, err := b.reader.ResolveBoolForTenant(ctx, tenantID, definition.SettingKey)
 		if err != nil {
 			return err
 		}
-		if !ok {
+		if !booked {
 			return &ModuleNotBookedError{TenantID: tenantID, Module: module}
 		}
 	}

@@ -43,18 +43,11 @@ func TestModuleBookingReadsEachSchoolsOwnBooking(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.Background()
 
-	booked, err := booking.IsBookedForTenant(ctx, requestSchool, ModuleZeiterfassung)
-	require.NoError(t, err)
-	assert.False(t, booked)
-	booked, err = booking.IsBookedForTenant(ctx, otherSchool, ModuleZeiterfassung)
-	require.NoError(t, err)
-	assert.True(t, booked, "the other school keeps the default")
-
 	var notBooked *ModuleNotBookedError
 	require.ErrorAs(t, booking.RequireForTenant(ctx, requestSchool, ModuleDienstplan, ModuleZeiterfassung), &notBooked)
 	assert.Equal(t, ModuleZeiterfassung, notBooked.Module)
 	assert.Equal(t, requestSchool, notBooked.TenantID)
-	require.NoError(t, booking.RequireForTenant(ctx, otherSchool, ModuleZeiterfassung))
+	require.NoError(t, booking.RequireForTenant(ctx, otherSchool, ModuleZeiterfassung), "the other school keeps the default")
 }
 
 // A failed read is an error, never a booking decision.
@@ -64,8 +57,6 @@ func TestModuleBookingPassesReadErrorsThrough(t *testing.T) {
 	booking, err := NewModuleBooking(&fakeModuleReader{err: readErr})
 	require.NoError(t, err)
 
-	_, err = booking.IsBookedForTenant(context.Background(), requestSchool, ModuleMittagessen)
-	require.ErrorIs(t, err, readErr)
 	err = booking.RequireForTenant(context.Background(), otherSchool, ModuleMittagessen)
 	require.ErrorIs(t, err, readErr)
 	var notBooked *ModuleNotBookedError
@@ -76,7 +67,7 @@ func TestModuleBookingRejectsUnknownModules(t *testing.T) {
 	t.Parallel()
 	booking, err := NewModuleBooking(&fakeModuleReader{})
 	require.NoError(t, err)
-	_, err = booking.IsBookedForTenant(context.Background(), requestSchool, ModuleKey("basis"))
+	err = booking.RequireForTenant(context.Background(), requestSchool, ModuleKey("basis"))
 	require.ErrorIs(t, err, ErrUnknownModule)
 }
 
