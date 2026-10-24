@@ -9,17 +9,18 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const signaturesVersion = "1.15.498"
+const signaturesVersion = "1.15.506"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     signaturesVersion,
 		Description: "Unterschrift: einfache elektronische Signatur mit gezeichneter Unterschrift als gemeinsamer Baustein, zuerst für Einverständnisse (#4785)",
 		DependsOn: []string{
-			enrollmentRequestUploadsVersion, // the last migration before this one
-			parentDeclarationsVersion,       // the declaration columns and submissions this migration extends
-			schoolErasureVersion,            // the erasure plan this migration extends
-			demoVisitorErasureVersion,       // the demo visitor erasure this migration extends
+			"1.15.499",                // the last migration before this one (password login protection)
+			morningAttendanceVersion,  // the latest school erasure functions this migration extends
+			parentDeclarationsVersion, // the declaration columns and submissions this migration extends
+			schoolErasureVersion,      // the erasure plan this migration extends
+			demoVisitorErasureVersion, // the demo visitor erasure this migration extends
 		},
 	})
 	Migrations.MustRegister(signaturesUp, signaturesDown)

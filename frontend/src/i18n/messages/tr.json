@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Tüm hafta için kayıt silinsin mi?",
     "unregisterWeekText": "{name}, bu haftanın {count, plural, one {# günü} other {# günü}} için öğle yemeğinden çıkarılacak. Yeniden kayıt yalnızca değişiklik süresine kadar mümkündür."
   },
+  "mealAllergens": {
+    "legendTitle": "Alerjenler",
+    "choose": "Alerjenleri seçin",
+    "marksShort": "Alerjenler: {letters}",
+    "marksLabel": "İçerir: {names}",
+    "noneThisWeek": "Bu hafta için alerjen bilgisi girilmedi.",
+    "source": "Bu bilgiler okuldan veya yemek firmasından gelir. Harfi olmayan bir yemek kesin olarak alerjensiz değildir. Sorularınız için OGS'ye başvurun.",
+    "names": {
+      "gluten": "Gluten içeren tahıllar",
+      "crustaceans": "Kabuklu deniz ürünleri",
+      "eggs": "Yumurta",
+      "fish": "Balık",
+      "peanuts": "Yer fıstığı",
+      "soybeans": "Soya",
+      "milk": "Süt (laktoz dahil)",
+      "nuts": "Sert kabuklu yemişler",
+      "celery": "Kereviz",
+      "mustard": "Hardal",
+      "sesame": "Susam",
+      "sulphites": "Kükürt dioksit ve sülfitler",
+      "lupin": "Acı bakla (lupin)",
+      "molluscs": "Yumuşakçalar"
+    }
+  },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
     "description": "Liste, o gün öğle yemeğine kayıtlı tüm çocukları gösterir.",
@@ -2291,6 +2315,9 @@
         "arrival_exception_editor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "arrival_exception_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "arrival_exception_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "morning_attendance_no_school_day": "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
+        "morning_attendance_not_today": "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
+        "morning_attendance_unknown_child": "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
         "school_write_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "communication": {
@@ -2556,6 +2583,7 @@
         "wc_not_configured": "{object} işlenemedi. Daha sonra yeniden deneyin."
       },
       "meals": {
+        "invalid_allergens": "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
         "invalid_dishes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_meal_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_participation": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",

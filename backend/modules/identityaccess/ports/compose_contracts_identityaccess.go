@@ -39,15 +39,17 @@ type PushSubscriptionCleanup interface {
 // beyond the database. TenantRuntime attaches the unit of work the flows
 // open their transactions under; nil leaves the context as is.
 type SessionDependencies struct {
-	Schools       SchoolDirectory
-	Persons       PersonDirectory
-	Passwords     PasswordVerifier
-	Codec         TokenCodec
-	MFALock       MFAPolicyLock
-	Audit         AuthAudit
-	Push          PushSubscriptionCleanup
-	TenantRuntime func(context.Context) context.Context
-	Logger        *slog.Logger
+	// PasswordLoginPolicy resolves installation-wide registry defaults. School overrides cannot weaken a global identity lock.
+	PasswordLoginPolicy func() (int, time.Duration, error)
+	Schools             SchoolDirectory
+	Persons             PersonDirectory
+	Passwords           PasswordVerifier
+	Codec               TokenCodec
+	MFALock             MFAPolicyLock
+	Audit               AuthAudit
+	Push                PushSubscriptionCleanup
+	TenantRuntime       func(context.Context) context.Context
+	Logger              *slog.Logger
 }
 
 // PasswordPolicy validates and hashes parent account passwords.

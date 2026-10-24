@@ -196,7 +196,7 @@ func TestStaffWeekResponseContract(t *testing.T) {
 	}
 	assert.JSONEq(t, `{
 		"status":"success",
-		"data":[{"date":"2026-09-07","position":0,"dish":"Nudeln"}],
+		"data":[{"date":"2026-09-07","position":0,"dish":"Nudeln","allergens":[]}],
 		"message":"Meal plan retrieved successfully"
 	}`, response.Body.String())
 }

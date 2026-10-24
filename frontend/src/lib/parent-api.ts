@@ -18,6 +18,10 @@ import type { AppLocale } from "~/i18n/locales";
 import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
+import {
+  normalizeMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
@@ -278,6 +282,8 @@ export interface MealPlanEntry {
   readonly position: number;
   readonly dish: string;
   readonly note?: string | null;
+  /** Codes of the main allergens, in legend order; empty when unmarked. */
+  readonly allergens: readonly MealAllergen[];
 }
 
 // One day's pickup override plus OGS-owned arrival state for display.
@@ -837,11 +843,17 @@ export async function getChildMealPlan(
   studentId: string,
   weekStart: string,
 ): Promise<MealPlanEntry[]> {
-  return getJson<MealPlanEntry[]>(
+  const entries = await getJson<
+    Array<Omit<MealPlanEntry, "allergens"> & { allergens?: string[] | null }>
+  >(
     `/api/parent/me/children/${encodeURIComponent(
       studentId,
     )}/meal-plan?week_start=${encodeURIComponent(weekStart)}`,
   );
+  return (entries ?? []).map((entry) => ({
+    ...entry,
+    allergens: normalizeMealAllergens(entry.allergens),
+  }));
 }
 
 type MealParticipationSource =

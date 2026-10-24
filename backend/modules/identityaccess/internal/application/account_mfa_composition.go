@@ -111,10 +111,6 @@ func (unavailableAccountMFA) VerifyMFAChallengeForOwner(context.Context, string,
 	return identityaccess.VerifiedMFAChallenge{}, errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) VerifyMFACodeForAccount(context.Context, int64, int64, string, string) error {
-	return errAccountMFAUnavailable
-}
-
 func (unavailableAccountMFA) ResendMFAChallengeForScope(context.Context, string, net.IP, string) (string, error) {
 	return "", errAccountMFAUnavailable
 }
@@ -179,4 +175,8 @@ func (unavailableAccountMFA) OperatorSetGlobalMFAOverride(context.Context, int64
 
 func (unavailableAccountMFA) GetGlobalMFAOverride(context.Context, int64) (string, error) {
 	return "", errAccountMFAUnavailable
+}
+
+func (unavailableAccountMFA) VerifyMFACodeForAccount(context.Context, int64, int64, string, string) (identityaccess.VerifiedMFAChallenge, error) {
+	return identityaccess.VerifiedMFAChallenge{}, errAccountMFAUnavailable
 }

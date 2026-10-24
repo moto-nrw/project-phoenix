@@ -35,6 +35,8 @@ const schoolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_era
     UNION ALL
     SELECT 1 FROM active.groups AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM active.morning_attendance AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM active.presence_backfill_batches AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.presence_backfill_checkpoints AS r WHERE r.tenant_id = p_school_id

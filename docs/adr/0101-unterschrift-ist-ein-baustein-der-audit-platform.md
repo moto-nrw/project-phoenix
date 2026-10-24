@@ -45,9 +45,3 @@ Compose-Budget der Audit Platform und die Summe um genau 6 Zeilen
 Alle übrigen Budgets bleiben unverändert oder sinken: Die Zeile im
 Parent-Portal-Compose und in der Communication-Composition sind ausgeglichen,
 und `seed_extras.go` verlässt das Dateigrößen-Register.
-
-Die vollständige Bindungsanalyse erfasst außerdem den bereits bestehenden
-Student-Presence-Aufruf `AttendanceRetention.DeleteExpiredAttendance` am
-Beobachter neu. Der Eintrag dokumentiert nur die nicht statisch auflösbare
-Funktionsbindung; er gibt keine neue Schreibberechtigung und ändert keinen
-Ablauf.

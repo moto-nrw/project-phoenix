@@ -25,6 +25,8 @@ type MealPlanEntry struct {
 	Position int
 	Dish     string
 	Note     *string
+	// Allergens are the codes of the dish's main allergens.
+	Allergens []string
 }
 
 type MealWeekday int

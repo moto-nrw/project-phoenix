@@ -13,6 +13,7 @@ func RetentionWindowKeys() []string {
 	return []string{
 		configModel.KeyGDPRStatusDayRetentionDays,
 		configModel.KeyGDPRAttendanceRetentionDays,
+		configModel.KeyGDPRMorningAttendanceRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
 		configModel.KeyGDPRStaffMessageRetentionDays,
 		configModel.KeyGDPRTimetableRetentionDays,
@@ -29,6 +30,19 @@ func RetentionWindowKeys() []string {
 func StudentRetentionWindow(source StatisticsRetentionSource) func(context.Context) (int, error) {
 	return func(ctx context.Context) (int, error) {
 		return source.ResolveInt(ctx, configModel.KeyGDPRStudentRetentionDays)
+	}
+}
+
+// MorningAttendanceRetentionWindow resolves how many days after the school
+// day the morning attendance a Lehrkraft marked is deleted (#4790). A failed
+// read names the setting.
+func MorningAttendanceRetentionWindow(source StatisticsRetentionSource) func(context.Context) (int, error) {
+	return func(ctx context.Context) (int, error) {
+		days, err := source.ResolveInt(ctx, configModel.KeyGDPRMorningAttendanceRetentionDays)
+		if err != nil {
+			return 0, fmt.Errorf("resolve %s: %w", configModel.KeyGDPRMorningAttendanceRetentionDays, err)
+		}
+		return days, nil
 	}
 }
 

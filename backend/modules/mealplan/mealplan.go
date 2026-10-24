@@ -26,15 +26,17 @@ func (d Date) German() (string, error) {
 }
 
 type Dish struct {
-	Dish string
-	Note *string
+	Dish      string
+	Note      *string
+	Allergens []Allergen
 }
 
 type Entry struct {
-	Date     Date
-	Position int
-	Dish     string
-	Note     *string
+	Date      Date
+	Position  int
+	Dish      string
+	Note      *string
+	Allergens []Allergen
 }
 
 type Weekday int
@@ -158,6 +160,7 @@ var (
 	ErrDisabled             = &Fault{Code: "meal_plan_disabled", Detail: "feature_disabled"}
 	ErrInvalidMealDate      = &Fault{Code: "invalid_meal_date", Detail: "meal plan covers weekdays only (Monday-Friday)"}
 	ErrInvalidDishes        = &Fault{Code: "invalid_dishes"}
+	ErrInvalidAllergens     = &Fault{Code: "invalid_allergens", Detail: "allergens must be codes of the 14 main allergens"}
 	ErrRegistrationDisabled = &Fault{Code: "meal_registration_disabled", Detail: "meal_registration_disabled"}
 	ErrInvalidParticipation = &Fault{Code: "invalid_meal_participation"}
 	ErrParticipationCutoff  = &Fault{Code: "meal_participation_cutoff_passed", Detail: "meal_participation_cutoff_passed"}
