@@ -329,6 +329,12 @@ func (n StudentNote) AllowsUpdate(update UpdateStudentNote) error {
 // facts only after the note itself is row-locked. A general note belongs to
 // the child's current OGS group; a referenced note belongs to that reference.
 func (n StudentNote) AllowsDelete(authorization StudentNoteDeleteAuthorization) error {
+	// A day hint from moto schule is withdrawn only where it was written (#4795):
+	// a class hint lives as one row per child, and removing one row here would
+	// leave the Lehrkraft's view saying the whole class still has it.
+	if n.Origin == StudentNoteOriginSchool {
+		return ErrStudentNoteImmutable
+	}
 	if authorization.Admin {
 		return nil
 	}
