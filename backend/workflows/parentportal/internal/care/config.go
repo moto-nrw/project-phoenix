@@ -78,6 +78,9 @@ type Config struct {
 	Guardians        GuardianRecords
 	Students         StudentRecords
 	GuardianChanges  GuardianChangeLog
+	// PickupSignatures stores the signatures of pickup permissions, collectors
+	// and the way home alone (#4780, Audit Platform).
+	PickupSignatures PickupSignatureLedger
 
 	// Identity & Access: inviting and removing further guardians, and the
 	// open invitations shown as pending.

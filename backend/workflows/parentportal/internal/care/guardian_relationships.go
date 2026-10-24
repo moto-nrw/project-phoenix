@@ -26,6 +26,11 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	if err := validateRelationshipInput(&input); err != nil {
 		return nil, err
 	}
+	// Granting the pickup permission is a signed request the OGS confirms
+	// (#4780); this direct path only takes it away.
+	if input.CanPickup != nil && *input.CanPickup {
+		return nil, ErrPickupPermissionRequestRequired
+	}
 	edit := relationshipEdit{
 		accountID: accountID, studentID: studentID, guardianProfileID: guardianProfileID, input: input,
 		editsFlags:   input.CanPickup != nil || input.IsEmergencyContact != nil,

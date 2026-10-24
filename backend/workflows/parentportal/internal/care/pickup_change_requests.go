@@ -18,6 +18,29 @@ func (s *Service) EditPickupChangeRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	date calendar.Date, pickupTime time.Time, departureMode, reason, expectedVersion string,
 ) (*carerequests.Request, error) {
+	return s.EditPickupChange(ctx, accountID, studentID, requestID, PickupChangeEdit{
+		Date: date, PickupTime: pickupTime, DepartureMode: departureMode, Reason: reason, ExpectedVersion: expectedVersion,
+	})
+}
+
+// PickupChangeEdit is the new content of a pending one-day request. A
+// collector or walking home alone needs a fresh signature (#4780).
+type PickupChangeEdit struct {
+	Date            calendar.Date
+	PickupTime      time.Time
+	DepartureMode   string
+	Reason          string
+	ExpectedVersion string
+	PickupPersonID  int64
+	Signature       *PickupSignatureInput
+}
+
+// EditPickupChange rewrites the caller's own pending one-day request.
+func (s *Service) EditPickupChange(ctx context.Context, accountID, studentID, requestID int64, edit PickupChangeEdit) (*carerequests.Request, error) {
+	date, pickupTime, departureMode, reason, expectedVersion := edit.Date, edit.PickupTime, edit.DepartureMode, edit.Reason, edit.ExpectedVersion
+	if err := requireDaySignature(departureMode, edit.PickupPersonID, edit.Signature); err != nil {
+		return nil, err
+	}
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
@@ -44,7 +67,13 @@ func (s *Service) EditPickupChangeRequest(
 		if err != nil {
 			return err
 		}
+		person, signed, err := s.signDayPickup(txCtx, child, accountID, studentID, date, departureMode, edit.PickupPersonID, edit.Signature)
+		if err != nil {
+			return err
+		}
 		req, editErr := s.CareRequests.EditRequest(txCtx, carerequests.EditInput{
+			PickupPerson:      person,
+			Signature:         signed,
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
@@ -74,8 +103,33 @@ func (s *Service) EditPickupChangeRequest(
 // Abholart (#3945), or both, on one day. A zero pickupTime or an empty
 // departureMode leaves that leg of the day unchanged.
 func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date calendar.Date, pickupTime time.Time, departureMode, reason string, recipientGuardianProfileIDs []int64) (*carerequests.Request, error) {
-	reason = strings.TrimSpace(reason)
-	if err := validatePickupChangeShape(pickupTime, departureMode, reason); err != nil {
+	return s.SubmitPickupChange(ctx, accountID, studentID, PickupChangeSubmission{
+		Date: date, PickupTime: pickupTime, DepartureMode: departureMode, Reason: reason,
+		RecipientGuardianProfileIDs: recipientGuardianProfileIDs,
+	})
+}
+
+// PickupChangeSubmission is one one-day request: a Gehzeit, an Abholart, a
+// contact person who collects the child (#4780), or several of them. A
+// collector or walking home alone needs a signature.
+type PickupChangeSubmission struct {
+	Date                        calendar.Date
+	PickupTime                  time.Time
+	DepartureMode               string
+	Reason                      string
+	RecipientGuardianProfileIDs []int64
+	PickupPersonID              int64
+	Signature                   *PickupSignatureInput
+}
+
+// SubmitPickupChange asks the OGS for the changes of one day.
+func (s *Service) SubmitPickupChange(ctx context.Context, accountID, studentID int64, submission PickupChangeSubmission) (*carerequests.Request, error) {
+	date, pickupTime, departureMode, recipientGuardianProfileIDs := submission.Date, submission.PickupTime, submission.DepartureMode, submission.RecipientGuardianProfileIDs
+	reason := strings.TrimSpace(submission.Reason)
+	if err := validatePickupChangeShape(pickupTime, departureMode, submission.PickupPersonID, reason); err != nil {
+		return nil, err
+	}
+	if err := requireDaySignature(departureMode, submission.PickupPersonID, submission.Signature); err != nil {
 		return nil, err
 	}
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
@@ -102,7 +156,13 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if !policy.enabled {
 			return ErrPickupChangeDisabled
 		}
+		person, signed, err := s.signDayPickup(txCtx, child, accountID, studentID, date, departureMode, submission.PickupPersonID, submission.Signature)
+		if err != nil {
+			return err
+		}
 		created, createErr := s.CareRequests.CreatePickupChange(txCtx, carerequests.PickupChangeCreateInput{
+			PickupPerson:      person,
+			Signature:         signed,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			Date:              date,
@@ -134,9 +194,12 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 }
 
 // validatePickupChangeShape runs the cheap input checks that need no tenant.
-func validatePickupChangeShape(pickupTime time.Time, departureMode, reason string) error {
-	if pickupTime.IsZero() && departureMode == "" {
+func validatePickupChangeShape(pickupTime time.Time, departureMode string, pickupPersonID int64, reason string) error {
+	if pickupTime.IsZero() && departureMode == "" && pickupPersonID == 0 {
 		return ErrNoCareException
+	}
+	if pickupPersonID < 0 || (pickupPersonID > 0 && !carerequests.PickupPersonAllowed(departureMode)) {
+		return ErrInvalidCareRequestPayload
 	}
 	if departureMode != "" && !carerequests.RequestableDepartureMode(departureMode) {
 		return ErrInvalidCareRequestPayload
@@ -268,4 +331,67 @@ func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, da
 		return ErrCareExceptionAlreadyLeft
 	}
 	return nil
+}
+
+// requireDaySignature refuses an unsigned one-day request that names a
+// collector or lets the child walk home alone (#4780).
+func requireDaySignature(departureMode string, pickupPersonID int64, signature *PickupSignatureInput) error {
+	if (pickupPersonID > 0 || departureMode == "alone") && signature == nil {
+		return ErrPickupSignatureRequired
+	}
+	return nil
+}
+
+// signDayPickup resolves the collector among the child's contacts and stores
+// the signature the day needs, inside the caller's tenant transaction. A day
+// without collector and without walking home alone returns no signature; one
+// sent along is ignored.
+func (s *Service) signDayPickup(txCtx context.Context, child *Child, accountID, studentID int64, date calendar.Date, departureMode string, pickupPersonID int64, signature *PickupSignatureInput) (*carerequests.PickupPerson, *carerequests.SignedStatement, error) {
+	var person *carerequests.PickupPerson
+	if pickupPersonID > 0 {
+		resolved, err := s.childContactPerson(txCtx, studentID, pickupPersonID)
+		if err != nil {
+			return nil, nil, err
+		}
+		person = resolved
+	}
+	personName := ""
+	if person != nil {
+		personName = person.Name
+	}
+	statement := DayPickupStatement(child.StudentName, date, departureMode, personName)
+	if statement == "" {
+		return person, nil, nil
+	}
+	signed, err := s.recordPickupSignature(txCtx, studentID, accountID, statement, signature)
+	if err != nil {
+		return nil, nil, err
+	}
+	return person, signed, nil
+}
+
+// childContactPerson finds a contact person linked to the child.
+func (s *Service) childContactPerson(ctx context.Context, studentID, guardianProfileID int64) (*carerequests.PickupPerson, error) {
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	for _, link := range links {
+		if link == nil || link.GuardianProfileID != guardianProfileID {
+			continue
+		}
+		profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
+		if errors.Is(err, ErrGuardianProfileNotFound) {
+			return nil, ErrPickupPersonNotLinked
+		}
+		if err != nil {
+			return nil, err
+		}
+		name := strings.TrimSpace(profile.FirstName + " " + profile.LastName)
+		if name == "" {
+			return nil, ErrPickupPersonNotLinked
+		}
+		return &carerequests.PickupPerson{GuardianProfileID: guardianProfileID, Name: name}, nil
+	}
+	return nil, ErrPickupPersonNotLinked
 }

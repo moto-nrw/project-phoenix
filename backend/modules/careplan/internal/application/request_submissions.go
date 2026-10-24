@@ -26,6 +26,11 @@ func (s *RequestSubmissions) CreateRequest(ctx context.Context, studentID, guard
 	if err != nil {
 		return nil, err
 	}
+	// The flow that stored a signature for the plan (#4780) passes its
+	// reference along; canonicalizing would drop it.
+	if canonical, err = carerequests.WithSignature(canonical, carerequests.StoredSignature(payload)); err != nil {
+		return nil, err
+	}
 	return s.create(ctx, studentID, guardianID, "weekly_schedule", "care request", canonical)
 }
 
