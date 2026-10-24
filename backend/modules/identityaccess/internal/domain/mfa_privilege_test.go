@@ -58,6 +58,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"class_day:arrival_exception_write":  false,
 		"class_day:class_trip_write":         false,
 		"class_day:handover_write":           false,
+		"class_day:homework_write":           false,
 		"class_day:morning_attendance_write": false,
 		"class_day:read":                     false,
 		"config:manage":                      true,

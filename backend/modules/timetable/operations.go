@@ -157,6 +157,10 @@ type OperationRoster struct {
 	CanEditAttendance bool `json:"can_edit_attendance"`
 	// CanReportAbsence covers sick/excused block markers only.
 	CanReportAbsence bool `json:"can_report_absence"`
+	// CanRecordHomeworkFeedback reports whether the caller may give the
+	// homework feedback of this block's children (#4796): a Lernzeit block
+	// that is not cancelled, and the caller may edit its attendance.
+	CanRecordHomeworkFeedback bool `json:"can_record_homework_feedback"`
 }
 
 // OperationRosterInstance is the block a roster belongs to.
@@ -172,9 +176,12 @@ type OperationRosterInstance struct {
 	StartTime     string  `json:"start_time"`
 	EndTime       string  `json:"end_time"`
 	// IsDuty marks a duty (#3822): no children, never started.
-	IsDuty              bool   `json:"is_duty,omitempty"`
-	CanComplete         bool   `json:"can_complete"`
-	CompleteAvailableAt string `json:"complete_available_at"`
+	IsDuty bool `json:"is_duty,omitempty"`
+	// ListKind is the block's list classification ("learning_time" for a
+	// Lernzeit, #4796); omitted without one.
+	ListKind            *string `json:"list_kind,omitempty"`
+	CanComplete         bool    `json:"can_complete"`
+	CompleteAvailableAt string  `json:"complete_available_at"`
 }
 
 // OperationRosterRow is one child on a roster.
@@ -203,6 +210,23 @@ type OperationRosterRow struct {
 	// The rows stay in the payload so a child who turns up anyway can still
 	// be checked in with one tap.
 	CareDayStatus CareDayStatus `json:"care_day_status"`
+	// Homework is the homework of the child's class on the block's date, set
+	// only on a Lernzeit roster (#4796).
+	Homework []OperationRosterHomework `json:"homework,omitempty"`
+	// HomeworkFeedback is the child's OGS feedback of that date, if any.
+	HomeworkFeedback *OperationHomeworkFeedback `json:"homework_feedback,omitempty"`
+}
+
+// OperationRosterHomework is one homework entry of a child's class.
+type OperationRosterHomework struct {
+	Subject     *string `json:"subject,omitempty"`
+	Description string  `json:"description"`
+}
+
+// OperationHomeworkFeedback is a child's homework feedback of one day.
+type OperationHomeworkFeedback struct {
+	Status string  `json:"status"`
+	Note   *string `json:"note,omitempty"`
 }
 
 // OperationParallelPresence identifies the other running block a roster

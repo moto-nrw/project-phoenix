@@ -348,19 +348,18 @@ func TestInvitationTokenIsOnlyExposedWhenTheRootAllowsIt(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, h.do(t, http.MethodPost, "/guardians/7/invite", nil).Code)
 }
 
-func TestPendingInvitationTokenIsOnlyExposedWhenTheRootAllowsIt(t *testing.T) {
+// The link of a pending invitation is stored as hash only (#4902), so the
+// listing carries no token even where the root allows seed exposure.
+func TestPendingInvitationListCarriesNoToken(t *testing.T) {
 	t.Parallel()
 	h := newGuardianHarness(t, &fakeGuardianDirectory{})
 	h.permitted["users:read"] = true
-	h.pending = []usersHTTP.PendingGuardianInvitation{{ID: 7, GuardianProfileID: 9, Token: "existing-secret-token"}}
+	h.exposeToken = true
+	h.pending = []usersHTTP.PendingGuardianInvitation{{ID: 7, GuardianProfileID: 9}}
 
 	recorder := h.do(t, http.MethodGet, "/guardians/invitations/pending", nil)
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
-	assert.NotContains(t, recorder.Body.String(), "existing-secret-token")
-
-	h.exposeToken = true
-	recorder = h.do(t, http.MethodGet, "/guardians/invitations/pending", nil)
-	assert.Contains(t, recorder.Body.String(), "existing-secret-token")
+	assert.NotContains(t, recorder.Body.String(), `"token"`)
 }
 
 func TestInviteFailuresUseTheRootClassification(t *testing.T) {

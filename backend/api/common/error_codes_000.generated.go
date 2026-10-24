@@ -98,6 +98,7 @@ const (
 	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
 	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
 	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
+	CodeClassdayHomeworkNotFound                         = "classday.homework_not_found"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -301,7 +302,6 @@ const (
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
-	CodeIdentityRolePlatformPermission                   = "identity.role_platform_permission"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -401,6 +401,7 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_trip_return_time_weekend":              "input",
 	"classday.class_trip_status_conflict":                  "business_rejection",
 	"classday.class_trip_student_not_in_class":             "business_rejection",
+	"classday.homework_not_found":                          "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
-	"identity.role_platform_permission":                    "input",
 }
 
 func init() {

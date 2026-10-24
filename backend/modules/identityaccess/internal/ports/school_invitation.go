@@ -26,7 +26,7 @@ type SchoolInvitationStore interface {
 	// address in the caller's tenant scope.
 	RevokeSchoolInvitationsForEmail(ctx context.Context, email string) (int, domain.OperationStats, error)
 	RevokeSchoolInvitationsForTenant(ctx context.Context, tenantID int64) (int, domain.OperationStats, error)
-	ExtendSchoolInvitation(ctx context.Context, id int64, expiresAt, now time.Time) (bool, domain.OperationStats, error)
+	ExtendSchoolInvitation(ctx context.Context, id int64, expiresAt, now time.Time, token string) (bool, domain.OperationStats, error)
 	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
 	DeleteExpiredSchoolInvitations(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 

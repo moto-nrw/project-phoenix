@@ -167,7 +167,7 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 	require.NoError(t, err)
 	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
-		Token:       uniqueTestName("other-school-live"),
+		Token:       sha256Hex(uniqueTestName("other-school-live")),
 		Expiry:      time.Now().Add(time.Hour),
 		PortalScope: "tenant",
 	}
@@ -432,7 +432,7 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 	require.NoError(t, err)
 	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
-		Token:       uniqueTestName("role-other-school"),
+		Token:       sha256Hex(uniqueTestName("role-other-school")),
 		Expiry:      time.Now().Add(time.Hour),
 		PortalScope: "tenant",
 	}
@@ -651,7 +651,7 @@ func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
 	for i := range 5 {
 		legacy := &testpkg.TokenFixture{
 			AccountID:   account.ID,
-			Token:       uniqueTestName("unknown-session") + "-" + string(rune('a'+i)),
+			Token:       sha256Hex(uniqueTestName("unknown-session") + "-" + string(rune('a'+i))),
 			Expiry:      time.Now().Add(time.Hour),
 			PortalScope: "unknown",
 		}
@@ -685,7 +685,7 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 	require.NoError(t, err)
 	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
-		Token:       uniqueTestName("other-school-session"),
+		Token:       sha256Hex(uniqueTestName("other-school-session")),
 		Expiry:      time.Now().Add(time.Hour),
 		PortalScope: "tenant",
 	}
@@ -744,7 +744,7 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 	require.NoError(t, err)
 	other := &testpkg.TokenFixture{
 		AccountID:   account.ID,
-		Token:       uniqueTestName("admin-tx-other-school"),
+		Token:       sha256Hex(uniqueTestName("admin-tx-other-school")),
 		Expiry:      time.Now().Add(time.Hour),
 		PortalScope: "tenant",
 	}
@@ -881,7 +881,7 @@ func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T
 	_, err = db.NewRaw(`
 		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, generation, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-	`, account.ID, uniqueTestName("pre-revoke-succ"), time.Now().Add(14*24*time.Hour),
+	`, account.ID, sha256Hex(uniqueTestName("pre-revoke-succ")), time.Now().Add(14*24*time.Hour),
 		tenantID, "tenant", familyID, time.Now()).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -917,7 +917,7 @@ func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) 
 	_, err = db.NewRaw(`
 		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, account.ID, uniqueTestName("old-pre-revoke"), time.Now().Add(14*24*time.Hour),
+	`, account.ID, sha256Hex(uniqueTestName("old-pre-revoke")), time.Now().Add(14*24*time.Hour),
 		tenantID, "tenant", uniqueTestName("old-family"), tokenCreatedAt).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -950,7 +950,7 @@ func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
 
 	legacy := &testpkg.TokenFixture{
 		AccountID:   account.ID,
-		Token:       uniqueTestName("legacy-parent-session"),
+		Token:       sha256Hex(uniqueTestName("legacy-parent-session")),
 		Expiry:      time.Now().Add(time.Hour),
 		PortalScope: "unknown",
 	}

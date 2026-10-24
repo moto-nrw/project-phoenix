@@ -41,6 +41,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type {
+  HomeworkFeedbackBody,
   PlannedTimetableInstance,
   TimetableRoster,
   TimetableRosterRow,
@@ -319,6 +320,21 @@ export function SchoolSupervisionsView() {
     [openId, refreshAll, report],
   );
 
+  // Rückmeldung zu den Hausaufgaben in der eigenen Lernzeit (#4796). Ein
+  // Fehler geht an den Dialog, der ihn an seinem Formular zeigt.
+  const handleSaveHomeworkFeedback = useCallback(
+    async (row: TimetableRosterRow, body: HomeworkFeedbackBody) => {
+      if (!openId) return;
+      await schoolSupervisionsApi.saveHomeworkFeedback(
+        openId,
+        row.studentId,
+        body,
+      );
+      await refreshAll();
+    },
+    [openId, refreshAll],
+  );
+
   const handleConfirmExpected = useCallback(
     async (rows: TimetableRosterRow[]) => {
       if (!openId) return;
@@ -459,6 +475,7 @@ export function SchoolSupervisionsView() {
           onAddStudent={() => Promise.resolve(false)}
           onSearchChange={() => undefined}
           onRosterAction={handleRosterAction}
+          onSaveHomeworkFeedback={handleSaveHomeworkFeedback}
           onConfirmExpected={handleConfirmExpected}
           onComplete={handleComplete}
           onOpenStudent={setSheetRow}

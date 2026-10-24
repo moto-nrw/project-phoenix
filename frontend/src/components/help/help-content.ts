@@ -1420,6 +1420,47 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
   };
 }
 
+/**
+ * Hausaufgaben in der Lernzeit (#4796): die OGS sieht je Kind die
+ * Hausaufgaben seiner Klasse und meldet „Fertig“, „Nicht fertig“ oder „War
+ * schwer“ zurück. Nur in Terminen der Listenart Lernzeit.
+ */
+function homeworkFeedbackTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.homeworkFeedback,
+    title: "Rückmeldung zu Hausaufgaben geben",
+    question:
+      "Wie melde ich zurück, ob ein Kind die Hausaufgaben geschafft hat?",
+    summary:
+      "In der Lernzeit sehen Sie die Hausaufgaben jeder Klasse und geben je Kind eine Rückmeldung.",
+    group: "gruppen",
+    audience: ["caregiver", "lead"],
+    icon: "ListChecks",
+    requirements: [
+      "Der Termin ist im Betreuungsplan als Lernzeit eingetragen.",
+      "Die Lehrkraft hat für die Klasse des Kindes Hausaufgaben eingetragen.",
+    ],
+    steps: [
+      "Öffnen Sie `Aktuelle Aufsicht` und Ihre Lernzeit.",
+      "Unter dem Namen eines Kindes steht `Hausaufgaben:` mit dem, was zu tun ist.",
+      "Tippen Sie beim Kind auf `Hausaufgaben`.",
+      "Wählen Sie `Fertig`, `Nicht fertig` oder `War schwer`.",
+      "Schreiben Sie bei Bedarf eine `Kurze Notiz (freiwillig)`.",
+      "Tippen Sie auf `Rückmeldung speichern`.",
+    ],
+    result:
+      "Beim Kind steht `Rückmeldung:` mit Ihrer Antwort. Die Lehrkraft sieht sie in ihrer Klassenansicht.",
+    notes: [
+      "Sie können die Rückmeldung am selben Tag ändern. Dann gilt die neue.",
+      "Eltern sehen weder die Hausaufgaben noch die Rückmeldung.",
+    ],
+    differences: [
+      "Kein Knopf `Hausaufgaben`? Dann ist der Termin keine Lernzeit, oder für die Klasse ist heute nichts eingetragen.",
+    ],
+    related: [HELP_TOPICS.activeSupervision],
+  };
+}
+
 function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
   if (presenceMode === "binary") {
     return {
@@ -2841,6 +2882,7 @@ function caregiverTopics(
     transferGroupTopic(groupMode),
     roomsTopic(presenceMode),
     activeSupervisionTopic(presenceMode),
+    homeworkFeedbackTopic(),
     manageActivityTopic(presenceMode, nfcEnabled),
     parentMessageTopic(),
     parentGroupMessageTopic(),
@@ -7614,12 +7656,6 @@ function teacherMorningAttendanceTopic(): HelpTopic {
   };
 }
 
-/**
- * Übergabe nach dem Unterricht (#4794): die Lehrkraft übergibt ihre Klasse
- * heute an die OGS und markiert Kinder, die nicht da sind. Die OGS sieht sie
- * in Aufsicht, Gruppe und Kindersuche als „Nach dem Unterricht da“ oder
- * „Nach dem Unterricht nicht da“.
- */
 function teacherClassHandoverTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.teacherClassHandover,
@@ -7655,6 +7691,68 @@ function teacherClassHandoverTopic(): HelpTopic {
       HELP_TOPICS.teacherMorningAttendance,
       HELP_TOPICS.teacherClassList,
       HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
+/**
+ * Hausaufgaben (#4796): die Lehrkraft trägt sie für ihre Klasse und einen
+ * Tag ein und sieht je Kind die Rückmeldung der OGS aus der Lernzeit.
+ */
+
+function teacherHomeworkTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherHomework,
+    title: "Hausaufgaben eintragen",
+    question: "Wie trage ich Hausaufgaben für meine Klasse ein?",
+    summary:
+      "Sie tragen ein, was die Klasse an einem Tag tun soll. Die OGS meldet je Kind zurück.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "NotePencil",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Hausaufgaben eintragen",
+        steps: [
+          "Öffnen Sie in der `Klassenansicht` Ihre Klasse und den Tag.",
+          "Tippen Sie unter `Hausaufgaben` auf `Hausaufgaben eintragen`.",
+          "Schreiben Sie bei Bedarf das `Fach (freiwillig)`.",
+          "Schreiben Sie unter `Was ist zu tun?`, was die Kinder machen sollen.",
+          "Tippen Sie auf `Speichern`.",
+        ],
+      },
+      {
+        title: "Einen Eintrag ändern oder löschen",
+        steps: [
+          "Tippen Sie beim Eintrag auf die drei Punkte.",
+          "Wählen Sie `Ändern` oder `Löschen`.",
+        ],
+      },
+      {
+        title: "Die Rückmeldung der OGS lesen",
+        steps: [
+          "Öffnen Sie in der `Klassenansicht` den Tag der Hausaufgaben.",
+          "Beim Kind steht `Hausaufgaben: Fertig`, `Nicht fertig` oder `War schwer`.",
+          "Eine Notiz der OGS steht unter dem Namen, mit `OGS:` davor.",
+        ],
+      },
+    ],
+    result:
+      "Die OGS sieht die Hausaufgaben in der Lernzeit bei jedem Kind der Klasse.",
+    notes: [
+      "Für einen Tag können Sie mehrere Einträge machen, zum Beispiel einen je Fach.",
+      "Jede Lehrkraft der Klasse kann alle Einträge ändern oder löschen. Auch die Einträge der anderen.",
+      "Führen Sie selbst eine Lernzeit unter `Meine Aufsichten`? Dann geben Sie die Rückmeldung dort mit `Hausaufgaben`.",
+      "Eltern sehen weder die Hausaufgaben noch die Rückmeldung.",
+    ],
+    differences: [
+      "Fehlen `Hausaufgaben eintragen` und die drei Punkte? Dann darf Ihre Rolle keine Hausaufgaben eintragen. Fragen Sie die OGS.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassList,
+      HELP_TOPICS.teacherClassDay,
+      HELP_TOPICS.teacherSupervision,
     ],
   };
 }
@@ -8136,6 +8234,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherClassDayTopic(),
   teacherClassListTopic(),
   teacherMorningAttendanceTopic(),
+  teacherHomeworkTopic(),
   teacherClassHandoverTopic(),
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
@@ -8192,6 +8291,8 @@ const NFC_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
 const DETAILED_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
   HELP_TOPICS.rooms,
   HELP_TOPICS.activeSupervision,
+  // Die Lernzeit führt man nur in `Aktuelle Aufsicht`.
+  HELP_TOPICS.homeworkFeedback,
   HELP_TOPICS.manageActivity,
   HELP_TOPICS.changeLocation,
   // Der Tagesplan liegt hinter dem BinaryModeGuard
@@ -8209,6 +8310,65 @@ const FIXED_GROUPS_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
 /** So viele Themen zeigt die Startseite einer Rolle als Kacheln. */
 export const HOME_TOPIC_COUNT = 6;
 
+/**
+ * Eigene Einwilligung zur Nutzungsanalyse (#4901): der Dialog nach dem Login
+ * und der Schalter zum Ändern. Eine Frage für alle Rollen, je Portal ein Weg.
+ */
+function analyticsConsentTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.analyticsConsent,
+    title: "Nutzungsanalyse erlauben oder ablehnen",
+    question: "Darf moto zählen, wie ich die App nutze?",
+    summary:
+      "Das entscheiden nur Sie. Wenn Sie ablehnen, können Sie moto genauso nutzen.",
+    group: "einstieg",
+    audience: "all",
+    icon: "ChartLine",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Nach der Anmeldung",
+        description:
+          "moto fragt einmal, ob es zählen darf, welche Seiten und Schaltflächen Sie nutzen. Namen und Eingaben sieht moto dabei nicht.",
+        steps: ["Wählen Sie `Erlauben` oder `Ablehnen`."],
+      },
+      {
+        title: "Später ändern im OGS-Portal",
+        steps: [
+          "Öffnen Sie oben rechts Ihr `Profil`.",
+          "Gehen Sie zu `Nutzungsanalyse`.",
+          "Schalten Sie `Nutzungsanalyse erlauben` ein oder aus.",
+        ],
+      },
+      {
+        title: "Später ändern in der Eltern-App",
+        steps: [
+          "Tippen Sie unten auf `Mehr` und dann auf `Einstellungen`.",
+          "Schalten Sie bei `Nutzungsanalyse` den Schalter ein oder aus.",
+        ],
+      },
+      {
+        title: "Später ändern in moto schule",
+        steps: [
+          "Öffnen Sie `Einstellungen`.",
+          "Schalten Sie bei `Nutzungsanalyse` den Schalter ein oder aus.",
+        ],
+      },
+    ],
+    result:
+      "Ihre Wahl gilt für Ihr Konto, in jeder Schule. Schalten Sie aus, endet die Zählung sofort.",
+    notes: [
+      "Ihre Schule kann die Nutzungsanalyse für alle ausschalten. Dann fragt moto Sie nicht. Ihre Wahl gilt wieder, sobald die Schule einschaltet.",
+      "Im OGS-Portal gilt Ihre Wahl auch für Aufzeichnungen, wenn Ihre Schule sie erlaubt. Texte, Eingaben und Bilder sind darin unkenntlich.",
+      "Sie haben die Frage über das Kreuz oben rechts geschlossen? Dann zählt moto nichts. moto fragt beim nächsten Öffnen noch einmal.",
+    ],
+    differences: [
+      "Am Computer steht `Einstellungen` in der Eltern-App in der Navigation statt hinter `Mehr`.",
+    ],
+    related: [],
+  };
+}
+
 export function getHelpTopics(
   presenceMode: HelpPresenceMode,
   groupMode: HelpGroupMode = "fixed_groups",
@@ -8225,6 +8385,7 @@ export function getHelpTopics(
     ...PARENT_DRAFT_TOPICS,
     ...TEACHER_DRAFT_TOPICS,
     errorMessagesTopic(),
+    analyticsConsentTopic(),
   ];
 
   const hidden = new Set<HelpTopicId>();

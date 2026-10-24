@@ -101,9 +101,9 @@ func TestAnalyticsActorFollowsTheTokenScope(t *testing.T) {
 }
 
 // The account leaves the session only for the pseudonymous ID of an OGS
-// account under Analyse-Freigabe (#3603). Parents keep it internal for policy; the school
-// portal, and never from the staff preview, where an admin looks at someone
-// else's view.
+// account under Analyse-Freigabe (#3603). Parents keep it internal for policy,
+// and every portal account for its consent lookup (#4901); never from the
+// staff preview, where an admin looks at someone else's view.
 func TestAnalyticsActorKeepsAccountOnlyForOGSIdentityAndParentPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -116,7 +116,7 @@ func TestAnalyticsActorKeepsAccountOnlyForOGSIdentityAndParentPolicy(t *testing.
 		{"OGS admin", sessiontoken.AppClaims{ID: 7, TenantID: 12, IsAdmin: true, Scope: "tenant"}, 7},
 		{"staff preview", sessiontoken.AppClaims{ID: 7, TenantID: 12, ReadOnly: true, ActingAdminID: 3}, 0},
 		{"parents portal policy lookup", sessiontoken.AppClaims{ID: 7, Scope: "parent", TenantID: 12}, 7},
-		{"school portal", sessiontoken.AppClaims{ID: 7, Scope: "school", TenantID: 12}, 0},
+		{"school portal consent lookup", sessiontoken.AppClaims{ID: 7, Scope: "school", TenantID: 12}, 7},
 	}
 	for _, tc := range cases {
 		actor, ok := analyticsActor(tc.claims)

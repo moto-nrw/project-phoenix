@@ -72,6 +72,10 @@ const (
 	// Retention window (days) for the morning attendance a Lehrkraft marks
 	// (active.morning_attendance, #4790), counted from the school day.
 	KeyGDPRMorningAttendanceRetentionDays = "gdpr.morning_attendance_retention_days"
+	// Retention window (days) for the homework a Lehrkraft enters and the
+	// OGS feedback on it (education.class_homework,
+	// education.homework_feedback, #4796), counted from the homework day.
+	KeyGDPRHomeworkRetentionDays = "gdpr.homework_retention_days"
 	// Retention window (days) for the parent/OGS conversations
 	// (users.parent_messages, #3959), counted from sending.
 	KeyGDPRParentMessageRetentionDays = "gdpr.parent_message_retention_days"

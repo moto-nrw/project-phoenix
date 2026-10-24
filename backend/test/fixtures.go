@@ -1207,12 +1207,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		Generation: 0,
 	}
 	token.TenantID = fixtureTenantID(tb)
-
-	err := db.NewInsert().
-		Model(token).
-		ModelTableExpr(`auth.tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test token")
+	insertTokenFixture(tb, ctx, db, token)
 
 	return token
 }
@@ -1410,9 +1405,6 @@ type InvitationTokenOptions struct {
 func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *InvitationTokenFixture {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
@@ -1427,12 +1419,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 		invitation.CreatedBy = Int64Ptr(createdBy)
 	}
 	invitation.TenantID = fixtureTenantID(tb)
-
-	err := db.NewInsert().
-		Model(invitation).
-		ModelTableExpr(`auth.invitation_tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test invitation token")
+	InsertTestInvitationToken(tb, db, invitation)
 
 	return invitation
 }
@@ -1440,9 +1427,6 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 // CreateTestInvitationTokenWithOptions creates an invitation token with optional fields.
 func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time, opts *InvitationTokenOptions) *InvitationTokenFixture {
 	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
@@ -1463,12 +1447,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		invitation.LastName = opts.LastName
 	}
 	invitation.TenantID = fixtureTenantID(tb)
-
-	err := db.NewInsert().
-		Model(invitation).
-		ModelTableExpr(`auth.invitation_tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test invitation token with options")
+	InsertTestInvitationToken(tb, db, invitation)
 
 	return invitation
 }
@@ -1922,12 +1901,7 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 		Generation: 0,
 	}
 	token.TenantID = tenantID
-
-	err := db.NewInsert().
-		Model(token).
-		ModelTableExpr(`auth.tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test token for tenant")
+	insertTokenFixture(tb, ctx, db, token)
 
 	return token
 }

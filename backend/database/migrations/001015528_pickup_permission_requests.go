@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	pickupPermissionRequestsVersion     = "1.15.527"
+	pickupPermissionRequestsVersion     = "1.15.528"
 	pickupPermissionRequestsDescription = "Pickup permission weekdays and signed pickup permission requests (#4780)"
 )
 

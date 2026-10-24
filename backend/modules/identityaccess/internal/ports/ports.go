@@ -131,7 +131,7 @@ type OperatorTokenStore interface {
 	RedeemOperatorInvitation(ctx context.Context, token string, now time.Time) (domain.OperatorInvitation, bool, domain.OperationStats, error)
 	RevokeOperatorInvitation(ctx context.Context, id int64, now time.Time) (bool, domain.OperationStats, error)
 	RevokeOperatorInvitationsForEmail(ctx context.Context, email string, now time.Time) (int, domain.OperationStats, error)
-	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt, now time.Time) (bool, domain.OperationStats, error)
+	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt, now time.Time, token string) (bool, domain.OperationStats, error)
 	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
 	DeleteExpiredOperatorInvitations(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 

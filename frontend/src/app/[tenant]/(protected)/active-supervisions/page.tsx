@@ -738,6 +738,7 @@ function MeinRaumPageContent() {
             onComplete={actions.handleCompleteTimetableInstance}
             onConfirmExpected={actions.handleConfirmExpectedStudents}
             onRosterAction={actions.handleRosterAction}
+            onSaveHomeworkFeedback={actions.handleSaveHomeworkFeedback}
             onExcuseRestOfDay={
               hasPermission(session, "users:update")
                 ? actions.handleExcuseRestOfDay
