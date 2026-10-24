@@ -7,6 +7,10 @@
 
 import type { ClassDayHandover, ClassDayRow } from "~/lib/class-day-api";
 import { berlinClockFromISO } from "~/lib/date-helpers";
+import {
+  morningStatus,
+  type MorningAttendanceDraft,
+} from "./morning-attendance";
 
 /** Die Kinder, die heute aus der Klasse in die OGS gehen. */
 export function handoverRows(rows: readonly ClassDayRow[]): ClassDayRow[] {
@@ -17,17 +21,19 @@ export function handoverRows(rows: readonly ClassDayRow[]): ClassDayRow[] {
 
 /**
  * Die Vorbelegung „Nicht da“: bei einer bestehenden Übergabe ihr Stand,
- * sonst die Kinder, die am Vormittag als „fehlt“ eingetragen sind.
+ * sonst die Kinder, die am Vormittag als „fehlt“ eingetragen sind, auch
+ * wenn diese Eintragung noch nicht gespeichert ist.
  */
 export function initialAbsentIds(
   rows: readonly ClassDayRow[],
   handedOver: boolean,
+  draft: MorningAttendanceDraft = {},
 ): ReadonlySet<number> {
   const absent = new Set<number>();
   for (const row of handoverRows(rows)) {
     const marked = handedOver
       ? row.handover_absent === true
-      : row.morning_attendance?.status === "absent";
+      : morningStatus(row, draft) === "absent";
     if (marked) absent.add(row.student_id);
   }
   return absent;
@@ -41,5 +47,6 @@ export function handoverLine(handover: ClassDayHandover): string {
     handover.absent_count === 0
       ? "alle da"
       : `${handover.absent_count === 1 ? "1 Kind" : `${handover.absent_count} Kinder`} nicht da`;
-  return `Übergeben um ${clock} Uhr${by} · ${absent}`;
+  const at = clock ? ` um ${clock} Uhr` : "";
+  return `Übergeben${at}${by} · ${absent}`;
 }

@@ -612,6 +612,42 @@ describe("ClassDayClass", () => {
       ).toBeInTheDocument();
     });
 
+    it("reopens a stored handover with its marks to change it", async () => {
+      const handOver = vi.fn(() => Promise.resolve());
+      const report = handoverReport({
+        handover: {
+          handed_over_at: "2026-09-09T09:45:00Z",
+          absent_count: 1,
+        },
+      });
+      report.rows[0]!.handover_absent = true;
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(report)}
+          handOverClass={handOver}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Übergabe ändern" }),
+      );
+      // Der gespeicherte Stand, nicht der Vormittag.
+      expect(
+        within(choice("Klara Klassentag")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(choice("Mia Morgenfehlt")).getByRole("button", { name: "Da" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
+      await waitFor(() =>
+        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), [1]),
+      );
+    });
+
     it("takes the handover back only after the confirmation", async () => {
       const withdraw = vi.fn(() => Promise.resolve());
       render(

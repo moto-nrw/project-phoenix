@@ -35,6 +35,15 @@ describe("class handover helpers (#4794)", () => {
     expect([...initialAbsentIds(rows, true)]).toEqual([4]);
   });
 
+  it("takes unsaved morning marks into the prefill", () => {
+    expect([
+      ...initialAbsentIds(rows, false, {
+        "student-1": "absent",
+        "student-2": "present",
+      }),
+    ]).toEqual([1]);
+  });
+
   it("states moment, Lehrkraft and absences in one line", () => {
     expect(
       handoverLine({
@@ -46,5 +55,8 @@ describe("class handover helpers (#4794)", () => {
     expect(
       handoverLine({ handed_over_at: "2026-09-09T09:45:00Z", absent_count: 0 }),
     ).toBe("Übergeben um 11:45 Uhr · alle da");
+    expect(handoverLine({ handed_over_at: "", absent_count: 1 })).toBe(
+      "Übergeben · 1 Kind nicht da",
+    );
   });
 });

@@ -7453,7 +7453,8 @@ function teacherClassHandoverTopic(): HelpTopic {
       "In der Liste stehen nur die Kinder, die heute in die OGS gehen.",
       "Kinder, die am Morgen als `Fehlt` eingetragen sind, stehen schon auf `Nicht da`.",
       "Die Anwesenheit am Morgen ändert sich dadurch nicht.",
-      "Mit `Übergabe zurücknehmen` nehmen Sie die Übergabe heute wieder zurück. Danach können Sie neu übergeben.",
+      "Mit `Übergabe ändern` korrigieren Sie einzelne Kinder. Die OGS sieht dann den neuen Stand.",
+      "Mit `Übergabe zurücknehmen` nehmen Sie die Übergabe heute wieder zurück.",
     ],
     differences: [
       "Fehlt `Klasse übergeben`? Übergeben geht nur heute und an Schultagen. Oder Ihre OGS hat es nicht freigegeben.",

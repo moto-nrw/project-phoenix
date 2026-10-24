@@ -335,7 +335,7 @@ export function ClassDayClass({
   const withdrawErrors = useApiFormError();
   const openHandover = () => {
     handoverErrors.clear();
-    setHandoverAbsent(initialAbsentIds(rows, Boolean(report?.handover)));
+    setHandoverAbsent(initialAbsentIds(rows, Boolean(report?.handover), draft));
     setHandoverOpen(true);
   };
   const markHandover = (studentId: number, choice: HandoverChoice) => {
@@ -507,17 +507,27 @@ export function ClassDayClass({
               ) : null}
             </div>
             {canHandOver && report.handover ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => {
-                  withdrawErrors.clear();
-                  setWithdrawOpen(true);
-                }}
-              >
-                Übergabe zurücknehmen
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={openHandover}
+                >
+                  Übergabe ändern
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => {
+                    withdrawErrors.clear();
+                    setWithdrawOpen(true);
+                  }}
+                >
+                  Übergabe zurücknehmen
+                </Button>
+              </div>
             ) : null}
             {canHandOver && !report.handover ? (
               <Button
