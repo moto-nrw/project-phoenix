@@ -91,11 +91,15 @@ func questionCard(q announcementService.SurveyQuestionResult) ReportCard {
 		}
 		card.Blocks = append(card.Blocks, texts)
 	}
+	highLabel, lowLabel := "Am häufigsten gewählt", "Am seltensten gewählt"
+	if q.Kind == announcementService.SurveyQuestionScale {
+		highLabel, lowLabel = "Höchster Wert", "Niedrigster Wert"
+	}
 	if len(q.Highest) > 0 {
-		card.Fields = append(card.Fields, ReportField{Label: "Am häufigsten", Value: strings.Join(q.Highest, ", ")})
+		card.Fields = append(card.Fields, ReportField{Label: highLabel, Value: strings.Join(q.Highest, ", ")})
 	}
 	if len(q.Lowest) > 0 {
-		card.Fields = append(card.Fields, ReportField{Label: "Am seltensten", Value: strings.Join(q.Lowest, ", ")})
+		card.Fields = append(card.Fields, ReportField{Label: lowLabel, Value: strings.Join(q.Lowest, ", ")})
 	}
 	return card
 }

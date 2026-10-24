@@ -264,8 +264,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
-		seedParentDeclarationStep{},
-		seedSurveysStep{},
+		seedParentDeclarationStep{}, seedSurveysStep{},
 		seedInactiveAccountStep{},
 		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).

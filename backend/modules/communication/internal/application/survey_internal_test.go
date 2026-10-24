@@ -70,6 +70,9 @@ func TestSurveyResultsShuffleTextsAndRankHighlights(t *testing.T) {
 	if got := results.Questions[0]; got.Highest[0] != "Ja" || got.Lowest[0] != "Nein" {
 		t.Fatalf("choice extremes = %v / %v", got.Highest, got.Lowest)
 	}
+	if got := results.Questions[1]; len(got.Highest) != 1 || got.Highest[0] != "5" || got.Lowest[0] != "4" {
+		t.Fatalf("scale range = %v / %v, want the highest and lowest value given", got.Highest, got.Lowest)
+	}
 	if len(results.Strengths) != 1 || results.Strengths[0].Prompt != "Absprache" {
 		t.Fatalf("strengths = %+v", results.Strengths)
 	}

@@ -158,8 +158,8 @@ type SurveyOptionCount struct {
 }
 
 // SurveyQuestionResult is the evaluation of one question. Highest and Lowest
-// name the most and least chosen options (choice) or the most and least
-// given values (scale); ties name all of them.
+// name the most and least chosen options of a choice question (ties name all
+// of them) or the highest and lowest value given on a scale.
 type SurveyQuestionResult struct {
 	QuestionID  int64
 	Position    int

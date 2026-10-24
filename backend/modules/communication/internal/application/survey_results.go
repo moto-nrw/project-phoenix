@@ -57,11 +57,7 @@ func questionResult(q communication.SurveyQuestion, tally *communication.SurveyT
 	case communication.SurveyQuestionScale:
 		result.ScaleCounts = scaleCounts(tally.ScaleCounts[q.ID])
 		result.Average = scaleAverage(result.ScaleCounts)
-		labels := make([]string, 0, communication.SurveyScaleMax)
-		for value := communication.SurveyScaleMin; value <= communication.SurveyScaleMax; value++ {
-			labels = append(labels, strconv.Itoa(value))
-		}
-		result.Highest, result.Lowest = extremes(labels, result.ScaleCounts, result.AnswerCount)
+		result.Highest, result.Lowest = scaleRange(result.ScaleCounts)
 	case communication.SurveyQuestionText:
 		texts := append([]string(nil), tally.Texts[q.ID]...)
 		shuffle(texts)
@@ -71,6 +67,28 @@ func questionResult(q communication.SurveyQuestion, tally *communication.SurveyT
 		result.Texts = texts
 	}
 	return result
+}
+
+// scaleRange names the highest and the lowest value anyone gave. One value
+// given by everyone has no separate lowest.
+func scaleRange(counts []int) ([]string, []string) {
+	lowest, highest := 0, 0
+	for i, count := range counts {
+		if count == 0 {
+			continue
+		}
+		if lowest == 0 {
+			lowest = i + 1
+		}
+		highest = i + 1
+	}
+	if highest == 0 {
+		return []string{}, []string{}
+	}
+	if lowest == highest {
+		return []string{strconv.Itoa(highest)}, []string{}
+	}
+	return []string{strconv.Itoa(highest)}, []string{strconv.Itoa(lowest)}
 }
 
 func scaleCounts(counts []int) []int {
