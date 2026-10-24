@@ -47,8 +47,8 @@ func CapPortalScopes(portalScope string) []string {
 // and ReplacementTokenHash likewise names the successor by hash (#4902).
 // Listings and revocations return Token empty.
 type AccountSession struct {
-	ID                   int64
-	TenantID             int64
+	ID       int64
+	TenantID int64
 	// OrganizationID is the Träger of a Träger-Portal session (portal scope
 	// org); such a session has no school. Zero for every other portal.
 	OrganizationID       int64
