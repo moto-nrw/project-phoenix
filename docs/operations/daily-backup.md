@@ -389,6 +389,10 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Ein benannter Mensch muss Vollständigkeit und Aktualität bestätigen:
    eine Prüfsummenkette allein beweist das nicht.
 
+   Den Restore (`daily_backup.py`) als `root` ausführen, da die Löschliste
+   `1001:1001` mit Modus 0600 gehört; andernfalls bricht er fail-closed bei
+   `step=erasure_ledger` ab.
+
    Erst nach diesem Abgleich mit geladener Umgebung
    `bash scripts/restore-daily-backup.sh <daily-Zeitstempel-Zufallskennung.tar.age> /var/lib/moto-erasure/completed.ledger`
    ausführen. Das Skript lädt herunter, entschlüsselt lokal auf tmpfs, prüft
