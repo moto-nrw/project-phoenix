@@ -39,6 +39,14 @@ if (!SCHOOL_HOSTNAME) {
   );
 }
 
+const TRAEGER_HOSTNAME = process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME;
+if (!TRAEGER_HOSTNAME) {
+  throw new Error(
+    "NEXT_PUBLIC_TRAEGER_HOSTNAME is not set. " +
+      "Add it to your .env.local or docker-compose environment.",
+  );
+}
+
 const TENANT_DOMAIN: string = (() => {
   const val = process.env.TENANT_DOMAIN;
   if (!val) {
@@ -519,6 +527,68 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
+// --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
+
+/** Paths the Träger subdomain serves (without /traeger prefix). The school
+ * list itself lives at the root ("/" → /traeger). */
+const TRAEGER_PUBLIC_PATHS = ["/login"];
+
+function isTraegerHost(hostname: string): boolean {
+  return hostname === TRAEGER_HOSTNAME;
+}
+
+function handleTraegerSubdomain(request: NextRequest): NextResponse {
+  const { pathname } = request.nextUrl;
+
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
+    return secureNext(request);
+  }
+
+  // Only the Träger portal's BFF routes may run on this host. The tenant
+  // session cookie is domain-scoped and would otherwise reach tenant API
+  // routes here; the other portals' auth endpoints are blocked as
+  // defense-in-depth against a misconfigured cookie.
+  if (
+    pathname.startsWith("/api/traeger/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/monitoring")
+  ) {
+    return secureNext(request);
+  }
+
+  if (pathname.startsWith("/api/")) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
+
+  // Root → /traeger (the school list). German-only like the staff portals.
+  if (pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/traeger";
+    return secureRewrite(request, url);
+  }
+
+  if (
+    TRAEGER_PUBLIC_PATHS.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    )
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/traeger${pathname}`;
+    return secureRewrite(request, url);
+  }
+
+  // Already prefixed with /traeger → pass through (direct access in dev).
+  if (pathname === "/traeger" || pathname.startsWith("/traeger/")) {
+    return secureNext(request);
+  }
+
+  // Anything else → redirect to root. Keeps the Träger host from serving
+  // tenant, operator, parents, or school pages.
+  const url = request.nextUrl.clone();
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
 // --- Tenant subdomain handling (from multi-tenancy) ---
 
 // Alias for use in subdomain extraction below.
@@ -789,6 +859,11 @@ function routeRequest(request: NextRequest): NextResponse {
     return handleSchoolSubdomain(request);
   }
 
+  // 1e. Träger subdomain ("moto träger") gets its own routing (#4649)
+  if (isTraegerHost(hostname)) {
+    return handleTraegerSubdomain(request);
+  }
+
   // Object links from panes that existed before #3115 need the whole
   // collection query nested in `from`, which static next.config redirects
   // cannot express. Handle both tenant-subdomain and path-routing URLs here.
@@ -843,7 +918,18 @@ function routeRequest(request: NextRequest): NextResponse {
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
-  // 3d. Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
+  // 3d. Träger guard on non-Träger hosts: /traeger/* hit on a tenant
+  // subdomain or the bare domain goes to the configured Träger host.
+  // Exact-segment match, like the school guard above.
+  if (pathname === "/traeger" || pathname.startsWith("/traeger/")) {
+    const cleanPath = pathname.replace(/^\/traeger/, "") || "/";
+    const protocol = request.nextUrl.protocol;
+    const search = request.nextUrl.search;
+    const redirectUrl = `${protocol}//${TRAEGER_HOSTNAME}${cleanPath}${search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
+
+  // 3e. Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
   // Until the cutover the view lived at {slug}.{TENANT_DOMAIN}/klassen; the
   // page is gone and a Lehrkraft-only account can no longer log in here at
   // all. A 404 would look like the school lost its access, so send the

@@ -35,6 +35,7 @@ func newOperatorProvisioning(
 		Identity: ProvisioningIdentity{
 			Sessions: identity, Invitations: identity, Provisioning: identity,
 			Administration: identity, SchoolIdentity: identity, Roles: identity, Accounts: accounts,
+			Traeger: identity,
 		},
 		Devices:    adapters.Devices,
 		People:     adapters.People,
@@ -74,6 +75,14 @@ type ProvisioningIdentity struct {
 	Administration identityaccess.AccountAdministration
 	SchoolIdentity identityaccess.SchoolIdentityProvisioning
 	Roles          ProvisioningRoles
+	Traeger        ProvisioningTraegerIdentity
+}
+
+// ProvisioningTraegerIdentity is the account lookup and the Träger roles the
+// operator's Träger membership grant uses (ADR 0084).
+type ProvisioningTraegerIdentity interface {
+	identityaccess.GuardianAccessQuery
+	identityaccess.TraegerRoles
 }
 
 // provisioningTenantScope scopes an operator's identity write to the school
@@ -267,6 +276,41 @@ func (p ProvisioningIdentity) DeactivateAccount(ctx context.Context, accountID i
 
 func (p ProvisioningIdentity) AnonymizeAccount(ctx context.Context, accountID int64, email string) error {
 	return p.Administration.AnonymizeAccountForDeletion(ctx, accountID, email)
+}
+
+// FindAccountIDByEmail resolves the account behind an address; an unknown
+// address is found=false.
+func (p ProvisioningIdentity) FindAccountIDByEmail(ctx context.Context, email string) (int64, bool, error) {
+	account, err := p.Traeger.FindAccountByEmail(ctx, email)
+	if errors.Is(err, identityaccess.ErrAccountNotFound) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return account.ID, true, nil
+}
+
+// AssignTraegerRole grants the Träger role on the operator's transaction.
+func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {
+	err := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)
+	if errors.Is(err, identityaccess.ErrInvalidTraegerRole) {
+		return organizationtenancy.ErrInvalidTraegerRole
+	}
+	return err
+}
+
+// ListTraegerAccounts reads address and Träger roles of the members.
+func (p ProvisioningIdentity) ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerAccount, error) {
+	accounts, err := p.Traeger.ListTraegerAccounts(ctx, organizationID, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]organizationtenancy.TraegerAccount, 0, len(accounts))
+	for _, account := range accounts {
+		result = append(result, organizationtenancy.TraegerAccount(account))
+	}
+	return result, nil
 }
 
 // invalidSchoolIdentityError marks an identity chain input error for the

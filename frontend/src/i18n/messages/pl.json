@@ -3001,6 +3001,9 @@
       },
       "operator": {
         "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
+      },
+      "traeger": {
+        "no_membership": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       }
     },
     "actions": {

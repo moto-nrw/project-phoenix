@@ -31,6 +31,7 @@ vi.mock("~/env.client", () => ({
     NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000",
     NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000",
     NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000",
+    NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000",
   },
 }));
 vi.mock("posthog-js", () => ({

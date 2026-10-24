@@ -2,6 +2,7 @@ import type { CaptureResult, Properties } from "posthog-js";
 import { describe, expect, it } from "vitest";
 import {
   ANALYTICS_BLOCK_ATTRIBUTE,
+  analyticsCollectionAllowed,
   analyticsContextUpdateAllowed,
   analyticsIdentity,
   analyticsInitOptions,
@@ -201,7 +202,7 @@ describe("school analytics switch", () => {
     },
   );
 
-  it.each(["ogs", "school", "parents", "public", "unknown"])(
+  it.each(["ogs", "school", "parents", "traeger", "public", "unknown"])(
     "drops every event when analytics is off on %s",
     (surface) => {
       const context = {
@@ -922,11 +923,38 @@ describe("session recording", () => {
   });
 });
 
+describe("Träger-Portal surface", () => {
+  // The Träger-Portal (#4649) collects nothing until a Träger decides about
+  // the usage analytics, not even with the switch on or in the demo.
+  it.each([
+    { deployment: "moto-app.de", enabled: true },
+    { deployment: "demo", enabled: true },
+    { deployment: "moto-app.de", enabled: false },
+  ])("drops every event on $deployment (enabled $enabled)", (variant) => {
+    const context = { ...variant, surface: "traeger", analyseFreigabe: true };
+    expect(analyticsCollectionAllowed(context)).toBe(false);
+    expect(filterAnalyticsEvent(context, capture("$pageview", {}))).toBeNull();
+    expect(analyticsIdentity(context)).toBeNull();
+  });
+
+  it("keeps collection for the school portal with the switch on", () => {
+    expect(
+      analyticsCollectionAllowed({
+        deployment: "moto-app.de",
+        enabled: true,
+        surface: "school",
+        analyseFreigabe: false,
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("analyticsSurfaceForHost", () => {
   const hosts = {
     operator: "operator.moto-app.de",
     parents: "eltern.moto-app.de",
     school: "schule.moto-app.de",
+    traeger: "traeger.moto-app.de",
     tenantDomain: "moto-app.de",
   };
 
@@ -934,6 +962,7 @@ describe("analyticsSurfaceForHost", () => {
     ["school-a.moto-app.de", "ogs"],
     ["eltern.moto-app.de", "parents"],
     ["schule.moto-app.de", "school"],
+    ["traeger.moto-app.de", "traeger"],
     ["moto-app.de", "public"],
     ["operator.moto-app.de", null],
   ])("maps %s to %s", (host, surface) => {

@@ -79,6 +79,7 @@ type Query interface {
 	OrganizationQuery
 	SchoolQuery
 	SchoolListQuery
+	TraegerMembershipQuery
 }
 
 // OrganizationQuery reads organizations and locks them before mutation.
@@ -134,6 +135,7 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
+	TraegerMembershipCommand
 }
 
 func ValidateSlug(slug string) error {
@@ -182,6 +184,8 @@ func ErrorCode(err error) string {
 		return "school_not_deleted"
 	case errors.Is(err, ErrOrganizationDeleted):
 		return "school_organization_deleted"
+	case errors.Is(err, ErrOrganizationInactive):
+		return "organization_inactive"
 	default:
 		return "internal_error"
 	}

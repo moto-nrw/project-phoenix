@@ -38057,39 +38057,6 @@
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "5b2154014a0cd7dfa2040c472b1af5fc",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListSchoolsByOrganization (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "9ca95d570253f1cf51d04407789014d8",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListSchoolsByOrganization (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.Operational",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "3e747981a70ee23b62abef9ba6c631c1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.Operational (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.OperatorEmailChangeDelivery.DispatchOperatorEmailChangeConfirmed",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.OperatorEmailChangeDelivery.DispatchOperatorEmailChangeConfirmed",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
@@ -40664,39 +40631,6 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.SchoolLogoURL; modules/organizationtenancy/school.go:64. May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "5b2154014a0cd7dfa2040c472b1af5fc",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "9ca95d570253f1cf51d04407789014d8",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.Operational",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "3e747981a70ee23b62abef9ba6c631c1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.Operational; modules/organizationtenancy/school.go:84. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -121828,6 +121762,84 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (notice): workforce reaches realtime.Broadcaster.BroadcastToTenant (delivery-platform) through realtime.Broadcaster.BroadcastToTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "c360e2e2775d28f069f3ad7e77bf495b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation & Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "93b5098616e6ca7f505bf1f6f9bde907",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation & Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMembershipQuery.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "611dd8397429b556736228cba9b4dd4f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation & Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
+      "target_owner": "traeger-view",
+      "binding_digest": "3814c9411ca17bd574034c093b0ec604",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview/http.Resource.TraegerRouter mounts the Träger school list (ADR 0084, #4649). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.AssignTraegerRole",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.AssignTraegerRole",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignTraegerRole",
+      "target_owner": "identity-access",
+      "binding_digest": "79ea3a037bb346ba313f848c86010056",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity & Access validates the Träger role and inserts it on the operator's administrative unit, which the Träger membership grant of Organisation & Tenancy owns (ADR 0084, #4649). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.FindAccountIDByEmail",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.FindAccountIDByEmail",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
+      "target_owner": "identity-access",
+      "binding_digest": "66c17e50b7bef613f1def65a1810c2cf",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the supplied interface: modules/identityaccess.Owner.FindAccountByEmail resolves the account behind an address for the operator's Träger membership grant (#4649). No mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ListTraegerAccounts",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ListTraegerAccounts",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerAccounts",
+      "target_owner": "identity-access",
+      "binding_digest": "1354e61a5ec309fca9ea6d1c7ad5875a",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the supplied interface: modules/identityaccess.Owner.ListTraegerAccounts reads address and Träger roles on the operator's administrative unit (ADR 0084, #4649). No mutation or locking read at this terminal."
     }
   ]
 }

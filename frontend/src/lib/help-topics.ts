@@ -4,7 +4,7 @@ import { matchesPathPrefix } from "~/lib/section-navigation";
  * Wer die Anleitung liest. Steht hier und nicht bei den Inhalten, damit die
  * Navigation eine Hilfe-Adresse bauen kann, ohne die Artikeltexte zu laden.
  */
-export type HelpRole = "caregiver" | "lead" | "parent" | "teacher";
+export type HelpRole = "caregiver" | "lead" | "parent" | "teacher" | "traeger";
 
 /** Die drei Einstellungen, die einen Ablauf in der Anleitung veraendern. */
 export interface HelpUrlContext {
@@ -196,6 +196,7 @@ export const HELP_TOPICS = {
   // Schritt für Schritt gegen die App geprüft.
   teacherAccess: "zugang-zu-moto-schule-einrichten",
   teacherLogin: "bei-moto-schule-anmelden",
+  traegerLogin: "traeger-anmelden",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

@@ -32,6 +32,16 @@ type Store interface {
 	ListSchools(context.Context, []int64, *int64, string) ([]organizationtenancy.School, domain.OperationStats, error)
 	CountSchoolsByID(context.Context, []int64) (int, domain.OperationStats, error)
 	SetSchoolDeleted(context.Context, int64, bool) (domain.OperationStats, error)
+	TraegerMembershipStore
+}
+
+// TraegerMembershipStore persists platform.organization_accounts (ADR 0084).
+// Every method runs on the caller's administrative transaction.
+type TraegerMembershipStore interface {
+	ListActiveAccountTraegerIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, domain.OperationStats, error)
+	ListTraegerMemberships(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerMembership, domain.OperationStats, error)
+	UpsertActiveTraegerMembership(ctx context.Context, organizationID, accountID int64) (organizationtenancy.TraegerMembership, domain.OperationStats, error)
 }
 
 type Transaction interface {

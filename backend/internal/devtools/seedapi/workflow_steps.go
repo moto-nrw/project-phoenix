@@ -280,7 +280,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedMarketingProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{})
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{})
 	if !seeder.options.DeferHistory {
 		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}

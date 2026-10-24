@@ -3001,6 +3001,9 @@
       },
       "operator": {
         "audit_unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin."
+      },
+      "traeger": {
+        "no_membership": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       }
     },
     "actions": {

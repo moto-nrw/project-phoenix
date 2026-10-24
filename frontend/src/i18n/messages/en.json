@@ -3001,6 +3001,9 @@
       },
       "operator": {
         "audit_unavailable": "{object} is unavailable right now. Please try again."
+      },
+      "traeger": {
+        "no_membership": "Your account has no access to the Träger portal. Please contact the moto team."
       }
     },
     "actions": {

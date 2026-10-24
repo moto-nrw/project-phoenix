@@ -167,6 +167,10 @@ function isKnownSurface(surface: string): surface is AnalyticsSurface {
 }
 
 export function analyticsCollectionAllowed(context: AnalyticsContext): boolean {
+  // The Träger-Portal (#4649) does not collect yet, not even in the demo:
+  // no Träger has decided about the usage analytics. Its pages are listed in
+  // `analytics-routes.ts` so a later decision only has to open this gate.
+  if (context.surface === "traeger") return false;
   return context.deployment === DEMO_DEPLOYMENT || context.enabled === true;
 }
 
@@ -217,9 +221,10 @@ function routeSurfaceOf(context: AnalyticsContext): AnalyticsRouteSurface {
     case "ogs":
     case "parents":
     case "school":
+    case "traeger":
       return context.surface;
     default:
-      // Public pages, the Träger-Büro, and unknown surfaces try every list;
+      // Public pages and unknown surfaces try every list;
       // the result is still a template or `/unknown`.
       return "public";
   }
@@ -229,6 +234,7 @@ export interface AnalyticsHosts {
   readonly operator: string;
   readonly parents: string;
   readonly school: string;
+  readonly traeger: string;
   readonly tenantDomain: string;
 }
 
@@ -244,6 +250,7 @@ export function analyticsSurfaceForHost(
   if (host === hosts.operator) return null;
   if (host === hosts.parents) return "parents";
   if (host === hosts.school) return "school";
+  if (host === hosts.traeger) return "traeger";
   if (hostname.endsWith(`.${hosts.tenantDomain}`)) return "ogs";
   return "public";
 }
