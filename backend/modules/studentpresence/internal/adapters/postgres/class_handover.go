@@ -35,58 +35,45 @@ type classHandoverChildRow struct {
 // with: trimmed and lowercased, the normalized class bound to it.
 const classHandoverClassMatch = "LOWER(BTRIM(class_handover.school_class)) = ?"
 
-func (s *Store) ListClassHandovers(ctx context.Context, date ports.Date) ([]ports.ClassHandoverRecord, ports.Stats, error) {
+// classHandoverReadRow includes children loaded in the parent's statement snapshot.
+type classHandoverReadRow struct {
+	classHandoverRow
+	PresentStudentIDs []int64 `bun:"present_student_ids,array"`
+	AbsentStudentIDs  []int64 `bun:"absent_student_ids,array"`
+}
+
+func (s *Store) ListClassHandovers(ctx context.Context, date ports.Date) ([]studentpresence.ClassHandover, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
 	}
-	var rows []classHandoverRow
+	var rows []classHandoverReadRow
 	started := time.Now()
-	err = db.NewSelect().Model(&rows).
+	// A single statement prevents replacement/withdrawal between reading the
+	// handover and its children, including under READ COMMITTED isolation.
+	err = db.NewSelect().TableExpr(`active.class_handovers AS "class_handover"`).
+		ColumnExpr("class_handover.id, class_handover.tenant_id, class_handover.school_class, class_handover.date, class_handover.handed_over_at, class_handover.handed_over_by_staff_id").
+		ColumnExpr("COALESCE(array_agg(child.student_id ORDER BY child.student_id) FILTER (WHERE NOT child.absent), '{}'::bigint[]) AS present_student_ids").
+		ColumnExpr("COALESCE(array_agg(child.student_id ORDER BY child.student_id) FILTER (WHERE child.absent), '{}'::bigint[]) AS absent_student_ids").
+		Join("LEFT JOIN active.class_handover_children AS child ON child.handover_id = class_handover.id AND child.tenant_id = class_handover.tenant_id").
 		Where("class_handover.tenant_id = ?", tenantID).
 		Where("class_handover.date = ?", date).
+		GroupExpr("class_handover.id").
 		OrderExpr("class_handover.id ASC").
-		Scan(ctx)
+		Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
 		return nil, stats, fmt.Errorf("list class handovers: %w", err)
 	}
-	records := make([]ports.ClassHandoverRecord, 0, len(rows))
+	handovers := make([]studentpresence.ClassHandover, 0, len(rows))
 	for _, row := range rows {
-		records = append(records, ports.ClassHandoverRecord{ID: row.ID, ClassHandover: studentpresence.ClassHandover{
+		handovers = append(handovers, studentpresence.ClassHandover{
 			SchoolClass: row.SchoolClass, Date: row.Date, HandedOverAt: row.HandedOverAt, HandedOverByStaffID: row.HandedOverByStaffID,
-		}})
+			PresentStudentIDs: row.PresentStudentIDs,
+			AbsentStudentIDs:  row.AbsentStudentIDs,
+		})
 	}
-	return records, stats, nil
-}
-
-func (s *Store) ListClassHandoverChildren(ctx context.Context, handoverIDs []int64) (map[int64]ports.ClassHandoverChildren, ports.Stats, error) {
-	db, tenantID, err := s.database(ctx)
-	if err != nil {
-		return nil, ports.Stats{}, err
-	}
-	var rows []classHandoverChildRow
-	started := time.Now()
-	err = db.NewSelect().Model(&rows).
-		Where("class_handover_child.tenant_id = ?", tenantID).
-		Where("class_handover_child.handover_id IN (?)", bun.List(handoverIDs)).
-		OrderExpr("class_handover_child.student_id ASC").
-		Scan(ctx)
-	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
-	if err != nil {
-		return nil, stats, fmt.Errorf("list class handover children: %w", err)
-	}
-	children := make(map[int64]ports.ClassHandoverChildren, len(handoverIDs))
-	for _, row := range rows {
-		of := children[row.HandoverID]
-		if row.Absent {
-			of.Absent = append(of.Absent, row.StudentID)
-		} else {
-			of.Present = append(of.Present, row.StudentID)
-		}
-		children[row.HandoverID] = of
-	}
-	return children, stats, nil
+	return handovers, stats, nil
 }
 
 func (s *Store) ReplaceClassHandover(ctx context.Context, in studentpresence.ClassHandoverChange, normalizedClass string, at time.Time) (bool, ports.Stats, error) {

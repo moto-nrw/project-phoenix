@@ -7,20 +7,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
-// ClassHandoverRecord is one stored handover with its row ID, without its
-// children.
-type ClassHandoverRecord struct {
-	ID int64
-	studentpresence.ClassHandover
-}
-
 // ClassHandoverStore persists the class handovers (#4794) in
 // active.class_handovers and active.class_handover_children.
 type ClassHandoverStore interface {
-	// ListClassHandovers returns the tenant's handovers of date.
-	ListClassHandovers(ctx context.Context, date Date) ([]ClassHandoverRecord, Stats, error)
-	// ListClassHandoverChildren maps each handover ID to its children.
-	ListClassHandoverChildren(ctx context.Context, handoverIDs []int64) (map[int64]ClassHandoverChildren, Stats, error)
+	// ListClassHandovers returns the tenant's handovers of date with their
+	// children, all read from one statement snapshot.
+	ListClassHandovers(ctx context.Context, date Date) ([]studentpresence.ClassHandover, Stats, error)
 	// ReplaceClassHandover deletes a handover of the same class and date,
 	// reports whether there was one, and stores the new one with its
 	// children.
@@ -31,11 +23,4 @@ type ClassHandoverStore interface {
 	// DeleteClassHandoversBefore deletes the tenant's handovers dated before
 	// cutoff, their children with them.
 	DeleteClassHandoversBefore(ctx context.Context, cutoff Date) (Stats, error)
-}
-
-// ClassHandoverChildren are the children of one handover, "da" and "nicht
-// da", each in ascending ID order.
-type ClassHandoverChildren struct {
-	Present []int64
-	Absent  []int64
 }

@@ -82568,17 +82568,6 @@
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.ListClassHandoverChildren",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListClassHandoverChildren",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ListClassHandoverChildren. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.ListClassHandovers",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListClassHandovers",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",

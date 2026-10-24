@@ -11,31 +11,18 @@ import (
 )
 
 // ClassHandoversOn returns the handovers of date (#4794), each assembled with
-// its children. Without a handover the children are not read.
+// its children from the same snapshot.
 func (s *Service) ClassHandoversOn(ctx context.Context, date calendar.Date) (result []studentpresence.ClassHandover, err error) {
 	if _, err := calendar.ParseDate(date.String()); err != nil {
 		return nil, fmt.Errorf("%w: %w", studentpresence.ErrClassHandoverInvalid, err)
 	}
 	err = s.runWrite(ctx, "list_class_handovers", func(txCtx context.Context) (ports.Stats, error) {
-		records, stats, err := s.store.ListClassHandovers(txCtx, date)
-		if err != nil || len(records) == 0 {
-			result = []studentpresence.ClassHandover{}
-			return stats, err
-		}
-		ids := make([]int64, 0, len(records))
-		for _, record := range records {
-			ids = append(ids, record.ID)
-		}
-		children, childStats, err := s.store.ListClassHandoverChildren(txCtx, ids)
-		stats.Queries += childStats.Queries
-		stats.Rows += childStats.Rows
-		stats.StatementDuration += childStats.StatementDuration
-		result = make([]studentpresence.ClassHandover, 0, len(records))
-		for _, record := range records {
-			handover := record.ClassHandover
-			of := children[record.ID]
-			handover.PresentStudentIDs = append([]int64{}, of.Present...)
-			handover.AbsentStudentIDs = append([]int64{}, of.Absent...)
+		handovers, stats, err := s.store.ListClassHandovers(txCtx, date)
+		result = make([]studentpresence.ClassHandover, 0, len(handovers))
+		for _, handover := range handovers {
+			// Keep the public lists non-nil and independent of store buffers.
+			handover.PresentStudentIDs = append([]int64{}, handover.PresentStudentIDs...)
+			handover.AbsentStudentIDs = append([]int64{}, handover.AbsentStudentIDs...)
 			result = append(result, handover)
 		}
 		return stats, err

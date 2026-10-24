@@ -208,3 +208,44 @@ func TestClassHandoverConcurrentReplacement(t *testing.T) {
 	assert.Equal(t, []int64{second.ID}, handovers[0].AbsentStudentIDs)
 	assert.Empty(t, handovers[0].PresentStudentIDs, "the replacement's children only")
 }
+
+// Parents and children must share one statement snapshot so a concurrent
+// replacement or withdrawal cannot leave an old handover without its children.
+func TestClassHandoversReadSingleSnapshot(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+	first := testpkg.CreateTestStudent(t, db, "Erste", "Übergabe", "3c")
+	second := testpkg.CreateTestStudent(t, db, "Zweite", "Übergabe", "3c")
+	third := testpkg.CreateTestStudent(t, db, "Dritte", "Übergabe", "3c")
+	staff := testpkg.CreateTestStaff(t, db, "Lehr", "Kraft")
+	day := calendar.NewDate(2099, 3, 2)
+	_, err = module.ChangeClassHandover(ctx, studentpresence.ClassHandoverChange{
+		SchoolClass: "3c", Date: day, HandedOverBy: staff.ID,
+		PresentStudentIDs: []int64{second.ID, first.ID}, AbsentStudentIDs: []int64{third.ID},
+	})
+	require.NoError(t, err)
+	_, err = module.ChangeClassHandover(ctx, studentpresence.ClassHandoverChange{
+		SchoolClass: "4a", Date: day, HandedOverBy: staff.ID,
+	})
+	require.NoError(t, err)
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	handovers, err := module.ClassHandoversOn(counter.Context(ctx), day)
+	require.NoError(t, err)
+	require.Len(t, handovers, 2)
+	assert.Equal(t, "3c", handovers[0].SchoolClass)
+	assert.Equal(t, []int64{first.ID, second.ID}, handovers[0].PresentStudentIDs)
+	assert.Equal(t, []int64{third.ID}, handovers[0].AbsentStudentIDs)
+	assert.Equal(t, "4a", handovers[1].SchoolClass)
+	assert.NotNil(t, handovers[1].PresentStudentIDs)
+	assert.Empty(t, handovers[1].PresentStudentIDs)
+	assert.NotNil(t, handovers[1].AbsentStudentIDs)
+	assert.Empty(t, handovers[1].AbsentStudentIDs)
+	parentReads := counter.Selects("class_handovers")
+	require.Len(t, parentReads, 1)
+	assert.Equal(t, parentReads, counter.Selects("class_handover_children"),
+		"handovers and children must be loaded by the same statement")
+}
