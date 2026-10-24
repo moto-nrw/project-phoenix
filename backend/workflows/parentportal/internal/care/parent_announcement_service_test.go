@@ -47,6 +47,7 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
 		Fingerprints:          owners.SecurityFingerprints{},
 		Declarations:          owners.ParentDeclarationPolicy(),
+		Signatures:            owners.ParentDeclarationSignatures{Ledger: owners.SignatureLedger()},
 		Runtime:               owners.ParentPortalRuntime{},
 		Children:              childResolver(db, repos, reposPeople),
 		ChildRepo:             repos.ParentChildReads(),

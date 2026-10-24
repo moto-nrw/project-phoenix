@@ -19,6 +19,7 @@ import (
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
 	GuardianChanges auditlog.GuardianChangeLog
+	Signatures      parentportal.SignatureLedger
 	CarePlanPolicy  care.CarePlanPolicy
 	GuardianPolicy  care.GuardianPolicy
 	DeparturePolicy care.DeparturePolicy
@@ -139,10 +140,9 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 
 func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messaging.Config {
 	return messaging.Config{
-		SharePolicy: NewRequestSharePolicy(), Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations,
+		SharePolicy: NewRequestSharePolicy(), Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations, Signatures: deps.Signatures,
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
-		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
-		AnnouncementRepo:  deps.AnnouncementRepo,
+		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo, AnnouncementRepo: deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
 		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,

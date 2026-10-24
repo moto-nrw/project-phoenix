@@ -166,16 +166,18 @@ type (
 )
 
 const (
-	DataChangeStatusPending     = care.DataChangeStatusPending
-	DataChangeTargetPerson      = care.DataChangeTargetPerson
-	DataChangeTargetStudent     = care.DataChangeTargetStudent
-	DeclarationActionAgreed     = messaging.DeclarationActionAgreed
-	DeclarationActionDeclined   = messaging.DeclarationActionDeclined
-	DeclarationActionRevoked    = messaging.DeclarationActionRevoked
-	DeclarationKindConsent      = messaging.DeclarationKindConsent
-	DeparturePickup             = care.DeparturePickup
-	ParentMessageSenderGuardian = messaging.ParentMessageSenderGuardian
-	ParentMessageSenderStaff    = messaging.ParentMessageSenderStaff
+	DataChangeStatusPending                    = care.DataChangeStatusPending
+	DataChangeTargetPerson                     = care.DataChangeTargetPerson
+	DataChangeTargetStudent                    = care.DataChangeTargetStudent
+	DeclarationActionAgreed                    = messaging.DeclarationActionAgreed
+	DeclarationActionDeclined                  = messaging.DeclarationActionDeclined
+	DeclarationActionRevoked                   = messaging.DeclarationActionRevoked
+	DeclarationKindConsent                     = messaging.DeclarationKindConsent
+	DeclarationMethodSimpleElectronic          = messaging.DeclarationMethodSimpleElectronic
+	DeclarationMethodSimpleElectronicSignature = messaging.DeclarationMethodSimpleElectronicSignature
+	DeparturePickup                            = care.DeparturePickup
+	ParentMessageSenderGuardian                = messaging.ParentMessageSenderGuardian
+	ParentMessageSenderStaff                   = messaging.ParentMessageSenderStaff
 )
 
 var (
