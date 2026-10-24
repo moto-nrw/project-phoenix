@@ -82,8 +82,8 @@ children, online enrollment, parent accounts, and weekly-plan-driven care
 without physical terminals. The first developer admin can switch to it.
 It also creates marketing (OGS Sonnenhang) in its own organization: twelve
 children, parent accounts, and web attendance whose weekly plans are relative
-to a 10:15 reference clock, for product screenshots. Children and staff have
-no profile pictures; lists show their initials.
+to a 10:15 reference clock, for product screenshots. Student photos stay off
+and staff have no profile pictures, so staff show their initials.
 
   --tenant-slug vollbetrieb    Override the profile's tenant slug
   --staff-password 'Test1234%' Shared password for all 20 staff accounts
