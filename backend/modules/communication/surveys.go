@@ -123,6 +123,9 @@ type Survey struct {
 	Questions   []SurveyQuestion
 	// ParticipantCount is how many accounts took part.
 	ParticipantCount int
+	// AnnouncementID is the system announcement that carries a published
+	// parent survey to the families; nil for staff surveys and drafts.
+	AnnouncementID *int64
 }
 
 // Status derives draft, open or closed at the given instant.
@@ -236,6 +239,28 @@ type PortalSurveySummary struct {
 	Participated bool
 }
 
+// SurveyTally is what the persistence counts for an evaluation. It holds no
+// response id, account or time: an evaluation cannot leak what it never
+// receives.
+type SurveyTally struct {
+	ResponseCount int
+	// AnswerCounts counts the responses that answered a question.
+	AnswerCounts map[int64]int
+	// OptionCounts counts how often an option was chosen.
+	OptionCounts map[int64]int
+	// ScaleCounts[question][value-1] counts a scale value.
+	ScaleCounts map[int64][]int
+	// Texts are the free-text answers per question, in random order.
+	Texts map[int64][]string
+}
+
+// SurveyNamedResponse is one response of a named survey: the account and its
+// answers, as stored.
+type SurveyNamedResponse struct {
+	AccountID int64
+	Answers   []SurveyAnswerInput
+}
+
 // SurveyManagement authors and evaluates the school's surveys. It runs in the
 // request's school transaction behind the surveys:manage permission.
 type SurveyManagement interface {
@@ -244,7 +269,7 @@ type SurveyManagement interface {
 	CreateSurvey(ctx context.Context, createdBy int64, in SurveyInput) (*Survey, error)
 	UpdateSurvey(ctx context.Context, id int64, in SurveyInput) (*Survey, error)
 	DeleteSurvey(ctx context.Context, id int64) error
-	PublishSurvey(ctx context.Context, id int64) (*Survey, error)
+	PublishSurvey(ctx context.Context, publishedBy, id int64) (*Survey, error)
 	CloseSurvey(ctx context.Context, id int64) (*Survey, error)
 	// RemindSurvey notifies the audience members who have not taken part and
 	// returns how many were reached.

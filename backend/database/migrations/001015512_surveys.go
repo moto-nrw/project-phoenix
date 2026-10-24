@@ -61,6 +61,11 @@ func init() {
 //     logs never read them (the tenant export orders both tables by a column,
 //     see the data lifecycle catalog).
 const surveysTablesSQL = `
+		ALTER TABLE users.parent_announcements
+			DROP CONSTRAINT IF EXISTS chk_parent_announcements_system_kind,
+			ADD CONSTRAINT chk_parent_announcements_system_kind
+				CHECK (system_kind IS NULL OR system_kind IN ('care_cancellation', 'survey'));
+
 		CREATE TABLE IF NOT EXISTS users.surveys (
 			id                BIGSERIAL PRIMARY KEY,
 			tenant_id         BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
@@ -261,6 +266,11 @@ func surveysDown(ctx context.Context, db *bun.DB) error {
 			DROP TABLE IF EXISTS users.surveys;
 			DROP FUNCTION IF EXISTS users.survey_responses_keep_anonymous();
 			DROP FUNCTION IF EXISTS users.surveys_freeze_published();
+			DELETE FROM users.parent_announcements WHERE system_kind = 'survey';
+			ALTER TABLE users.parent_announcements
+				DROP CONSTRAINT IF EXISTS chk_parent_announcements_system_kind,
+				ADD CONSTRAINT chk_parent_announcements_system_kind
+					CHECK (system_kind IS NULL OR system_kind IN ('care_cancellation'));
 		`); err != nil {
 			return fmt.Errorf("drop survey tables: %w", err)
 		}

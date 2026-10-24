@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type service struct {
@@ -47,6 +49,9 @@ func (s *service) List(ctx context.Context, includeInactive bool) ([]*StaffParen
 	if err != nil {
 		return nil, fmt.Errorf("announcement: list: %w", err)
 	}
+	// A survey's carrier (#4781) belongs to the survey list; the announcement
+	// list would show it as a second, uneditable entry.
+	rows = withoutSurveyCarriers(rows)
 	// Attach poll options in one batched query so the staff list can render an
 	// Umfrage row (its options) without an N+1 fetch per announcement.
 	ids := make([]int64, 0, len(rows))
@@ -454,6 +459,15 @@ func publishMailSpec(a *StaffParentAnnouncement) mailSpec {
 	}
 	// A poll says so in the mail: the kicker and intro differ, the rest of the
 	// template (and the deliberate absence of the body) is identical.
+	if a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey {
+		spec.kicker = surveyEmailKicker
+		intro := "die Schule bittet Sie um Ihre Meinung. Die Umfrage finden Sie im Eltern-Portal."
+		if a.ExpiresAt != nil {
+			intro = fmt.Sprintf("die Schule bittet Sie bis zum %s um Ihre Meinung. Die Umfrage finden Sie im Eltern-Portal.",
+				a.ExpiresAt.In(calendar.Berlin).Format("02.01.2006"))
+		}
+		spec.intro = func(string) string { return intro }
+	}
 	if a.IsPoll() {
 		spec.kicker = pollEmailKicker
 		intro := "wir bitten Sie um eine kurze Rückmeldung. Die Umfrage finden Sie im Eltern-Portal."
@@ -788,4 +802,15 @@ func normalizeLetterDelivery(in *Input) error {
 	}
 
 	return nil
+}
+
+func withoutSurveyCarriers(rows []*StaffParentAnnouncement) []*StaffParentAnnouncement {
+	out := rows[:0:0]
+	for _, a := range rows {
+		if a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey {
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
 }

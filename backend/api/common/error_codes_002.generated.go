@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetableSubstituteAbsentOnDate              = "timetable.substitute_absent_on_date"
+	CodeTimetableSubstituteConflict                  = "timetable.substitute_conflict"
+	CodeTimetableSubstituteNotOnInstances            = "timetable.substitute_not_on_instances"
+	CodeTimetableSubstituteSelf                      = "timetable.substitute_self"
 	CodeTimetableSubstituteSingleOnly                = "timetable.substitute_single_only"
 	CodeTimetableTemplateCareOfferingConflict        = "timetable.template_care_offering_conflict"
 	CodeTimetableTemplateCategoryUnavailable         = "timetable.template_category_unavailable"
@@ -96,6 +100,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.substitute_absent_on_date":               "input",
+	"timetable.substitute_conflict":                     "business_rejection",
+	"timetable.substitute_not_on_instances":             "input",
+	"timetable.substitute_self":                         "input",
 	"timetable.substitute_single_only":                  "input",
 	"timetable.template_care_offering_conflict":         "input",
 	"timetable.template_category_unavailable":           "business_rejection",

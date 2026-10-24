@@ -74,7 +74,9 @@ const (
 	TypeStaffParentMessage     = "staff_parent_message"
 	// TypeStaffMessage is a message from a colleague in the OGS-internal chat
 	// (#2598) — staff to staff, no parent involved.
-	TypeStaffMessage       = "staff_message"
+	TypeStaffMessage = "staff_message"
+	// TypeStaffSurvey announces a new or still open staff survey (#4781).
+	TypeStaffSurvey        = "staff_survey"
 	TypeParentAnnouncement = "parent_announcement"
 
 	// Parent-facing types added with issue #1671. Each one mirrors a channel the
@@ -306,6 +308,16 @@ func registerStaffMessageTypes() {
 		TenantGate:   settingStaffMessagingEnabled,
 		SortOrder:    2,
 		SchoolPortal: true,
+	})
+	// Staff surveys (#4781) are answered in the OGS portal only; the school
+	// portal never offers them.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffSurvey,
+		Label:       "Umfragen der Einrichtung",
+		Description: "Wenn die Einrichtung eine Umfrage an das Team veröffentlicht oder an eine offene Umfrage erinnert.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		SortOrder:   3,
 	})
 }
 

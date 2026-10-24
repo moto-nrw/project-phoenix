@@ -95,6 +95,10 @@ const (
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
 	CodeCommunicationStaffMessagingDisabled              = "communication.staff_messaging_disabled"
 	CodeCommunicationStaffNoticeOutdated                 = "communication.staff_notice_outdated"
+	CodeCommunicationSurveyAlreadyAnswered               = "communication.survey_already_answered"
+	CodeCommunicationSurveyAnonymous                     = "communication.survey_anonymous"
+	CodeCommunicationSurveyNotDraft                      = "communication.survey_not_draft"
+	CodeCommunicationSurveyNotOpen                       = "communication.survey_not_open"
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
 	CodeDevicesTagScanAlreadyResolved                    = "devices.tag_scan_already_resolved"
 	CodeDevicesTagScanNotFound                           = "devices.tag_scan_not_found"
@@ -298,10 +302,6 @@ const (
 	CodeImportImportBatchFailed                          = "import.import_batch_failed"
 	CodeImportModeForbidden                              = "import.mode_forbidden"
 	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
-	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
-	CodeIotDeviceApiKeyFormatInvalid                     = "iot.device_api_key_format_invalid"
-	CodeIotDeviceApiKeyInvalid                           = "iot.device_api_key_invalid"
-	CodeIotDeviceApiKeyRequired                          = "iot.device_api_key_required"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -398,6 +398,10 @@ var errorCodeClasses0 = map[string]string{
 	"communication.staff_counterpart_unavailable":          "unavailable",
 	"communication.staff_messaging_disabled":               "permission",
 	"communication.staff_notice_outdated":                  "business_rejection",
+	"communication.survey_already_answered":                "business_rejection",
+	"communication.survey_anonymous":                       "business_rejection",
+	"communication.survey_not_draft":                       "business_rejection",
+	"communication.survey_not_open":                        "business_rejection",
 	"communication.system_announcement_immutable":          "business_rejection",
 	"devices.tag_scan_already_resolved":                    "business_rejection",
 	"devices.tag_scan_not_found":                           "business_rejection",
@@ -601,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"import.import_batch_failed":                           "server",
 	"import.mode_forbidden":                                "permission",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
-	"iot.deviation_reason_required":                        "input",
-	"iot.device_api_key_format_invalid":                    "permission",
-	"iot.device_api_key_invalid":                           "permission",
-	"iot.device_api_key_required":                          "permission",
 }
 
 func init() {
