@@ -168,9 +168,9 @@ func signatureWriteError(err error) error {
 	return fmt.Errorf("signature: record: %w", err)
 }
 
-// RequestSignature returns the newest signature of a request of the school
+// requestSignature returns the newest signature of a request of the school
 // in context, nil when it has none.
-func (s *Intake) RequestSignature(ctx context.Context, requestID int64) (*enrollmentNative.RequestSignature, error) {
+func (s *Intake) requestSignature(ctx context.Context, requestID int64) (*enrollmentNative.RequestSignature, error) {
 	if s.deps.Signatures == nil {
 		return nil, nil
 	}
@@ -185,6 +185,35 @@ func (s *Intake) RequestSignature(ctx context.Context, requestID int64) (*enroll
 	return signature, nil
 }
 
+// SignatureProof loads a request of the school in context with its
+// co-guardians and newest signature, for the staff detail and its proof.
+// The caller runs it in its tenant transaction; a request of another school
+// is not found.
+func (s *Intake) SignatureProof(ctx context.Context, requestID int64) (*enrollmentNative.RequestSignatureProof, error) {
+	req, children, err := s.requestWithChildren(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	return s.signatureProof(ctx, req, children)
+}
+
+// requestWithChildren reads a request of the school in context and its
+// children; a miss is ErrRequestNotFound.
+func (s *Intake) requestWithChildren(ctx context.Context, requestID int64) (*Request, []*RequestChild, error) {
+	req, err := decodedRequestByID(ctx, s.deps.Requests, requestID, false)
+	if (err != nil && s.deps.Runtime.NotFound(err)) || (err == nil && req == nil) {
+		return nil, nil, enrollmentNative.ErrRequestNotFound
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("signature proof: load request: %w", err)
+	}
+	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("signature proof: list children: %w", err)
+	}
+	return req, children, nil
+}
+
 // SignatureProofByStatusToken loads the request behind a valid status token
 // with its co-guardians and newest signature. The token is the only
 // authentication: the caller runs the lookup in an administrative
@@ -195,32 +224,42 @@ func (s *Intake) SignatureProofByStatusToken(ctx context.Context, token string) 
 	if err != nil {
 		return nil, err
 	}
+	if s.deps.Runtime.IsAdminTx(ctx) {
+		ctx = s.deps.Runtime.DetachTransaction(ctx)
+	}
+	var proof *enrollmentNative.RequestSignatureProof
+	err = s.deps.Runtime.TenantTx(s.deps.Runtime.WithTenant(ctx, req.TenantID), req.TenantID, func(txCtx context.Context) error {
+		proof, err = s.signatureProof(txCtx, req, children)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return proof, nil
+}
+
+// signatureProof completes a loaded request inside its school's
+// transaction: whether its form asks for a signature, its co-guardians and
+// its newest signature.
+func (s *Intake) signatureProof(ctx context.Context, req *Request, children []*RequestChild) (*enrollmentNative.RequestSignatureProof, error) {
 	status, err := publicRequestStatus(req, children)
 	if err != nil {
 		return nil, err
 	}
 	proof := &enrollmentNative.RequestSignatureProof{Status: status}
-	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
 	if req.SchemaID != nil {
-		schema, err := s.intakeSchema(tenantCtx, *req.SchemaID)
+		schema, err := s.intakeSchema(ctx, *req.SchemaID)
 		if err != nil {
 			return nil, fmt.Errorf("signature proof: load pinned schema: %w", err)
 		}
 		proof.SignatureRequired = signatureRequired(schema, req.SubmissionSource)
 	}
-	if s.deps.Runtime.IsAdminTx(ctx) {
-		ctx = s.deps.Runtime.DetachTransaction(ctx)
-	}
-	err = s.deps.Runtime.TenantTx(s.deps.Runtime.WithTenant(ctx, req.TenantID), req.TenantID, func(txCtx context.Context) error {
-		if s.deps.Guardians != nil {
-			if proof.Guardians, err = s.deps.Guardians.RequestGuardians(txCtx, []int64{req.ID}); err != nil {
-				return fmt.Errorf("signature proof: co-guardians: %w", err)
-			}
+	if s.deps.Guardians != nil {
+		if proof.Guardians, err = s.deps.Guardians.RequestGuardians(ctx, []int64{req.ID}); err != nil {
+			return nil, fmt.Errorf("signature proof: co-guardians: %w", err)
 		}
-		proof.Signature, err = s.RequestSignature(txCtx, req.ID)
-		return err
-	})
-	if err != nil {
+	}
+	if proof.Signature, err = s.requestSignature(ctx, req.ID); err != nil {
 		return nil, err
 	}
 	return proof, nil

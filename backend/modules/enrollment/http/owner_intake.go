@@ -180,8 +180,10 @@ type RequestService interface {
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
 	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error)
-	RequestSignature(ctx context.Context, requestID int64) (*capability.RequestSignature, error)
-	SignatureProofByStatusToken(ctx context.Context, token string) (*SignatureProof, error)
+	// SignatureProof loads a request with its signature (#4786): behind its
+	// status token when token is set, otherwise the request of the school
+	// in the caller's tenant transaction.
+	SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error)
 }
 
 // NewRequestService decodes the owner's intake for these routes and the
@@ -418,12 +420,15 @@ func (s intakeService) PublicActiveSchema(ctx context.Context, phaseID int64, no
 	return s.owner.PublicActiveSchema(ctx, phaseID, now, lateInviteToken)
 }
 
-func (s intakeService) RequestSignature(ctx context.Context, requestID int64) (*capability.RequestSignature, error) {
-	return s.owner.RequestSignature(ctx, requestID)
+func (s intakeService) SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error) {
+	if token != "" {
+		return signatureProofValue(s.owner.SignatureProofByStatusToken(ctx, token))
+	}
+	return signatureProofValue(s.owner.SignatureProof(ctx, requestID))
 }
 
-func (s intakeService) SignatureProofByStatusToken(ctx context.Context, token string) (*SignatureProof, error) {
-	proof, err := s.owner.SignatureProofByStatusToken(ctx, token)
+// signatureProofValue decodes the owner's proof for these routes.
+func signatureProofValue(proof *capability.RequestSignatureProof, err error) (*SignatureProof, error) {
 	if err != nil {
 		return nil, err
 	}

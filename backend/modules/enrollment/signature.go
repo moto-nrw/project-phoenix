@@ -71,9 +71,10 @@ type RequestSignatureProof struct {
 // decides more than the caller already may: the staff read runs in the
 // caller's tenant transaction, the status read behind a valid status token.
 type IntakeSignatureProofs interface {
-	// RequestSignature returns the signature of the request's current
-	// version in the school in context, nil when it has none.
-	RequestSignature(ctx context.Context, requestID int64) (*RequestSignature, error)
+	// SignatureProof loads a request of the school in context with its
+	// signature; Signature is nil when it has none, and a request of
+	// another school answers ErrRequestNotFound.
+	SignatureProof(ctx context.Context, requestID int64) (*RequestSignatureProof, error)
 	// SignatureProofByStatusToken loads the request behind a valid status
 	// token with its signature; Signature is nil when it has none.
 	SignatureProofByStatusToken(ctx context.Context, token string) (*RequestSignatureProof, error)

@@ -69,11 +69,11 @@ func (rs *Resource) attachAdminSignature(ctx context.Context, detail *AdminReque
 	if rs.RequestService == nil {
 		return nil
 	}
-	signature, err := rs.RequestService.RequestSignature(ctx, requestID)
+	proof, err := rs.RequestService.SignatureProof(ctx, requestID, "")
 	if err != nil {
 		return err
 	}
-	detail.Signature = newRequestSignatureResponse(signature, true)
+	detail.Signature = newRequestSignatureResponse(proof.Signature, true)
 	return nil
 }
 
@@ -104,14 +104,14 @@ func (rs *Resource) getAdminRequestSignatureProof(w http.ResponseWriter, r *http
 		if err != nil {
 			return err
 		}
-		signature, err := rs.RequestService.RequestSignature(ctx, id)
+		signed, err := rs.RequestService.SignatureProof(ctx, id, "")
 		if err != nil {
 			return err
 		}
-		if signature == nil {
+		if signed.Signature == nil {
 			return errSignatureProofMissing
 		}
-		proof = signatureProof{Request: summary.Request, Children: summary.Children, Guardians: summary.Guardians, Signature: signature}
+		proof = signatureProof{Request: summary.Request, Children: summary.Children, Guardians: summary.Guardians, Signature: signed.Signature}
 		if summary.Phase != nil {
 			proof.PhaseName = summary.Phase.Name
 		}
@@ -147,7 +147,7 @@ func (rs *Resource) getStatusSignatureProof(w http.ResponseWriter, r *http.Reque
 	var proof *SignatureProof
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
 		var err error
-		proof, err = rs.RequestService.SignatureProofByStatusToken(adminCtx, token)
+		proof, err = rs.RequestService.SignatureProof(adminCtx, 0, token)
 		return err
 	})
 	if errors.Is(err, capability.ErrRequestNotFound) {

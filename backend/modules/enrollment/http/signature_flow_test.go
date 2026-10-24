@@ -325,16 +325,14 @@ func TestEnrollmentSignature_ProofIsBoundToTheTokensSchoolAndRequest(t *testing.
 	staffB := schoolB.staff(t, schoolB.tenantID)
 	assert.Equal(t, http.StatusNotFound, schoolB.do(t, http.MethodGet, idPath(signedA.Request.ID, "/signature-proof"), staffB, "").Code)
 	assert.Equal(t, http.StatusNotFound, schoolB.do(t, http.MethodGet, idPath(signedA.Request.ID, "/"), staffB, "").Code)
-	var none *capability.RequestSignature
-	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), schoolB.db, schoolB.tenantID, func(ctx context.Context) error {
-		var err error
-		none, err = schoolB.requests.RequestSignature(ctx, signedA.Request.ID)
+	err := testpkg.WithinTenantContext(t, context.Background(), schoolB.db, schoolB.tenantID, func(ctx context.Context) error {
+		_, err := schoolB.requests.SignatureProof(ctx, signedA.Request.ID, "")
 		return err
-	}))
-	assert.Nil(t, none, "school B reads no signature of school A")
+	})
+	require.ErrorIs(t, err, capability.ErrRequestNotFound, "school B reads no request or signature of school A")
 
 	// An expired token opens nothing either.
-	_, err := schoolA.db.NewUpdate().TableExpr("enrollment.requests").
+	_, err = schoolA.db.NewUpdate().TableExpr("enrollment.requests").
 		Set("status_token_expires = ?", time.Now().Add(-time.Hour)).
 		Where("id = ?", signedA.Request.ID).Exec(testpkg.TenantContext(schoolA.tenantID))
 	require.NoError(t, err)

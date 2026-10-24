@@ -31064,6 +31064,40 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSignatures.LatestEnrollmentSignatures",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.LatestEnrollmentSignatures",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.LatestEnrollmentSignatures",
+      "target_owner": "audit-platform",
+      "binding_digest": "f9aa78e90e086f7e856f286400496385",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: enrollment reads the newest signature per enrollment request (#4786) through modules/auditlog.SignatureLedger.LatestEnrollmentSignatures (audit-platform), a tenant-scoped SELECT of audit.signatures inside the caller's tenant transaction. No owned-row mutation, lock or scope effect."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSignatures.RecordEnrollmentSignature",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.RecordEnrollmentSignature",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.ParseSignatureImage",
+      "target_owner": "audit-platform",
+      "binding_digest": "e6fe4d18af280db6845eb7b0282233a8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed pure check: enrollment validates the parent's signature image (#4786) through modules/auditlog.ParseSignatureImage (audit-platform), an in-memory PNG and name check without database access. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSignatures.RecordEnrollmentSignature",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.RecordEnrollmentSignature",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.RecordSignature",
+      "target_owner": "audit-platform",
+      "binding_digest": "9e05c0f14b60b3dd11b34f4a5b117730",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog.SignatureLedger.RecordSignature (audit-platform) through roots/owners.EnrollmentSignatures.RecordEnrollmentSignature. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.MailOutbox.EnqueueMail",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentMailOutbox.EnqueueMail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",

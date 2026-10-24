@@ -169,7 +169,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 			return statusErr
 		}
 		editMode = mode
-		if proof, statusErr = rs.RequestService.SignatureProofByStatusToken(adminCtx, token); statusErr != nil {
+		if proof, statusErr = rs.RequestService.SignatureProof(adminCtx, 0, token); statusErr != nil {
 			statusErr = fmt.Errorf("status: load signature: %w", statusErr)
 			return statusErr
 		}
