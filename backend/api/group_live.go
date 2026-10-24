@@ -169,9 +169,17 @@ func (b groupLiveTeacherHintReader) TeacherHints(ctx context.Context, studentIDs
 	if err != nil {
 		return nil, err
 	}
-	return teacherHintsByStudent(ctx, b.hints, day, studentIDs, func(hint peopledirectory.SchoolDayHint) grouplive.TeacherHint {
-		return grouplive.TeacherHint{Body: hint.Body, AuthorName: hint.AuthorName, SchoolClass: hint.SchoolClass}
-	})
+	rows, err := listTeacherHints(ctx, b.hints, day, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64][]grouplive.TeacherHint)
+	for _, hint := range rows {
+		result[hint.StudentID] = append(result[hint.StudentID], grouplive.TeacherHint{
+			Body: hint.Body, AuthorName: hint.AuthorName, SchoolClass: hint.SchoolClass,
+		})
+	}
+	return result, nil
 }
 
 type groupLiveAccess struct {

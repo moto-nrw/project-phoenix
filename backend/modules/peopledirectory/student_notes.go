@@ -56,9 +56,6 @@ const (
 	StudentNoteOriginSchool = "school"
 )
 
-// MaxSchoolDayHintRunes bounds a Lehrkraft's day hint (#4795).
-const MaxSchoolDayHintRunes = 500
-
 // Note categories.
 const (
 	StudentNoteCategoryGeneral       = "general"

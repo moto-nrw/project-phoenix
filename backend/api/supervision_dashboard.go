@@ -780,17 +780,15 @@ func (b supervisionTeacherHints) TeacherHints(ctx context.Context, studentIDs []
 	if err != nil {
 		return nil, err
 	}
-	rows, err := teacherHintsByStudent(ctx, b.hints, day, studentIDs, func(hint peopledirectory.SchoolDayHint) supervisiondashboard.TeacherHint {
-		return supervisiondashboard.TeacherHint{
-			StudentID: hint.StudentID, Body: hint.Body, AuthorName: hint.AuthorName, SchoolClass: hint.SchoolClass,
-		}
-	})
+	rows, err := listTeacherHints(ctx, b.hints, day, studentIDs)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]supervisiondashboard.TeacherHint, 0, len(rows))
-	for _, id := range studentIDs {
-		result = append(result, rows[id]...)
+	for _, hint := range rows {
+		result = append(result, supervisiondashboard.TeacherHint{
+			StudentID: hint.StudentID, Body: hint.Body, AuthorName: hint.AuthorName, SchoolClass: hint.SchoolClass,
+		})
 	}
 	return result, nil
 }

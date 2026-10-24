@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -63,8 +62,10 @@ func (h dayHints) SetDayHint(ctx context.Context, in classday.DayHintWrite) erro
 	if err := h.writeOpen(ctx); err != nil {
 		return err
 	}
+	// The length limit belongs to People Directory, which refuses a longer
+	// hint; mapDayHintError turns that into classday.ErrDayHintInvalid.
 	body := strings.TrimSpace(in.Body)
-	if body == "" || utf8.RuneCountInString(body) > classday.MaxDayHintRunes {
+	if body == "" {
 		return classday.ErrDayHintInvalid
 	}
 	day, err := h.todayOnly(in.Date)

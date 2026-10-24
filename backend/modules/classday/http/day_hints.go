@@ -30,8 +30,8 @@ type DayHintRequest struct {
 	Body string `json:"body"`
 }
 
-// Bind implements render.Binder. The length is checked by the projection, so
-// the limit has one home.
+// Bind implements render.Binder. The length is checked by People Directory,
+// the owner of the note, so the limit has one home.
 func (r *DayHintRequest) Bind(_ *http.Request) error {
 	if strings.TrimSpace(r.Body) == "" {
 		return errors.New("body is required")

@@ -137,9 +137,6 @@ var (
 	ErrDayHintNotFound = errors.New("day hint not found")
 )
 
-// MaxDayHintRunes bounds a day hint.
-const MaxDayHintRunes = 500
-
 // ErrMorningAttendanceNotConfigured is returned by the morning attendance
 // write when the projection was composed without the Student Presence seam.
 var ErrMorningAttendanceNotConfigured = errors.New("morning attendance is not configured")
