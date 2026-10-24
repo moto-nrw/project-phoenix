@@ -104,10 +104,7 @@ func checkClassDayWriteSeamWiring(t *testing.T, graph *goldenRuntime) {
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
 	className := fmt.Sprintf("sw%d", time.Now().UnixNano()%100000)
 	testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
-	_, err := db.ExecContext(t.Context(), `
-		INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (?, 'operations.school_portal_write_scope', '["class_arrival_exceptions", "day_hints"]'::jsonb)`, tenantID)
-	require.NoError(t, err)
+	testpkg.SetTestTenantSetting(t, db, tenantID, "operations.school_portal_write_scope", `["class_arrival_exceptions", "day_hints"]`)
 	claims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
 	}
@@ -120,10 +117,19 @@ func checkClassDayWriteSeamWiring(t *testing.T, graph *goldenRuntime) {
 		assert.Contains(t, rec.Body.String(), `"start":""`)
 	})
 	t.Run("day hints", func(t *testing.T) {
-		today := calendar.CalendarDateClock(time.Now)()
-		req := httptest.NewRequest(http.MethodGet, "/school/class-day/?class="+className+"&date="+today.String(), nil)
-		rec := testutil.ExecuteWithAuthPermissions(t, graph.router, req, claims, granted)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"can_write_day_hints":true`)
+		// The server reads its own clock: a request that straddles Berlin
+		// midnight asks for yesterday and is asked again.
+		today := calendar.CalendarDateClock(time.Now)
+		for {
+			day := today()
+			req := httptest.NewRequest(http.MethodGet, "/school/class-day/?class="+className+"&date="+day.String(), nil)
+			rec := testutil.ExecuteWithAuthPermissions(t, graph.router, req, claims, granted)
+			if today() != day {
+				continue
+			}
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), `"can_write_day_hints":true`)
+			return
+		}
 	})
 }
