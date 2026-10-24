@@ -91,9 +91,9 @@ func (s *Store) InsertClassHomework(ctx context.Context, in timetable.HomeworkIn
 	return row.entry(), stats, nil
 }
 
-// UpdateOwnClassHomework replaces subject and text of the author's entry of
-// the class; another author's or another class's entry is not found.
-func (s *Store) UpdateOwnClassHomework(ctx context.Context, in timetable.HomeworkChange, classKey string) (timetable.HomeworkEntry, bool, domain.OperationStats, error) {
+// UpdateClassHomework replaces subject and text of an entry of the class,
+// whoever entered it; another class's entry is not found.
+func (s *Store) UpdateClassHomework(ctx context.Context, in timetable.HomeworkChange, classKey string) (timetable.HomeworkEntry, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return timetable.HomeworkEntry{}, false, domain.OperationStats{}, err
@@ -105,7 +105,6 @@ func (s *Store) UpdateOwnClassHomework(ctx context.Context, in timetable.Homewor
 		Where("class_homework.tenant_id = ?", tenantID).
 		Where("class_homework.id = ?", in.ID).
 		Where("LOWER(BTRIM(class_homework.school_class)) = ?", classKey).
-		Where("class_homework.created_by_staff_id = ?", in.StaffID).
 		Returning("*")
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
@@ -121,8 +120,8 @@ func (s *Store) UpdateOwnClassHomework(ctx context.Context, in timetable.Homewor
 	return row.entry(), true, stats, nil
 }
 
-// DeleteOwnClassHomework deletes the author's entry of the class.
-func (s *Store) DeleteOwnClassHomework(ctx context.Context, ref timetable.HomeworkRef, classKey string) (bool, domain.OperationStats, error) {
+// DeleteClassHomework deletes an entry of the class, whoever entered it.
+func (s *Store) DeleteClassHomework(ctx context.Context, ref timetable.HomeworkRef, classKey string) (bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
@@ -133,7 +132,6 @@ func (s *Store) DeleteOwnClassHomework(ctx context.Context, ref timetable.Homewo
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", ref.ID).
 		Where("LOWER(BTRIM(school_class)) = ?", classKey).
-		Where("created_by_staff_id = ?", ref.StaffID).
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {

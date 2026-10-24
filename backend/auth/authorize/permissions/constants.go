@@ -343,10 +343,11 @@ const (
 	// decides whether it is unlocked, and the education.class_teachers
 	// assignment decides for which class.
 	ClassDayMorningAttendanceWrite = ResourceClassDay + ":morning_attendance_write"
-	// ClassDayHomeworkWrite lets a Lehrkraft enter homework for her assigned
-	// classes and change or delete her own entries (#4796). The
-	// education.class_teachers assignment decides for which class; no school
-	// setting gates it, because the entry changes no OGS record.
+	// ClassDayHomeworkWrite lets a Lehrkraft enter homework for the classes
+	// she reaches and change or delete every entry of them, whoever entered
+	// it (#4796). The caller's class reach (MySchoolClasses, backed by the
+	// education.class_teachers assignment) decides for which class; no
+	// school setting gates it, because the entry changes no OGS record.
 	ClassDayHomeworkWrite = ResourceClassDay + ":homework_write"
 	// ClassDayHandoverWrite lets a Lehrkraft hand her assigned class over to
 	// the OGS after lessons and take the handover back the same day (#4794).

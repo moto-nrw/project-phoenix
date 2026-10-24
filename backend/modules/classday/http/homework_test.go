@@ -1,6 +1,7 @@
 // Router-level tests for the homework of moto schule (#4796): a Lehrkraft
-// enters homework for an assigned class, changes and deletes only her own
-// entries, and reads the OGS feedback per child in the class view.
+// enters homework for an assigned class, changes and deletes every entry of
+// that class, whoever entered it, and reads the OGS feedback per child in the
+// class view.
 package classdayhttp_test
 
 import (
@@ -78,7 +79,6 @@ type homeworkReport struct {
 		ID          string `json:"id"`
 		Subject     string `json:"subject"`
 		Description string `json:"description"`
-		Own         bool   `json:"own"`
 	} `json:"homework"`
 	Rows []struct {
 		StudentID int64 `json:"student_id"`
@@ -126,7 +126,6 @@ func TestHomeworkRoundTrip(t *testing.T) {
 	require.Len(t, report.Homework, 2, "several entries per class and day")
 	assert.Equal(t, "Mathe", report.Homework[0].Subject, "the subject is trimmed")
 	assert.Equal(t, "Seite 12, Nummer 3", report.Homework[0].Description)
-	assert.True(t, report.Homework[0].Own)
 	assert.Empty(t, report.Homework[1].Subject, "the subject is optional")
 
 	rec := f.do(t, f.lehrkraft, http.MethodPut, "/homework/"+f.class+"/"+id, `{"subject":"Deutsch","description":"Diktat üben"}`, homeworkPermission)
@@ -147,18 +146,6 @@ func TestHomeworkScope(t *testing.T) {
 	f := setupHomeworkFixture(t)
 	id := f.add(t, f.lehrkraft, `{"date":"`+homeworkDay+`","description":"Lesen"}`)
 
-	t.Run("a colleague of the class sees the entry but may not change it", func(t *testing.T) {
-		report := f.report(t, f.colleague, classDayReadPermission, homeworkPermission)
-		require.Len(t, report.Homework, 1)
-		assert.False(t, report.Homework[0].Own)
-
-		rec := f.do(t, f.colleague, http.MethodPut, "/homework/"+f.class+"/"+id, `{"description":"fremd"}`, homeworkPermission)
-		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), "classday.homework_not_found")
-		rec = f.do(t, f.colleague, http.MethodDelete, "/homework/"+f.class+"/"+id, "", homeworkPermission)
-		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-	})
-
 	t.Run("another teacher's class is refused", func(t *testing.T) {
 		other := f.class + "x"
 		_ = testpkg.CreateTestStudent(t, f.db, "Fremd", "Kind", other)
@@ -166,6 +153,24 @@ func TestHomeworkScope(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 		rec = f.do(t, f.lehrkraft, http.MethodPut, "/homework/"+other+"/"+id, `{"description":"Lesen"}`, homeworkPermission)
 		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		rec = f.do(t, f.lehrkraft, http.MethodDelete, "/homework/"+other+"/"+id, "", homeworkPermission)
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("a Lehrkraft of another class cannot reach the entry", func(t *testing.T) {
+		outsiderClass := fmt.Sprintf("hy%d", time.Now().UnixNano()%100000)
+		staff, account := testpkg.CreateTestStaffWithAccount(t, f.db, "Carla", fmt.Sprintf("Fremd-%d", time.Now().UnixNano()))
+		_ = testpkg.CreateTestClassTeacher(t, f.db, staff.ID, outsiderClass)
+		outsider := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: f.tenantID, Scope: tenant.ScopeSchool}
+		rec := f.do(t, outsider, http.MethodPut, "/homework/"+f.class+"/"+id, `{"description":"fremd"}`, homeworkPermission)
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		rec = f.do(t, outsider, http.MethodDelete, "/homework/"+f.class+"/"+id, "", homeworkPermission)
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		rec = f.do(t, outsider, http.MethodPut, "/homework/"+outsiderClass+"/"+id, `{"description":"fremd"}`, homeworkPermission)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "classday.homework_not_found")
+		rec = f.do(t, outsider, http.MethodDelete, "/homework/"+outsiderClass+"/"+id, "", homeworkPermission)
+		require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	})
 
 	t.Run("the entry is reached only through its own class", func(t *testing.T) {
@@ -177,6 +182,10 @@ func TestHomeworkScope(t *testing.T) {
 
 	t.Run("without the permission nothing is written", func(t *testing.T) {
 		rec := f.do(t, f.lehrkraft, http.MethodPost, "/homework/"+f.class, `{"date":"`+homeworkDay+`","description":"Lesen"}`, classDayReadPermission)
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		rec = f.do(t, f.colleague, http.MethodPut, "/homework/"+f.class+"/"+id, `{"description":"fremd"}`, classDayReadPermission)
+		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		rec = f.do(t, f.colleague, http.MethodDelete, "/homework/"+f.class+"/"+id, "", classDayReadPermission)
 		require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	})
 
@@ -193,9 +202,38 @@ func TestHomeworkScope(t *testing.T) {
 		}
 	})
 
+	var description string
 	var count int
-	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM education.class_homework WHERE tenant_id = ?`, f.tenantID).Scan(testpkg.Ctx(t), &count))
-	assert.Equal(t, 1, count, "no refused write stored anything")
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*), MAX(description) FROM education.class_homework WHERE tenant_id = ?`, f.tenantID).Scan(testpkg.Ctx(t), &count, &description))
+	assert.Equal(t, 1, count, "no refused write stored or deleted anything")
+	assert.Equal(t, "Lesen", description, "no refused write changed the entry")
+}
+
+// TestHomeworkColleagueOfTheClass: every Lehrkraft assigned to the class
+// changes and deletes its entries, whoever entered them; the author stays on
+// the row as provenance.
+func TestHomeworkColleagueOfTheClass(t *testing.T) {
+	t.Parallel()
+	f := setupHomeworkFixture(t)
+	id := f.add(t, f.lehrkraft, `{"date":"`+homeworkDay+`","description":"Lesen"}`)
+
+	report := f.report(t, f.colleague, classDayReadPermission, homeworkPermission)
+	assert.True(t, report.CanWrite, "the colleague may write the class's homework")
+	require.Len(t, report.Homework, 1)
+
+	rec := f.do(t, f.colleague, http.MethodPut, "/homework/"+f.class+"/"+id, `{"subject":"Deutsch","description":"Diktat üben"}`, homeworkPermission)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	report = f.report(t, f.lehrkraft, classDayReadPermission)
+	require.Len(t, report.Homework, 1)
+	assert.Equal(t, "Deutsch", report.Homework[0].Subject)
+	assert.Equal(t, "Diktat üben", report.Homework[0].Description)
+	var author int64
+	require.NoError(t, f.db.NewRaw(`SELECT created_by_staff_id FROM education.class_homework WHERE tenant_id = ? AND id = ?`, f.tenantID, id).Scan(testpkg.Ctx(t), &author))
+	assert.Equal(t, f.staffID, author, "a change keeps the author")
+
+	rec = f.do(t, f.colleague, http.MethodDelete, "/homework/"+f.class+"/"+id, "", homeworkPermission)
+	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
+	assert.Empty(t, f.report(t, f.lehrkraft, classDayReadPermission).Homework)
 }
 
 func TestHomeworkFeedbackShowsInTheClassView(t *testing.T) {

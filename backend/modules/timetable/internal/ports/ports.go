@@ -167,8 +167,8 @@ type Store interface {
 type HomeworkStore interface {
 	ListClassHomework(ctx context.Context, classKeys []string, date calendar.Date) ([]timetable.HomeworkEntry, domain.OperationStats, error)
 	InsertClassHomework(ctx context.Context, in timetable.HomeworkInput) (timetable.HomeworkEntry, domain.OperationStats, error)
-	UpdateOwnClassHomework(ctx context.Context, in timetable.HomeworkChange, classKey string) (timetable.HomeworkEntry, bool, domain.OperationStats, error)
-	DeleteOwnClassHomework(ctx context.Context, ref timetable.HomeworkRef, classKey string) (bool, domain.OperationStats, error)
+	UpdateClassHomework(ctx context.Context, in timetable.HomeworkChange, classKey string) (timetable.HomeworkEntry, bool, domain.OperationStats, error)
+	DeleteClassHomework(ctx context.Context, ref timetable.HomeworkRef, classKey string) (bool, domain.OperationStats, error)
 	ListHomeworkFeedback(ctx context.Context, date calendar.Date, studentIDs []int64) ([]timetable.HomeworkFeedback, domain.OperationStats, error)
 	UpsertHomeworkFeedback(ctx context.Context, in timetable.HomeworkFeedbackInput) (timetable.HomeworkFeedback, domain.OperationStats, error)
 	// DeleteHomeworkBefore deletes the tenant's entries and feedback dated

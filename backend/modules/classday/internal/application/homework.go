@@ -2,21 +2,18 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // HomeworkEntry is one homework entry of a class and day as the projection
-// reads it. CreatedBy is the author's users.staff_school_memberships row.
+// reads it.
 type HomeworkEntry struct {
 	ID          int64
 	Subject     *string
 	Description string
-	CreatedBy   *int64
 }
 
 // HomeworkFeedbackEntry is the OGS feedback of one child on one day.
@@ -35,7 +32,7 @@ type HomeworkBook interface {
 	HomeworkFeedbackOn(ctx context.Context, date calendar.Date, studentIDs []int64) ([]HomeworkFeedbackEntry, error)
 	AddHomework(ctx context.Context, in classday.HomeworkWrite) (HomeworkEntry, error)
 	ChangeHomework(ctx context.Context, in classday.HomeworkChange) (HomeworkEntry, error)
-	DeleteHomework(ctx context.Context, id int64, schoolClass string, staffID int64) error
+	DeleteHomework(ctx context.Context, id int64, schoolClass string) error
 }
 
 // HomeworkDependencies wire the homework seam (#4796). Without Homework the
@@ -46,15 +43,14 @@ type HomeworkDependencies struct {
 }
 
 // homework is the third write seam of the class-day view: the Lehrkraft
-// enters the homework of an assigned class; the OGS feedback per child is
-// read into the day report.
+// enters the homework of an assigned class and changes or deletes every entry
+// of it; the OGS feedback per child is read into the day report.
 type homework struct {
-	book   HomeworkBook
-	caller ports.Caller
+	book HomeworkBook
 }
 
 func newHomework(deps ClassDayDependencies) homework {
-	return homework{book: deps.Homework, caller: deps.Caller}
+	return homework{book: deps.Homework}
 }
 
 // writable returns the store of the writes, or ErrHomeworkNotConfigured.
@@ -77,7 +73,7 @@ func (h homework) AddHomework(ctx context.Context, in classday.HomeworkWrite) (*
 	if err != nil {
 		return nil, err
 	}
-	return dayHomework(entry, in.StaffID), nil
+	return dayHomework(entry), nil
 }
 
 func (h homework) ChangeHomework(ctx context.Context, in classday.HomeworkChange) (*classday.DayHomework, error) {
@@ -92,10 +88,10 @@ func (h homework) ChangeHomework(ctx context.Context, in classday.HomeworkChange
 	if err != nil {
 		return nil, err
 	}
-	return dayHomework(entry, in.StaffID), nil
+	return dayHomework(entry), nil
 }
 
-func (h homework) DeleteHomework(ctx context.Context, id int64, schoolClass string, staffID int64) error {
+func (h homework) DeleteHomework(ctx context.Context, id int64, schoolClass string) error {
 	book, err := h.writable()
 	if err != nil {
 		return err
@@ -103,12 +99,12 @@ func (h homework) DeleteHomework(ctx context.Context, id int64, schoolClass stri
 	if id <= 0 {
 		return classday.ErrHomeworkInvalid
 	}
-	return book.DeleteHomework(ctx, id, schoolClass, staffID)
+	return book.DeleteHomework(ctx, id, schoolClass)
 }
 
 // applyHomework fills in the class's homework of the date and each child's
-// OGS feedback. Own entries are marked for the caller's staff row; a caller
-// without one owns nothing.
+// OGS feedback. Whether the caller may change the entries is the report's
+// CanWriteHomework verdict, the same for every entry of the class.
 func (h homework) applyHomework(ctx context.Context, report *classday.DayReport, date calendar.Date) error {
 	if h.book == nil {
 		return nil
@@ -117,30 +113,10 @@ func (h homework) applyHomework(ctx context.Context, report *classday.DayReport,
 	if err != nil {
 		return fmt.Errorf("class day report: load homework: %w", err)
 	}
-	staffID, err := h.callerStaffID(ctx, len(entries) > 0)
-	if err != nil {
-		return err
-	}
 	for _, entry := range entries {
-		report.Homework = append(report.Homework, *dayHomework(entry, staffID))
+		report.Homework = append(report.Homework, *dayHomework(entry))
 	}
 	return h.applyFeedback(ctx, report, date)
-}
-
-// callerStaffID resolves the caller's staff row only when an entry needs
-// the own flag.
-func (h homework) callerStaffID(ctx context.Context, needed bool) (int64, error) {
-	if !needed || h.caller == nil {
-		return 0, nil
-	}
-	staffID, err := h.caller.CurrentStaffID(ctx)
-	if errors.Is(err, classday.ErrStaffRecordRequired) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("class day report: resolve staff for homework: %w", err)
-	}
-	return staffID, nil
 }
 
 func (h homework) applyFeedback(ctx context.Context, report *classday.DayReport, date calendar.Date) error {
@@ -174,11 +150,10 @@ func (h homework) applyFeedback(ctx context.Context, report *classday.DayReport,
 	return nil
 }
 
-func dayHomework(entry HomeworkEntry, staffID int64) *classday.DayHomework {
+func dayHomework(entry HomeworkEntry) *classday.DayHomework {
 	out := &classday.DayHomework{ID: entry.ID, Description: entry.Description}
 	if entry.Subject != nil {
 		out.Subject = *entry.Subject
 	}
-	out.Own = staffID > 0 && entry.CreatedBy != nil && *entry.CreatedBy == staffID
 	return out
 }

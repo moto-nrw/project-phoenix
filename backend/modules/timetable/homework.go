@@ -72,21 +72,19 @@ type HomeworkInput struct {
 	StaffID int64
 }
 
-// HomeworkChange replaces subject and text of one of the author's own
-// entries of the class.
+// HomeworkChange replaces subject and text of one entry of the class,
+// whoever entered it.
 type HomeworkChange struct {
 	ID          int64
 	SchoolClass string
 	Subject     *string
 	Description string
-	StaffID     int64
 }
 
-// HomeworkRef names one of the author's own entries of the class.
+// HomeworkRef names one entry of the class, whoever entered it.
 type HomeworkRef struct {
 	ID          int64
 	SchoolClass string
-	StaffID     int64
 }
 
 // HomeworkFeedback is the OGS feedback of one child and day.
@@ -119,8 +117,9 @@ type HomeworkQuery interface {
 // child. Which classes and children the caller may reach is decided before.
 type HomeworkCommand interface {
 	AddHomework(ctx context.Context, in HomeworkInput) (HomeworkEntry, error)
-	// ChangeHomework and DeleteHomework reach only the author's own entries
-	// of the named class; any other entry answers ErrHomeworkNotFound.
+	// ChangeHomework and DeleteHomework reach every entry of the named
+	// class, whoever entered it; an entry of another class answers
+	// ErrHomeworkNotFound. CreatedBy stays the author's provenance.
 	ChangeHomework(ctx context.Context, in HomeworkChange) (HomeworkEntry, error)
 	DeleteHomework(ctx context.Context, ref HomeworkRef) error
 	// RecordHomeworkFeedback stores the child's feedback of the day,

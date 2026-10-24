@@ -59,8 +59,6 @@ export interface ClassDayHomework {
   id: string;
   subject?: string;
   description: string;
-  // Eigener Eintrag: nur die Lehrkraft, die ihn angelegt hat, ändert ihn.
-  own: boolean;
 }
 
 export type MorningAttendanceStatus = "present" | "absent";

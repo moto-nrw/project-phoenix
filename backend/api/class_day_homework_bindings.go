@@ -32,7 +32,7 @@ type ClassDayHomeworkPort interface {
 	HomeworkFeedbackOn(ctx context.Context, date timezone.Date, studentIDs []int64) ([]classdayCompose.HomeworkFeedbackEntry, error)
 	AddHomework(ctx context.Context, in classday.HomeworkWrite) (classdayCompose.HomeworkEntry, error)
 	ChangeHomework(ctx context.Context, in classday.HomeworkChange) (classdayCompose.HomeworkEntry, error)
-	DeleteHomework(ctx context.Context, id int64, schoolClass string, staffID int64) error
+	DeleteHomework(ctx context.Context, id int64, schoolClass string) error
 }
 
 func (b ClassDayHomework) ClassHomework(ctx context.Context, schoolClass string, date timezone.Date) ([]classdayCompose.HomeworkEntry, error) {
@@ -71,7 +71,7 @@ func (b ClassDayHomework) AddHomework(ctx context.Context, in classday.HomeworkW
 
 func (b ClassDayHomework) ChangeHomework(ctx context.Context, in classday.HomeworkChange) (classdayCompose.HomeworkEntry, error) {
 	entry, err := b.Book.ChangeHomework(ctx, timetable.HomeworkChange{
-		ID: in.ID, SchoolClass: in.SchoolClass, Subject: in.Subject, Description: in.Description, StaffID: in.StaffID,
+		ID: in.ID, SchoolClass: in.SchoolClass, Subject: in.Subject, Description: in.Description,
 	})
 	if err != nil {
 		return classdayCompose.HomeworkEntry{}, classDayHomeworkError(err)
@@ -79,12 +79,12 @@ func (b ClassDayHomework) ChangeHomework(ctx context.Context, in classday.Homewo
 	return classDayHomeworkEntry(entry), nil
 }
 
-func (b ClassDayHomework) DeleteHomework(ctx context.Context, id int64, schoolClass string, staffID int64) error {
-	return classDayHomeworkError(b.Book.DeleteHomework(ctx, timetable.HomeworkRef{ID: id, SchoolClass: schoolClass, StaffID: staffID}))
+func (b ClassDayHomework) DeleteHomework(ctx context.Context, id int64, schoolClass string) error {
+	return classDayHomeworkError(b.Book.DeleteHomework(ctx, timetable.HomeworkRef{ID: id, SchoolClass: schoolClass}))
 }
 
 func classDayHomeworkEntry(entry timetable.HomeworkEntry) classdayCompose.HomeworkEntry {
-	return classdayCompose.HomeworkEntry{ID: entry.ID, Subject: entry.Subject, Description: entry.Description, CreatedBy: entry.CreatedBy}
+	return classdayCompose.HomeworkEntry{ID: entry.ID, Subject: entry.Subject, Description: entry.Description}
 }
 
 // classDayHomeworkError pairs Timetable's refusals with the projection's

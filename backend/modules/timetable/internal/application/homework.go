@@ -24,9 +24,9 @@ func (s *Service) homeworkOperation(ctx context.Context, operation string, callb
 	})
 }
 
-// ownHomework runs a change or delete of an own entry and turns a missing
-// row into ErrHomeworkNotFound.
-func (s *Service) ownHomework(ctx context.Context, operation string, write func(context.Context, internalports.HomeworkStore) (bool, domain.OperationStats, error)) error {
+// existingHomework runs a change or delete of an entry of the class and
+// turns a missing row into ErrHomeworkNotFound.
+func (s *Service) existingHomework(ctx context.Context, operation string, write func(context.Context, internalports.HomeworkStore) (bool, domain.OperationStats, error)) error {
 	return s.homeworkOperation(ctx, operation, func(ctx context.Context, store internalports.HomeworkStore, stats *domain.OperationStats) error {
 		found, queryStats, err := write(ctx, store)
 		stats.Add(queryStats)
@@ -95,13 +95,13 @@ func (s *Service) ChangeHomework(ctx context.Context, in timetable.HomeworkChang
 	if err != nil {
 		return timetable.HomeworkEntry{}, err
 	}
-	key, err := homeworkClassKey(in.ID, in.SchoolClass, in.StaffID)
+	key, err := homeworkClassKey(in.ID, in.SchoolClass)
 	if err != nil {
 		return timetable.HomeworkEntry{}, err
 	}
 	in.Subject, in.Description = subject, description
-	err = s.ownHomework(ctx, "change_class_homework", func(ctx context.Context, store internalports.HomeworkStore) (bool, domain.OperationStats, error) {
-		value, found, queryStats, updateErr := store.UpdateOwnClassHomework(ctx, in, key)
+	err = s.existingHomework(ctx, "change_class_homework", func(ctx context.Context, store internalports.HomeworkStore) (bool, domain.OperationStats, error) {
+		value, found, queryStats, updateErr := store.UpdateClassHomework(ctx, in, key)
 		result = value
 		return found, queryStats, updateErr
 	})
@@ -109,12 +109,12 @@ func (s *Service) ChangeHomework(ctx context.Context, in timetable.HomeworkChang
 }
 
 func (s *Service) DeleteHomework(ctx context.Context, ref timetable.HomeworkRef) error {
-	key, err := homeworkClassKey(ref.ID, ref.SchoolClass, ref.StaffID)
+	key, err := homeworkClassKey(ref.ID, ref.SchoolClass)
 	if err != nil {
 		return err
 	}
-	return s.ownHomework(ctx, "delete_class_homework", func(ctx context.Context, store internalports.HomeworkStore) (bool, domain.OperationStats, error) {
-		return store.DeleteOwnClassHomework(ctx, ref, key)
+	return s.existingHomework(ctx, "delete_class_homework", func(ctx context.Context, store internalports.HomeworkStore) (bool, domain.OperationStats, error) {
+		return store.DeleteClassHomework(ctx, ref, key)
 	})
 }
 
@@ -163,11 +163,11 @@ func (s *Service) DeleteExpiredHomework(ctx context.Context, retentionDays int) 
 	return deleted, err
 }
 
-// homeworkClassKey validates the reference of an own entry and returns the
+// homeworkClassKey validates the reference of an entry and returns the
 // class key it is matched by.
-func homeworkClassKey(id int64, schoolClass string, staffID int64) (string, error) {
+func homeworkClassKey(id int64, schoolClass string) (string, error) {
 	keys := classArrivalKeys([]string{schoolClass})
-	if id <= 0 || staffID <= 0 || len(keys) == 0 {
+	if id <= 0 || len(keys) == 0 {
 		return "", timetable.ErrInvalidHomework
 	}
 	return keys[0], nil

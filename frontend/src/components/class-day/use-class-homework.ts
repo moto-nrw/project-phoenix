@@ -1,8 +1,9 @@
 "use client";
 
 // Hausaufgaben in der Klassenansicht (#4796): Eingabe, Ändern und Löschen
-// der eigenen Einträge. Der Zustand der beiden Dialoge liegt hier, die
-// Anzeige baut die Klassenseite aus den Kit-Bausteinen.
+// jedes Eintrags der Klasse, egal wer ihn angelegt hat. Der Zustand der
+// beiden Dialoge liegt hier, die Anzeige baut die Klassenseite aus den
+// Kit-Bausteinen.
 
 import { useState } from "react";
 import { useApiFormError } from "~/contexts/ToastContext";

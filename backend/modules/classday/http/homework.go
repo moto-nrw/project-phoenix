@@ -15,9 +15,10 @@ import (
 // Homework through "moto schule" (#4796): the Lehrkraft enters what an
 // assigned class has to do on a day; subject optional, text required. Every
 // write passes the school scope, the class_day:homework_write permission and
-// the caller's education.class_teachers assignment here. Changes and deletes
-// reach only the caller's own entries. No school setting gates the write:
-// homework is the Lehrkraft's own entry and changes no OGS record.
+// the caller's class reach here. Changes and deletes reach every entry of the
+// class, whoever entered it; an entry of another class is not found. Only a
+// new entry needs the caller's staff row, as its author. No school setting
+// gates the write: homework changes no OGS record.
 
 // HomeworkRequest is the body of the homework writes. Date is required only
 // when an entry is created.
@@ -43,25 +44,28 @@ var homeworkErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: classday.ErrHomeworkInvalid, Render: common.ErrorInvalidRequest},
 }, common.ErrorInternalServer)
 
-// homeworkWriteTarget runs the gates every homework write shares: the class
-// assignment, the body and the caller's staff row.
-func (rs *Resource) homeworkWriteTarget(w http.ResponseWriter, r *http.Request) (string, *HomeworkRequest, int64, bool) {
+// homeworkWriteTarget runs the gates the homework writes with a body share:
+// the class reach and the body.
+func (rs *Resource) homeworkWriteTarget(w http.ResponseWriter, r *http.Request) (string, *HomeworkRequest, bool) {
 	class, ok := rs.requireAssignedClass(w, r, chi.URLParam(r, "schoolClass"))
 	if !ok {
-		return "", nil, 0, false
+		return "", nil, false
 	}
 	req := &HomeworkRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return "", nil, 0, false
+		return "", nil, false
 	}
-	staffID, ok := rs.requireCurrentStaffID(w, r)
-	return class, req, staffID, ok
+	return class, req, true
 }
 
 // postHomework handles POST /school/class-day/homework/{schoolClass}.
 func (rs *Resource) postHomework(w http.ResponseWriter, r *http.Request) {
-	class, req, staffID, ok := rs.homeworkWriteTarget(w, r)
+	class, req, ok := rs.homeworkWriteTarget(w, r)
+	if !ok {
+		return
+	}
+	staffID, ok := rs.requireCurrentStaffID(w, r)
 	if !ok {
 		return
 	}
@@ -85,12 +89,12 @@ func (rs *Resource) putHomework(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	class, req, staffID, ok := rs.homeworkWriteTarget(w, r)
+	class, req, ok := rs.homeworkWriteTarget(w, r)
 	if !ok {
 		return
 	}
 	entry, err := rs.ClassDay.ChangeHomework(r.Context(), classday.HomeworkChange{
-		ID: id, SchoolClass: class, Subject: req.Subject, Description: req.Description, StaffID: staffID,
+		ID: id, SchoolClass: class, Subject: req.Subject, Description: req.Description,
 	})
 	if err != nil {
 		common.RenderError(w, r, homeworkErrorRenderer(err))
@@ -109,11 +113,7 @@ func (rs *Resource) deleteHomework(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	staffID, ok := rs.requireCurrentStaffID(w, r)
-	if !ok {
-		return
-	}
-	if err := rs.ClassDay.DeleteHomework(r.Context(), id, class, staffID); err != nil {
+	if err := rs.ClassDay.DeleteHomework(r.Context(), id, class); err != nil {
 		common.RenderError(w, r, homeworkErrorRenderer(err))
 		return
 	}

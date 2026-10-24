@@ -133,7 +133,8 @@ export interface ClassDayClassProps {
     marks: readonly MorningAttendanceMark[],
   ) => Promise<void>;
   /**
-   * Trägt Hausaufgaben ein und ändert oder löscht eigene (#4796). Ohne sie
+   * Trägt Hausaufgaben ein und ändert oder löscht jeden Eintrag der Klasse,
+   * egal wer ihn angelegt hat (#4796). Ohne sie
    * bleiben die Hausaufgaben eine Anzeige.
    */
   readonly homework?: ClassHomeworkApi;
@@ -616,7 +617,7 @@ export function ClassDayClass({
                         {entry.description}
                       </p>
                     </div>
-                    {canWriteHomework && entry.own ? (
+                    {canWriteHomework ? (
                       <OverflowMenu
                         ariaLabel={`Aktionen zur Hausaufgabe ${entry.subject ?? ""}`.trim()}
                         triggerSize="sm"

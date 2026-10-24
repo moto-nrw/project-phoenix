@@ -7693,7 +7693,7 @@ function teacherHomeworkTopic(): HelpTopic {
         ],
       },
       {
-        title: "Einen eigenen Eintrag ändern oder löschen",
+        title: "Einen Eintrag ändern oder löschen",
         steps: [
           "Tippen Sie beim Eintrag auf die drei Punkte.",
           "Wählen Sie `Ändern` oder `Löschen`.",
@@ -7712,11 +7712,12 @@ function teacherHomeworkTopic(): HelpTopic {
       "Die OGS sieht die Hausaufgaben in der Lernzeit bei jedem Kind der Klasse.",
     notes: [
       "Für einen Tag können Sie mehrere Einträge machen, zum Beispiel einen je Fach.",
+      "Jede Lehrkraft der Klasse kann alle Einträge ändern oder löschen. Auch die Einträge der anderen.",
       "Führen Sie selbst eine Lernzeit unter `Meine Aufsichten`? Dann geben Sie die Rückmeldung dort mit `Hausaufgaben`.",
       "Eltern sehen weder die Hausaufgaben noch die Rückmeldung.",
     ],
     differences: [
-      "Beim Eintrag fehlen die drei Punkte? Dann hat ihn eine andere Lehrkraft gemacht. Nur sie kann ihn ändern.",
+      "Fehlen `Hausaufgaben eintragen` und die drei Punkte? Dann darf Ihre Rolle keine Hausaufgaben eintragen. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.teacherClassList,

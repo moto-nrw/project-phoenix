@@ -772,8 +772,8 @@ describe("ClassDayClass homework (#4796)", () => {
     return report({
       can_write_homework: true,
       homework: [
-        { id: "11", subject: "Mathe", description: "Seite 12", own: true },
-        { id: "12", description: "Lesen", own: false },
+        { id: "11", subject: "Mathe", description: "Seite 12" },
+        { id: "12", description: "Lesen" },
       ],
       rows: [
         {
@@ -812,13 +812,65 @@ describe("ClassDayClass homework (#4796)", () => {
     expect(screen.getByText("Lesen")).toBeInTheDocument();
     expect(screen.getByText("Hausaufgaben: War schwer")).toBeInTheDocument();
     expect(screen.getByText("OGS: Aufgabe 3")).toBeInTheDocument();
-    // Only the own entry carries actions.
+    // Every entry of the class carries actions, whoever entered it.
     expect(
       screen.getByRole("button", { name: "Aktionen zur Hausaufgabe Mathe" }),
     ).toBeInTheDocument();
     expect(
       screen.getAllByRole("button", { name: /Aktionen zur Hausaufgabe/ }),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
+  });
+
+  it("changes an entry that another Lehrkraft of the class entered", async () => {
+    const homework = api();
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(homeworkReport())}
+        homework={homework}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen zur Hausaufgabe" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ändern" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Was ist zu tun?"), {
+      target: { value: "Lesen, Seite 4" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(homework.change).toHaveBeenCalledWith("4a", "12", {
+        subject: null,
+        description: "Lesen, Seite 4",
+      }),
+    );
+  });
+
+  it("deletes an entry that another Lehrkraft of the class entered", async () => {
+    const homework = api();
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(homeworkReport())}
+        homework={homework}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen zur Hausaufgabe" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    await waitFor(() =>
+      expect(homework.remove).toHaveBeenCalledWith("4a", "12"),
+    );
   });
 
   it("stays read-only without the write permission", async () => {
