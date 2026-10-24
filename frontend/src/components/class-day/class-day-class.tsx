@@ -5,20 +5,30 @@
 // Die Seite beantwortet genau eine Frage: wer aus dieser Klasse bleibt heute
 // in der Betreuung, wer geht nach Hause, und bei wem ist es heute anders als
 // sonst. Abweichungen stehen am Kind selbst, nicht in einem eigenen Block —
-// jedes Kind kommt genau einmal vor.
+// jedes Kind kommt genau einmal vor. Heute trägt die Lehrkraft am Kind auch
+// ein, ob es am Vormittag da ist (#4790).
 
 import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
-import type { ClassDayReport } from "~/lib/class-day-api";
+import type {
+  ClassDayReport,
+  ClassDayRow,
+  MorningAttendanceStatus,
+} from "~/lib/class-day-api";
 import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -26,6 +36,7 @@ import type {
   ClassDayClasses,
   ClassTripReportInput,
   ClassTripReportResult,
+  MorningAttendanceMark,
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
@@ -35,11 +46,19 @@ import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-
 import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { countDayChanges } from "./day-changes";
 import {
+  draftMarks,
+  markOpenPresent,
+  morningRowKey,
+  morningStatus,
+  morningSummaryLine,
+  type MorningAttendanceDraft,
+} from "./morning-attendance";
+import {
   classDayDateParam,
   classDayOverviewPath,
   isWeekendISO,
 } from "./routes";
-import { Section } from "./student-row";
+import { Section, type StudentRowMorning } from "./student-row";
 
 const logger = createLogger({ component: "ClassDayClass" });
 
@@ -99,6 +118,15 @@ export interface ClassDayClassProps {
     schoolClass: string,
     input: ClassTripReportInput,
   ) => Promise<ClassTripReportResult>;
+  /**
+   * Speichert die Anwesenheit am Vormittag (#4790). Ohne sie bleibt die
+   * Anwesenheit eine Anzeige.
+   */
+  readonly recordMorningAttendance?: (
+    schoolClass: string,
+    date: string,
+    marks: readonly MorningAttendanceMark[],
+  ) => Promise<void>;
   /** Nur für Tests: fixiert den Vergleichstag für "Heute gemeldet". */
   readonly now?: Date;
 }
@@ -108,6 +136,7 @@ export function ClassDayClass({
   fetchClassDay,
   fetchClasses,
   reportClassTrip,
+  recordMorningAttendance,
   now,
 }: ClassDayClassProps) {
   // Kein Default-Prop: eine `new Date()` in der Signatur bricht die
@@ -249,6 +278,72 @@ export function ClassDayClass({
     );
   };
 
+  // Anwesenheit am Vormittag (#4790): Markierungen sammeln sich im Entwurf
+  // dieser Klasse und dieses Tages und gehen erst mit „Speichern“ hinaus.
+  const reportKey = `${schoolClass}-${dateISO}`;
+  const [draftState, setDraftState] = useState<{
+    key: string;
+    marks: MorningAttendanceDraft;
+  }>({ key: reportKey, marks: {} });
+  const draft = draftState.key === reportKey ? draftState.marks : {};
+  const [savingMorning, setSavingMorning] = useState(false);
+  const morningErrors = useApiFormError();
+  const canRecordMorning =
+    Boolean(recordMorningAttendance) &&
+    report?.can_record_morning_attendance === true &&
+    !weekend;
+  const draftCount = Object.keys(draft).length;
+  const openCount = rows.filter(
+    (row) => morningStatus(row, draft) === null,
+  ).length;
+  const markRow = useCallback(
+    (row: ClassDayRow, status: MorningAttendanceStatus) => {
+      setDraftState((current) => ({
+        key: reportKey,
+        marks: {
+          ...(current.key === reportKey ? current.marks : {}),
+          [morningRowKey(row)]: status,
+        },
+      }));
+    },
+    [reportKey],
+  );
+  const discardMorning = () => {
+    morningErrors.clear();
+    setDraftState({ key: reportKey, marks: {} });
+  };
+  const saveMorning = async () => {
+    if (!recordMorningAttendance || draftCount === 0) return;
+    morningErrors.clear();
+    setSavingMorning(true);
+    try {
+      await recordMorningAttendance(
+        schoolClass,
+        dateISO,
+        draftMarks(rows, draft),
+      );
+      await refetchReport();
+      // Die neu geladene Liste zeigt den gespeicherten Stand, der Fuß
+      // verschwindet: das ist die Rückmeldung.
+      setDraftState({ key: reportKey, marks: {} });
+    } catch (cause) {
+      logger.error("class_day_morning_attendance_save_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      void morningErrors.show(cause, {
+        object: "die Anwesenheit",
+        retry: () => void saveMorning(),
+      });
+    } finally {
+      setSavingMorning(false);
+    }
+  };
+  const morning: StudentRowMorning = {
+    draft,
+    onChange: canRecordMorning ? markRow : undefined,
+    disabled: savingMorning,
+  };
+
   return (
     <div
       className="w-full"
@@ -290,6 +385,37 @@ export function ClassDayClass({
           <p className="mt-1 text-sm font-medium text-gray-900">
             {exceptionLine}
           </p>
+        ) : null}
+        {/* Anwesenheit am Vormittag (#4790): nur heute, mit Freigabe der OGS.
+            Ein Satz sagt, was zu tun ist; die Zahlen zeigen, was noch fehlt. */}
+        {canRecordMorning && rows.length > 0 ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">
+                Anwesenheit am Vormittag: {morningSummaryLine(rows, draft)}
+              </p>
+              <p className="text-sm text-gray-600">
+                Tippen Sie bei jedem Kind auf „Da“ oder „Fehlt“. Gemeldete
+                Kinder stehen schon auf „Fehlt“.
+              </p>
+            </div>
+            {openCount > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={savingMorning}
+                onClick={() =>
+                  setDraftState({
+                    key: reportKey,
+                    marks: markOpenPresent(rows, draft),
+                  })
+                }
+              >
+                Alle übrigen da
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         {/* Nur mit Freigabe der OGS (#2970). Der Knopf nennt den Tag, den er
             vorbelegt: "heute" nur, wenn heute angezeigt wird. */}
@@ -381,6 +507,7 @@ export function ClassDayClass({
                 rows={unknownRows}
                 enrollmentKnown={false}
                 now={at}
+                morning={morning}
               />
               <Section
                 title="Abgemeldet"
@@ -389,6 +516,7 @@ export function ClassDayClass({
                 rows={absent}
                 enrollmentKnown={false}
                 now={at}
+                morning={morning}
               />
             </div>
           )}
@@ -405,12 +533,14 @@ export function ClassDayClass({
                 accent="text-[var(--class-day-blue)]"
                 rows={staying}
                 now={at}
+                morning={morning}
               />
               <Section
                 title="Gehen nach Hause"
                 count={leaving.length}
                 rows={leaving}
                 now={at}
+                morning={morning}
               />
               {noCare.length > 0 && (
                 <Section
@@ -418,6 +548,7 @@ export function ClassDayClass({
                   count={noCare.length}
                   rows={noCare}
                   now={at}
+                  morning={morning}
                 />
               )}
               <Section
@@ -426,9 +557,24 @@ export function ClassDayClass({
                 accent="text-[var(--class-day-danger)]"
                 rows={absent}
                 now={at}
+                morning={morning}
               />
             </div>
           )}
+
+        {/* Der Entwurf geht erst mit „Speichern“ hinaus (Bauart 2, #3112). */}
+        {canRecordMorning && draftCount > 0 ? (
+          <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+            <FormErrorAlert message={morningErrors.error} />
+            <EditActions
+              onCancel={discardMorning}
+              onSave={() => void saveMorning()}
+              saving={savingMorning}
+              saveLabel="Anwesenheit speichern"
+              cancelLabel="Verwerfen"
+            />
+          </div>
+        ) : null}
       </section>
 
       {schoolClass && canReportClassTrip ? (

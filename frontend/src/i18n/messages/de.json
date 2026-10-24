@@ -2299,6 +2299,9 @@
         "class_trip_return_time_weekend": "Am Wochenende kommt kein Kind in die OGS. Bitte löschen Sie die Rückkehrzeit.",
         "class_trip_status_conflict": "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
         "class_trip_student_not_in_class": "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+        "morning_attendance_no_school_day": "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
+        "morning_attendance_not_today": "Die Anwesenheit lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+        "morning_attendance_unknown_child": "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
         "school_write_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson."
       },
       "communication": {

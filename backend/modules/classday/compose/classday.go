@@ -9,29 +9,28 @@ import (
 
 // Ports the composition root binds for the school-portal capability.
 type (
-	DayRoster                = application.DayRoster
-	DayRosterRow             = application.DayRosterRow
-	DayRosterStudent         = application.DayRosterStudent
-	DayRosters               = application.DayRosters
-	StatusDayEntry           = application.StatusDayEntry
-	StatusDays               = application.StatusDays
-	Companions               = application.Companions
-	SheetStudent             = application.SheetStudent
-	SheetPerson              = application.SheetPerson
-	SheetStudents            = application.SheetStudents
-	EmergencyContactRow      = application.EmergencyContactRow
-	EmergencyContacts        = application.EmergencyContacts
-	AccessRecord             = application.AccessRecord
-	AccessLog                = application.AccessLog
-	BlockStarts              = application.BlockStarts
-	ArrivalScheduleAnnouncer = application.ArrivalScheduleAnnouncer
+	DayRoster                     = application.DayRoster
+	DayRosterRow                  = application.DayRosterRow
+	DayRosterStudent              = application.DayRosterStudent
+	DayRosters                    = application.DayRosters
+	StatusDayEntry                = application.StatusDayEntry
+	StatusDays                    = application.StatusDays
+	Companions                    = application.Companions
+	SheetStudent                  = application.SheetStudent
+	SheetPerson                   = application.SheetPerson
+	SheetStudents                 = application.SheetStudents
+	EmergencyContactRow           = application.EmergencyContactRow
+	EmergencyContacts             = application.EmergencyContacts
+	AccessRecord                  = application.AccessRecord
+	AccessLog                     = application.AccessLog
+	BlockStarts                   = application.BlockStarts
+	ArrivalScheduleAnnouncer      = application.ArrivalScheduleAnnouncer
+	MorningAttendanceDependencies = application.MorningAttendanceDependencies
 )
 
-// ClassDayDependencies wires the school-portal capability: the day report
-// over Enrollment's day roster and Care Plan's day facts, the supervision
-// sheet, and the write seams of moto schule (#2970, #4799). A nil
-// ClassArrivalExceptions or TripStatusDays leaves the arrival exception or
-// class-trip routes answering "not configured".
+// ClassDayDependencies wire the day report, the supervision sheet and the
+// write seams of moto schule (#2970, #4790, #4799); a nil seam answers "not
+// configured".
 type ClassDayDependencies struct {
 	Caller                 CallerReader
 	Rosters                DayRosters
@@ -48,6 +47,7 @@ type ClassDayDependencies struct {
 	BlockStarts            BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
 	TripStatusDays         ClassTripStatusDays
+	MorningAttendanceDependencies
 }
 
 // NewClassDay composes the school-portal capability.
@@ -60,7 +60,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
 		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, TripScope: deps.WriteScope, Announcer: deps.Announcer,
-		TripStatusDays: deps.TripStatusDays,
+		TripStatusDays: deps.TripStatusDays, MorningAttendanceDependencies: deps.MorningAttendanceDependencies,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}

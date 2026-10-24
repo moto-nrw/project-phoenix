@@ -499,6 +499,24 @@
       "legacy": "classday.class_trip_student_not_in_class"
     },
     {
+      "code": "classday.morning_attendance_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_no_school_day"
+    },
+    {
+      "code": "classday.morning_attendance_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_not_today"
+    },
+    {
+      "code": "classday.morning_attendance_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_unknown_child"
+    },
+    {
       "code": "classday.school_write_disabled",
       "class": "permission",
       "parameters": [],

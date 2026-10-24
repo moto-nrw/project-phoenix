@@ -2299,6 +2299,9 @@
         "class_trip_return_time_weekend": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "class_trip_status_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "class_trip_student_not_in_class": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "morning_attendance_no_school_day": "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
+        "morning_attendance_not_today": "Присутність можна позначити лише на сьогодні. Відкрийте сьогоднішній день.",
+        "morning_attendance_unknown_child": "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
         "school_write_disabled": "У вас немає доступу до: {object}. Зверніться до школи."
       },
       "communication": {

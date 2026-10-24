@@ -2299,6 +2299,9 @@
         "class_trip_return_time_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "class_trip_status_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "class_trip_student_not_in_class": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
+        "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
+        "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
         "school_write_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "communication": {

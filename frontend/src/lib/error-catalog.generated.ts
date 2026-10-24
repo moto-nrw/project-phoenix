@@ -139,6 +139,12 @@ export const ERROR_CATALOG = {
         "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.class_trip_student_not_in_class":
         "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.morning_attendance_no_school_day":
+        "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
+      "classday.morning_attendance_not_today":
+        "Die Anwesenheit lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+      "classday.morning_attendance_unknown_child":
+        "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.school_write_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.announcement_reminder_sent":
@@ -1332,6 +1338,12 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.morning_attendance_no_school_day":
+        "Today is not a school day. Attendance can only be recorded on school days.",
+      "classday.morning_attendance_not_today":
+        "Attendance can only be recorded for today. Please open today.",
+      "classday.morning_attendance_unknown_child":
+        "A child no longer belongs to this class. Please reload the page.",
       "enrollment.care_offering_day_conflict":
         "Two options that do not go together are chosen for the same day. Please choose only one per day.",
       "enrollment.care_offering_exactly_one":
@@ -1635,6 +1647,12 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.morning_attendance_no_school_day":
+        "Сегодня не учебный день. Посещаемость можно отмечать только в учебные дни.",
+      "classday.morning_attendance_not_today":
+        "Посещаемость можно отметить только за сегодня. Откройте сегодняшний день.",
+      "classday.morning_attendance_unknown_child":
+        "Один ребёнок больше не относится к этому классу. Обновите страницу.",
       "enrollment.care_offering_day_conflict":
         "На один день выбраны две программы, которые нельзя совмещать. Выберите только одну на день.",
       "enrollment.care_offering_exactly_one":
@@ -1924,6 +1942,12 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.morning_attendance_no_school_day":
+        "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
+      "classday.morning_attendance_not_today":
+        "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
+      "classday.morning_attendance_unknown_child":
+        "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
       "enrollment.care_offering_day_conflict":
         "Për të njëjtën ditë janë zgjedhur dy oferta që nuk shkojnë bashkë. Ju lutemi zgjidhni vetëm një për ditë.",
       "enrollment.care_offering_exactly_one":
@@ -2224,6 +2248,12 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.morning_attendance_no_school_day":
+        "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
+      "classday.morning_attendance_not_today":
+        "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
+      "classday.morning_attendance_unknown_child":
+        "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
       "enrollment.care_offering_day_conflict":
         "Na ten sam dzień wybrano dwie oferty, których nie można łączyć. Wybierz tylko jedną na dzień.",
       "enrollment.care_offering_exactly_one":
@@ -2513,6 +2543,12 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.morning_attendance_no_school_day":
+        "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
+      "classday.morning_attendance_not_today":
+        "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
+      "classday.morning_attendance_unknown_child":
+        "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
       "enrollment.care_offering_day_conflict":
         "Aynı gün için birlikte seçilemeyen iki hizmet seçildi. Lütfen her gün için yalnızca birini seçin.",
       "enrollment.care_offering_exactly_one":
@@ -2805,6 +2841,12 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.morning_attendance_no_school_day":
+        "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
+      "classday.morning_attendance_not_today":
+        "Присутність можна позначити лише на сьогодні. Відкрийте сьогоднішній день.",
+      "classday.morning_attendance_unknown_child":
+        "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
       "enrollment.care_offering_day_conflict":
         "На один день обрано дві програми, які не можна поєднувати. Оберіть лише одну на день.",
       "enrollment.care_offering_exactly_one":

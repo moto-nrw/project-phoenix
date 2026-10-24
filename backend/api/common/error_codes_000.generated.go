@@ -86,6 +86,9 @@ const (
 	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
 	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
 	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
+	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
+	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
+	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
 	CodeClassdaySchoolWriteDisabled                      = "classday.school_write_disabled"
 	CodeCommunicationAnnouncementNotFound                = "communication.announcement_not_found"
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
@@ -299,9 +302,6 @@ const (
 	CodeImportFileRowInvalid                             = "import.file_row_invalid"
 	CodeImportFileTooLarge                               = "import.file_too_large"
 	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
-	CodeImportFileUnreadable                             = "import.file_unreadable"
-	CodeImportImportBatchFailed                          = "import.import_batch_failed"
-	CodeImportModeForbidden                              = "import.mode_forbidden"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -389,6 +389,9 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_trip_return_time_weekend":              "input",
 	"classday.class_trip_status_conflict":                  "business_rejection",
 	"classday.class_trip_student_not_in_class":             "business_rejection",
+	"classday.morning_attendance_no_school_day":            "input",
+	"classday.morning_attendance_not_today":                "input",
+	"classday.morning_attendance_unknown_child":            "business_rejection",
 	"classday.school_write_disabled":                       "permission",
 	"communication.announcement_not_found":                 "business_rejection",
 	"communication.announcement_not_published":             "business_rejection",
@@ -602,9 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"import.file_row_invalid":                              "input",
 	"import.file_too_large":                                "input",
 	"import.file_type_invalid":                             "input",
-	"import.file_unreadable":                               "input",
-	"import.import_batch_failed":                           "server",
-	"import.mode_forbidden":                                "permission",
 }
 
 func init() {

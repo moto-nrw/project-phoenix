@@ -54,6 +54,10 @@ func (s writeScopeSettingsDouble) Resolve(_ context.Context, key string) (any, e
 	return s.value, s.err
 }
 
+func (writeScopeSettingsDouble) ResolveBool(_ context.Context, key string) (bool, error) {
+	return false, errors.New("unexpected key " + key)
+}
+
 // TestClassDayWriteScopeReadsTheMultiSelect pins how the school-portal writes
 // read operations.school_portal_write_scope (#4799): every chosen value opens
 // its own write, the empty default opens none, and a read failure or a
