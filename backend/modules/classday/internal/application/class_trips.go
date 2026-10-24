@@ -43,7 +43,7 @@ type classTrips struct {
 // studentArrivals is the part of Care Plan's arrival exceptions a day
 // outing with a return time writes.
 type studentArrivals interface {
-	CreateOrReclaimException(ctx context.Context, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*careplan.ArrivalException, error)
+	CreateOrReclaimExceptionForClass(ctx context.Context, schoolClass string, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*careplan.ArrivalException, error)
 }
 
 // MayReportClassTrips applies operations.school_portal_write_scope.
@@ -93,6 +93,9 @@ func (t classTrips) ReportClassTrip(ctx context.Context, in classday.ClassTripWr
 		return &classday.ClassTripResult{Kind: classday.ClassTripKindStatusDays, StudentCount: len(studentIDs), DateCount: len(dates)}, nil
 	}
 
+	// Every exception retains its student lock until the request commits.
+	// Use one order even when callers select the same children in reverse.
+	slices.Sort(studentIDs)
 	arrival := calendar.NormalizeWallClock(*in.ReturnTime)
 	arrivalReason := classTripArrivalReason
 	if reason != "" {
@@ -100,18 +103,28 @@ func (t classTrips) ReportClassTrip(ctx context.Context, in classday.ClassTripWr
 	}
 	staffID := func() (int64, error) { return in.CreatedBy, nil }
 	for _, studentID := range studentIDs {
-		_, err := t.arrivals.CreateOrReclaimException(ctx, studentID, dates[0], &arrival, &arrivalReason, in.CreatedBy, staffID)
-		if errors.Is(err, careplan.ErrCareExceptionDayConflict) || errors.Is(err, careplan.ErrCareExceptionContainsPartialAbsence) {
-			return nil, MappedError{err: err, sentinel: classday.ErrClassTripArrivalConflict}
-		}
+		_, err := t.arrivals.CreateOrReclaimExceptionForClass(ctx, in.SchoolClass, studentID, dates[0], &arrival, &arrivalReason, in.CreatedBy, staffID)
 		if err != nil {
-			return nil, err
+			return nil, mapClassTripArrivalError(err)
 		}
 	}
 	if t.announcer != nil {
 		t.announcer.AnnounceArrivalScheduleChange(ctx)
 	}
 	return &classday.ClassTripResult{Kind: classday.ClassTripKindReturnTime, StudentCount: len(studentIDs), DateCount: 1}, nil
+}
+
+// mapClassTripArrivalError keeps the school portal's business rejections
+// independent of the Care Plan command's own error identities.
+func mapClassTripArrivalError(err error) error {
+	switch {
+	case errors.Is(err, careplan.ErrBulkStudentNotFound):
+		return MappedError{err: err, sentinel: classday.ErrClassTripStudentNotInClass}
+	case errors.Is(err, careplan.ErrCareExceptionDayConflict), errors.Is(err, careplan.ErrCareExceptionContainsPartialAbsence):
+		return MappedError{err: err, sentinel: classday.ErrClassTripArrivalConflict}
+	default:
+		return err
+	}
 }
 
 // validate checks the shape of the report before anything is read: the

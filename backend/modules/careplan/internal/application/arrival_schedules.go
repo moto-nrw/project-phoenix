@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -393,7 +394,30 @@ func (s *arrivalScheduleService) CreateOrReclaimException(
 		reason,
 		staffID,
 		resolveStaffID,
+		nil,
 	)
+}
+
+// CreateOrReclaimExceptionForClass authorizes the current student row inside
+// the same tenant transaction as the existing exception command. A class
+// transfer while waiting for the lock must invalidate the roster precheck.
+func (s *arrivalScheduleService) CreateOrReclaimExceptionForClass(
+	ctx context.Context, schoolClass string, studentID int64, date calendar.Date,
+	arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error),
+) (*careplan.ArrivalException, error) {
+	if s.students == nil || strings.TrimSpace(schoolClass) == "" {
+		return nil, errors.New("class arrival exception: students and school class are required")
+	}
+	return s.createOrReclaimException(ctx, studentID, date, arrivalTime, reason, staffID, resolveStaffID, func(txCtx context.Context) error {
+		student, err := s.students.LockByID(txCtx, studentID, date)
+		if err != nil {
+			return err
+		}
+		if student.Alumnus || student.CareEnded {
+			return careplan.ErrBulkStudentNotFound
+		}
+		return validateLockedArrivalStudent(txCtx, student, careplan.ArrivalScheduleBulkFilter{SchoolClass: strings.TrimSpace(schoolClass)})
+	})
 }
 
 func (s *arrivalScheduleService) UpdateException(
