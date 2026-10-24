@@ -77183,12 +77183,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "b182b9e62af2f2e0b969ed55a2aac070",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77196,12 +77196,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "d054a0647b0009996a70ea8ad58d2761",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77209,12 +77209,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.BulkCreateForDates",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayService.now",
       "target_owner": "",
-      "binding_digest": "cec304a118c04b152ba54d67bff86175",
+      "binding_digest": "d60b031c35cbb437bc8237250849a17e",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0102",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77222,12 +77222,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.CreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "b182b9e62af2f2e0b969ed55a2aac070",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77235,12 +77235,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.CreateForDates",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "d054a0647b0009996a70ea8ad58d2761",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.CreateForDates. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77248,12 +77248,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.CreateForDates",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayService.now",
       "target_owner": "",
-      "binding_digest": "cec304a118c04b152ba54d67bff86175",
+      "binding_digest": "d60b031c35cbb437bc8237250849a17e",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0102",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77261,12 +77261,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.DeleteStatusDay",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayService.now",
       "target_owner": "",
-      "binding_digest": "cec304a118c04b152ba54d67bff86175",
+      "binding_digest": "d60b031c35cbb437bc8237250849a17e",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0102",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application/presence.StudentStatusDayService.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77386,12 +77386,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.UpsertReported",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "b182b9e62af2f2e0b969ed55a2aac070",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Capability.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",
@@ -77399,12 +77399,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.UpsertReported",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
       "target_owner": "care-plan",
-      "binding_digest": "d054a0647b0009996a70ea8ad58d2761",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
       "effect": "lock",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098)."
+      "approval_adr": "0102",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102)."
     },
     {
       "source_owner": "student-presence",

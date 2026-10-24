@@ -2,6 +2,14 @@
 package common
 
 const (
+	CodeTimetableSlotListsDisabled                   = "timetable.slot_lists_disabled"
+	CodeTimetableSpontaneousActivitiesDisabled       = "timetable.spontaneous_activities_disabled"
+	CodeTimetableSpontaneousCategoryArchived         = "timetable.spontaneous_category_archived"
+	CodeTimetableStaffAbsentOnDate                   = "timetable.staff_absent_on_date"
+	CodeTimetableStaffAbsentOnSource                 = "timetable.staff_absent_on_source"
+	CodeTimetableStaffAbsentOnTarget                 = "timetable.staff_absent_on_target"
+	CodeTimetableStaffAlreadyOnTarget                = "timetable.staff_already_on_target"
+	CodeTimetableStaffNotFound                       = "timetable.staff_not_found"
 	CodeTimetableStaffNotOnSource                    = "timetable.staff_not_on_source"
 	CodeTimetableStaffPresentAndAbsent               = "timetable.staff_present_and_absent"
 	CodeTimetableStartTooEarly                       = "timetable.start_too_early"
@@ -111,6 +119,14 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.slot_lists_disabled":                     "permission",
+	"timetable.spontaneous_activities_disabled":         "permission",
+	"timetable.spontaneous_category_archived":           "business_rejection",
+	"timetable.staff_absent_on_date":                    "business_rejection",
+	"timetable.staff_absent_on_source":                  "input",
+	"timetable.staff_absent_on_target":                  "business_rejection",
+	"timetable.staff_already_on_target":                 "business_rejection",
+	"timetable.staff_not_found":                         "business_rejection",
 	"timetable.staff_not_on_source":                     "input",
 	"timetable.staff_present_and_absent":                "input",
 	"timetable.start_too_early":                         "business_rejection",

@@ -348,6 +348,12 @@ const (
 	// operations.school_portal_write_scope decides whether it is unlocked,
 	// and the education.class_teachers assignment decides for which class.
 	ClassDayArrivalExceptionWrite = ResourceClassDay + ":arrival_exception_write"
+	// ClassDayClassTripWrite lets a Lehrkraft report a class trip or day
+	// outing of her assigned classes through "moto schule" (#4799). Like the
+	// arrival exception it opens the door only: the school's setting
+	// operations.school_portal_write_scope unlocks it, the
+	// education.class_teachers assignment decides for which class.
+	ClassDayClassTripWrite = ResourceClassDay + ":class_trip_write"
 	// ClassDayMorningAttendanceWrite lets a Lehrkraft mark each child of her
 	// assigned classes present or absent for today's school morning (#4790).
 	// The school's setting operations.school_portal_morning_attendance

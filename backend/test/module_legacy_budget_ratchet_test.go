@@ -152,7 +152,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // Raised by ADR 0078 (the meal ordering rules) and ADR 0077 (the caterer
 // flows and the caterer portal).
 // ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
-const moduleComposeBudgetTotal = 12503
+// ADR 0102: the class-trip status-day seam of modules/classday/compose (+2).
+const moduleComposeBudgetTotal = 12505
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -166,7 +167,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/auditlog/compose":             183,
 	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
-	"modules/classday/compose":             212,
+	// Raised by ADR 0102: the class-trip status-day seam (#4799).
+	"modules/classday/compose": 214,
 	// Raised by ADR 0073: the parent announcement retention.
 	"modules/communication/composition":             351,
 	"modules/dataimport/compose":                    85,

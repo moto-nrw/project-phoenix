@@ -23,7 +23,8 @@ func init() {
 			"1.15.499",                     // password login protection,
 			morningAttendanceVersion,       // morning attendance,
 			moduleNFCSwitchVersion,         // the NFC module switch
-			classHandoverVersion,           // and the class handover
+			classHandoverVersion,           // the class handover
+			schoolPortalClassTripsVersion,  // and the class trip reports
 		},
 	})
 	Migrations.MustRegister(mealAbsenceHistoryUp, mealAbsenceHistoryDown)

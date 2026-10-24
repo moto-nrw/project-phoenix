@@ -404,6 +404,9 @@ const (
 	// assigned class over to the OGS after lessons and mark the children
 	// who are not there (#4794).
 	SchoolPortalWriteScopeClassHandover = "class_handover"
+	// SchoolPortalWriteScopeClassTrips lets a Lehrkraft report a class trip
+	// (Ausflug or Klassenfahrt) for her assigned classes (#4799).
+	SchoolPortalWriteScopeClassTrips = "class_trips"
 )
 
 // SchoolPortalWriteScopeIncludes reports whether the resolved write scope

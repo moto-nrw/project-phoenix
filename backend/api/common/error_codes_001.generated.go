@@ -2,6 +2,14 @@
 package common
 
 const (
+	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
+	CodeImportFileMissing                             = "import.file_missing"
+	CodeImportFileNoRows                              = "import.file_no_rows"
+	CodeImportFileRowInvalid                          = "import.file_row_invalid"
+	CodeImportFileTooLarge                            = "import.file_too_large"
+	CodeImportFileTypeInvalid                         = "import.file_type_invalid"
+	CodeImportFileUnreadable                          = "import.file_unreadable"
+	CodeImportImportBatchFailed                       = "import.import_batch_failed"
 	CodeImportModeForbidden                           = "import.mode_forbidden"
 	CodeIotActivityCapacityExceeded                   = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                    = "iot.deviation_reason_required"
@@ -294,17 +302,17 @@ const (
 	CodeTimetableSlotListGroupingInvalid              = "timetable.slot_list_grouping_invalid"
 	CodeTimetableSlotListPickupPastDate               = "timetable.slot_list_pickup_past_date"
 	CodeTimetableSlotListReconciliationFutureDate     = "timetable.slot_list_reconciliation_future_date"
-	CodeTimetableSlotListsDisabled                    = "timetable.slot_lists_disabled"
-	CodeTimetableSpontaneousActivitiesDisabled        = "timetable.spontaneous_activities_disabled"
-	CodeTimetableSpontaneousCategoryArchived          = "timetable.spontaneous_category_archived"
-	CodeTimetableStaffAbsentOnDate                    = "timetable.staff_absent_on_date"
-	CodeTimetableStaffAbsentOnSource                  = "timetable.staff_absent_on_source"
-	CodeTimetableStaffAbsentOnTarget                  = "timetable.staff_absent_on_target"
-	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
-	CodeTimetableStaffNotFound                        = "timetable.staff_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"import.file_columns_missing":                         "input",
+	"import.file_missing":                                 "input",
+	"import.file_no_rows":                                 "input",
+	"import.file_row_invalid":                             "input",
+	"import.file_too_large":                               "input",
+	"import.file_type_invalid":                            "input",
+	"import.file_unreadable":                              "input",
+	"import.import_batch_failed":                          "server",
 	"import.mode_forbidden":                               "permission",
 	"iot.activity_capacity_exceeded":                      "business_rejection",
 	"iot.deviation_reason_required":                       "input",
@@ -597,14 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.slot_list_grouping_invalid":                "input",
 	"timetable.slot_list_pickup_past_date":                "input",
 	"timetable.slot_list_reconciliation_future_date":      "input",
-	"timetable.slot_lists_disabled":                       "permission",
-	"timetable.spontaneous_activities_disabled":           "permission",
-	"timetable.spontaneous_category_archived":             "business_rejection",
-	"timetable.staff_absent_on_date":                      "business_rejection",
-	"timetable.staff_absent_on_source":                    "input",
-	"timetable.staff_absent_on_target":                    "business_rejection",
-	"timetable.staff_already_on_target":                   "business_rejection",
-	"timetable.staff_not_found":                           "business_rejection",
 }
 
 func init() {

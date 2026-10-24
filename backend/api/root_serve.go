@@ -410,7 +410,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			classDay, err = buildClassDayViews(db, env, hub, caller, flows.Reports, carePlanRows, schedules, carePlan, people, audit,
-				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer)
+				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer, emitter)
 			return
 		},
 		func() error {
