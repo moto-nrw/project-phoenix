@@ -314,7 +314,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			announcements, err = owners.BuildParentAnnouncements(env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
+			announcements, err = owners.BuildParentAnnouncements(db, env, settings.Service, delivery.Outbox, owners.DeliveryModuleOf(delivery),
 				notifications, messaging, purger)
 			return
 		},
@@ -424,7 +424,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements)
 			return
 		},
 		func() (err error) {
@@ -554,7 +554,9 @@ func composeServeRoot(
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency)
-			mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication)
+			if err := mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication); err != nil {
+				return err
+			}
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
 			return mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity)
 		},

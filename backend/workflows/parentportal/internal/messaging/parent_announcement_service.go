@@ -76,6 +76,9 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*An
 		if err := s.attachPollData(adminCtx, accountID, rows); err != nil {
 			return err
 		}
+		if err := s.attachSurveyData(adminCtx, accountID, rows); err != nil {
+			return err
+		}
 		return s.attachDeclarationData(adminCtx, accountID, rows)
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: list announcements: %w", txErr)

@@ -305,6 +305,11 @@ type PortalService interface {
 	// portal-enabled guardian of a child the poll reaches), with the same
 	// stale-version guard as MarkAnnouncementRead plus the answer deadline (#1371).
 	RespondToAnnouncement(ctx context.Context, accountID, announcementID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error
+
+	// GetAnnouncementSurvey and SubmitAnnouncementSurvey read and answer the
+	// survey a feed entry carries (#4781): once per guardian account.
+	GetAnnouncementSurvey(ctx context.Context, accountID, announcementID int64) (*parentService.SurveyForm, error)
+	SubmitAnnouncementSurvey(ctx context.Context, accountID, announcementID int64, answers []parentService.SurveyAnswer) error
 	// SubmitDeclaration records one Erklärung for one child (#3430); false =
 	// the same action was already the latest and nothing new was stored.
 	SubmitDeclaration(ctx context.Context, accountID, announcementID int64, in parentService.DeclarationInput, confirm parentService.PasswordConfirmer) (*parentService.DeclarationSubmission, bool, error)

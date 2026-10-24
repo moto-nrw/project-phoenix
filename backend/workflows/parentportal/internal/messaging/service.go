@@ -76,6 +76,7 @@ type Config struct {
 	Conversations         ConversationCore
 	MessagingEnabled      MessagingGate
 	GroupThreads          GroupThreads
+	Surveys               Surveys
 	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               care.ChildEvents
 

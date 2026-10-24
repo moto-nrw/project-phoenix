@@ -482,6 +482,18 @@ func schoolContentRetentionSteps(
 	return steps
 }
 
+// surveyRetentionSteps delete the surveys (#4781) after the school's
+// windows, counted from closing: parent surveys after the parent message
+// window, staff surveys after the team chat window.
+func surveyRetentionSteps(settings settingsModule.StatisticsRetentionSource, surveys communicationModule.SurveyRetention) []schedulerPorts.RetentionStep {
+	return []schedulerPorts.RetentionStep{
+		windowRetentionStep(auditModels.DeletionTypeParentSurveyRetention,
+			settingsModule.ParentAnnouncementRetentionWindow(settings), nil, surveys.DeleteExpiredParentSurveys),
+		windowRetentionStep(auditModels.DeletionTypeStaffSurveyRetention,
+			settingsModule.StaffNoticeRetentionWindow(settings), nil, surveys.DeleteExpiredStaffSurveys),
+	}
+}
+
 // appointmentRetention deletes the ended appointments after the school's
 // timetable window and the cancelled or deleted ones after the fixed feed
 // window, which subscribed calendars rely on.

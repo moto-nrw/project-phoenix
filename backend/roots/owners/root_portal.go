@@ -45,8 +45,12 @@ func BuildParentPortal(
 	presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	mealPlan mealplanModule.Capability, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity identityaccess.Owner,
-	enrollment EnrollmentRows, notices EnrollmentNotices,
+	enrollment EnrollmentRows, notices EnrollmentNotices, announcements communication.ParentAnnouncementCapability,
 ) (*parentportal.Portal, error) {
+	surveys, err := communicationCompose.SurveysOf(announcements)
+	if err != nil {
+		return nil, err
+	}
 	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, fmt.Errorf("compose parent portal care profiles: %w", err)
@@ -74,6 +78,7 @@ func BuildParentPortal(
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(db.Pool())), StudentAudit: NewParentStudentAudit(services.StudentAudit),
 		MessageThreadRepo: BindParentMessageThreadAccess(messaging.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(messaging.ParentMessageRead),
 		GroupThreads: BindParentGroupThreads(parentStore.NewGroupThreadPortal(db.Pool())),
+		Surveys:      BindParentSurveys(surveys),
 		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: messaging.ParentMessageThread, MessageRepo: messages, ReadRepo: messaging.ParentMessageRead,
 			Broadcaster: hub, Logger: env.Logger.With("service", "parent"),

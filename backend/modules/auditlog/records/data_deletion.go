@@ -92,6 +92,9 @@ const (
 	DeletionTypeAppointmentTombstoneRetention = "appointment_tombstone_retention"
 	DeletionTypeGradeTransitionRetention      = "grade_transition_retention"
 	DeletionTypeRemovedFileRetention          = "removed_file_retention"
+	// The surveys (#4781) after the school's parent and staff message windows.
+	DeletionTypeParentSurveyRetention = "parent_survey_retention"
+	DeletionTypeStaffSurveyRetention  = "staff_survey_retention"
 	// The protocols of #4044 and the setting protocol, each after its fixed
 	// window.
 	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
@@ -142,6 +145,8 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeAppointmentTombstoneRetention,
 		DeletionTypeGradeTransitionRetention,
 		DeletionTypeRemovedFileRetention,
+		DeletionTypeParentSurveyRetention,
+		DeletionTypeStaffSurveyRetention,
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,

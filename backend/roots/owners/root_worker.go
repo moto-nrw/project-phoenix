@@ -97,6 +97,11 @@ func workerRetentionOf(
 		return workerRetention{}, err
 	}
 	steps = append(steps, contentSteps...)
+	surveys, err := communicationCompose.SurveysOf(announcements)
+	if err != nil {
+		return workerRetention{}, err
+	}
+	steps = append(steps, surveyRetentionSteps(settings, surveys)...)
 	attendance, err := presenceCompose.New(presenceCompose.Dependencies{DB: db.Pool(), Observe: presenceCompose.FailureLogger()})
 	if err != nil {
 		return workerRetention{}, fmt.Errorf("compose worker attendance retention: %w", err)
@@ -394,7 +399,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			announcements, err = BuildParentAnnouncements(env, settings.Service, delivery.Outbox, DeliveryModuleOf(delivery),
+			announcements, err = BuildParentAnnouncements(db, env, settings.Service, delivery.Outbox, DeliveryModuleOf(delivery),
 				notifications, messaging, purger)
 			return
 		},

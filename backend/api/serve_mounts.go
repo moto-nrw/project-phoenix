@@ -10,6 +10,7 @@ import (
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
@@ -104,14 +105,20 @@ func mountPeopleRoutes(
 	tenant.Mount("/emergency", emergencyAPI.NewResource(emergency).Router(ProtectedTenantRoutes))
 }
 
-// mountCommunicationRoutes serves parent messages and announcements, staff
-// reminders, the PWA usage report and the platform announcements under /api.
+// mountCommunicationRoutes serves parent messages, announcements and surveys,
+// staff reminders, the PWA usage report and the platform announcements under /api.
 func mountCommunicationRoutes(
 	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
 	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
-) {
+) error {
+	surveys, err := communicationCompose.SurveysOf(announcements)
+	if err != nil {
+		return err
+	}
 	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
+	// Umfragen an Eltern oder Mitarbeitende (#4781).
+	tenant.Mount("/surveys", announcementAPI.NewSurveyResource(surveys, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Visual-only staff reminders (#1457).
 	tenant.Mount("/reminders", remindersHTTP.NewResource(reminders, ReminderHTTPRuntime()).Router())
 	// PWA standalone-usage reporting (#2189).
@@ -121,6 +128,7 @@ func mountCommunicationRoutes(
 		AnnouncementsService: communication,
 		Runtime:              newPlatformRuntime(),
 	}).Router())
+	return nil
 }
 
 // mountDeliveryRoutes serves the live streams and the file storage: the staff
