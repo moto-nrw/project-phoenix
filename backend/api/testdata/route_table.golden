@@ -1102,6 +1102,7 @@ PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/calendar/appointments/{appointmentId}
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 QUERY /.well-known/caldav
 QUERY /api/caldav

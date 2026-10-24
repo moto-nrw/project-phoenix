@@ -163,6 +163,42 @@ func TestMFABestandQueryCountsOnlyPrivilegesOfTheRespectiveSchool(t *testing.T) 
 	assert.Zero(t, counts[schoolB])
 }
 
+func TestMFABestandQueryRunsBeforeAccountErasureMigration(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service := setupAuthService(t, db)
+	_, accountID, school, _ := registerAccountAtTenant(t, db, service, "mfa-counts-before-erasure")
+	testpkg.GrantTestPermission(t, db, school, accountID, "staff:financial")
+	// This column only arrives in 1.15.464. The pre-release inventory must
+	// remain usable before that release, without weakening the current filter.
+	_, err := db.ExecContext(t.Context(), `ALTER TABLE auth.accounts DROP COLUMN personal_data_erased_at`)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `ALTER TABLE auth.accounts ADD COLUMN personal_data_erased_at TIMESTAMPTZ`)
+		require.NoError(t, err)
+	})
+	query, err := os.ReadFile("../../../../docs/operations/sql/mfa-pflicht-3841-counts.sql")
+	require.NoError(t, err)
+	tx, err := db.BeginTx(t.Context(), &sql.TxOptions{ReadOnly: true})
+	require.NoError(t, err)
+	defer func() { require.NoError(t, tx.Rollback()) }()
+	var rows []struct {
+		SchoolID               int64
+		PrivilegedAccounts     int
+		WithoutEmailMfa        int
+		WithoutAnySecondFactor int
+		WithoutEmailAddress    int
+	}
+	require.NoError(t, tx.NewRaw(string(query)).Scan(t.Context(), &rows))
+	for _, row := range rows {
+		if row.SchoolID == school {
+			require.Equal(t, 1, row.WithoutAnySecondFactor)
+			return
+		}
+	}
+	t.Fatal("inventory omitted the fixture school")
+}
+
 func TestTenantTrustedDeviceRevokedDuringLoginCannotMintProof(t *testing.T) {
 	t.Parallel()
 	checkRevokedDeviceAtMint(t, false)

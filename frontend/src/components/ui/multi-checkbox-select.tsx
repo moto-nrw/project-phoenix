@@ -25,9 +25,18 @@ interface MultiCheckboxSelectProps {
   readonly emptyLabel?: string;
   readonly unavailableLabel?: string;
   readonly multipleLabel?: (count: number) => string;
+  /**
+   * Trigger text for any non-empty selection; replaces the single label and
+   * multipleLabel, e.g. to list short marks of every chosen option.
+   */
+  readonly summaryLabel?: (
+    selected: readonly MultiCheckboxSelectOption[],
+  ) => string;
   readonly disabled?: boolean;
   readonly className?: string;
   readonly menuClassName?: string;
+  /** Opens the menu from the trigger's right edge, e.g. near the window's. */
+  readonly menuAlign?: "start" | "end";
   /**
    * Adds a filter input and a "Alle auswählen / Aufheben" row to the menu —
    * for long option lists (e.g. all AGs of a big school). Select-all and
@@ -53,9 +62,11 @@ export function MultiCheckboxSelect({
   emptyLabel = "Keine Auswahl",
   unavailableLabel = "Keine Optionen verfügbar",
   multipleLabel = defaultMultipleLabel,
+  summaryLabel,
   disabled = false,
   className = "",
   menuClassName = "",
+  menuAlign = "start",
   searchable = false,
   searchPlaceholder = "Suchen...",
 }: MultiCheckboxSelectProps) {
@@ -80,9 +91,11 @@ export function MultiCheckboxSelect({
       ? unavailableLabel
       : selectedOptions.length === 0
         ? emptyLabel
-        : selectedOptions.length === 1
-          ? selectedOptions[0]?.label
-          : multipleLabel(selectedOptions.length);
+        : summaryLabel
+          ? summaryLabel(selectedOptions)
+          : selectedOptions.length === 1
+            ? selectedOptions[0]?.label
+            : multipleLabel(selectedOptions.length);
 
   const closeMenu = useCallback(() => {
     setOpen(false);
@@ -183,7 +196,8 @@ export function MultiCheckboxSelect({
           aria-label={ariaLabel}
           onKeyDown={handleKeyDown}
           className={cn(
-            "moto-popover-surface absolute top-full left-0 z-50 mt-1 min-w-full overflow-hidden rounded-xl border py-2",
+            "moto-popover-surface absolute top-full z-50 mt-1 min-w-full overflow-hidden rounded-xl border py-2",
+            menuAlign === "end" ? "right-0" : "left-0",
             menuClassName,
           )}
         >
@@ -243,7 +257,7 @@ export function MultiCheckboxSelect({
                     {option.label}
                   </span>
                   {option.badge ? (
-                    <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                    <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                       {option.badge}
                     </span>
                   ) : null}

@@ -32,6 +32,8 @@ type ClassDayDependencies struct {
 	WriteScope             ArrivalWriteScope
 	BlockStarts            BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
+	// MorningAttendanceDependencies are the morning attendance seam (#4790).
+	MorningAttendanceDependencies
 }
 
 // classDayService is the capability: the caller's classes and staff row
@@ -43,6 +45,7 @@ type classDayService struct {
 	caller ports.Caller
 	*dayReports
 	arrivalExceptions
+	morningAttendance
 }
 
 // NewClassDay creates the school-portal capability. Caller and Rosters are
@@ -59,6 +62,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 			schedule: deps.ClassArrivalExceptions, writeScope: deps.WriteScope,
 			blockStarts: deps.BlockStarts, announcer: deps.Announcer,
 		},
+		morningAttendance: newMorningAttendance(deps),
 	}
 }
 

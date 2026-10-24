@@ -47,6 +47,10 @@ var seedCoverageExemptions = map[string]string{
 	// seeded stack finds them filled and they carry no exemption any more.
 	// Current owner commands no longer write the rollback archive. Keep it
 	// empty on fresh seeds; filling it would restore retired Guardian copies.
+	// Morning attendance (#4790) is written only by a Lehrkraft through moto
+	// schule for today; the seeder signs in no Lehrkraft and assigns no class
+	// (education.class_teachers below), so nothing it does can write a mark.
+	"active.morning_attendance":            "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",

@@ -7,7 +7,9 @@ import {
 } from "~/lib/route-wrapper.server";
 import type { BackendMealPlanEntry } from "~/lib/meal-plan-api";
 
-type SetDayBody = { dishes: { dish: string; note: string | null }[] };
+type SetDayBody = {
+  dishes: { dish: string; note: string | null; allergens?: string[] }[];
+};
 
 /**
  * PUT /api/meal-plan/{date} — replace all dishes for one day.

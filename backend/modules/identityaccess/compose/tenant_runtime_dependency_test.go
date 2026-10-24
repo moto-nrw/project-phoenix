@@ -5,6 +5,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
@@ -53,7 +54,8 @@ func TestNew_BindsTheTenantRuntimeDependency(t *testing.T) {
 		var logs bytes.Buffer
 		deps.DB, deps.Observe = db, func(Observation) {}
 		deps.Sessions = &identityPorts.SessionDependencies{
-			Schools: sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
+			PasswordLoginPolicy: func() (int, time.Duration, error) { return 5, time.Minute, nil },
+			Schools:             sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
 			Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{},
 			Logger: slog.New(slog.NewTextHandler(&logs, nil)),
 		}

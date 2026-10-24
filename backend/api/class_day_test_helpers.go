@@ -57,11 +57,24 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassListEntries: owners.NewClassListEntryRosterReader(rMembership.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: activeSettings.Settings,
 	})
+	presence, err := NewCheckinTestPresence(db)
+	if err != nil {
+		return ClassDayTestModule{}, err
+	}
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: activeCaller, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
-		BlockStarts: activeTimetable.TimetableOperations,
+		BlockStarts:                   activeTimetable.TimetableOperations,
+		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
 		deliveryCompose.NewRealtimeHub(slog.Default()), slog.Default())
 	return ClassDayTestModule{ClassDay: classDay}, nil
+}
+
+// classDayTestClock is the first clock a test passed, nil for the wall clock.
+func classDayTestClock(clocks []func() time.Time) func() time.Time {
+	if len(clocks) == 0 {
+		return nil
+	}
+	return clocks[0]
 }

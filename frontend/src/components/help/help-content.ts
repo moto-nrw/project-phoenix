@@ -2783,6 +2783,8 @@ function loginProblemTopic(nfcEnabled: boolean | null): HelpTopic {
       "Wählen Sie `Passwort vergessen?`, wenn Sie Ihr Passwort nicht mehr wissen.",
       "Öffnen Sie die E-Mail von moto und folgen Sie dem Link zum neuen Passwort.",
       "Fragt moto nach einem Sicherheitscode? Prüfen Sie Ihr E-Mail-Postfach und den Spam-Ordner.",
+      "Haben Sie mehrfach ein falsches Passwort eingegeben? Warten Sie 15 Minuten. Versuchen Sie es danach erneut.",
+      "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "Versuchen Sie die Anmeldung mit dem neuen Passwort erneut.",
       "Klappt die Anmeldung weiterhin nicht? Wenden Sie sich an Ihre Leitung.",
       "Bitten Sie um eine Prüfung von Konto und Einladung.",
@@ -4144,12 +4146,15 @@ function mealPlanTopic(): HelpTopic {
       "Blättern Sie mit den Pfeilen zur gewünschten Woche.",
       "Tragen Sie bei einem Tag unter `Gericht eintragen...` das Gericht ein.",
       "Tragen Sie bei Bedarf einen `Hinweis (optional)` dazu ein.",
+      "Öffnen Sie unter dem Gericht die Auswahl `Allergene` und haken Sie die Allergene an. Danach stehen dort die Buchstaben, zum Beispiel `A, G`.",
       "Mit `+ Gericht` ergänzen Sie ein zweites Gericht für denselben Tag.",
       "Wählen Sie `Speichern`.",
     ],
     result: "Der Plan erscheint sofort im Elternportal.",
     notes: [
       "Pro Tag sind mehrere Gerichte möglich.",
+      "Zur Auswahl stehen die 14 Hauptallergene, jedes mit einem festen Buchstaben. Die Liste ist für alle Schulen gleich.",
+      "Eltern sehen die Buchstaben am Gericht und darunter die Erklärung. Dort steht auch, dass die Angaben von der Schule oder vom Caterer kommen.",
       "Mit `Vorwoche übernehmen` holen Sie die Gerichte der Vorwoche in diese Woche.",
       "Der heutige Tag trägt das Kennzeichen `Heute`.",
       "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
@@ -5345,6 +5350,7 @@ function dayListsTopic(): HelpTopic {
     notes: [
       "Unter `Quelle` stehen `Randstunden`, `Lernzeit`, `AG-Angebote`, `Mensa`, `Ganztag (frühe Abholung)`, `Ganztag (späte Abholung)` und `Freie Angebotsauswahl`.",
       "Als Datenbasis wählen Sie `Plan`, `Ist` oder `Abgleich`.",
+      "Eine Liste mit `Plan` hat eine leere Spalte `Abhaken`. Dort haken Sie die Kinder auf dem Ausdruck ab.",
       "Unter der Datumszeile steht, woher die Daten kommen.",
     ],
     differences: [
@@ -5739,7 +5745,7 @@ function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Zwei-Faktor-Anmeldung (Code per E-Mail)`: Beim Anmelden kommt zusätzlich ein Code per E-Mail.",
-          "`Fehlversuche bis zur Kontosperre`: Nach so vielen falschen Eingaben sperrt moto das Konto für eine Weile.",
+          "`Fehlversuche bis zur Kontosperre`: Nach so vielen falschen Bestätigungscodes pausiert die Code-Prüfung.",
         ],
       },
       {
@@ -6296,9 +6302,10 @@ function parentLoginTopic(): HelpTopic {
       "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Es öffnet sich das Fenster `Passwort zurücksetzen`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Den Link bekommen Sie per E-Mail.",
     ],
     troubleshootingDetails: [
+      "Nach mehreren falschen Passwörtern warten Sie bitte 15 Minuten.",
+      "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "moto sagt, das Konto gehöre zum Personal einer Schule? Dann melden Sie sich über die Schul-Anmeldung an.",
       "moto sagt, Ihr Konto sei deaktiviert? Wenden Sie sich an Ihre OGS.",
-      "Nach vielen Versuchen sperrt moto die Anmeldung kurz. Warten Sie einen Moment.",
     ],
     related: [
       HELP_TOPICS.parentAccount,
@@ -6985,6 +6992,8 @@ function parentMealPlanTopic(): HelpTopic {
     ],
     result: "Sie sehen je Tag das Gericht und ob Ihr Kind mitisst.",
     notes: [
+      "Steht am Gericht zum Beispiel `Allergene: A, G`, enthält es diese Allergene. Unter dem Plan steht, was die Buchstaben bedeuten.",
+      "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Fragen Sie im Zweifel die OGS.",
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
       "Mit `Ganze Woche anmelden` oder `Ganze Woche abmelden` ändern Sie alle Tage der Woche auf einmal. Das gilt nur für Tage, die Sie noch ändern können.",
       "Unter `Wann isst … mit?` steht, bis wann Sie ändern können. Manche Schulen erlauben das Abmelden länger als das Anmelden.",
@@ -7512,13 +7521,56 @@ function teacherClassListTopic(): HelpTopic {
       "Bei einer anderen Abholzeit steht darunter die übliche Zeit mit `sonst`.",
       "Kam die Meldung heute herein, steht die Uhrzeit dabei.",
     ],
-    differences: ["Geändert wird das im OGS-Team, nicht in moto schule."],
+    differences: [
+      "Abschnitte und Kennzeichen ändert das OGS-Team, nicht moto schule.",
+    ],
     troubleshootingDetails: [
       "Ein Kind fehlt in der Liste? Dann ist es nicht in dieser Klasse eingetragen. Schreiben Sie der OGS.",
     ],
     related: [
       HELP_TOPICS.teacherClassDay,
+      HELP_TOPICS.teacherMorningAttendance,
       HELP_TOPICS.teacherChildDetails,
+      HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
+/**
+ * Anwesenheit am Vormittag (#4790): die Lehrkraft markiert heute je Kind „Da“
+ * oder „Fehlt“ und speichert. Gespeichert getrennt von der OGS-Anwesenheit.
+ */
+function teacherMorningAttendanceTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherMorningAttendance,
+    title: "Anwesenheit am Vormittag eintragen",
+    question: "Wie trage ich ein, wer heute da ist?",
+    summary: "Sie markieren bei jedem Kind „Da“ oder „Fehlt“ und speichern.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "CalendarCheck",
+    steps: [
+      "Öffnen Sie in der `Klassenansicht` Ihre Klasse für heute.",
+      "Tippen Sie bei jedem Kind auf `Da` oder `Fehlt`.",
+      "Sind fast alle da? Tippen Sie auf `Alle übrigen da`.",
+      "Tippen Sie unten auf `Anwesenheit speichern`.",
+    ],
+    result: "Oben steht, wie viele Kinder da sind, fehlen und noch offen sind.",
+    notes: [
+      "Kinder mit Meldung (`Krank`, `Entschuldigt`, `Klassenfahrt`) stehen schon auf `Fehlt`.",
+      "Fehlt ein Kind ohne Meldung, steht bei ihm `Fehlt ohne Meldung`.",
+      "Sie können heute jederzeit ändern und neu speichern.",
+      "Die Anwesenheit in der OGS ändert sich dadurch nicht.",
+    ],
+    differences: [
+      "Sie sehen keine Knöpfe `Da` und `Fehlt`? Eintragen geht nur heute und an Schultagen. Oder die OGS hat es ausgeschaltet.",
+    ],
+    troubleshootingDetails: [
+      "Speichern klappt nicht und ein Kind gehört nicht mehr zur Klasse? Laden Sie die Seite neu.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassList,
+      HELP_TOPICS.teacherClassDay,
       HELP_TOPICS.teacherFeatureMissing,
     ],
   };
@@ -7854,6 +7906,8 @@ function teacherLoginProblemTopic(): HelpTopic {
       "`Die E-Mail-Adresse oder das Passwort stimmt nicht.` Prüfen Sie beides.",
     ],
     troubleshootingDetails: [
+      "Nach mehreren falschen Passwörtern warten Sie bitte 15 Minuten.",
+      "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "Sie werden immer wieder abgemeldet? Melden Sie sich einmal neu an.",
     ],
     related: [
@@ -7955,6 +8009,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Meine Klasse ---
   teacherClassDayTopic(),
   teacherClassListTopic(),
+  teacherMorningAttendanceTopic(),
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
 

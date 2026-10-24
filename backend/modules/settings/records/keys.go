@@ -69,6 +69,9 @@ const (
 	// (active.attendance, #3957), counted from the care day. The window the
 	// team sees (gdpr.attendance_visible_days) never exceeds it.
 	KeyGDPRAttendanceRetentionDays = "gdpr.attendance_retention_days"
+	// Retention window (days) for the morning attendance a Lehrkraft marks
+	// (active.morning_attendance, #4790), counted from the school day.
+	KeyGDPRMorningAttendanceRetentionDays = "gdpr.morning_attendance_retention_days"
 	// Retention window (days) for the parent/OGS conversations
 	// (users.parent_messages, #3959), counted from sending.
 	KeyGDPRParentMessageRetentionDays = "gdpr.parent_message_retention_days"
@@ -170,6 +173,7 @@ const (
 	KeyStudentAbsenceEditScope               = "operations.student_absence_edit_scope"
 	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
 	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
+	KeySchoolPortalMorningAttendance         = "operations.school_portal_morning_attendance"
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
 	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
 	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"

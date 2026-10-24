@@ -92,7 +92,7 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	// Wrong code -> mfa_failed audit row via the nil-IP internal path.
 	// (We can't recover the plaintext code, so "000000" is guaranteed to
 	// miss the hash and produce the wrong-code branch.)
-	err = svc.VerifyMFACodeForAccount(authedCtx, acc.ID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(authedCtx, acc.ID, tenantID, "000000", identityaccess.MFAChallengeScopeTenant)
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
 
 	row := waitForAuthEvent(t, db, acc.ID, authEventMFAFailed, 3*time.Second)
