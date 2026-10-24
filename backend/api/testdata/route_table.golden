@@ -115,6 +115,7 @@ DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
 GET /.well-known/caldav
+GET /analytics-consent/
 GET /analytics-policy
 GET /api/absence-types/
 GET /api/absence-types/{id}/allowances/{staffId}
@@ -982,6 +983,7 @@ POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in
 POST /school/supervisions/{id}/students/{student_id}/check-out
 PUT /.well-known/caldav
+PUT /analytics-consent/
 PUT /api/absence-types/{id}
 PUT /api/absence-types/{id}/allowances/{staffId}
 PUT /api/active/combined/{id}
