@@ -11,7 +11,10 @@ import { FormModal } from "~/components/ui/form-modal";
 import { TimeField } from "~/components/ui/time-field";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
-import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import {
+  formatDate as formatCalendarDate,
+  parseISODate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import type { ClassTripReportInput } from "~/lib/school-class-day-api";
 import {
@@ -42,7 +45,15 @@ interface ClassTripBulkStatusModalProps {
    */
   schoolReport?: {
     save: (input: ClassTripReportInput) => Promise<void>;
+    /** Der angezeigte Tag ("YYYY-MM-DD"); ein vergangener Tag wird heute. */
+    defaultDate?: string;
   };
+}
+
+/** Samstag oder Sonntag: dann kommt kein Kind in die OGS. */
+function isWeekendKey(dateKey: string): boolean {
+  const day = parseISODate(dateKey).getDay();
+  return day === 0 || day === 6;
 }
 
 function todayKey(): string {
@@ -75,9 +86,11 @@ export function ClassTripBulkStatusModal({
   // Die Vorauswahl gilt beim Öffnen; ein Nachladen der Klasse setzt die
   // Auswahl der Lehrkraft nicht zurück.
   const studentIdsRef = useRef<string[]>([]);
+  const schoolReportDefaultRef = useRef<string | undefined>(undefined);
   const checkboxIdPrefix = useId();
   useLayoutEffect(() => {
     studentIdsRef.current = students.map((student) => student.id);
+    schoolReportDefaultRef.current = schoolReport?.defaultDate;
   });
 
   useEffect(() => {
@@ -86,8 +99,10 @@ export function ClassTripBulkStatusModal({
     }
 
     const today = todayKey();
-    setFrom(today);
-    setTo(today);
+    const shown = schoolReportDefaultRef.current;
+    const start = shown && shown > today ? shown : today;
+    setFrom(start);
+    setTo(start);
     setReason("");
     setReturnTime("");
     setSelectedIds(studentIdsRef.current);
@@ -97,6 +112,8 @@ export function ClassTripBulkStatusModal({
   }, [isOpen, clearFormErrors]);
 
   const singleDay = Boolean(from) && from === to;
+  // Eine Rückkehrzeit gibt es nur für einen Tag von Montag bis Freitag.
+  const returnTimeOffered = singleDay && !isWeekendKey(from);
   const chosenIds = schoolReport
     ? selectedIds
     : students.map((student) => student.id);
@@ -116,7 +133,7 @@ export function ClassTripBulkStatusModal({
       return;
     }
 
-    const trimmedReturnTime = singleDay ? returnTime.trim() : "";
+    const trimmedReturnTime = returnTimeOffered ? returnTime.trim() : "";
     if (
       schoolReport &&
       trimmedReturnTime &&
@@ -272,7 +289,7 @@ export function ClassTripBulkStatusModal({
             />
           </div>
         </div>
-        {schoolReport && singleDay ? (
+        {schoolReport && returnTimeOffered ? (
           <TimeField
             label="Rückkehrzeit (optional)"
             hint="Kommt die Klasse am selben Tag zurück? Dann kommen die Kinder um diese Uhrzeit in die OGS."
