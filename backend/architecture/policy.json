@@ -3930,6 +3930,10 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "auth.account_avatar_file_cleanup",
+      "write_owner": "identity-access"
+    },
+    {
       "name": "auth.accounts",
       "write_owner": "identity-access"
     },
@@ -10772,17 +10776,6 @@
       "source_owner": "staff-offboarding",
       "source_role": "compose",
       "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.workforce.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "workforce",
       "target_role": "public"
     },
     {

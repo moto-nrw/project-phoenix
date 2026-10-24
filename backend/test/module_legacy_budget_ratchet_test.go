@@ -150,8 +150,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
 // ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
-// ADR 0099: the signature ledger constructor adds exactly 6 LOC.
-const moduleComposeBudgetTotal = 12402
+// ADR 0100: the signature ledger constructor adds exactly 6 LOC.
+const moduleComposeBudgetTotal = 12391
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -161,7 +161,7 @@ const moduleComposeBudgetTotal = 12402
 // keeps its LOC counted.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
-	// ADR 0099: the signature ledger constructor, construction only.
+	// ADR 0100: the signature ledger constructor, construction only.
 	"modules/auditlog/compose":             189,
 	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
@@ -180,7 +180,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/facilities/compose":                    184,
 	"modules/facilities/compose/repositoryadapter":  11,
 	"modules/feedback/compose":                      61,
-	"modules/filestorage/compose":                   217,
+	"modules/filestorage/compose":                   211,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8,
 	"modules/identityaccess/compose":                1303,
@@ -198,7 +198,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/schoolmembership/compose":                196,
 	"modules/schoolsetup/compose":                     56,
-	"modules/schoolstructure/compose":                 594,
+	"modules/schoolstructure/compose":                 593,
 	"modules/settings/compose":                        308,
 	"modules/studentdirectoryview/compose":            9,
 	"modules/studentpresence/compose":                 243,
@@ -209,7 +209,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
-	"modules/workforce/compose":                       888,
+	"modules/workforce/compose":                       887,
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
 	"workflows/parentportal/compose":                  278,
@@ -217,7 +217,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/sessionend/compose":                    59,
 	"workflows/shiftplansync/compose":                 124,
 	"workflows/staffclock/compose":                    36,
-	"workflows/staffoffboarding/compose":              79,
+	"workflows/staffoffboarding/compose":              76,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
 	"workflows/studentdeletion/compose":  74,

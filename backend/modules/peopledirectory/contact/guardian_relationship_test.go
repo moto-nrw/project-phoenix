@@ -33,3 +33,15 @@ func TestGuardianRelationshipNormalizationKeepsFailureMutationOrder(t *testing.T
 		})
 	}
 }
+
+func TestMapRelationshipTypeNormalizesLabels(t *testing.T) {
+	t.Parallel()
+	for label, want := range map[string]string{
+		" Mutter ": "parent", "VORMUND": "guardian", "Großmutter": "relative",
+		"andere": "other", "relative": "relative", "unbekannt": "other", "": "other",
+	} {
+		if got := MapRelationshipType(label); got != want {
+			t.Errorf("MapRelationshipType(%q) = %q, want %q", label, got, want)
+		}
+	}
+}

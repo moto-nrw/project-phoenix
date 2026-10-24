@@ -3687,16 +3687,68 @@ func TestAbsCreateAbsenceFor_RejectsFarFutureCompTime(t *testing.T) {
 }
 
 // A sick report cascades into the plans (#1843) and the cascade is
-// fail-closed, so an absence service without one is refused at construction
-// instead of committing sick reports without their plan effects.
-func TestNewStaffAbsenceService_RequiresTheSickCascade(t *testing.T) {
+// fail-closed: a write nobody plans refuses the cascade instead of committing
+// a sick report without its plan effects (#4825).
+func TestStaffAbsenceService_RefusesAnUnplannedSickCascade(t *testing.T) {
 	t.Parallel()
 
-	require.PanicsWithValue(t, "staff absence service: the sick cascade is required", func() {
-		NewStaffAbsenceService(&absStaffAbsenceRepoMock{}, &absWorkSessionRepoMock{}, &absVacationQuotaRepoMock{}, &absStaffAbsenceAuditRepoMock{}, nil, nil)
+	absRepo := &absStaffAbsenceRepoMock{
+		getByStaffAndDateRangeFunc: func(context.Context, int64, Date, Date) ([]*StaffAbsence, error) { return nil, nil },
+		createFunc: func(_ context.Context, entity *StaffAbsence) error {
+			entity.ID = 555
+			return nil
+		},
+	}
+	workRepo := &absWorkSessionRepoMock{getHistoryByStaffIDFunc: func(context.Context, int64, Date, Date) ([]*WorkSession, error) { return nil, nil }}
+	svc := NewStaffAbsenceService(absRepo, workRepo, &absVacationQuotaRepoMock{}, &absStaffAbsenceAuditRepoMock{}, nil, nil)
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: AbsenceTypeSick, DateStart: "2026-02-10", DateEnd: "2026-02-12",
 	})
-	require.NotPanics(t, func() {
-		NewStaffAbsenceService(&absStaffAbsenceRepoMock{}, &absWorkSessionRepoMock{}, &absVacationQuotaRepoMock{}, &absStaffAbsenceAuditRepoMock{}, nil, nil,
-			WithAbsenceShiftPlanSyncer(noopShiftPlanSyncer{}))
+	require.ErrorIs(t, err, errUnplannedSickCascade)
+}
+
+// The public sick-report writes return the plan the write asked for and apply
+// none of it; the shift-plan-sync workflow applies it (#4825).
+func TestStaffAbsenceCapability_ReturnsTheSickCascadePlan(t *testing.T) {
+	t.Parallel()
+
+	svc, absRepo, workRepo := absSetupService()
+	workRepo.getHistoryByStaffIDFunc = func(context.Context, int64, Date, Date) ([]*WorkSession, error) { return nil, nil }
+	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, Date, Date) ([]*StaffAbsence, error) { return nil, nil }
+	absRepo.createFunc = func(_ context.Context, entity *StaffAbsence) error {
+		entity.ID = 555
+		return nil
+	}
+	capability := StaffAbsenceCapability(svc)
+	accountID := int64(77)
+
+	created, plan, err := capability.CreateAbsenceFor(context.Background(), 100, 200, &accountID, workforce.CreateAbsenceRequest{
+		AbsenceType: AbsenceTypeSick, DateStart: "2026-02-10", DateEnd: "2026-02-12",
 	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(555), created.ID)
+	assert.Equal(t, workforce.SickCascadePlan{{Kind: workforce.SickCascadeMark, Report: workforce.SickCascadeInput{
+		SubjectStaffID: 100, DateStart: "2026-02-10", DateEnd: "2026-02-12", AbsenceID: 555, ActorStaffID: 200, ActorAccountID: &accountID,
+	}}}, plan)
+
+	sick := &StaffAbsence{StaffID: 100, AbsenceType: AbsenceTypeSick, DateStart: NewDate(2026, 2, 10), DateEnd: NewDate(2026, 2, 11), Status: AbsenceStatusReported}
+	sick.ID = 42
+	absRepo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) { return sick, nil }
+	deleted := false
+	absRepo.deleteFunc = func(context.Context, any) error {
+		deleted = true
+		return nil
+	}
+	plan, err = capability.DeleteAbsenceFor(context.Background(), 100, 200, &accountID, 42)
+	require.NoError(t, err)
+	assert.True(t, deleted)
+	require.Len(t, plan, 1)
+	assert.Equal(t, workforce.SickCascadeClear, plan[0].Kind)
+	assert.Equal(t, int64(42), plan[0].Report.AbsenceID)
+
+	absRepo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) { return nil, errors.New("gone") }
+	plan, err = capability.DeleteAbsenceFor(context.Background(), 100, 200, &accountID, 42)
+	require.Error(t, err)
+	assert.Nil(t, plan, "a refused write has no plan")
 }

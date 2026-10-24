@@ -139,6 +139,7 @@ var tableRetentions = map[string]tableRetention{
 	"audit.unregistered_tag_scans":                          own("nightly retention step unregistered_tag_scan_retention, unregisteredTagScanService.DeleteExpired -> SQL audit.delete_expired_unregistered_tag_scans"),
 	"audit.wc_alias_migration_backup":                       notPersonal("one-off migration backup of alias names"),
 	"audit.work_session_edits":                              parent("active.work_sessions"),
+	"auth.account_avatar_file_cleanup":                      own("hourly CleanupErasedAccountAvatars removes each intent immediately after file deletion or confirmed absence; failures remain for retry (#4756)"),
 	"auth.account_permissions":                              parent("auth.accounts"),
 	"auth.account_roles":                                    parent("auth.accounts"),
 	"auth.account_tenants":                                  parent("auth.accounts"),

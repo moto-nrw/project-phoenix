@@ -1,8 +1,7 @@
 package care
 
 import (
-	"time"
-
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,27 +17,11 @@ const (
 	CarePlanStudentDataRequestFieldPending CarePlanError = "StudentDataRequestFieldPending"
 )
 
-// SameDayCutoff retains an owner-bound judgment, including its lazy clock.
-// Its zero value has no cutoff.
-type SameDayCutoff struct {
-	Clock  string
-	Now    time.Time
-	closed func(calendar.Date) bool
-}
-
-func (c SameDayCutoff) Closed(date calendar.Date) bool {
-	if c.Clock == "" {
-		return false
-	}
-	return c.closed(date)
-}
-func NewCutoffSnapshot(clock string, now time.Time, closed func(calendar.Date) bool) SameDayCutoff {
-	return SameDayCutoff{Clock: clock, Now: now, closed: closed}
-}
+// SameDayCutoff is Care Plan's same-day cutoff, passed unchanged into its
+// request commands.
+type SameDayCutoff = carerequests.SameDayCutoff
 
 type CarePlanPolicy interface {
-	NewSameDayCutoff(string, time.Time) (SameDayCutoff, error)
-	NewSameDayCutoffAt(string, func() time.Time) (SameDayCutoff, error)
 	BookingViewDate(calendar.Date, calendar.Date) calendar.Date
 	Error(CarePlanError) error
 }

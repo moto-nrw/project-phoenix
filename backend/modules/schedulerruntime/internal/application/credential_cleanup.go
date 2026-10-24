@@ -143,7 +143,10 @@ func accountRetentionJobs(retention ports.AccountRetention) []CleanupJob {
 	if isNilDependency(retention) {
 		return nil
 	}
-	return []CleanupJob{{Description: "Unused account erasure", Run: retention.EraseUnusedAccounts}}
+	return []CleanupJob{
+		{Description: "Unused account erasure", Run: retention.EraseUnusedAccounts},
+		{Description: "Erased account avatar cleanup", Run: retention.CleanupErasedAccountAvatars, OwnTransactions: true},
+	}
 }
 
 func buildCleanupJobs(authService ports.AuthCleanup, invitationService ports.InvitationCleaner, emailChangeCleaner ports.EmailChangeTokenCleaner, operatorInvitationCleaner ports.OperatorInvitationCleaner) []CleanupJob {
@@ -211,7 +214,11 @@ func signInDataCleanupJobs(cleaner ports.SignInDataCleaner) []CleanupJob {
 
 func (s *Scheduler) runAdministrativeCleanup(ctx context.Context, job CleanupJob, logger *slog.Logger) error {
 	var count int
-	err := s.tenantRuntime.WithinAdmin(ctx, func(txCtx context.Context) error {
+	run := s.tenantRuntime.WithinAdmin
+	if job.OwnTransactions {
+		run = func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
+	}
+	err := run(ctx, func(txCtx context.Context) error {
 		var runErr error
 		count, runErr = job.Run(txCtx)
 		return runErr

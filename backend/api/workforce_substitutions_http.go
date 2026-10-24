@@ -6,13 +6,12 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	substitutionsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/substitutions"
 )
 
 // newSubstitutionsResource wires /api/substitutions over the substitution
 // operations capability.
-func newSubstitutionsResource(substitutions workforce.Substitutions) *substitutionsHTTP.Resource {
+func newSubstitutionsResource(substitutions substitutionsHTTP.Substitutions) *substitutionsHTTP.Resource {
 	if substitutions == nil {
 		panic("substitutions HTTP composition: all dependencies are required")
 	}

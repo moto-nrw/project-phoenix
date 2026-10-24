@@ -41,7 +41,7 @@ dort möglich: Die Root darf den internen Adapter nicht importieren, und das
 öffentliche Paket würde einen Importzyklus schließen. Der Konstruktor steht
 neben dem gleichartigen der Sorgeberechtigten-Änderungen und erhöht das
 Compose-Budget der Audit Platform und die Summe um genau 6 Zeilen
-(183 → 189, 12396 → 12402). Er enthält keine Logik außer der Konstruktion.
+(183 → 189; Summe +6). Er enthält keine Logik außer der Konstruktion.
 Alle übrigen Budgets bleiben unverändert oder sinken: Die Zeile im
 Parent-Portal-Compose und in der Communication-Composition sind ausgeglichen,
 und `seed_extras.go` verlässt das Dateigrößen-Register.

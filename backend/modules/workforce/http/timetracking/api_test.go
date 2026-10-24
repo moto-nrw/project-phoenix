@@ -298,6 +298,7 @@ func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService
 	return &Resource{
 		WorkSessionService:  wsSvc,
 		StaffAbsenceService: absSvc,
+		AbsenceWrites:       absSvc,
 		PersonService:       pSvc,
 		identity:            func(context.Context) Identity { return Identity{AccountID: testAccountID} },
 		withinTenant:        testWithinTenant(db),
@@ -338,7 +339,10 @@ func parseAPIResponse(t *testing.T, w *httptest.ResponseRecorder) apiResponse {
 
 var (
 	_ workforce.WorkSessions   = (*mockWorkSessionService)(nil)
-	_ workforce.StaffAbsences  = (*mockStaffAbsenceService)(nil)
+	_ workforce.OwnAbsences    = (*mockStaffAbsenceService)(nil)
+	_ workforce.AdminAbsences  = (*mockStaffAbsenceService)(nil)
+	_ OwnAbsenceWrites         = (*mockStaffAbsenceService)(nil)
+	_ AdminAbsenceWrites       = (*mockStaffAbsenceService)(nil)
 	_ workforce.StaffDirectory = (*stubStaffDirectory)(nil)
 )
 
@@ -374,6 +378,7 @@ func TestNewResource(t *testing.T) {
 	rs := NewResource(Dependencies{
 		WorkSessions:     &mockWorkSessionService{},
 		StaffAbsences:    &mockStaffAbsenceService{},
+		AbsenceWrites:    &mockStaffAbsenceService{},
 		Staff:            defaultPersonSvc(),
 		AccountStartDate: func(context.Context) (string, error) { return "", nil },
 		Identity:         func(context.Context) Identity { return Identity{AccountID: testAccountID} },
