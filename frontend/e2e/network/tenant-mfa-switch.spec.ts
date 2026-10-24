@@ -158,12 +158,13 @@ for (const entry of ["switcher", "guard"] as const) {
     const relogin = page.getByRole("button", { name: "Zur Schulanmeldung" });
     await expect(relogin).toBeVisible();
     if (process.env.TENANT_SWITCH_SHOT_DIR) {
-      await page
+      const hint = page
         .getByRole("alert")
-        .filter({ hasText: "zweiten Anmeldenachweis" })
-        .screenshot({
-          path: join(process.env.TENANT_SWITCH_SHOT_DIR, `${entry}.png`),
-        });
+        .filter({ hasText: "zweiten Anmeldenachweis" });
+      const region = entry === "guard" ? hint.locator("..") : hint;
+      await region.screenshot({
+        path: join(process.env.TENANT_SWITCH_SHOT_DIR, `${entry}.png`),
+      });
     }
     await relogin.click();
     await page.waitForURL(`${target}/`);
