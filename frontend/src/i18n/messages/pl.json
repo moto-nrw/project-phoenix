@@ -2301,6 +2301,12 @@
         "photo_consent_not_withdrawn": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_change_cutoff_passed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_change_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+        "pickup_permission_request_required": "Nowa zgoda na odbiór wymaga Państwa podpisu. OGS ją potem potwierdzi.",
+        "pickup_permission_unchanged": "Ta osoba już może odbierać dziecko w te dni.",
+        "pickup_person_not_linked": "Ta osoba nie jest kontaktem Państwa dziecka. Proszę najpierw dodać ją do kontaktów.",
+        "pickup_proof_not_found": "Dla tej prośby nie ma potwierdzenia z Państwa podpisem.",
+        "pickup_signature_invalid": "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
+        "pickup_signature_required": "Proszę podpisać zgodę i potwierdzić podpis.",
         "poll_closed": "Już nie jest otwarte: {object}. Zapytaj swoją osobę kontaktową.",
         "primary_guardian_protected": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "remove_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
@@ -2708,6 +2714,8 @@
         "pickup_change_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_change_expired": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "pickup_change_impact_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "pickup_permission_contact_gone": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
+        "pickup_proof_not_found": "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
         "pickup_reset_requires_offering": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "reason_required": "Brakuje uzasadnienia: {object}. Wpisz je.",
         "request_not_decided": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -3012,5 +3020,53 @@
     "title": "Nie udało się wyświetlić strony",
     "object": "strona",
     "home": "Do strony głównej"
+  },
+  "parentPickupPermission": {
+    "days": {
+      "label": "W które dni?",
+      "all": "Codziennie",
+      "some": "Tylko w wybrane dni",
+      "pickOne": "Proszę wybrać co najmniej jeden dzień."
+    },
+    "weekday": {
+      "1": "pon.",
+      "2": "wt.",
+      "3": "śr.",
+      "4": "czw.",
+      "5": "pt."
+    },
+    "weekdayLong": {
+      "1": "poniedziałek",
+      "2": "wtorek",
+      "3": "środa",
+      "4": "czwartek",
+      "5": "piątek"
+    },
+    "signature": {
+      "title": "Państwa zgoda",
+      "procedure": "Podpisują Państwo prostym podpisem elektronicznym z odręcznie narysowanym podpisem.",
+      "missing": "Proszę się podpisać i nacisnąć „Potwierdź podpis”."
+    },
+    "statement": {
+      "permissionAll": "Zezwalam, aby {person} odbierał(a) dziecko z OGS codziennie.",
+      "permissionSome": "Zezwalam, aby {person} odbierał(a) dziecko z OGS w te dni: {days}.",
+      "day": "Zezwalam, aby {person} odebrał(a) dziecko z OGS w dniu {date}.",
+      "aloneDay": "Zezwalam, aby dziecko w dniu {date} samo wróciło do domu.",
+      "aloneWeekly": "Zezwalam, aby dziecko w te dni samo wracało do domu: {days}."
+    },
+    "waitsForOgs": "OGS potwierdza zgodę. Do tego czasu nie obowiązuje.",
+    "pendingBadge": "Czeka na OGS",
+    "pending": "Czeka na OGS: {days}",
+    "onlyDays": "Tylko {days}",
+    "requestSent": "Państwa prośba jest w OGS. Tutaj zobaczą Państwo, kiedy zostanie potwierdzona.",
+    "proofPdf": "Potwierdzenie (PDF)",
+    "errorObjectProof": "Potwierdzenie",
+    "errorObjectRequest": "Zgoda na odbiór",
+    "pickupPerson": {
+      "label": "Kto odbiera?",
+      "none": "Jak zwykle",
+      "hint": "Tylko osoby zapisane w kontaktach.",
+      "manageLink": "Dodaj nową osobę do kontaktów"
+    }
   }
 }
