@@ -22,6 +22,7 @@ import {
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { BackLink } from "~/components/ui/back-link";
+import { Button } from "~/components/ui/button";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
@@ -41,12 +42,13 @@ import { createLogger } from "~/lib/logger";
 import {
   EmptyState,
   PlusIcon,
+  SimpleEmptyState,
 } from "~/app/operator/provisioning/provisioning-shared";
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
-import { TraegerMembersTable } from "./traeger-members-table";
+import { TRAEGER_MEMBER_COLUMNS } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
@@ -495,14 +497,15 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
     if (activeTab === "traeger-buero") {
       return (
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
           onClick={() => setAssignTraegerOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
         >
           <PlusIcon />
           Person zuordnen
-        </button>
+        </Button>
       );
     }
 
@@ -690,12 +693,16 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             {(traegerMembers === undefined && !traegerMembersLoading) ||
             traegerMembersError ? null : !traegerMembersLoading &&
               traegerMembers?.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Noch niemand hat Zugang zum Träger-Portal dieses Trägers.
-              </div>
+              <SimpleEmptyState
+                title="Noch niemand im Träger-Büro"
+                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers."
+              />
             ) : (
-              <TraegerMembersTable
-                members={traegerMembers ?? []}
+              <DataTable
+                columns={TRAEGER_MEMBER_COLUMNS}
+                rows={traegerMembers ?? []}
+                getRowKey={(member) => member.accountId}
+                defaultSortKey="email"
                 isLoading={traegerMembersLoading}
               />
             )}

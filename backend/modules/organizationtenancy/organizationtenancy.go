@@ -35,7 +35,7 @@ var (
 	// must stay in sync.
 	reservedSlugs = map[string]bool{
 		"www": true, "api": true, "operator": true, "parents": true,
-		"eltern": true, "schule": true, "school": true, "grafana": true,
+		"eltern": true, "schule": true, "school": true, "traeger": true, "grafana": true,
 		"pyreportal": true, "help": true, "admin": true, "app": true,
 		"dashboard": true, "analytics": true, "status": true, "mail": true,
 		"staging": true, "demo": true, "ingest": true,

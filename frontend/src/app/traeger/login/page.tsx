@@ -20,6 +20,7 @@ import {
 } from "~/components/auth/credential-error";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
@@ -305,14 +306,16 @@ function LoginForm() {
             </span>
           </button>
           {choices ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="compact"
               disabled={isSubmitting}
               onClick={backToCredentials}
-              className="w-full text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+              className="w-full"
             >
               Mit einem anderen Konto anmelden
-            </button>
+            </Button>
           ) : null}
         </div>
       </form>

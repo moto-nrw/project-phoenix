@@ -1,4 +1,4 @@
-import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import type { DataTableColumn } from "~/components/ui/data-table";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   TRAEGER_MEMBER_STATUS_LABELS,
@@ -6,7 +6,8 @@ import {
   type TraegerMember,
 } from "~/lib/operator/provisioning-helpers";
 
-const COLUMNS: DataTableColumn<TraegerMember>[] = [
+/** Spalten der Personen des Träger-Büros mit Zugang zum Träger-Portal (#4649). */
+export const TRAEGER_MEMBER_COLUMNS: DataTableColumn<TraegerMember>[] = [
   {
     key: "email",
     header: "E-Mail",
@@ -35,22 +36,3 @@ const COLUMNS: DataTableColumn<TraegerMember>[] = [
     sortValue: (member) => member.status,
   },
 ];
-
-/** Personen des Träger-Büros mit Zugang zum Träger-Portal (#4649). */
-export function TraegerMembersTable({
-  members,
-  isLoading,
-}: {
-  readonly members: TraegerMember[];
-  readonly isLoading: boolean;
-}) {
-  return (
-    <DataTable
-      columns={COLUMNS}
-      rows={members}
-      getRowKey={(member) => member.accountId}
-      defaultSortKey="email"
-      isLoading={isLoading}
-    />
-  );
-}
