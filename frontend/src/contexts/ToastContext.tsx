@@ -10,7 +10,6 @@ import React, {
   useState,
   type RefObject,
 } from "react";
-import { useSession } from "next-auth/react";
 import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
@@ -21,7 +20,6 @@ import {
   moduleNotBookedExplanation,
   notBookedModuleOf,
 } from "~/lib/module-not-booked";
-import { seesLockedModules } from "~/lib/module-register";
 import type { ModuleKey } from "~/lib/modules";
 import {
   errorLogFields,
@@ -62,6 +60,26 @@ interface ToastAPI {
 }
 
 const ToastContext = createContext<ToastAPI | undefined>(undefined);
+const ModuleBookingAudienceContext = createContext(false);
+
+/**
+ * Supplies the module-booking audience from the tenant session. Toasts also
+ * render in auth-free shells and isolated components, where the safe default
+ * is the explanation for staff members.
+ */
+export function ModuleBookingAudienceProvider({
+  seesLockedModules,
+  children,
+}: Readonly<{
+  seesLockedModules: boolean;
+  children: React.ReactNode;
+}>) {
+  return (
+    <ModuleBookingAudienceContext.Provider value={seesLockedModules}>
+      {children}
+    </ModuleBookingAudienceContext.Provider>
+  );
+}
 
 const toastLabelsByLocale = {
   de: {
@@ -646,7 +664,7 @@ function useApiErrorCore(
 /** Opt-in display path for actions without a form (#2510). */
 export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
   const toast = useToast();
-  const { data: session } = useSession();
+  const seesLocked = useContext(ModuleBookingAudienceContext);
   const deliver = useCallback(
     (shown: DisplayedError) => {
       const options = {
@@ -656,17 +674,14 @@ export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
       };
       if (shown.notBookedModule) {
         toast.info(
-          moduleNotBookedExplanation(
-            shown.notBookedModule,
-            seesLockedModules(session),
-          ),
+          moduleNotBookedExplanation(shown.notBookedModule, seesLocked),
           options,
         );
         return;
       }
       toast.error(shown.message, options);
     },
-    [toast, session],
+    [toast, seesLocked],
   );
   const core = useApiErrorCore(formRef, deliver, "toast");
   /**
