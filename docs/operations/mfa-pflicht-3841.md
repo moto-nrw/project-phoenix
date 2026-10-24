@@ -66,7 +66,9 @@ Portals.
 Nach Zurücksetzen der zweiten Prüfung gilt diese Bestätigung nicht mehr.
 Sie gilt auch nicht nach Abmeldung oder Ablauf der Sitzung.
 Fehlt die Bestätigung, melden Sie sich direkt bei der Zielschule an. Im
-OGS-Portal führt `Zur Schulanmeldung` zur passenden Anmeldeseite.
+OGS-Portal meldet `Zur Schulanmeldung` Sie zuerst ab. Danach öffnet sich die
+Anmeldeseite der Zielschule. Scheitert die Abmeldung, folgen Sie dem sichtbaren
+Hinweis und versuchen Sie es erneut.
 Eine Passwort-Zurücksetzung stellt keine Sitzung und keinen MFA-Nachweis aus.
 
 ## Verlorener zweiter Faktor
