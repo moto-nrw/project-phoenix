@@ -91,22 +91,10 @@ func (l *Ledger) open() (*os.File, error) {
 	}
 	current, err := os.Lstat(l.path)
 	if err != nil || !os.SameFile(info, current) {
-		closeLedger(file)
+		_ = file.Close()
 		return nil, errLedger
 	}
 	return file, nil
-}
-
-func closeLedger(file *os.File) {
-	// close may defer the kernel's final file reference cleanup. Unlock
-	// explicitly so the next nonblocking caller can proceed when we return.
-	for {
-		err := syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
-		if !errors.Is(err, syscall.EINTR) {
-			break
-		}
-	}
-	_ = file.Close()
 }
 
 func (l *Ledger) checksum(previous, payload string) string {
@@ -176,7 +164,7 @@ func (l *Ledger) Check(schoolIDs []int64, orderReference string) error {
 	if err != nil {
 		return err
 	}
-	defer closeLedger(file)
+	defer func() { _ = file.Close() }()
 	selected := make(map[int64]bool, len(schoolIDs))
 	for _, id := range schoolIDs {
 		selected[id] = true
@@ -199,7 +187,7 @@ func (l *Ledger) Record(raw json.RawMessage) error {
 	if err != nil {
 		return err
 	}
-	defer closeLedger(file)
+	defer func() { _ = file.Close() }()
 	found := false
 	previous, err := l.read(file, func(old entry) error {
 		if old.SchoolID == item.SchoolID && old.Reference != item.Reference {
