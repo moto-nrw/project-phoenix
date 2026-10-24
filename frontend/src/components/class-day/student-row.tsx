@@ -44,7 +44,7 @@ const MORNING_ITEMS: readonly SegmentedControlItem<MorningAttendanceStatus>[] =
 
 /**
  * Anwesenheit am Vormittag (#4790) für die Zeilen einer Klasse. Ohne
- * `onChange` zeigt die Zeile nur, wer ohne Meldung fehlt.
+ * `onChange` zeigt die Zeile den Stand als nicht anklickbares Kennzeichen.
  */
 export interface StudentRowMorning {
   readonly draft: MorningAttendanceDraft;
@@ -136,6 +136,16 @@ export function StudentRow({
           <StatusColorBadge
             label={statusLabel(row.status)}
             color={statusColor(row.status)}
+          />
+        ) : null}
+        {attendance && !morning?.onChange ? (
+          <StatusColorBadge
+            label={`Vormittag: ${attendance === "present" ? "Da" : "Fehlt"}`}
+            color={
+              attendance === "present"
+                ? LOCATION_COLORS.GROUP_ROOM
+                : LOCATION_COLORS.DANGER
+            }
           />
         ) : null}
         {unreported ? (

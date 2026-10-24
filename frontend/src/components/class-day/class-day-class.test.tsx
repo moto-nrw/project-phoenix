@@ -446,7 +446,7 @@ describe("ClassDayClass", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("shows only the highlight when the day cannot be recorded", async () => {
+    it("shows attendance and the highlight when the day cannot be recorded", async () => {
       const shown = morningReport();
       shown.can_record_morning_attendance = false;
       shown.rows[0]!.morning_attendance = {
@@ -462,11 +462,40 @@ describe("ClassDayClass", () => {
       );
 
       expect(await screen.findByText("Fehlt ohne Meldung")).toBeInTheDocument();
+      expect(screen.getAllByText("Vormittag: Fehlt")).toHaveLength(2);
       expect(
         screen.queryByRole("group", { name: /Anwesenheit von/ }),
       ).not.toBeInTheDocument();
       expect(
         screen.queryByText(/Anwesenheit am Vormittag/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows saved present marks alongside reports without marking open children", async () => {
+      const shown = morningReport();
+      shown.can_record_morning_attendance = false;
+      shown.rows[1]!.morning_attendance = {
+        status: "present",
+        source: "teacher",
+      };
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(shown)}
+          recordMorningAttendance={() => Promise.resolve()}
+        />,
+      );
+
+      const child = (await screen.findByText("Krank, Nico")).closest("li")!;
+      expect(within(child).getByText("Vormittag: Da")).toBeInTheDocument();
+      expect(within(child).getByText("Krank")).toBeInTheDocument();
+      // Anker: die geladene Zeile zeigt den gespeicherten Stand und die Meldung.
+      expect(within(child).queryByRole("button")).not.toBeInTheDocument();
+      const openChild = screen.getByText("Klassentag, Klara").closest("li")!;
+      // Anker: die offene Zeile zeigt weiterhin die OGS-Anmeldung.
+      expect(within(openChild).getByText("Ganztag")).toBeInTheDocument();
+      expect(
+        within(openChild).queryByText(/Vormittag:/),
       ).not.toBeInTheDocument();
     });
   });
