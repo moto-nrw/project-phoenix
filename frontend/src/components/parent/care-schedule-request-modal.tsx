@@ -52,7 +52,8 @@ type Capabilities = ChildCareSchedule["request_capabilities"];
 type Weekdays = ChildCareSchedule["weekdays"];
 type SubmitRequest = (
   payload: CareScheduleRequestInput,
-  signature: SignatureValue | null,
+  /** Nur gesetzt, wenn die Anfrage das Kind allein gehen lässt (#4780). */
+  signature?: SignatureValue,
 ) => Promise<void>;
 
 const ALONE_SIGNATURE_FIELD = "care-schedule-alone-signature";
@@ -311,7 +312,9 @@ function useRequestForm(
     setSubmitting(true);
     form.clear();
     try {
-      await onSubmit(payload, aloneStatement ? signature : null);
+      await (aloneStatement && signature
+        ? onSubmit(payload, signature)
+        : onSubmit(payload));
       onClose();
     } catch (submitError) {
       const known = knownRequestErrorKey(submitError);

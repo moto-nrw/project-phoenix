@@ -1216,8 +1216,14 @@ export function PickupTimeModal({
     });
     return true;
   };
-  const daySignature = dayStatement ? signature : null;
-  const dayPerson = pickupPerson ? pickupPerson.guardian_profile_id : undefined;
+  // Abholperson und Unterschrift gehen nur gemeinsam mit (#4780).
+  const dayPickup =
+    pickupPerson && signature
+      ? {
+          pickupPersonGuardianProfileId: pickupPerson.guardian_profile_id,
+          signature,
+        }
+      : {};
 
   const handleSubmit = async () => {
     // Guard: if the existing overrides never loaded we can't trust the
@@ -1252,8 +1258,7 @@ export function PickupTimeModal({
         ...(modeField ? { departureMode } : {}),
         reason: reason.trim(),
         recipientGuardianProfileIds: recipientIds,
-        pickupPersonGuardianProfileId: dayPerson,
-        signature: daySignature,
+        ...dayPickup,
       });
       onClose();
     } catch (err) {
@@ -1292,8 +1297,7 @@ export function PickupTimeModal({
         ...(modeField ? { departureMode } : {}),
         reason: reason.trim(),
         expectedVersion: version,
-        pickupPersonGuardianProfileId: dayPerson,
-        signature: daySignature,
+        ...dayPickup,
       });
       onClose();
     } catch (err) {

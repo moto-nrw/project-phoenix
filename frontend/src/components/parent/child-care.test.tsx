@@ -1918,3 +1918,76 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
     expect(result.current.loadError).toBeNull();
   });
 });
+
+// #4780: holt an einem Tag eine eingetragene Kontaktperson ab, unterschreiben
+// die Eltern die Erlaubnis für diesen Tag. Ohne Unterschrift geht nichts raus.
+describe("PickupTimeModal, Abholperson an einem Tag", () => {
+  it("needs the signature and sends person and signature together", async () => {
+    const contacts = vi
+      .spyOn(parentApi, "listChildGuardians")
+      .mockResolvedValue([
+        {
+          guardian_profile_id: "12",
+          student_guardian_id: "120",
+          first_name: "Rita",
+          last_name: "Klein",
+          relationship_type: "relative",
+          is_primary: false,
+          can_pickup: false,
+          is_emergency_contact: false,
+          phones: [],
+          is_self: false,
+        } as unknown as parentApi.ChildGuardian,
+      ]);
+    const { onSubmit, dateInput, reasonInput } = renderModal({
+      studentId: "1",
+    });
+
+    fireEvent.change(dateInput, { target: { value: "2026-09-15" } });
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Wer holt ab?" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Rita Klein" }));
+    if (reasonInput) {
+      fireEvent.change(reasonInput, { target: { value: "Oma holt ab" } });
+    }
+    expect(
+      screen.getByText(
+        "Ich erlaube, dass Rita Klein das Kind am 15.09.2026 von der OGS abholt.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+    expect(
+      (
+        await screen.findAllByText(
+          "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          date: "2026-09-15",
+          pickupPersonGuardianProfileId: "12",
+          signature: expect.objectContaining({
+            method: "typed",
+            typedName: "Sabine Muster",
+          }),
+        }),
+      ),
+    );
+    contacts.mockRestore();
+  });
+});

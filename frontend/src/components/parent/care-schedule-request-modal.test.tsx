@@ -197,4 +197,60 @@ describe("CareScheduleRequestModal Fehlerweg (#2518)", () => {
       deMessages.parentMasterData.careSchedule.requestAlreadyPending,
     );
   });
+
+  // #4780: geht das Kind an Wochentagen allein nach Hause, unterschreiben die
+  // Eltern die Erlaubnis, bevor die Anfrage rausgeht.
+  it("verlangt für „allein nach Hause“ die Unterschrift und sendet sie mit", async () => {
+    const onSubmit = renderModal({
+      arrival: false,
+      pickup: false,
+      departure_mode: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Abholart am Montag" }),
+    );
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: deMessages.parentMasterData.departureModes.alone,
+      }),
+    );
+    expect(
+      screen.getByText(
+        "Ich erlaube, dass das Kind an diesen Tagen allein nach Hause geht: Mo.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
+    );
+    expect(
+      (
+        await screen.findAllByText(
+          deMessages.parentPickupPermission.signature.missing,
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
+    );
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        { weekdays: [{ weekday: 1, mode: "alone" }] },
+        expect.objectContaining({
+          method: "typed",
+          typedName: "Sabine Muster",
+        }),
+      ),
+    );
+  });
 });
