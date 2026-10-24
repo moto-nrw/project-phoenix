@@ -58,8 +58,9 @@ type MorningAttendance interface {
 	RecordMorningAttendance(ctx context.Context, in MorningAttendanceWrite) error
 }
 
-// MorningAttendanceRetention deletes the morning attendance once the school's
-// retention window has passed (#4790), counted from the school day. Like
+// MorningAttendanceRetention deletes the morning attendance and the class
+// handovers (#4794) once the school's retention window has passed (#4790),
+// counted from the school day. Like
 // AttendanceRetention it joins the nightly cleanup transaction.
 type MorningAttendanceRetention interface {
 	DeleteExpiredMorningAttendance(ctx context.Context, retentionDays int) (int, error)

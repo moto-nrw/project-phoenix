@@ -183,7 +183,7 @@ var operations_init_nach_hause_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "nach-hause",
 		SortOrder:       5,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyPerStudentCheckoutEnabled,
@@ -196,7 +196,7 @@ var operations_init_nach_hause_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "nach-hause",
 		SortOrder:       6,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyPerStudentCheckoutDeltaMinutes,
@@ -346,9 +346,9 @@ var operations_init_aufsicht_6Definitions = []config.Definition{
 	{
 		Key:             config.KeySchoolPortalWriteScope,
 		Label:           "Was Lehrkräfte in moto schule eintragen dürfen",
-		Description:     "Gilt für Lehrkräfte mit Zugang zu moto schule. Zurzeit geht nur eines: eine andere Ankunftszeit für eine ganze Klasse an einem Tag, zum Beispiel bei Unterrichtsausfall. Die OGS sieht die Eintragung sofort überall dort, wo Ankunftszeiten stehen.",
-		Type:            config.FieldSelect,
-		Default:         config.SchoolPortalWriteScopeNone,
+		Description:     "Gilt für Lehrkräfte mit Zugang zu moto schule. Ohne Häkchen sieht die Schule nur. Die OGS sieht jede Eintragung sofort.",
+		Type:            config.FieldMultiSelect,
+		Default:         []string{},
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
@@ -356,8 +356,9 @@ var operations_init_aufsicht_6Definitions = []config.Definition{
 		SortOrder:       3,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
-				{Label: "Nichts. Die Schule sieht nur.", Value: config.SchoolPortalWriteScopeNone},
 				{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
+				{Label: "Klasse nach dem Unterricht an die OGS übergeben", Value: config.SchoolPortalWriteScopeClassHandover},
+				{Label: "Ausflug oder Klassenfahrt der Klasse melden", Value: config.SchoolPortalWriteScopeClassTrips},
 			},
 		},
 	},

@@ -6,7 +6,8 @@
 // in der Betreuung, wer geht nach Hause, und bei wem ist es heute anders als
 // sonst. Abweichungen stehen am Kind selbst, nicht in einem eigenen Block —
 // jedes Kind kommt genau einmal vor. Heute trägt die Lehrkraft am Kind auch
-// ein, ob es am Vormittag da ist (#4790).
+// ein, ob es am Vormittag da ist (#4790), und übergibt die Klasse nach dem
+// Unterricht an die OGS (#4794).
 
 import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -16,6 +17,9 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
+import { FormModal } from "~/components/ui/form-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -34,13 +38,18 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type {
   ClassDayClasses,
+  ClassTripReportInput,
+  ClassTripReportResult,
+  ClassHandoverChildren,
   MorningAttendanceMark,
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-status-modal";
 import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
+import { handoverLine, handoverRows, initialAbsentIds } from "./class-handover";
 import { countDayChanges } from "./day-changes";
 import {
   draftMarks,
@@ -108,6 +117,14 @@ export interface ClassDayClassProps {
    */
   readonly fetchClasses?: () => Promise<ClassDayClasses>;
   /**
+   * Meldet einen Ausflug oder eine Klassenfahrt (#4799). Ohne Funktion oder
+   * ohne Freigabe der OGS gibt es keinen Knopf.
+   */
+  readonly reportClassTrip?: (
+    schoolClass: string,
+    input: ClassTripReportInput,
+  ) => Promise<ClassTripReportResult>;
+  /**
    * Speichert die Anwesenheit am Vormittag (#4790). Ohne sie bleibt die
    * Anwesenheit eine Anzeige.
    */
@@ -116,15 +133,34 @@ export interface ClassDayClassProps {
     date: string,
     marks: readonly MorningAttendanceMark[],
   ) => Promise<void>;
+  /**
+   * Übergibt die Klasse heute an die OGS (#4794). Ohne sie bleibt die
+   * Übergabe eine Anzeige.
+   */
+  readonly handOverClass?: (
+    schoolClass: string,
+    date: string,
+    children: ClassHandoverChildren,
+  ) => Promise<void>;
+  /** Nimmt die heutige Übergabe zurück (#4794). */
+  readonly withdrawClassHandover?: (
+    schoolClass: string,
+    date: string,
+  ) => Promise<void>;
   /** Nur für Tests: fixiert den Vergleichstag für "Heute gemeldet". */
   readonly now?: Date;
 }
+
+type HandoverChoice = "present" | "absent";
 
 export function ClassDayClass({
   schoolClass,
   fetchClassDay,
   fetchClasses,
+  reportClassTrip,
   recordMorningAttendance,
+  handOverClass,
+  withdrawClassHandover,
   now,
 }: ClassDayClassProps) {
   // Kein Default-Prop: eine `new Date()` in der Signatur bricht die
@@ -134,6 +170,8 @@ export function ClassDayClass({
   const dateISO = classDayDateParam(searchParams.get("tag"));
   const weekendDay = isWeekendISO(dateISO);
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
+  const [tripModalOpen, setTripModalOpen] = useState(false);
+  const [tripSaved, setTripSaved] = useState<string | null>(null);
 
   // Das Schreib-Flag kommt von der Klassenliste (Berechtigung UND Freigabe
   // der OGS). Bei "nicht freigegeben" gibt es keinen Knopf und keinen
@@ -172,6 +210,10 @@ export function ClassDayClass({
     ) === true;
   const canWriteArrivalException =
     classes?.can_write_arrival_exception === true && isAssignedClass;
+  const canReportClassTrip =
+    reportClassTrip !== undefined &&
+    classes?.can_report_class_trip === true &&
+    isAssignedClass;
   // Eine Schule, die Sa/So nach dem Freitagsplan betreut (#3921), hat auch
   // am Wochenende einen Schultag; sonst wird das Wochenende gar nicht geladen.
   const weekendOpen = classes?.weekend_follows_friday === true;
@@ -234,6 +276,31 @@ export function ClassDayClass({
       ? classArrivalExceptionLine(report, dateISO, todayISO())
       : null;
   const isToday = dateISO === todayISO();
+  // Nur Kinder mit OGS-Datensatz lassen sich melden; Klassenlisteneinträge
+  // ("Keine Betreuung") hat die OGS nicht.
+  const tripStudents = useMemo(
+    () =>
+      rows
+        .filter((row) => !row.list_entry && row.student_id > 0)
+        .map((row) => ({
+          id: String(row.student_id),
+          first_name: row.first_name,
+          second_name: row.last_name,
+          name: `${row.first_name} ${row.last_name}`.trim(),
+        })),
+    [rows],
+  );
+  const saveClassTrip = async (input: ClassTripReportInput) => {
+    if (!reportClassTrip) return;
+    const result = await reportClassTrip(schoolClass, input);
+    const one = result.student_count === 1;
+    const children = one ? "1 Kind" : `${result.student_count} Kinder`;
+    setTripSaved(
+      result.kind === "return_time" && input.returnTime
+        ? `Gespeichert. ${children} ${one ? "kommt" : "kommen"} um ${input.returnTime} Uhr in die OGS.`
+        : `Gespeichert. Die OGS sieht ${children} an diesen Tagen als unterwegs.`,
+    );
+  };
 
   // Anwesenheit am Vormittag (#4790): Markierungen sammeln sich im Entwurf
   // dieser Klasse und dieses Tages und gehen erst mit „Speichern“ hinaus.
@@ -295,6 +362,82 @@ export function ClassDayClass({
       setSavingMorning(false);
     }
   };
+  // Übergabe an die OGS (#4794): bestätigt wird je Klasse, Ausnahmen je Kind.
+  const canHandOver =
+    Boolean(handOverClass && withdrawClassHandover) &&
+    report?.can_hand_over === true &&
+    !weekend;
+  const ogsRows = useMemo(() => handoverRows(rows), [rows]);
+  const [handoverOpen, setHandoverOpen] = useState(false);
+  const [handoverAbsent, setHandoverAbsent] = useState<ReadonlySet<number>>(
+    () => new Set(),
+  );
+  const [savingHandover, setSavingHandover] = useState(false);
+  const handoverErrors = useApiFormError();
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const withdrawErrors = useApiFormError();
+  const openHandover = () => {
+    handoverErrors.clear();
+    setHandoverAbsent(initialAbsentIds(rows, Boolean(report?.handover), draft));
+    setHandoverOpen(true);
+  };
+  const markHandover = (studentId: number, choice: HandoverChoice) => {
+    setHandoverAbsent((current) => {
+      const next = new Set(current);
+      if (choice === "absent") next.add(studentId);
+      else next.delete(studentId);
+      return next;
+    });
+  };
+  const saveHandover = async () => {
+    if (!handOverClass) return;
+    handoverErrors.clear();
+    setSavingHandover(true);
+    try {
+      await handOverClass(schoolClass, dateISO, {
+        present: ogsRows
+          .filter((row) => !handoverAbsent.has(row.student_id))
+          .map((row) => row.student_id),
+        absent: ogsRows
+          .filter((row) => handoverAbsent.has(row.student_id))
+          .map((row) => row.student_id),
+      });
+      await refetchReport();
+      setHandoverOpen(false);
+    } catch (cause) {
+      logger.error("class_day_handover_save_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      void handoverErrors.show(cause, {
+        object: "die Übergabe",
+        retry: () => void saveHandover(),
+      });
+    } finally {
+      setSavingHandover(false);
+    }
+  };
+  const confirmWithdraw = async () => {
+    if (!withdrawClassHandover) return;
+    withdrawErrors.clear();
+    setWithdrawing(true);
+    try {
+      await withdrawClassHandover(schoolClass, dateISO);
+      await refetchReport();
+      setWithdrawOpen(false);
+    } catch (cause) {
+      logger.error("class_day_handover_withdraw_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      void withdrawErrors.show(cause, {
+        object: "die Übergabe",
+        retry: () => void confirmWithdraw(),
+      });
+    } finally {
+      setWithdrawing(false);
+    }
+  };
+
   const morning: StudentRowMorning = {
     draft,
     onChange: canRecordMorning ? markRow : undefined,
@@ -388,6 +531,78 @@ export function ClassDayClass({
                 ? "Ankunft heute ändern"
                 : "Ankunft an diesem Tag ändern"}
             </Button>
+          </div>
+        ) : null}
+        {schoolClass && !weekend && canReportClassTrip && report ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setTripSaved(null);
+                setTripModalOpen(true);
+              }}
+              disabled={tripStudents.length === 0}
+            >
+              Ausflug oder Klassenfahrt melden
+            </Button>
+          </div>
+        ) : null}
+        {tripSaved ? (
+          <Alert type="success" message={tripSaved} className="mt-3" />
+        ) : null}
+
+        {/* Übergabe an die OGS (#4794). Die Zeile steht auch ohne
+            Schreibrecht, sobald die Klasse übergeben ist, dann ohne Knopf. */}
+        {report && !weekend && (report.handover || canHandOver) ? (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">
+                {report.handover
+                  ? handoverLine(report.handover, ogsRows.length)
+                  : "Die Klasse ist noch nicht an die OGS übergeben."}
+              </p>
+              {canHandOver && !report.handover ? (
+                <p className="text-sm text-gray-600">
+                  Übergeben Sie die Klasse nach dem Unterricht. Die OGS sieht
+                  dann sofort, wer nicht da ist.
+                </p>
+              ) : null}
+            </div>
+            {canHandOver && report.handover ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={openHandover}
+                >
+                  Übergabe ändern
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => {
+                    withdrawErrors.clear();
+                    setWithdrawOpen(true);
+                  }}
+                >
+                  Übergabe zurücknehmen
+                </Button>
+              </div>
+            ) : null}
+            {canHandOver && !report.handover ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={openHandover}
+              >
+                Klasse übergeben
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -514,6 +729,107 @@ export function ClassDayClass({
           </div>
         ) : null}
       </section>
+
+      {schoolClass && canReportClassTrip ? (
+        <ClassTripBulkStatusModal
+          isOpen={tripModalOpen}
+          onClose={() => setTripModalOpen(false)}
+          targetLabel={schoolClassLabel(schoolClass)}
+          students={tripStudents}
+          onSuccess={() => void refetchReport()}
+          schoolReport={{ save: saveClassTrip, defaultDate: dateISO }}
+        />
+      ) : null}
+
+      {canHandOver ? (
+        <FormModal
+          isOpen={handoverOpen}
+          onClose={() => setHandoverOpen(false)}
+          closeDisabled={savingHandover}
+          title={`${schoolClassLabel(schoolClass)} an die OGS übergeben`}
+          size="md"
+          mobilePosition="bottom"
+          error={handoverErrors.error}
+          footer={
+            <EditActions
+              className="p-4"
+              onCancel={() => setHandoverOpen(false)}
+              onSave={() => void saveHandover()}
+              saving={savingHandover}
+              saveLabel="Übergeben"
+              savingLabel="Übergibt…"
+            />
+          }
+        >
+          <div className="space-y-3 p-4">
+            <p className="text-sm text-gray-600">
+              {ogsRows.length > 0
+                ? "Diese Kinder gehen jetzt in die OGS. Tippen Sie bei jedem Kind, das nicht da ist, auf „Nicht da“."
+                : "Heute geht kein Kind aus dieser Klasse in die OGS."}
+            </p>
+            {ogsRows.length > 0 ? (
+              <ul className="space-y-1.5">
+                {ogsRows.map((row) => (
+                  <li
+                    key={row.student_id}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium text-gray-900">
+                      {row.last_name}, {row.first_name}
+                    </span>
+                    <SegmentedControl<HandoverChoice>
+                      items={[
+                        {
+                          value: "present",
+                          label: "Da",
+                          tone: "green",
+                          disabled: savingHandover,
+                        },
+                        {
+                          value: "absent",
+                          label: "Nicht da",
+                          tone: "red",
+                          disabled: savingHandover,
+                        },
+                      ]}
+                      value={
+                        handoverAbsent.has(row.student_id)
+                          ? "absent"
+                          : "present"
+                      }
+                      onChange={(choice) =>
+                        markHandover(row.student_id, choice)
+                      }
+                      variant="pills"
+                      ariaLabel={`Übergabe von ${row.first_name} ${row.last_name}`}
+                      className="shrink-0"
+                    />
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </FormModal>
+      ) : null}
+
+      {canHandOver ? (
+        <ConfirmationModal
+          isOpen={withdrawOpen}
+          onClose={() => setWithdrawOpen(false)}
+          onConfirm={() => void confirmWithdraw()}
+          title="Übergabe zurücknehmen?"
+          confirmText="Zurücknehmen"
+          isConfirmLoading={withdrawing}
+        >
+          <div className="space-y-3">
+            <FormErrorAlert message={withdrawErrors.error} />
+            <p className="text-sm text-gray-600">
+              Die OGS sieht die Übergabe dann nicht mehr. Sie können die Klasse
+              danach neu übergeben.
+            </p>
+          </div>
+        </ConfirmationModal>
+      ) : null}
 
       {schoolClass && canWriteArrivalException ? (
         <ClassArrivalExceptionDialog

@@ -71,6 +71,7 @@ func (s *pickupScheduleService) CreateOrReclaimException(
 			reason,
 			staffID,
 			resolveStaffID,
+			nil,
 		)
 	}
 	var result *careplan.PickupException
@@ -84,7 +85,7 @@ func (s *pickupScheduleService) CreateOrReclaimException(
 		if err := s.autoExcusal.DetachForDate(txCtx, studentID, date); err != nil {
 			return err
 		}
-		row, err := s.createOrReclaimException(txCtx, studentID, date, pickupTime, reason, staffID, resolveStaffID)
+		row, err := s.createOrReclaimException(txCtx, studentID, date, pickupTime, reason, staffID, resolveStaffID, nil)
 		if err != nil {
 			return err
 		}

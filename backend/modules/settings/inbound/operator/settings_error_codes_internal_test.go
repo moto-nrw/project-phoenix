@@ -36,6 +36,8 @@ func TestRenderOperatorSettingsErrorAnswersWithCodes(t *testing.T) {
 		{"permission", &settings.SettingsError{Op: "set_value", Err: &settings.PermissionDeniedError{Key: "a.b"}}, http.StatusForbidden, "general.permission"},
 		{"attendance retention below the visible window", &settings.SettingsError{Op: "set_value", Err: &settings.AttendanceWindowError{Key: settings.KeyGDPRAttendanceRetentionDays, VisibleDays: 90, RetentionDays: 60}}, http.StatusBadRequest, "settings.attendance_retention_below_visible"},
 		{"attendance visible window above the retention", &settings.SettingsError{Op: "set_value", Err: &settings.AttendanceWindowError{Key: settings.KeyAttendanceVisibleDays, VisibleDays: 90, RetentionDays: 60}}, http.StatusBadRequest, "settings.attendance_visible_exceeds_retention"},
+		{"module booked without its prerequisite", &settings.SettingsError{Op: "set_value", Err: &settings.ModuleDependencyError{Key: "module.ferienbetreuung", Booking: true}}, http.StatusBadRequest, "settings.module_requires"},
+		{"module cancelled while a booked module requires it", &settings.SettingsError{Op: "set_value", Err: &settings.ModuleDependencyError{Key: "module.online_anmeldung"}}, http.StatusBadRequest, "settings.module_required_by"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

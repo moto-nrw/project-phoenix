@@ -31,7 +31,7 @@ import (
 const arrivalExceptionListDays = 60
 
 // ErrSchoolWriteDisabled is returned when the school keeps moto schule
-// read-only (operations.school_portal_write_scope = none).
+// read-only (nothing chosen in operations.school_portal_write_scope).
 var ErrSchoolWriteDisabled = errors.New("die OGS hat das Eintragen für die Schule nicht freigegeben")
 
 // ArrivalExceptionRequest is the body of PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}.
