@@ -3696,6 +3696,14 @@
       "write_owner": "student-presence"
     },
     {
+      "name": "active.class_handover_absences",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.class_handovers",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.combined_groups",
       "write_owner": "student-presence"
     },

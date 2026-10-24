@@ -18,12 +18,15 @@ const (
 	FieldTextarea FieldType = "textarea"
 	FieldPassword FieldType = "password"
 	FieldSelect   FieldType = "select"
+	// FieldMultiSelect stores a JSON array of option values; an empty array
+	// selects nothing.
+	FieldMultiSelect FieldType = "multiselect"
 )
 
 // validFieldTypes contains all known field types for validation.
 var validFieldTypes = map[FieldType]bool{
 	FieldBoolean: true, FieldNumber: true, FieldTime: true, FieldDate: true,
-	FieldText: true, FieldTextarea: true, FieldPassword: true, FieldSelect: true,
+	FieldText: true, FieldTextarea: true, FieldPassword: true, FieldSelect: true, FieldMultiSelect: true,
 }
 
 // AccessPolicy classifies which audience can read and write a setting.
@@ -118,7 +121,8 @@ func Range(minVal, maxVal float64) *ValidationRules {
 	return &ValidationRules{Min: &minVal, Max: &maxVal}
 }
 
-// SelectOptions provides static choices for a FieldSelect setting.
+// SelectOptions provides static choices for a FieldSelect or FieldMultiSelect
+// setting.
 type SelectOptions struct {
 	Static []SelectOption `json:"static,omitempty"`
 }
@@ -166,10 +170,11 @@ func (d *Definition) validateShape() error {
 	if d.Category == "" {
 		return fmt.Errorf("category is required for setting %s", d.Key)
 	}
-	if d.Options != nil && d.Type != FieldSelect {
+	selectType := d.Type == FieldSelect || d.Type == FieldMultiSelect
+	if d.Options != nil && !selectType {
 		return fmt.Errorf("options can only be set for select fields, setting %s has type %s", d.Key, d.Type)
 	}
-	if d.Type == FieldSelect && d.Options == nil {
+	if selectType && d.Options == nil {
 		return fmt.Errorf("select field %s must have options", d.Key)
 	}
 	if d.AccessPolicy != "" && !validAccessPolicies[d.AccessPolicy] {

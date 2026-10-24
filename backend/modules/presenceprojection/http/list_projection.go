@@ -67,6 +67,9 @@ type SlimStudentResponse struct {
 	DayPlanningReason  string  `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string  `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
+	// HandoverAbsent: the Lehrkraft marked the child "nicht da" at today's
+	// handover of the class (#4794).
+	HandoverAbsent *ClassHandoverAbsence `json:"handover_absent,omitempty"`
 
 	// Planned + actual times (the arrival/pickup rows and their sort/group
 	// modes). Only populated for full-access rows and when the caller passes
@@ -123,6 +126,7 @@ func slimStudentResponses(responses []StudentResponse, planningDate calendar.Dat
 			DayPlanningReason:    r.DayPlanningReason,
 			DayPlanningLabel:     r.DayPlanningLabel,
 			PendingExcusedNote:   r.PendingExcusedNote,
+			HandoverAbsent:       r.HandoverAbsent,
 			DepartureModes:       departure.Modes,
 			DepartureLabel:       departure.LegacyLabel,
 			DepartureIsException: departure.Exception,

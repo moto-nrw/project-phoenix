@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIotInvalidStaffClockRequest                   = "iot.invalid_staff_clock_request"
+	CodeIotInvalidStaffClockState                     = "iot.invalid_staff_clock_state"
+	CodeIotNoActiveGroupsInRoom                       = "iot.no_active_groups_in_room"
+	CodeIotNoActiveSession                            = "iot.no_active_session"
 	CodeIotNoAttendanceRecordToday                    = "iot.no_attendance_record_today"
 	CodeIotNoRoomAvailable                            = "iot.no_room_available"
 	CodeIotNoSessionToEnd                             = "iot.no_session_to_end"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableTemplateEndBeforeStart               = "timetable.template_end_before_start"
 	CodeTimetableTemplateGradeAboveMax                = "timetable.template_grade_above_max"
 	CodeTimetableTemplateInvalid                      = "timetable.template_invalid"
-	CodeTimetableTemplateMaxParticipantsInvalid       = "timetable.template_max_participants_invalid"
-	CodeTimetableTemplateNotFound                     = "timetable.template_not_found"
-	CodeTimetableTemplatePlanningTrackUnavailable     = "timetable.template_planning_track_unavailable"
-	CodeTimetableTemplateRosterRebaseConflict         = "timetable.template_roster_rebase_conflict"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.invalid_staff_clock_request":                     "input",
+	"iot.invalid_staff_clock_state":                       "business_rejection",
+	"iot.no_active_groups_in_room":                        "input",
+	"iot.no_active_session":                               "input",
 	"iot.no_attendance_record_today":                      "input",
 	"iot.no_room_available":                               "input",
 	"iot.no_session_to_end":                               "input",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.template_end_before_start":                 "input",
 	"timetable.template_grade_above_max":                  "input",
 	"timetable.template_invalid":                          "input",
-	"timetable.template_max_participants_invalid":         "input",
-	"timetable.template_not_found":                        "business_rejection",
-	"timetable.template_planning_track_unavailable":       "business_rejection",
-	"timetable.template_roster_rebase_conflict":           "business_rejection",
 }
 
 func init() {

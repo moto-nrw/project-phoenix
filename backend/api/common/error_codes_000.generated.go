@@ -78,6 +78,10 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayClassHandoverNoSchoolDay                 = "classday.class_handover_no_school_day"
+	CodeClassdayClassHandoverNotFound                    = "classday.class_handover_not_found"
+	CodeClassdayClassHandoverNotToday                    = "classday.class_handover_not_today"
+	CodeClassdayClassHandoverUnknownChild                = "classday.class_handover_unknown_child"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -298,10 +302,6 @@ const (
 	CodeIotDevicePinInvalid                              = "iot.device_pin_invalid"
 	CodeIotDevicePinRequired                             = "iot.device_pin_required"
 	CodeIotInvalidRfidTag                                = "iot.invalid_rfid_tag"
-	CodeIotInvalidStaffClockRequest                      = "iot.invalid_staff_clock_request"
-	CodeIotInvalidStaffClockState                        = "iot.invalid_staff_clock_state"
-	CodeIotNoActiveGroupsInRoom                          = "iot.no_active_groups_in_room"
-	CodeIotNoActiveSession                               = "iot.no_active_session"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -381,6 +381,10 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.class_handover_no_school_day":                "input",
+	"classday.class_handover_not_found":                    "business_rejection",
+	"classday.class_handover_not_today":                    "input",
+	"classday.class_handover_unknown_child":                "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",
@@ -601,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.device_pin_invalid":                               "permission",
 	"iot.device_pin_required":                              "permission",
 	"iot.invalid_rfid_tag":                                 "input",
-	"iot.invalid_staff_clock_request":                      "input",
-	"iot.invalid_staff_clock_state":                        "business_rejection",
-	"iot.no_active_groups_in_room":                         "input",
-	"iot.no_active_session":                                "input",
 }
 
 func init() {

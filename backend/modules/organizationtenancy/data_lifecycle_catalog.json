@@ -4,6 +4,8 @@
     {"name": "active.activity_session_attendance", "scope": "tenant", "export": "include"},
     {"name": "active.activity_sessions", "scope": "tenant", "export": "include", "personKeys": {"started_by": "users.staff_school_memberships.id", "completed_by": "auth.accounts.id"}},
     {"name": "active.attendance", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "checked_in_by": "users.staff_school_memberships.id", "checked_out_by": "users.staff_school_memberships.id"}},
+    {"name": "active.class_handover_absences", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id"}},
+    {"name": "active.class_handovers", "scope": "tenant", "export": "include", "personKeys": {"handed_over_by_staff_id": "users.staff_school_memberships.id"}},
     {"name": "active.combined_groups", "scope": "tenant", "export": "include"},
     {"name": "active.excused_absence_requests", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "submitted_by": "auth.accounts.id", "reviewed_by": "auth.accounts.id"}},
     {"name": "active.group_mappings", "scope": "tenant", "export": "include"},

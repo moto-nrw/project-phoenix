@@ -158,7 +158,7 @@ var gdpr_init_bewegungsdaten_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyGDPRMorningAttendanceRetentionDays,
 		Label:           "Anwesenheit am Vormittag aufbewahren (Tage)",
-		Description:     "So lange speichert moto, welche Kinder am Vormittag da waren und welche fehlten. Das trägt die Lehrkraft in moto schule ein. Danach löscht moto diese Angaben.",
+		Description:     "So lange speichert moto, welche Kinder am Vormittag da waren und welche fehlten. Dazu gehört, wer bei der Übergabe an die OGS nicht da war. Das trägt die Lehrkraft in moto schule ein. Danach löscht moto diese Angaben.",
 		Type:            config.FieldNumber,
 		Default:         365,
 		ReadPermission:  "config:read",

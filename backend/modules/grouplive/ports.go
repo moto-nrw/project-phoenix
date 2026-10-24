@@ -258,3 +258,18 @@ type Calendar interface {
 	// Now is the current instant.
 	Now() time.Time
 }
+
+// HandoverAbsence is a child the Lehrkraft marked "nicht da" when she handed
+// her class over to the OGS (#4794): the class, the moment and her name
+// (empty when she was removed since).
+type HandoverAbsence struct {
+	SchoolClass  string    `json:"school_class"`
+	HandedOverAt time.Time `json:"handed_over_at"`
+	HandedOverBy string    `json:"handed_over_by,omitempty"`
+}
+
+// HandoverReader returns the children among studentIDs a class handover on
+// day marked "nicht da", in one read.
+type HandoverReader interface {
+	HandoverAbsences(ctx context.Context, studentIDs []int64, day Date) (map[int64]HandoverAbsence, error)
+}

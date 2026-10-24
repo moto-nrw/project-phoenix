@@ -96,6 +96,9 @@ type StudentResponse struct {
 	// views render it as an informational "entschuldigt – Freigabe ausstehend"
 	// badge carrying the parent's note so staff can decide it in context.
 	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
+	// HandoverAbsent is set on today's list when the Lehrkraft marked the
+	// child "nicht da" at the handover of the class (#4794).
+	HandoverAbsent *ClassHandoverAbsence `json:"handover_absent,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar

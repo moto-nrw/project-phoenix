@@ -67,9 +67,11 @@ func (s *Service) RecordMorningAttendance(ctx context.Context, in studentpresenc
 }
 
 // DeleteExpiredMorningAttendance deletes the morning marks dated before the
-// first Berlin calendar day a window of retentionDays keeps (#4790). It joins
-// the school's cleanup transaction and never opens its own, so the deletion
-// commits with its deletion-log entry.
+// first Berlin calendar day a window of retentionDays keeps (#4790), and the
+// class handovers of those days (#4794): both record which children were not
+// at school in the morning. It joins the school's cleanup transaction and
+// never opens its own, so the deletion commits with its deletion-log entry;
+// the count covers both.
 func (s *Service) DeleteExpiredMorningAttendance(ctx context.Context, retentionDays int) (deleted int, err error) {
 	if retentionDays <= 0 {
 		return 0, fmt.Errorf("%w, got %d", studentpresence.ErrAttendanceRetentionWindow, retentionDays)
@@ -80,6 +82,13 @@ func (s *Service) DeleteExpiredMorningAttendance(ctx context.Context, retentionD
 			return ports.Stats{}, err
 		}
 		stats, err := s.store.DeleteMorningAttendanceBefore(ctx, cutoff)
+		if err != nil {
+			return stats, err
+		}
+		handovers, err := s.store.DeleteClassHandoversBefore(ctx, cutoff)
+		stats.Queries += handovers.Queries
+		stats.StatementDuration += handovers.StatementDuration
+		stats.Rows += handovers.Rows
 		deleted = int(stats.Rows)
 		return stats, err
 	})

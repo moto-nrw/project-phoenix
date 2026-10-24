@@ -469,12 +469,15 @@ func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	schoolID := testpkg.Tenant(t)
-	// 1.15.491 freezes the phases anew with active.morning_attendance; it rolls
-	// back first and reapplies last, as a migration run would.
+	// 1.15.491 and 1.15.492 freeze the phases anew with active.morning_attendance
+	// and the class handover tables; they roll back first and reapply last, as
+	// a migration run would.
+	require.NoError(t, classHandoverDown(t.Context(), db))
 	require.NoError(t, morningAttendanceDown(t.Context(), db))
 	require.NoError(t, schoolErasureDown(t.Context(), db))
 	require.NoError(t, schoolErasureUp(t.Context(), db))
 	require.NoError(t, morningAttendanceUp(t.Context(), db))
+	require.NoError(t, classHandoverUp(t.Context(), db))
 	orderID := beginErasure(t, db, schoolID)
 	require.Error(t, schoolErasureDown(t.Context(), db), "rollback must not discard any pending or completed proof")
 	assert.Equal(t, "db_done", eraseSchoolAsCLI(t, db, schoolID, orderID).Status, "failed rollback preserves evidence and executable procedure")

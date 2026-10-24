@@ -126,6 +126,9 @@ func buildClassDayViews(
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
 		BlockStarts:                   operations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
+			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),
+		},
 	}, reports, carePlanRows.StatusDays, people.Students, people.Persons, people.StudentGuardians,
 		audit.Persistence.DataAccessLog, settings, hub, env.Logger.With("service", "class-day-arrival-exceptions"))
 	slotLists := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
@@ -150,7 +153,8 @@ func buildGroupLive(
 		Settings: settings, Pickups: schedules.Pickups, Arrivals: schedules.Arrivals,
 		PlannedStudentIDs: lifecycle.Instances.GetPlannedStudentIDsByDate, CareDays: schedules.CareDay,
 		CareParticipation: schedules.Lifecycle, ExcusedRequests: requests.Excused, StatusDays: presence.StatusDays,
-		Logger: env.Logger.With("service", "ogs-group-live"), Now: env.Now,
+		Handovers: groupLiveHandovers{reads: classHandoverAbsenceReads{absences: presence.Presence, staff: NewTimetablePeople(users)}},
+		Logger:    env.Logger.With("service", "ogs-group-live"), Now: env.Now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose OGS group live projection: %w", err)
@@ -174,6 +178,7 @@ func buildSupervisionDashboard(
 		Presence: newSupervisionPresence(active, active),
 		Planning: newSupervisionPlanning(schedules.Pickups, schedules.Arrivals),
 		Settings: newSupervisionSettings(settings), Staff: NewTimetablePeople(users), Calendar: supervisionCalendar{}, Now: env.Now,
+		Handovers: supervisionHandovers{reads: classHandoverAbsenceReads{absences: presence.Presence, staff: NewTimetablePeople(users)}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)
