@@ -73,7 +73,7 @@ func (f *AccountMFAFlows) adminDisable(ctx context.Context, actorType string, ac
 		f.recordAdminFailure(ctx, failure)
 		return domain.ErrMFAReasonRequired
 	}
-	if err := f.Disable(ctx, targetAccountID); err != nil {
+	if err := f.disableForAdmin(ctx, actorType, actorID, targetTenantID, targetAccountID); err != nil {
 		failure.Reason, failure.ErrMsg = reason, err.Error()
 		f.recordAdminFailure(ctx, failure)
 		return err
@@ -142,7 +142,13 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 
 	previous := domain.MFAAdminOverrideNone
 	txErr := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		return f.writeTenantOverride(txCtx, actorType, actorID, targetTenantID, targetAccountID, override, reason, &previous)
+		if err := f.writeTenantOverride(txCtx, actorType, actorID, targetTenantID, targetAccountID, override, reason, &previous); err != nil {
+			return err
+		}
+		if actorType == actorTypeOperator {
+			return f.recordOperatorMFAChange(txCtx, actorID, targetAccountID, domain.OperatorMFAOverrideEvidence{SchoolID: targetTenantID, Action: "set_override", Scope: "tenant", Override: override, PreviousOverride: previous})
+		}
+		return nil
 	})
 	if txErr != nil {
 		failure.ErrMsg = txErr.Error()
@@ -185,7 +191,7 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 
 	previous := domain.MFAAdminOverrideNone
 	record := func(txCtx context.Context) error {
-		return f.recordGlobalOverride(txCtx, operatorID, targetAccountID, domain.OperatorMFAOverrideEvidence{Action: "set_global_override", Scope: "platform", Override: override, PreviousOverride: previous, Reason: reason})
+		return f.recordOperatorMFAChange(txCtx, operatorID, targetAccountID, domain.OperatorMFAOverrideEvidence{Action: "set_global_override", Scope: "platform", Override: override, PreviousOverride: previous, Reason: reason})
 	}
 	txErr := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		return f.writeGlobalOverride(txCtx, operatorID, targetAccountID, override, reason, &previous, record)
@@ -317,10 +323,6 @@ func (f *AccountMFAFlows) recordAdminFailure(ctx context.Context, failure adminO
 			Action: failure.Action, Override: failure.Override, Reason: failure.Reason,
 		}},
 	})
-}
-
-func (f *AccountMFAFlows) recordGlobalOverride(ctx context.Context, operatorID, targetID int64, evidence domain.OperatorMFAOverrideEvidence) error {
-	return f.audit.RecordOperatorAction(ctx, domain.OperatorAuditEntry{OperatorID: operatorID, Action: domain.OperatorAuditActionMFAAdminOverride, ResourceType: domain.OperatorAuditResourceAccount, ResourceID: &targetID, MFA: &domain.OperatorMFAEvidence{Override: &evidence}})
 }
 
 func (f *AccountMFAFlows) writeTenantOverride(txCtx context.Context, actorType string, actorID, targetTenantID, targetAccountID int64, override, reason string, previous *string) error {
