@@ -44,10 +44,14 @@ import {
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
+import {
+  useMealPlanEnabled,
+  useMealRegistrationEnabled,
+} from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
+import { MealCaterer } from "~/components/meal-plan/meal-caterer";
+import { MealOrderWeek } from "~/components/meal-plan/meal-order-week";
 import {
   MealAllergenLegend,
   MealAllergenMarks,
@@ -163,32 +167,35 @@ export default function MealPlanPage() {
     },
   });
 
-  // The page is reachable with config:read (admin / config-managers), but
-  // writing a day requires config:update (the backend PUT/DELETE routes 403
-  // otherwise). Read-only config users get a view-only plan: no edit, copy,
-  // paste, clear, add/remove, "Vorwoche übernehmen", or save controls — so they
-  // never hit a guaranteed 403. Mirror the nav's admin-OR-permission gate.
-  const canEdit = isAdmin(session) || hasPermission(session, "config:update");
-  const canReadConfig =
-    isAdmin(session) || hasPermission(session, "config:read");
-  const { data: settingsSchema } = useSettingsSchema(
-    status === "authenticated" && canReadConfig,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
-    },
-  );
-  const mealRegistrationEnabled =
-    getSettingValue(settingsSchema, "operations.meal_registration_enabled") ===
-    true;
-  const canReadParticipants =
+  // The page is reachable with meals:read, but writing a day requires
+  // meals:manage (the backend PUT/DELETE routes 403 otherwise). Readers get a
+  // view-only plan: no edit, copy, paste, clear, add/remove, "Vorwoche
+  // übernehmen", or save controls — so they never hit a guaranteed 403. The
+  // exports need meals:orders, a child's registration changed by
+  // the school meals:register (#3873). Mirror the nav's admin-OR-permission
+  // gate.
+  const canReadPlan = isAdmin(session) || hasPermission(session, "meals:read");
+  const canEdit = isAdmin(session) || hasPermission(session, "meals:manage");
+  const mealPlanEnabled = useMealPlanEnabled();
+  const mealRegistrationEnabled = useMealRegistrationEnabled();
+  // Die Bestellung der Woche braucht nur die Zahlen (#3873).
+  const canReadOrders =
+    status === "authenticated" &&
     mealRegistrationEnabled &&
-    (isAdmin(session) || hasPermission(session, "users:read"));
+    (isAdmin(session) || hasPermission(session, "meals:read"));
+  const canReadParticipants =
+    status === "authenticated" &&
+    mealRegistrationEnabled &&
+    (isAdmin(session) || hasPermission(session, "meals:orders"));
+  const canRegister =
+    status === "authenticated" &&
+    mealRegistrationEnabled &&
+    (isAdmin(session) || hasPermission(session, "meals:register"));
 
   // weekOffset: number of weeks from the current week (0 = this week, can go
   // negative for past weeks or beyond +1 for planning ahead).
   const [weekOffset, setWeekOffset] = useState(0);
+  const [orderRefreshVersion, setOrderRefreshVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   // True once the first week has loaded. Subsequent week switches keep the
   // current grid on screen (dimmed) instead of flashing the skeleton.
@@ -288,9 +295,9 @@ export default function MealPlanPage() {
   });
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status !== "authenticated" || !canReadPlan || !mealPlanEnabled) return;
     void load();
-  }, [load, status]);
+  }, [load, status, canReadPlan, mealPlanEnabled]);
 
   const changedDays = useMemo(
     () =>
@@ -556,7 +563,7 @@ export default function MealPlanPage() {
     startYear === endYear
       ? `${shortDate(weekDates[0]!)} bis ${shortDate(weekDates[4]!)}${startYear}`
       : `${shortDateWithYear(weekDates[0]!)} bis ${shortDateWithYear(weekDates[4]!)}`;
-  const initialLoading = loading && !hasLoaded;
+  const initialLoading = canReadPlan && loading && !hasLoaded;
   // Die Zahl der geplanten Tage gibt es nur für eine geladene Woche: nach
   // einem Ladefehler stünde sonst "0 von 5 Tagen geplant" da (#2517).
   const weekLoaded = weekDates.every((date) => date in originals);
@@ -646,6 +653,7 @@ export default function MealPlanPage() {
       {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
             kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
       <SectionCard
+        className={canReadPlan ? undefined : "hidden"}
         title="Wochenplan"
         description="Pro Tag ein oder mehrere Gerichte mit Allergenen und optionalem Hinweis. Eltern sehen den Plan im Elternportal."
         actions={
@@ -720,7 +728,7 @@ export default function MealPlanPage() {
           die Unterkante der Karte hinausragen. */}
       <SectionCard
         overflow="visible"
-        className={`transition-opacity duration-200 ${
+        className={`${canReadPlan ? "" : "hidden"} transition-opacity duration-200 ${
           loading ? "opacity-50" : "opacity-100"
         }`}
         bodyClassName=""
@@ -872,14 +880,28 @@ export default function MealPlanPage() {
         ) : null}
       </SectionCard>
 
-      {canReadParticipants ? (
+      {canReadOrders ? (
+        <MealOrderWeek
+          mondayISO={mondayISO}
+          canExportMonth={canReadParticipants}
+          refreshVersion={orderRefreshVersion}
+        />
+      ) : null}
+
+      {canReadParticipants || canRegister ? (
         <MealParticipantList
-          canChange={
-            isAdmin(session) ||
-            (hasPermission(session, "config:update") &&
-              hasPermission(session, "users:read"))
+          canRegister={canRegister}
+          canExport={canReadParticipants}
+          onRegistrationChanged={() =>
+            setOrderRefreshVersion((value) => value + 1)
           }
         />
+      ) : null}
+
+      {/* Der Caterer der Schule (ADR 0077): nur wer den Speiseplan
+          verwaltet, lädt ihn ein oder beendet die Belieferung. */}
+      {canEdit && mealRegistrationEnabled === true ? (
+        <MealCaterer canManageSupply={isAdmin(session)} />
       ) : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}

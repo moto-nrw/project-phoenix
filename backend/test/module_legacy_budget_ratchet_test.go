@@ -149,15 +149,18 @@ var moduleLegacyFileBudgets = map[string]int{
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
 // announcement retention of modules/communication/composition).
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
+// Raised by ADR 0078 (the meal ordering rules) and ADR 0077 (the caterer
+// flows and the caterer portal).
 // ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
-const moduleComposeBudgetTotal = 12385
+const moduleComposeBudgetTotal = 12504
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
 // packages, 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
 // composition starts small and is no reason to raise the total; split code
-// keeps its LOC counted.
+// keeps its LOC counted. ADR 0078 raised modules/mealplan/compose and
+// workflows/parentportal/compose for the meal ordering rules.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":         45,
 	"modules/auditlog/compose":             183,
@@ -181,8 +184,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                   211,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8,
-	"modules/identityaccess/compose":                1303,
-	"modules/mealplan/compose":                      66,
+	"modules/identityaccess/compose":                1348, // raised by ADR 0077
+	"modules/mealplan/compose":                      74,   // raised by ADR 0078
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	"modules/organizationtenancy/compose":         270,
 	"modules/parentrequestfeedprojection/compose": 11,
@@ -208,9 +211,10 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
 	"modules/workforce/compose":                       887,
+	"workflows/catererportal/compose":                 37, // added by ADR 0077
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
-	"workflows/parentportal/compose":                  278,
+	"workflows/parentportal/compose":                  307, // raised by ADR 0078
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    59,
 	"workflows/shiftplansync/compose":                 124,

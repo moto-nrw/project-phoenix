@@ -243,6 +243,8 @@ const (
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
 	CodeIdentityAccountNotFound                          = "identity.account_not_found"
 	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
+	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
+	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
@@ -300,8 +302,6 @@ const (
 	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
 	CodeIotDeviceApiKeyFormatInvalid                     = "iot.device_api_key_format_invalid"
-	CodeIotDeviceApiKeyInvalid                           = "iot.device_api_key_invalid"
-	CodeIotDeviceApiKeyRequired                          = "iot.device_api_key_required"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -546,6 +546,8 @@ var errorCodeClasses0 = map[string]string{
 	"identity.account_inactive":                            "permission",
 	"identity.account_not_found":                           "business_rejection",
 	"identity.account_not_in_school":                       "business_rejection",
+	"identity.caterer_address_taken":                       "business_rejection",
+	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
 	"iot.device_api_key_format_invalid":                    "permission",
-	"iot.device_api_key_invalid":                           "permission",
-	"iot.device_api_key_required":                          "permission",
 }
 
 func init() {

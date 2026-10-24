@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -55,7 +57,7 @@ func NewWorker(
 	notices EnrollmentNotices, flows EnrollmentFlows, studentDeletion *studentdeletion.Workflow, feedback feedbackModule.Capability,
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
-	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, schoolNames SchoolNamesPublisher,
+	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -68,9 +70,6 @@ func NewWorker(
 	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(db.UnitOfWork())
 	if err != nil {
 		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
-	}
-	if err := verifySchedulerSettingKeys(); err != nil {
-		return nil, err
 	}
 	resolver, err := schedulerSettings(settings)
 	if err != nil {
@@ -138,6 +137,7 @@ func NewWorker(
 		AppointmentReminders:      reminders,
 		RolloverDeadlineRunner:    rolloverDeadlines{rollovers: flows.Rollovers},
 		BookingConsistency:        bookings,
+		MealOrders:                mealPlan.SettleOrders,
 		InstanceRepo:              schedulerDayInstances(timetableRepos),
 		InstanceRoomRepo:          schedulerExistingRooms(rooms),
 		InstanceStudentRepo:       timetableRepos.ParticipantCheckouts(),

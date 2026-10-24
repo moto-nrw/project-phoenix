@@ -225,9 +225,10 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
-// for modules/communication and modules/schoolcalendar).
-// Raised by ADR 0079: the reachable-children read of modules/communication (+1).
-const modulePassthroughOwnerBudgetTotal = 1401
+// for modules/communication and modules/schoolcalendar), by ADR 0077 (three
+// for modules/identityaccess) and by ADR 0078 (one for
+// workflows/parentportal), and by ADR 0079 (one for modules/communication).
+const modulePassthroughOwnerBudgetTotal = 1402
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -246,18 +247,19 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
 	// Raised by ADR 0079: the facade observes the reachable-children read.
-	"modules/communication":       58,
-	"modules/dataimport":          1,
-	"modules/delivery":            5,
-	"modules/devicefleet":         33,
-	"modules/devicescan":          35,
-	"modules/enrollment":          24,
-	"modules/exporttransfer":      1,
-	"modules/facilities":          13,
-	"modules/feedback":            2,
-	"modules/filestorage":         6,
-	"modules/identityaccess":      213,
-	"modules/mealplan":            3,
+	"modules/communication":  58,
+	"modules/dataimport":     1,
+	"modules/delivery":       5,
+	"modules/devicefleet":    33,
+	"modules/devicescan":     35,
+	"modules/enrollment":     24,
+	"modules/exporttransfer": 1,
+	"modules/facilities":     13,
+	"modules/feedback":       2,
+	"modules/filestorage":    6,
+	// Raised by ADR 0077: the caterer flows.
+	"modules/identityaccess":      215,
+	"modules/mealplan":            1,
 	"modules/organizationtenancy": 11,
 	"modules/peopledirectory":     208,
 	"modules/requestreview":       15,
@@ -272,7 +274,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/timetable":        204,
 	"modules/workforce":        139,
 	"workflows/openroommove":   1,
-	"workflows/parentportal":   17,
+	// Raised by ADR 0078: the week change of the meal plan adapter.
+	"workflows/parentportal": 18,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

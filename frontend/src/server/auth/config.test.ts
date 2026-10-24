@@ -6,6 +6,7 @@ import { _resetRefreshState, _testHelpers } from "./shared";
 import { operatorAuthConfig } from "./operator-config";
 import { parentAuthConfig } from "./parent-config";
 import { schoolAuthConfig } from "./school-config";
+import { catererAuthConfig } from "./caterer-config";
 import type { NextAuthConfig, User } from "next-auth";
 
 // Shared JWT token constants — decoded payloads documented inline
@@ -2343,6 +2344,42 @@ describe("authConfig", () => {
       await expect(
         callSchoolRedirect(url, "https://schule.moto-app.de"),
       ).resolves.toBe("https://schule.moto-app.de");
+    });
+  });
+
+  // #3873: caterer sessions are host-only like school sessions, so a
+  // callback target must not leave the caterer origin either.
+  describe("caterer redirect callback", () => {
+    async function callCatererRedirect(
+      url: string,
+      baseUrl: string,
+    ): Promise<string> {
+      const redirectFn = catererAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("caterer redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("allows relative paths and absolute URLs on the caterer origin", async () => {
+      await expect(
+        callCatererRedirect("/", "https://caterer.moto-app.de"),
+      ).resolves.toBe("https://caterer.moto-app.de/");
+      await expect(
+        callCatererRedirect(
+          "https://caterer.moto-app.de/login",
+          "https://caterer.moto-app.de",
+        ),
+      ).resolves.toBe("https://caterer.moto-app.de/login");
+    });
+
+    it.each([
+      "https://moto-app.de/",
+      "https://schule.moto-app.de/",
+      "https://foo.caterer.moto-app.de/",
+      "//evil.example/phish",
+    ])("blocks callback target %s outside the caterer origin", async (url) => {
+      await expect(
+        callCatererRedirect(url, "https://caterer.moto-app.de"),
+      ).resolves.toBe("https://caterer.moto-app.de");
     });
   });
 

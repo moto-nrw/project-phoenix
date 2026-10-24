@@ -49,7 +49,8 @@ func export(exportType string) CoreAction {
 
 // coreActions classifies every writing route (POST, PUT, PATCH, DELETE) of
 // the portal routers: OGS portal (/api, /auth), parents portal (/parent),
-// school portal (/school), and the public demo (/demo). A route either names
+// school portal (/school), caterer portal (/caterer), and the public demo
+// (/demo). A route either names
 // its event or is notCaptured. TestFullProductionRouterGolden fails for a
 // writing route of these routers that is missing here, and for an entry
 // whose route no longer exists. Not portal routers, and so not listed: the
@@ -214,13 +215,17 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/me/profile"}:                                                                    notCaptured,
 	{http.MethodDelete, "/api/me/profile/avatar"}:                                                          notCaptured,
 	{http.MethodPost, "/api/me/profile/avatar"}:                                                            notCaptured,
+	{http.MethodPost, "/api/meal-caterer/invitations"}:                                                     event("caterer_invited"),
+	{http.MethodDelete, "/api/meal-caterer/invitations/{invitationId}"}:                                    notCaptured,
+	{http.MethodDelete, "/api/meal-caterer/supply"}:                                                        event("caterer_supply_ended"),
 	{http.MethodDelete, "/api/meal-plan/{date}"}:                                                           notCaptured,
 	{http.MethodPut, "/api/meal-plan/{date}"}:                                                              notCaptured,
+	{http.MethodDelete, "/api/meal-plan/participation/{studentId}/days/{date}"}:                            notCaptured,
+	{http.MethodPut, "/api/meal-plan/participation/{studentId}/days/{date}"}:                               notCaptured,
+	{http.MethodPut, "/api/meal-plan/participation/{studentId}/schedule"}:                                  notCaptured,
 	{http.MethodPost, "/api/messages/group-threads"}:                                                       createdEvent("parent_group_thread_created"),
 	{http.MethodPost, "/api/messages/group-threads/{groupThreadId}/close"}:                                 event("parent_group_thread_closed"),
 	{http.MethodPost, "/api/messages/group-threads/{groupThreadId}/messages"}:                              createdEvent("parent_group_message_sent"),
-	{http.MethodPut, "/api/meal-plan/participants/{studentId}/{date}"}:                                     notCaptured,
-	{http.MethodDelete, "/api/meal-plan/participants/{studentId}/{date}"}:                                  notCaptured,
 	{http.MethodPost, "/api/messages/mark-all-read"}:                                                       event("parent_messages_marked_all_read"),
 	{http.MethodPut, "/api/messages/count-scope"}:                                                          event("parent_message_count_scope_changed"),
 	{http.MethodPost, "/api/messages/threads"}:                                                             notCaptured,
@@ -534,6 +539,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation"}:                        notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/meal-participation/{date}"}:              notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/{date}"}:                 notCaptured,
+	{http.MethodPut, "/parent/me/children/{studentId}/meal-participation/weeks/{date}"}:           notCaptured,
 	{http.MethodPut, "/parent/me/children/{studentId}/pickup-change-requests/{requestId}"}:        notCaptured,
 	{http.MethodPost, "/parent/me/children/{studentId}/related-accounts"}:                         notCaptured,
 	{http.MethodDelete, "/parent/me/children/{studentId}/related-accounts/{guardianProfileId}"}:   notCaptured,
@@ -586,6 +592,14 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/demo/access-requests"}: public("demo_link_requested"),
 	{http.MethodPost, "/demo/access/sessions"}: session("demo_started"),
 	{http.MethodPost, "/demo/access/reset"}:    notCaptured,
+
+	// Caterer portal (ADR 0077). Accepting the mailed invitation starts no
+	// session yet, so it counts on the caterer surface itself.
+	{http.MethodPost, "/caterer/auth/password-reset"}:                         notCaptured,
+	{http.MethodPost, "/caterer/auth/password-reset/confirm"}:                 notCaptured,
+	{http.MethodPost, "/caterer/auth/login"}:                                  session("login_success"),
+	{http.MethodPost, "/caterer/invitations/{schoolId}/{token}/accept"}:       {Event: "caterer_invite_accepted", Surface: SurfaceCaterer},
+	{http.MethodPost, "/caterer/schools/{schoolId}/orders/{orderId}/confirm"}: event("meal_order_confirmed"),
 }
 
 // CoreActions returns a copy of the route table for the guard tests.
@@ -596,7 +610,7 @@ func CoreActions() map[RouteKey]CoreAction {
 // CoreActionPrefixes are the path prefixes of the portal routers whose
 // writing routes the table must classify.
 func CoreActionPrefixes() []string {
-	return []string{"/api/", "/auth/", "/parent/", "/school/", "/demo/"}
+	return []string{"/api/", "/auth/", "/parent/", "/school/", "/demo/", "/caterer/"}
 }
 
 // CoreActionExcludedPrefixes are routes under those prefixes that do not

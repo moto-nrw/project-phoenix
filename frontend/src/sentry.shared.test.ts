@@ -224,6 +224,32 @@ describe("scrubEvent", () => {
     );
   });
 
+  it("redacts the caterer's invitation token but keeps the school (ADR 0077)", () => {
+    const event = makeEvent({
+      request: { url: "https://caterer.test/einladung/42/invite-secret" },
+      transaction: "GET /caterer/einladung/42/invite-secret",
+      breadcrumbs: [
+        {
+          message: "fetch /api/caterer/invitations/42/invite-secret/accept",
+          data: {
+            url: "http://server:8080/caterer/invitations/42/invite-secret",
+          },
+        },
+      ],
+    });
+
+    const result = scrubEvent(event);
+    if (result === null) throw new Error("expected event to be kept");
+
+    expect(JSON.stringify(result)).not.toContain("invite-secret");
+    expect(result.request?.url).toBe(
+      "https://caterer.test/einladung/42/[REDACTED]",
+    );
+    expect(result.breadcrumbs?.[0]?.data?.url).toBe(
+      "http://server:8080/caterer/invitations/42/[REDACTED]",
+    );
+  });
+
   it("strips query strings and fragments from request and breadcrumbs, keeping paths with IDs", () => {
     const event = makeEvent({
       request: {

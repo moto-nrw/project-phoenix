@@ -548,7 +548,9 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    expect(leadTopics).toHaveLength(85);
+    // 85 mit den Gruppennachrichten.
+    // 87 mit den neuen Einstellungs- und Mittagessen-Artikeln.
+    expect(leadTopics).toHaveLength(87);
     expect(
       leadTopics.every(
         (topic) =>

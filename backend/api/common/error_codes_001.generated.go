@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIotDeviceApiKeyInvalid                        = "iot.device_api_key_invalid"
+	CodeIotDeviceApiKeyRequired                       = "iot.device_api_key_required"
 	CodeIotDeviceIdTaken                              = "iot.device_id_taken"
 	CodeIotDeviceInactive                             = "iot.device_inactive"
 	CodeIotDevicePinInvalid                           = "iot.device_pin_invalid"
@@ -32,15 +34,22 @@ const (
 	CodeIotStudentNotPresent                          = "iot.student_not_present"
 	CodeIotWcNeedsStaff                               = "iot.wc_needs_staff"
 	CodeIotWcNotConfigured                            = "iot.wc_not_configured"
+	CodeMealsChildNotEnrolled                         = "meals.child_not_enrolled"
+	CodeMealsDayClosed                                = "meals.day_closed"
+	CodeMealsDayPast                                  = "meals.day_past"
+	CodeMealsDeliveryRangeTooLong                     = "meals.delivery_range_too_long"
 	CodeMealsInvalidAllergens                         = "meals.invalid_allergens"
 	CodeMealsInvalidDishes                            = "meals.invalid_dishes"
 	CodeMealsInvalidMealDate                          = "meals.invalid_meal_date"
 	CodeMealsInvalidParticipation                     = "meals.invalid_participation"
+	CodeMealsNotSupplied                              = "meals.not_supplied"
+	CodeMealsOrderNotFound                            = "meals.order_not_found"
 	CodeMealsParticipationCutoffPassed                = "meals.participation_cutoff_passed"
 	CodeMealsParticipationOutOfRange                  = "meals.participation_out_of_range"
 	CodeMealsPlanDisabled                             = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                       = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                     = "meals.registration_disabled"
+	CodeMealsSupplyActive                             = "meals.supply_active"
 	CodeOperatorAuditUnavailable                      = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
@@ -293,18 +302,11 @@ const (
 	CodeTimetableStaffPresentAndAbsent                = "timetable.staff_present_and_absent"
 	CodeTimetableStartTooEarly                        = "timetable.start_too_early"
 	CodeTimetableStartWindowExpired                   = "timetable.start_window_expired"
-	CodeTimetableStudentAlreadyActive                 = "timetable.student_already_active"
-	CodeTimetableStudentCareEnded                     = "timetable.student_care_ended"
-	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
-	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
-	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
-	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
-	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
-	CodeTimetableSubstituteAbsentOnDate               = "timetable.substitute_absent_on_date"
-	CodeTimetableSubstituteConflict                   = "timetable.substitute_conflict"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"iot.device_api_key_invalid":                          "permission",
+	"iot.device_api_key_required":                         "permission",
 	"iot.device_id_taken":                                 "business_rejection",
 	"iot.device_inactive":                                 "permission",
 	"iot.device_pin_invalid":                              "permission",
@@ -335,15 +337,22 @@ var errorCodeClasses1 = map[string]string{
 	"iot.student_not_present":                             "business_rejection",
 	"iot.wc_needs_staff":                                  "server",
 	"iot.wc_not_configured":                               "server",
+	"meals.child_not_enrolled":                            "business_rejection",
+	"meals.day_closed":                                    "business_rejection",
+	"meals.day_past":                                      "business_rejection",
+	"meals.delivery_range_too_long":                       "input",
 	"meals.invalid_allergens":                             "input",
 	"meals.invalid_dishes":                                "input",
 	"meals.invalid_meal_date":                             "input",
 	"meals.invalid_participation":                         "input",
+	"meals.not_supplied":                                  "permission",
+	"meals.order_not_found":                               "input",
 	"meals.participation_cutoff_passed":                   "business_rejection",
 	"meals.participation_out_of_range":                    "input",
 	"meals.plan_disabled":                                 "permission",
 	"meals.plan_week_out_of_range":                        "input",
 	"meals.registration_disabled":                         "permission",
+	"meals.supply_active":                                 "business_rejection",
 	"operator.audit_unavailable":                          "unavailable",
 	"pickup.bulk_exception_confirmation_required":         "input",
 	"pickup.future_manual_reset":                          "business_rejection",
@@ -596,15 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.staff_present_and_absent":                  "input",
 	"timetable.start_too_early":                           "business_rejection",
 	"timetable.start_window_expired":                      "business_rejection",
-	"timetable.student_already_active":                    "business_rejection",
-	"timetable.student_care_ended":                        "business_rejection",
-	"timetable.student_graduated":                         "business_rejection",
-	"timetable.student_not_checked_in":                    "business_rejection",
-	"timetable.student_not_found":                         "business_rejection",
-	"timetable.students_not_present":                      "business_rejection",
-	"timetable.substitute_absent":                         "input",
-	"timetable.substitute_absent_on_date":                 "input",
-	"timetable.substitute_conflict":                       "business_rejection",
 }
 
 func init() {

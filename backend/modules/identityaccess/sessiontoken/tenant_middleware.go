@@ -18,11 +18,11 @@ func TenantMiddleware(scope TenantScope) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims := ClaimsFromCtx(r.Context())
-			// Hard reject parent- and school-scope tokens on tenant endpoints
-			// (#2207). School tokens carry a real tenant_id and would otherwise
-			// pass RLS silently — this is the symmetric guard to
-			// SchoolMiddleware rejecting tenant tokens on /school/*.
-			if claims.ID == 0 || claims.Scope == claimScopeParent || claims.Scope == claimScopeSchool {
+			// Hard reject parent-, school- and caterer-scope tokens on tenant
+			// endpoints (#2207, ADR 0077). School tokens carry a real tenant_id
+			// and would otherwise pass RLS silently — this is the symmetric
+			// guard to SchoolMiddleware rejecting tenant tokens on /school/*.
+			if claims.ID == 0 || claims.Scope == claimScopeParent || claims.Scope == claimScopeSchool || claims.Scope == claimScopeCaterer {
 				renderUnauthorized(w, r, ErrTokenUnauthorized)
 				return
 			}

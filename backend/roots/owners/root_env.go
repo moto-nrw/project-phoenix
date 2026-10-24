@@ -32,6 +32,7 @@ type ServiceLinks struct {
 	PublicAPIURL             string
 	ParentsURL               string
 	SchoolURL                string
+	CatererURL               string
 	InvitationTokenExpiry    time.Duration
 	PasswordResetTokenExpiry time.Duration
 }

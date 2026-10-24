@@ -291,6 +291,10 @@ func (s *fakeStore) LockLoginAccountByEmail(ctx context.Context, email string) (
 	return s.FindLoginAccountByEmail(ctx, email)
 }
 
+func (s *fakeStore) FindCatererOfAccount(context.Context, int64) (domain.Caterer, bool, domain.OperationStats, error) {
+	return domain.Caterer{}, false, domain.OperationStats{}, nil
+}
+
 func (s *fakeStore) FindLoginAccount(_ context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error) {
 	if forUpdate {
 		s.record("FindLoginAccount(forUpdate)")

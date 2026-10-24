@@ -160,6 +160,7 @@ import {
   useOpenCareGroupMode,
   usePresenceMode,
   useStaffMessagingEnabled,
+  useMealPlanEnabled,
   useTenantRoutingModeSafe,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
@@ -468,6 +469,29 @@ describe("Sidebar", () => {
       expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
       expect(screen.queryByText("Kinderdaten")).not.toBeInTheDocument();
     });
+
+    // #3873: a kitchen role holds meals:read but no config:read; the meal
+    // switch comes from the tenant resolve, not the settings schema.
+    it.each(["meals:read", "meals:register"])(
+      "shows the meal plan with %s only",
+      (granted) => {
+        mockIsAdmin.mockReturnValue(false);
+        mockUseSession.mockReturnValue(createMockSession(false));
+        mockHasEffectiveAdminScope.mockReturnValue(false);
+        mockHasPermission.mockImplementation(
+          (_session, permission) => permission === granted,
+        );
+        vi.mocked(useMealPlanEnabled).mockReturnValue(true);
+
+        const { unmount } = render(<Sidebar />);
+        expect(screen.getByText("Speiseplan")).toBeInTheDocument();
+        unmount();
+
+        vi.mocked(useMealPlanEnabled).mockReturnValue(false);
+        render(<Sidebar />);
+        expect(screen.queryByText("Speiseplan")).not.toBeInTheDocument();
+      },
+    );
 
     it.each(["staff:manage", "staff:stammdaten"])(
       "shows personnel data for the delegated %s permission",

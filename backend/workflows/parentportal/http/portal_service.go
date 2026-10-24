@@ -128,6 +128,7 @@ type PortalService interface {
 	// parent_portal.meal_participation.manage permission.
 	ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []parentService.MealWeekday) (string, error)
 	SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error
+	SetMealParticipationWeek(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) (parentService.MealWeekChange, error)
 	ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error
 
 	// SubmitCareExceptionWithReason requires a

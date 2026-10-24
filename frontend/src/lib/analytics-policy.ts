@@ -33,6 +33,7 @@ const ANALYTICS_SURFACES = [
   "ogs",
   "parents",
   "school",
+  "caterer",
   "traeger",
   "public",
 ] as const;
@@ -72,7 +73,13 @@ export interface AnalyticsContext {
 }
 
 /** Values of the `role` property: the role model, never a free-text name. */
-const ANALYTICS_ROLES = ["admin", "staff", "lehrkraft", "guardian"] as const;
+const ANALYTICS_ROLES = [
+  "admin",
+  "staff",
+  "lehrkraft",
+  "guardian",
+  "caterer",
+] as const;
 
 export type AnalyticsRole = (typeof ANALYTICS_ROLES)[number];
 
@@ -217,6 +224,7 @@ function routeSurfaceOf(context: AnalyticsContext): AnalyticsRouteSurface {
     case "ogs":
     case "parents":
     case "school":
+    case "caterer":
       return context.surface;
     default:
       // Public pages, the Träger-Büro, and unknown surfaces try every list;
@@ -229,6 +237,7 @@ export interface AnalyticsHosts {
   readonly operator: string;
   readonly parents: string;
   readonly school: string;
+  readonly caterer: string;
   readonly tenantDomain: string;
 }
 
@@ -244,6 +253,7 @@ export function analyticsSurfaceForHost(
   if (host === hosts.operator) return null;
   if (host === hosts.parents) return "parents";
   if (host === hosts.school) return "school";
+  if (host === hosts.caterer) return "caterer";
   if (hostname.endsWith(`.${hosts.tenantDomain}`)) return "ogs";
   return "public";
 }

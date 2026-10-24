@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 )
 
@@ -16,27 +15,74 @@ type Store interface {
 	FindParticipation(context.Context, int64, domain.Date, domain.Date) (domain.ParticipationData, domain.OperationStats, error)
 	InsertParticipationSchedule(context.Context, int64, int64, domain.Date, []domain.Weekday) (domain.OperationStats, error)
 	UpsertParticipationOverride(context.Context, int64, int64, domain.Date, bool) (domain.OperationStats, error)
+	UpsertParticipationOverrides(context.Context, int64, int64, []domain.Date, bool) (domain.OperationStats, error)
 	DeleteParticipationOverride(context.Context, int64, domain.Date) (domain.OperationStats, error)
+	// FindDailyParticipation reads the children's registration of a day with
+	// every absence change up to the instant given, so the caller can resolve
+	// the day at that instant or any earlier one.
 	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
+	// InsertRegistrationChanges appends to the registration log.
+	InsertRegistrationChanges(context.Context, []domain.RegistrationChange) (domain.OperationStats, error)
+	OrderStore
+	ConfirmationStore
+}
+
+// ConfirmationStore records the caterer's confirmation of an order (ADR
+// 0077).
+type ConfirmationStore interface {
+	// ConfirmOrder confirms an order frozen since the supply started once;
+	// false: no such order.
+	ConfirmOrder(ctx context.Context, orderID, accountID int64, since time.Time, confirmedAt time.Time) (bool, domain.OperationStats, error)
+}
+
+// OrderStore holds the school's orders (#3873). LockOrders serializes every
+// fixing and numbering of a school for the rest of the unit of work.
+type OrderStore interface {
+	LockOrders(context.Context) (domain.OperationStats, error)
+	FindOrders(ctx context.Context, from, to domain.Date) (domain.OrderState, domain.OperationStats, error)
+	InsertOrder(ctx context.Context, order domain.NewOrder, frozenAt time.Time) (int64, domain.OperationStats, error)
+	// InsertOrderChanges numbers the changes after the school's last one.
+	InsertOrderChanges(ctx context.Context, changes []domain.OrderChange, detectedAt time.Time) ([]domain.OrderChange, domain.OperationStats, error)
+}
+
+// Calendar is the school calendar of the tenant in the caller's unit of
+// work. One read runs three statements: the federal state, the closing days
+// and the holiday periods.
+type Calendar interface {
+	Days(context.Context, domain.Date, domain.Date) (domain.CalendarDays, domain.OperationStats, error)
 }
 
 type Directory interface {
-	FindDailyCandidates(context.Context, domain.Date) ([]mealplan.ParticipantCandidate, domain.OperationStats, error)
+	FindDailyCandidates(context.Context, domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error)
+	// FindStudentNames names the children of past orders, enrolled or not.
+	FindStudentNames(context.Context, []int64) (map[int64]domain.DailyCandidate, domain.OperationStats, error)
 }
 
 type Settings interface {
 	MealPlanEnabled(context.Context) (bool, error)
 	MealRegistrationEnabled(context.Context) (bool, error)
-	// MealParticipationCutoffs are the school's registration and
-	// cancellation cutoffs.
-	MealParticipationCutoffs(context.Context) (mealplan.Cutoffs, error)
+	MealOrderingSettings(context.Context) (OrderingSettings, error)
 }
 
-// Calendar is the school calendar of the caller's tenant.
-type Calendar interface {
-	// NonWorkingDayDates are the statutory holidays and closing days in
-	// [from, to], as YYYY-MM-DD.
-	NonWorkingDayDates(ctx context.Context, from, to string) (map[string]bool, error)
+// OrderingSettings are the school's meal ordering settings as stored (#3873).
+// The application parses and validates them into domain.OrderingRules.
+type OrderingSettings struct {
+	Model                string
+	RegistrationKind     string
+	RegistrationLeadDays int
+	RegistrationWeekday  string
+	RegistrationTime     string
+	CancellationKind     string
+	CancellationLeadDays int
+	CancellationWeekday  string
+	CancellationTime     string
+	AnnualDeadline       string
+	AnnualChanges        string
+	SickAfterDeadline    string
+	OrderRhythm          string
+	OrderDetail          string
+	// CatererNames is gdpr.meal_caterer_names_enabled (ADR 0077).
+	CatererNames bool
 }
 
 type Transaction interface {

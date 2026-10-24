@@ -13,6 +13,7 @@ const (
 	PortalScopeOrg     = "org"
 	PortalScopeParent  = "parent"
 	PortalScopeSchool  = "school"
+	PortalScopeCaterer = "caterer"
 	PortalScopeUnknown = "unknown"
 )
 
@@ -27,6 +28,8 @@ func CapPortalScopes(portalScope string) []string {
 		return []string{PortalScopeParent}
 	case PortalScopeSchool:
 		return []string{PortalScopeSchool}
+	case PortalScopeCaterer:
+		return []string{PortalScopeCaterer}
 	case "", PortalScopeUnknown:
 		return []string{PortalScopeUnknown}
 	default:
@@ -72,7 +75,7 @@ func (s *AccountSession) Validate() error {
 		return errors.New("token value is required")
 	}
 	switch s.PortalScope {
-	case PortalScopeTenant, PortalScopeOrg, PortalScopeParent, PortalScopeSchool, PortalScopeUnknown:
+	case PortalScopeTenant, PortalScopeOrg, PortalScopeParent, PortalScopeSchool, PortalScopeCaterer, PortalScopeUnknown:
 	default:
 		return errors.New("invalid portal scope")
 	}

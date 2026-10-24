@@ -23,27 +23,10 @@ func (s *SchoolInvitation) requireInvitationSchool(txCtx context.Context, invita
 
 func (s *SchoolInvitation) invitationPassword(txCtx context.Context, account domain.LoginAccount, hasAccount bool, registration domain.InvitationRegistration) (passwordHash string, restore bool, err error) {
 	if hasAccount {
-		dormant, dormantErr := s.accountDormant(txCtx, account)
-		if dormantErr != nil {
-			return passwordHash, restore, failed(opAcceptInvitation, dormantErr)
-		}
-		if dormant {
-			hash, hashErr := s.hashPassword(registration)
-			if hashErr != nil {
-				return passwordHash, restore, hashErr
-			}
-			passwordHash, restore = hash, true
-		} else if ownerErr := s.verifyOwner(account, registration.OwnerAccessToken); ownerErr != nil {
-			return passwordHash, restore, failed(opAcceptInvitation, ownerErr)
-		}
-	} else {
-		hash, hashErr := s.hashPassword(registration)
-		if hashErr != nil {
-			return passwordHash, restore, hashErr
-		}
-		passwordHash = hash
+		return s.existingAccountCredential(txCtx, account, registration)
 	}
-	return passwordHash, restore, nil
+	hash, err := s.hashPassword(registration)
+	return hash, false, err
 }
 
 func (s *SchoolInvitation) provisionInvitationIdentity(ctx context.Context, invitation domain.SchoolInvitation, accountID int64, firstName, lastName string) error {

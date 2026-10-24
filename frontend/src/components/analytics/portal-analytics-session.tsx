@@ -8,6 +8,7 @@ import { clearPortalSession, registerPortalSession } from "~/lib/analytics";
 const PORTALS = {
   parents: { scope: "parent", role: "guardian" },
   school: { scope: "school", role: "lehrkraft" },
+  caterer: { scope: "caterer", role: "caterer" },
 } as const;
 
 /**
@@ -32,7 +33,7 @@ export function PortalAnalyticsSession({
     let requestSequence = 0;
     let cancelled = false;
     setAnalyticsContext({ surface, enabled: false });
-    if (status === "authenticated" && inScope) {
+    if (status === "authenticated" && inScope && scope !== "caterer") {
       const refresh = () => {
         setAnalyticsContext({ surface, enabled: false });
         const sequence = ++requestSequence;

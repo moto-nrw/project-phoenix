@@ -116,7 +116,15 @@ type TenantResolveResponse struct {
 	// schools that actually use the Betreuungsplan (#2383). Defaults to true,
 	// the registry default.
 	TimetableEnabled bool `json:"timetable_enabled"`
-	WaitlistEnabled  bool `json:"waitlist_enabled"`
+	// MealPlanEnabled is the school's resolved operations.meal_plan_enabled
+	// setting (#3873). Shell metadata: a kitchen role holds meals:* but no
+	// config:read, so it cannot read the settings schema the navigation used
+	// to read the switch from. Falls back to false on a resolution error.
+	MealPlanEnabled bool `json:"meal_plan_enabled"`
+	// MealRegistrationEnabled is operations.meal_registration_enabled, for
+	// the same reason: the meal pages show the lists and orders only with it.
+	MealRegistrationEnabled bool `json:"meal_registration_enabled"`
+	WaitlistEnabled         bool `json:"waitlist_enabled"`
 	// AnalyticsFreigabe is the school's resolved analytics.freigabe setting
 	// (#3603): the OGS portal records masked sessions and sends pseudonymous
 	// user IDs only while it is true, and shows staff a notice. Shell metadata
@@ -153,6 +161,8 @@ type TenantResolveResponse struct {
 type tenantShellSettings struct {
 	presenceMode              string
 	timetableEnabled          bool
+	mealPlanEnabled           bool
+	mealRegistrationEnabled   bool
 	studentPhotosEnabled      bool
 	bookedModules             []settings.ModuleKey
 	parentMessagingEnabled    bool

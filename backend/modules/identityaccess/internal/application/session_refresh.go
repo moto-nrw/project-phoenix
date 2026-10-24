@@ -60,6 +60,11 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		s.logRefreshDecision("refresh_session_rejected", "invalid_format", 0, 0)
 		return nil, err
 	}
+	// A caterer session is a case of its own: it has no school membership,
+	// so none of the tenant rules below apply (ADR 0077).
+	if claims.Scope == domain.ScopeCaterer {
+		return s.refreshCatererSession(ctx, claims, ipAddress, userAgent)
+	}
 	if claims.TenantID > 0 {
 		if err := s.validateTenantAccess(ctx, claims); err != nil {
 			return nil, err
@@ -84,7 +89,7 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	} else {
 		guard = s.refreshClaimsGuard(claims.Scope, claims.TenantID, &metadata)
 	}
-	account, newSession, recovered, err := s.refreshSessionInTransaction(ctx, claims, ipAddress, userAgent, claims.TenantID, guard)
+	account, newSession, recovered, err := s.refreshSessionInTransaction(ctx, claims, ipAddress, userAgent, s.refreshTenant(claims.TenantID), guard)
 	if err != nil {
 		return nil, err
 	}
@@ -98,22 +103,38 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		return nil, failed("refresh session", fmt.Errorf("refresh claims payload missing after rotation"))
 	}
 	access, refresh := buildClaims(account, newSession, metadata, account.Email)
-	// The audit event is filed at the tenant the refresh validated against;
-	// the route carries no tenant and the fallback would attribute a
-	// multi-school account's refresh to its first mapping.
-	auditCtx := ctx
-	if claims.TenantID > 0 {
-		auditCtx = s.runtime.WithTenantID(ctx, claims.TenantID)
-	}
-	accessToken, refreshTokenString, err := s.generateAndLogTokens(auditCtx, account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventTokenRefresh)
+	accessToken, refreshTokenString, err := s.generateAndLogTokens(s.refreshAuditContext(ctx, claims), account.ID, access, refresh, ipAddress, userAgent, domain.AuthEventTokenRefresh)
 	if err != nil {
 		return nil, err
 	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 
-// refreshClaimsGuard assembles the claims of a non-school refresh (tenant and
-// parent scopes) inside the rotation transaction. Parent-scope refresh tokens
+// refreshAuditContext is where a refresh is filed: at the tenant the refresh
+// validated against, since the route carries no tenant and the fallback
+// would attribute a multi-school account's refresh to its first mapping.
+func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims domain.RefreshClaims) context.Context {
+	if claims.TenantID > 0 {
+		return s.runtime.WithTenantID(ctx, claims.TenantID)
+	}
+	return ctx
+}
+
+// refreshTenant pins the successor of a tenant or parent session to the
+// tenant of the presented token. Pre-tenant-claim tokens carry tenant 0;
+// their successor gets the account's default mapping.
+func (s *AccountAuthentication) refreshTenant(tenantID int64) successorTenant {
+	return func(ctx context.Context, accountID int64, _ domain.AccountSession) (int64, error) {
+		if tenantID > 0 {
+			return tenantID, nil
+		}
+		resolved, _, err := s.resolveAccountTenant(ctx, accountID, "")
+		return resolved, err
+	}
+}
+
+// refreshClaimsGuard assembles the claims of a tenant or parent refresh
+// inside the rotation transaction. Parent-scope refresh tokens
 // round-trip as parent tokens: detected via the scope claim or, for tokens
 // that predate it, a guardian-only role set at the refresh tenant.
 func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64, out **domain.AccountClaimsPayload) mintGuard {
@@ -151,8 +172,8 @@ func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64,
 // account -> session order login uses), the guard runs under that lock, then
 // the presented session is locked, validated, and either recovered from a
 // committed hand-off or rotated.
-func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context, claims domain.RefreshClaims, ipAddress, userAgent string, tenantID int64, guard mintGuard) (domain.LoginAccount, domain.AccountSession, bool, error) {
-	rotation := refreshRotation{service: s, claims: claims, ipAddress: ipAddress, userAgent: userAgent, tenantID: tenantID, guard: guard}
+func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context, claims domain.RefreshClaims, ipAddress, userAgent string, successor successorTenant, guard mintGuard) (domain.LoginAccount, domain.AccountSession, bool, error) {
+	rotation := refreshRotation{service: s, claims: claims, ipAddress: ipAddress, userAgent: userAgent, successorTenant: successor, guard: guard}
 	if err := s.runtime.WithAdminTx(ctx, rotation.run); err != nil {
 		s.auditRejectedRefresh(ctx, claims.AccountID, ipAddress, userAgent, err)
 		return domain.LoginAccount{}, domain.AccountSession{}, false, failed("refresh transaction", err)
@@ -166,6 +187,10 @@ func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context,
 	return rotation.account, rotation.newSession, rotation.recovered, nil
 }
 
+// successorTenant names the tenant the successor of the current session is
+// pinned to. It runs inside the rotation transaction, under the account lock.
+type successorTenant func(ctx context.Context, accountID int64, current domain.AccountSession) (int64, error)
+
 // refreshRotation keeps the transaction's provisional result separate from a
 // rejection whose family revocation must commit before it reaches the caller.
 type refreshRotation struct {
@@ -173,7 +198,7 @@ type refreshRotation struct {
 	claims            domain.RefreshClaims
 	ipAddress         string
 	userAgent         string
-	tenantID          int64
+	successorTenant   successorTenant
 	guard             mintGuard
 	account           domain.LoginAccount
 	newSession        domain.AccountSession
@@ -211,8 +236,8 @@ func (r *refreshRotation) run(ctx context.Context) error {
 }
 
 func (r *refreshRotation) lockAccount(ctx context.Context) error {
-	if r.service.mfa.Configured() && r.claims.Scope != domain.ScopeParent && r.tenantID > 0 {
-		if err := r.service.lockMFAPolicyForMint(ctx, r.claims.AccountID, r.tenantID); err != nil {
+	if r.service.mfa.Configured() && r.claims.Scope != domain.ScopeParent && r.claims.TenantID > 0 {
+		if err := r.service.lockMFAPolicyForMint(ctx, r.claims.AccountID, r.claims.TenantID); err != nil {
 			return err
 		}
 	}
@@ -288,15 +313,9 @@ func (r *refreshRotation) reject(ctx context.Context, session domain.AccountSess
 }
 
 func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSession, wasRecovered bool, now time.Time) error {
-	// Pre-tenant-claim tokens carry tenant 0; the successor gets the
-	// account's default mapping.
-	effectiveTenantID := r.tenantID
-	if effectiveTenantID == 0 {
-		resolved, _, err := r.service.resolveAccountTenant(ctx, r.account.ID, "")
-		if err != nil {
-			return err
-		}
-		effectiveTenantID = resolved
+	effectiveTenantID, err := r.successorTenant(ctx, r.account.ID, current)
+	if err != nil {
+		return err
 	}
 	r.recovered = wasRecovered
 	if r.recovered {
@@ -368,7 +387,8 @@ func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, prese
 			return current, false, fmt.Errorf("follow refresh-token handoff: %w", err)
 		}
 		// Tenant 0 is the legacy pre-tenant-claim state whose first successor
-		// may carry the resolved tenant; modern lineage stays pinned.
+		// may carry the resolved tenant. Only caterer sessions can repin
+		// between schools; they grant no tenant-portal access.
 		if !sameAccountSessionLineage(current, next) {
 			return current, false, identityaccess.ErrInvalidToken
 		}
@@ -553,5 +573,7 @@ func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context,
 }
 
 func sameAccountSessionLineage(current, next domain.AccountSession) bool {
-	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (current.TenantID == 0 || next.TenantID == current.TenantID) && next.Generation == current.Generation+1
+	sameTenant := current.TenantID == 0 || next.TenantID == current.TenantID
+	catererRepin := current.PortalScope == domain.PortalScopeCaterer && next.PortalScope == domain.PortalScopeCaterer
+	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (sameTenant || catererRepin) && next.Generation == current.Generation+1
 }

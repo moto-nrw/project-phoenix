@@ -109,6 +109,13 @@ function schoolTitleForPath(pathname: string): string | null {
   return null;
 }
 
+// Caterer-Portal (ADR 0077): eine Seite, auf dem Caterer-Host ohne
+// /caterer-Präfix.
+function catererTitleForPath(pathname: string): string | null {
+  if (pathname === "/" || pathname === "/caterer") return "Bestellungen";
+  return null;
+}
+
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
   const {
@@ -214,7 +221,11 @@ export function Header() {
   // /school-Präfix — getPageTitle kennt nur die Tenant-Pfade und würde den
   // Dashboard-Fallback anzeigen.
   const schoolPageTitle =
-    mode === "school" ? schoolTitleForPath(pathname) : null;
+    mode === "school"
+      ? schoolTitleForPath(pathname)
+      : mode === "caterer"
+        ? catererTitleForPath(pathname)
+        : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
   // Die Seitenhilfe bei den Aktionen. Jedes Portal hat seine eigenen
   // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
@@ -239,7 +250,9 @@ export function Header() {
         ? tParentNav("role")
         : mode === "school"
           ? "Lehrkraft"
-          : getAccountRoleLabel(userRoles, user?.roleIsSystem);
+          : mode === "caterer"
+            ? "Caterer"
+            : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
   // gegen Flackern). Die Höhe bleibt beim Scrollen fest: 48px auf dem Telefon
@@ -400,13 +413,15 @@ export function Header() {
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
-              <RefreshButton />
+              {/* Das Caterer-Portal lädt ohne SWR, der Knopf frischte dort
+                  nichts auf. */}
+              {mode !== "caterer" && <RefreshButton />}
             </div>
 
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
-              {mode !== "parent" && <RefreshButton />}
+              {mode !== "parent" && mode !== "caterer" && <RefreshButton />}
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}

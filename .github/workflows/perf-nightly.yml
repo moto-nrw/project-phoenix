@@ -107,6 +107,7 @@ jobs:
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       SCHOOL_URL: http://schule.localhost:3000
+      CATERER_URL: http://caterer.localhost:3000
       TENANT_DOMAIN: localhost
       # Same token for backend and the Next proxy: measure.perf.ts scrapes
       # /api/internal/metrics on the frontend with it.
@@ -129,6 +130,7 @@ jobs:
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
       NEXT_PUBLIC_APP_ENV: test
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      NEXT_PUBLIC_CATERER_HOSTNAME: caterer.localhost:3000
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-perf-nightly-throwaway-secret
 

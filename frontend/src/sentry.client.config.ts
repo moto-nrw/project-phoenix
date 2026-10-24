@@ -13,10 +13,12 @@ const environment = process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT;
  * Which portal this page belongs to, so an event can be filtered by it
  * (`portal:parent`). Every portal but the tenant one has its own host.
  */
-function currentPortal(): "parent" | "school" | "operator" | "tenant" {
+function currentPortal():
+  "parent" | "school" | "caterer" | "operator" | "tenant" {
   const host = window.location.host;
   if (host === process.env.NEXT_PUBLIC_PARENTS_HOSTNAME) return "parent";
   if (host === process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME) return "school";
+  if (host === process.env.NEXT_PUBLIC_CATERER_HOSTNAME) return "caterer";
   if (host === process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME) return "operator";
   return "tenant";
 }

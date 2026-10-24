@@ -20,11 +20,14 @@ const (
 	SurfaceParents = "parents"
 	SurfaceSchool  = "school"
 	SurfacePublic  = "public"
+	// SurfaceCaterer is the caterer portal (ADR 0077).
+	SurfaceCaterer = "caterer"
 
 	RoleAdmin     = "admin"
 	RoleStaff     = "staff"
 	RoleLehrkraft = "lehrkraft"
 	RoleGuardian  = "guardian"
+	RoleCaterer   = "caterer"
 )
 
 // Actor is what analytics may know about who performed a core action: the

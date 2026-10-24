@@ -190,6 +190,11 @@ const tenantProviderMock = vi.hoisted(() => ({
   // Betreuungsplan (timetable.enabled) defaults ON like the registry default
   // (#2383). Tests covering the switched-off branch override this locally.
   useTimetableEnabled: vi.fn(() => true),
+  // The meal switches come from the tenant resolve since #3873. Off here, as
+  // they read before from a settings schema these fixtures never load; tests
+  // of the meal pages switch them on locally.
+  useMealPlanEnabled: vi.fn(() => false),
+  useMealRegistrationEnabled: vi.fn(() => false),
   useWaitlistEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,

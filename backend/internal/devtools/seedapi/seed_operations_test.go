@@ -94,3 +94,24 @@ func TestSeedMealPlanFillsCurrentAndNextWeek(t *testing.T) {
 		})
 	}
 }
+
+// The seeded order day is the next weekday, and its lead days always put
+// the deadline before today, at any time of day (#3873).
+func TestMealOrderSeedDayIsDueAtAnyTime(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		today, day string
+		lead       int
+	}{
+		{"2026-09-07", "2026-09-08", 2}, // Monday → Tuesday
+		{"2026-09-11", "2026-09-14", 4}, // Friday → Monday
+		{"2026-09-12", "2026-09-14", 3}, // Saturday → Monday
+		{"2026-09-13", "2026-09-14", 2}, // Sunday → Monday
+	} {
+		today, err := parseSeedDate(tc.today)
+		require.NoError(t, err)
+		day, lead := mealOrderSeedDay(today)
+		assert.Equal(t, tc.day, day.String(), tc.today)
+		assert.Equal(t, tc.lead, lead, tc.today)
+	}
+}

@@ -180,6 +180,22 @@
     "action": "update"
   },
   {
+    "resource": "meals",
+    "action": "manage"
+  },
+  {
+    "resource": "meals",
+    "action": "orders"
+  },
+  {
+    "resource": "meals",
+    "action": "read"
+  },
+  {
+    "resource": "meals",
+    "action": "register"
+  },
+  {
     "resource": "permissions",
     "action": "create"
   },
