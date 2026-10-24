@@ -42,7 +42,7 @@ to its own parameters are summarized where they occur, in the caller reached
 from the port. Without that rule a shared runner such as
 `RunWrite(ctx, callback)` handed each port every other port's work: the first
 measurement grew the register to 19,845 entries (1,214 of them false
-Domain → Workflow hops), the precise one to 7,446.
+Domain → Workflow hops), the precise one to 7,447.
 
 ## 2. Domain-owned callable fields (M3)
 
@@ -138,16 +138,16 @@ Their protocol review is follow-up work under ADR 0067.
 
 ## Register delta and approval
 
-Against development `cb62e5a712`, the register goes from 5,353 to 7,446
-entries: 2,710 added, 617 removed and 25 changed fingerprints. The removed
+Against development `1fb9eac4fa`, the register goes from 5,353 to 7,447
+entries: 2,711 added, 617 removed and 25 changed fingerprints. The removed
 entries are only diagnostics: 296 cycles, 152 failed helper lookups, 130
 callables and 39 function fields. No previously resolved terminal disappears.
-Added: 1,561 queries, 85 leaves, 96 debt, 452 platform (142 scope,
+Added: 1,562 queries, 85 leaves, 96 debt, 452 platform (142 scope,
 126 mutation, 115 notice, 60 durable, 9 lock) and 516 unresolved. The 25
 changed entries are queries and leaves; their reasons record the new evidence.
 
 The register then contains 541 unresolved entries across 41 identities, down
-from 642. Effects: 4,349 query, 1,832 mutation, 392 lock, 149 scope,
+from 642. Effects: 4,350 query, 1,832 mutation, 392 lock, 149 scope,
 122 notice, 61 durable and 541 unresolved. 612 entries (516 unresolved, 96
 debt) cite `approval_adr: "0098"`. The counterprobe that removes this ADR
 rejects exactly those 612 new exceptions. Once this ADR is in the base, it

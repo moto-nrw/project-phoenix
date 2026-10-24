@@ -36847,6 +36847,17 @@
     },
     {
       "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExporter.Export",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.ReaderFingerprint",
+      "target_owner": "security-runtime",
+      "binding_digest": "7dbccdbb893f52d8bfb9fc07c8f4fdb4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: organization-tenancy reaches modules/securityruntime.ReaderFingerprint (security-runtime) through modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "organization-tenancy",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator.SchoolAccountCaregivers.DisableSchoolAccountCaregiverCapability",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.DisableSchoolAccountCaregiverCapability",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.DisableSchoolAccountCaregiverCapability",
