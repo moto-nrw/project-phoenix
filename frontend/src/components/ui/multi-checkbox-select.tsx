@@ -35,6 +35,8 @@ interface MultiCheckboxSelectProps {
   readonly disabled?: boolean;
   readonly className?: string;
   readonly menuClassName?: string;
+  /** Opens the menu from the trigger's right edge, e.g. near the window's. */
+  readonly menuAlign?: "start" | "end";
   /**
    * Adds a filter input and a "Alle auswählen / Aufheben" row to the menu —
    * for long option lists (e.g. all AGs of a big school). Select-all and
@@ -64,6 +66,7 @@ export function MultiCheckboxSelect({
   disabled = false,
   className = "",
   menuClassName = "",
+  menuAlign = "start",
   searchable = false,
   searchPlaceholder = "Suchen...",
 }: MultiCheckboxSelectProps) {
@@ -193,7 +196,8 @@ export function MultiCheckboxSelect({
           aria-label={ariaLabel}
           onKeyDown={handleKeyDown}
           className={cn(
-            "moto-popover-surface absolute top-full left-0 z-50 mt-1 min-w-full overflow-hidden rounded-xl border py-2",
+            "moto-popover-surface absolute top-full z-50 mt-1 min-w-full overflow-hidden rounded-xl border py-2",
+            menuAlign === "end" ? "right-0" : "left-0",
             menuClassName,
           )}
         >

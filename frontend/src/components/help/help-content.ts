@@ -4137,7 +4137,7 @@ function mealPlanTopic(): HelpTopic {
       "Blättern Sie mit den Pfeilen zur gewünschten Woche.",
       "Tragen Sie bei einem Tag unter `Gericht eintragen...` das Gericht ein.",
       "Tragen Sie bei Bedarf einen `Hinweis (optional)` dazu ein.",
-      "Öffnen Sie unter dem Gericht `Allergene wählen` und haken Sie die Allergene an. Danach steht dort zum Beispiel `Allergene: A, G`.",
+      "Öffnen Sie unter dem Gericht die Auswahl `Allergene` und haken Sie die Allergene an. Danach stehen dort die Buchstaben, zum Beispiel `A, G`.",
       "Mit `+ Gericht` ergänzen Sie ein zweites Gericht für denselben Tag.",
       "Wählen Sie `Speichern`.",
     ],

@@ -710,14 +710,17 @@ export default function MealPlanPage() {
 
       <FormErrorAlert message={saveErrors.error} />
 
+      {/* overflow visible: die Allergen-Auswahl eines Gerichts darf über
+          die Unterkante der Karte hinausragen. */}
       <SectionCard
+        overflow="visible"
         className={`transition-opacity duration-200 ${
           loading ? "opacity-50" : "opacity-100"
         }`}
         bodyClassName=""
       >
         <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-y-0">
-          {weekDates.map((date) => {
+          {weekDates.map((date, dayIndex) => {
             const rows = drafts[date] ?? [];
             const isToday = date === today;
             const hasContent = dayHasContent(rows);
@@ -806,6 +809,9 @@ export default function MealPlanPage() {
                       {canEditNow ? (
                         <MealAllergenSelect
                           value={row.allergens}
+                          // Donnerstag und Freitag öffnen nach links, damit
+                          // das Menü im Fenster bleibt.
+                          menuAlign={dayIndex >= 3 ? "end" : "start"}
                           onChange={(codes) =>
                             updateAllergens(date, idx, codes)
                           }

@@ -73,14 +73,20 @@ export function MealAllergenLegend({
   );
 }
 
-/** The multiple choice of a dish's allergens on the staff meal plan. */
+/**
+ * The multiple choice of a dish's allergens on the staff meal plan. The
+ * narrow day column shows only the letters; the button's name carries the
+ * full names for screen readers.
+ */
 export function MealAllergenSelect({
   value,
   onChange,
+  menuAlign,
   className,
 }: {
   readonly value: readonly MealAllergen[];
   readonly onChange: (codes: string[]) => void;
+  readonly menuAlign?: "start" | "end";
   readonly className?: string;
 }) {
   const t = useTranslations("mealAllergens");
@@ -88,22 +94,22 @@ export function MealAllergenSelect({
     value: code,
     label: `${t(`names.${code}`)} (${letter})`,
   }));
+  const names = value.map((code) => t(`names.${code}`)).join(", ");
   return (
     <MultiCheckboxSelect
       value={value}
       options={options}
       onChange={onChange}
-      ariaLabel={t("legendTitle")}
-      emptyLabel={t("choose")}
+      ariaLabel={names ? `${t("legendTitle")}: ${names}` : t("choose")}
+      emptyLabel={t("legendTitle")}
       summaryLabel={(selected) =>
-        t("marksShort", {
-          letters: selected
-            .map((option) => mealAllergenLetter(option.value as MealAllergen))
-            .join(", "),
-        })
+        selected
+          .map((option) => mealAllergenLetter(option.value as MealAllergen))
+          .join(", ")
       }
       className={cn("h-8 text-xs", className)}
       menuClassName="w-72"
+      menuAlign={menuAlign}
     />
   );
 }

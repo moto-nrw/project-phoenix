@@ -118,18 +118,22 @@ describe("Speiseplan: Allergene je Gericht (#4777)", () => {
 
     renderPage();
 
-    // Every dish card carries its own choice; the Monday dish shows its marks.
-    const triggers = await screen.findAllByRole("button", {
-      name: "Allergene",
+    // Every dish card carries its own choice; the Monday dish shows its
+    // letters, and its name spells the allergens out for screen readers.
+    const trigger = await screen.findByRole("button", {
+      name: "Allergene: Glutenhaltiges Getreide, Fisch",
     });
-    expect(triggers).toHaveLength(5);
-    const trigger = triggers[0]!;
-    expect(trigger).toHaveTextContent("Allergene: A, D");
-    expect(triggers[1]).toHaveTextContent("Allergene wählen");
+    expect(trigger).toHaveTextContent("A, D");
+    expect(
+      screen.getAllByRole("button", { name: "Allergene wählen" }),
+    ).toHaveLength(4);
 
     fireEvent.click(trigger);
     fireEvent.click(screen.getByLabelText("Milch (auch Laktose) (G)"));
-    expect(trigger).toHaveTextContent("Allergene: A, D, G");
+    expect(trigger).toHaveTextContent("A, D, G");
+    expect(trigger).toHaveAccessibleName(
+      "Allergene: Glutenhaltiges Getreide, Fisch, Milch (auch Laktose)",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
