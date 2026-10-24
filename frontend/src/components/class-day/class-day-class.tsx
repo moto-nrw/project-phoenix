@@ -34,12 +34,15 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type {
   ClassDayClasses,
+  ClassTripReportInput,
+  ClassTripReportResult,
   MorningAttendanceMark,
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-status-modal";
 import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { countDayChanges } from "./day-changes";
 import {
@@ -108,6 +111,14 @@ export interface ClassDayClassProps {
    */
   readonly fetchClasses?: () => Promise<ClassDayClasses>;
   /**
+   * Meldet einen Ausflug oder eine Klassenfahrt (#4799). Ohne Funktion oder
+   * ohne Freigabe der OGS gibt es keinen Knopf.
+   */
+  readonly reportClassTrip?: (
+    schoolClass: string,
+    input: ClassTripReportInput,
+  ) => Promise<ClassTripReportResult>;
+  /**
    * Speichert die Anwesenheit am Vormittag (#4790). Ohne sie bleibt die
    * Anwesenheit eine Anzeige.
    */
@@ -124,6 +135,7 @@ export function ClassDayClass({
   schoolClass,
   fetchClassDay,
   fetchClasses,
+  reportClassTrip,
   recordMorningAttendance,
   now,
 }: ClassDayClassProps) {
@@ -134,6 +146,8 @@ export function ClassDayClass({
   const dateISO = classDayDateParam(searchParams.get("tag"));
   const weekendDay = isWeekendISO(dateISO);
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
+  const [tripModalOpen, setTripModalOpen] = useState(false);
+  const [tripSaved, setTripSaved] = useState<string | null>(null);
 
   // Das Schreib-Flag kommt von der Klassenliste (Berechtigung UND Freigabe
   // der OGS). Bei "nicht freigegeben" gibt es keinen Knopf und keinen
@@ -172,6 +186,10 @@ export function ClassDayClass({
     ) === true;
   const canWriteArrivalException =
     classes?.can_write_arrival_exception === true && isAssignedClass;
+  const canReportClassTrip =
+    reportClassTrip !== undefined &&
+    classes?.can_report_class_trip === true &&
+    isAssignedClass;
   // Eine Schule, die Sa/So nach dem Freitagsplan betreut (#3921), hat auch
   // am Wochenende einen Schultag; sonst wird das Wochenende gar nicht geladen.
   const weekendOpen = classes?.weekend_follows_friday === true;
@@ -234,6 +252,31 @@ export function ClassDayClass({
       ? classArrivalExceptionLine(report, dateISO, todayISO())
       : null;
   const isToday = dateISO === todayISO();
+  // Nur Kinder mit OGS-Datensatz lassen sich melden; Klassenlisteneinträge
+  // ("Keine Betreuung") hat die OGS nicht.
+  const tripStudents = useMemo(
+    () =>
+      rows
+        .filter((row) => !row.list_entry && row.student_id > 0)
+        .map((row) => ({
+          id: String(row.student_id),
+          first_name: row.first_name,
+          second_name: row.last_name,
+          name: `${row.first_name} ${row.last_name}`.trim(),
+        })),
+    [rows],
+  );
+  const saveClassTrip = async (input: ClassTripReportInput) => {
+    if (!reportClassTrip) return;
+    const result = await reportClassTrip(schoolClass, input);
+    const one = result.student_count === 1;
+    const children = one ? "1 Kind" : `${result.student_count} Kinder`;
+    setTripSaved(
+      result.kind === "return_time" && input.returnTime
+        ? `Gespeichert. ${children} ${one ? "kommt" : "kommen"} um ${input.returnTime} Uhr in die OGS.`
+        : `Gespeichert. Die OGS sieht ${children} an diesen Tagen als unterwegs.`,
+    );
+  };
 
   // Anwesenheit am Vormittag (#4790): Markierungen sammeln sich im Entwurf
   // dieser Klasse und dieses Tages und gehen erst mit „Speichern“ hinaus.
@@ -390,6 +433,25 @@ export function ClassDayClass({
             </Button>
           </div>
         ) : null}
+        {schoolClass && !weekend && canReportClassTrip && report ? (
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setTripSaved(null);
+                setTripModalOpen(true);
+              }}
+              disabled={tripStudents.length === 0}
+            >
+              Ausflug oder Klassenfahrt melden
+            </Button>
+          </div>
+        ) : null}
+        {tripSaved ? (
+          <Alert type="success" message={tripSaved} className="mt-3" />
+        ) : null}
 
         {schoolClass && weekend && (
           <EmptyState
@@ -515,6 +577,16 @@ export function ClassDayClass({
         ) : null}
       </section>
 
+      {schoolClass && canReportClassTrip ? (
+        <ClassTripBulkStatusModal
+          isOpen={tripModalOpen}
+          onClose={() => setTripModalOpen(false)}
+          targetLabel={schoolClassLabel(schoolClass)}
+          students={tripStudents}
+          onSuccess={() => void refetchReport()}
+          schoolReport={{ save: saveClassTrip, defaultDate: dateISO }}
+        />
+      ) : null}
       {schoolClass && canWriteArrivalException ? (
         <ClassArrivalExceptionDialog
           isOpen={exceptionDialogOpen}

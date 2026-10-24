@@ -25,6 +25,11 @@ export interface ClassDayClasses {
    */
   can_write_arrival_exception: boolean;
   /**
+   * Ob die Lehrkraft einen Ausflug oder eine Klassenfahrt melden darf
+   * (#4799): Berechtigung UND Freigabe der OGS in den Einstellungen.
+   */
+  can_report_class_trip?: boolean;
+  /**
    * Die Schule betreut Sa/So nach dem Freitagsplan
    * (operations.weekend_follows_friday, #3921): dann ist das Wochenende ein
    * Tag wie jeder andere und wird geladen.
@@ -40,6 +45,7 @@ export async function fetchClassDayClassesSchool(): Promise<ClassDayClasses> {
     classes: response.data.classes ?? [],
     can_write_arrival_exception:
       response.data.can_write_arrival_exception === true,
+    can_report_class_trip: response.data.can_report_class_trip === true,
     weekend_follows_friday: response.data.weekend_follows_friday === true,
   };
 }
@@ -108,6 +114,49 @@ export async function fetchClassBlockStartSchool(
   );
   const start = response.data.start ?? "";
   return start === "" ? null : start;
+}
+
+/** Was die Lehrkraft in moto schule meldet (#4799). */
+export interface ClassTripReportInput {
+  studentIds: string[];
+  from: string;
+  to: string;
+  reason?: string;
+  /** "HH:MM", nur bei einem einzelnen Tag. */
+  returnTime?: string;
+}
+
+/** Was eine Meldung geschrieben hat (#4799). */
+export interface ClassTripReportResult {
+  /** "class_trip": Status Klassenfahrt; "return_time": Ankunft in der OGS. */
+  kind: "class_trip" | "return_time";
+  student_count: number;
+  date_count: number;
+}
+
+/**
+ * Ausflug oder Klassenfahrt einer zugewiesenen Klasse melden (#4799). Ohne
+ * Rückkehrzeit gilt jeder Tag als Klassenfahrt; mit Rückkehrzeit (nur ein
+ * Tag) kommen die Kinder um diese Uhrzeit in die OGS.
+ */
+export async function reportClassTripSchool(
+  schoolClass: string,
+  input: ClassTripReportInput,
+): Promise<ClassTripReportResult> {
+  const response = await authFetch<ProxyResponse<ClassTripReportResult>>(
+    `/api/school/class-day/class-trips/${encodeURIComponent(schoolClass)}`,
+    {
+      method: "POST",
+      body: {
+        from: input.from,
+        to: input.to,
+        student_ids: input.studentIds.map(Number),
+        ...(input.reason ? { reason: input.reason } : {}),
+        ...(input.returnTime ? { return_time: input.returnTime } : {}),
+      },
+    },
+  );
+  return response.data;
 }
 
 /**

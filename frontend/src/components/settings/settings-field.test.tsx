@@ -826,6 +826,52 @@ describe("SettingsField", () => {
     expect(container.querySelector("select")).toBeDefined();
   });
 
+  it("saves a multi-select immediately on each toggle", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "operations.school_portal_write_scope",
+          label: "Was Lehrkräfte in moto schule eintragen dürfen",
+          type: "multiselect",
+          default: [],
+          value: ["class_arrival_exceptions"],
+          options: {
+            static: [
+              {
+                label: "Andere Ankunftszeit für eine Klasse an einem Tag",
+                value: "class_arrival_exceptions",
+              },
+              {
+                label: "Ausflug oder Klassenfahrt der Klasse melden",
+                value: "class_trips",
+              },
+            ],
+          },
+        })}
+        onSave={onSave}
+        onReset={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(
+      getByRole("group", {
+        name: "Was Lehrkräfte in moto schule eintragen dürfen",
+      }),
+    ).toBeInTheDocument();
+    const trips = getByRole("checkbox", {
+      name: "Ausflug oder Klassenfahrt der Klasse melden",
+    });
+    expect(trips).not.toBeChecked();
+    fireEvent.click(trips);
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledExactlyOnceWith(
+        "operations.school_portal_write_scope",
+        ["class_arrival_exceptions", "class_trips"],
+      ),
+    );
+  });
+
   it("saves boolean immediately on toggle", async () => {
     const onSave = vi.fn().mockResolvedValue(null);
     const { getByRole } = renderWithProviders(

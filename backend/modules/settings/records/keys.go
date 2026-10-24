@@ -1,6 +1,7 @@
 package records
 
 import (
+	"slices"
 	"strconv"
 
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
@@ -375,23 +376,29 @@ const (
 	ClassArrivalExceptionEditorsAllStaff = "all_staff"
 )
 
-// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
-// The OGS decides what a Lehrkraft may write into OGS data through "moto
-// schule"; the default is nothing. A single-select on purpose: the key is
-// meant to carry further school-portal write rights as more values, and a
-// multi-select is built once a second value exists.
+// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970,
+// #4799). The OGS decides what a Lehrkraft may write into OGS data through
+// "moto schule". The setting is a multi-select: every chosen value opens one
+// write, and the default empty list keeps the school portal read-only.
 const (
-	// SchoolPortalWriteScopeNone keeps the school portal read-only. Default.
-	SchoolPortalWriteScopeNone = "none"
 	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
 	// class-wide arrival day exception (#2962) for her assigned classes.
 	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
+	// SchoolPortalWriteScopeClassTrips lets a Lehrkraft report a class trip
+	// (Ausflug or Klassenfahrt) for her assigned classes (#4799).
+	SchoolPortalWriteScopeClassTrips = "class_trips"
 )
 
 // SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
 // the school portal set class-wide arrival day exceptions.
-func SchoolPortalWritesClassArrivalExceptions(scope string) bool {
-	return scope == SchoolPortalWriteScopeClassArrivalExceptions
+func SchoolPortalWritesClassArrivalExceptions(scope []string) bool {
+	return slices.Contains(scope, SchoolPortalWriteScopeClassArrivalExceptions)
+}
+
+// SchoolPortalWritesClassTrips reports a write scope that lets the school
+// portal report class trips.
+func SchoolPortalWritesClassTrips(scope []string) bool {
+	return slices.Contains(scope, SchoolPortalWriteScopeClassTrips)
 }
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The

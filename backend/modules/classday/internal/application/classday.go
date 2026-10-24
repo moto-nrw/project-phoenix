@@ -32,19 +32,25 @@ type ClassDayDependencies struct {
 	WriteScope             ArrivalWriteScope
 	BlockStarts            BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
+	// TripScope, TripStatusDays and StudentArrivals are the class-trip write
+	// seam (#4799); without the two writes it answers "not configured".
+	TripScope       ClassTripWriteScope
+	TripStatusDays  ClassTripStatusDays
+	StudentArrivals studentArrivals
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
 }
 
 // classDayService is the capability: the caller's classes and staff row
 // (promoted from the Caller port), the day report and supervision sheet
-// (dayReports) and the arrival-exception seam. Its own reads go through
-// caller, the same value.
+// (dayReports), the arrival-exception and the class-trip seams. Its own
+// reads go through caller, the same value.
 type classDayService struct {
 	ports.Caller
 	caller ports.Caller
 	*dayReports
 	arrivalExceptions
+	classTrips
 	morningAttendance
 }
 
@@ -61,6 +67,10 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		arrivalExceptions: arrivalExceptions{
 			schedule: deps.ClassArrivalExceptions, writeScope: deps.WriteScope,
 			blockStarts: deps.BlockStarts, announcer: deps.Announcer,
+		},
+		classTrips: classTrips{
+			rosters: deps.Rosters, writeScope: deps.TripScope, statusDays: deps.TripStatusDays,
+			arrivals: deps.StudentArrivals, announcer: deps.Announcer,
 		},
 		morningAttendance: newMorningAttendance(deps),
 	}

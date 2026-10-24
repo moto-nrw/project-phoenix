@@ -43,7 +43,8 @@ export interface ResolvedSetting {
     | "text"
     | "textarea"
     | "password"
-    | "select";
+    | "select"
+    | "multiselect";
   default: unknown;
   value: unknown;
   is_default: boolean;

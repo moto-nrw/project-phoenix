@@ -598,7 +598,7 @@ export function SettingsField({
     toastSuccess,
   ]);
 
-  // Immediate save — for booleans and selects.
+  // Immediate save — for booleans, selects and multi-selects.
   // If the setting requires confirmation on enable OR disable (some
   // toggles trigger destructive backend side effects), show the modal
   // first and only persist the new value once the user confirms.
@@ -1862,6 +1862,17 @@ function renderField(
           onChange={onImmediateSave}
           options={setting.options?.static ?? []}
           disabled={disabled}
+        />
+      );
+    case "multiselect":
+      return (
+        <SelectField
+          ariaLabel={setting.label}
+          value={localValue}
+          onChange={onImmediateSave}
+          options={setting.options?.static ?? []}
+          disabled={disabled}
+          multiple
         />
       );
     default:

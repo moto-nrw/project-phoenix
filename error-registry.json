@@ -451,6 +451,54 @@
       "legacy": "class_arrival_exception_weekend"
     },
     {
+      "code": "classday.class_trip_arrival_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_arrival_conflict"
+    },
+    {
+      "code": "classday.class_trip_invalid_range",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_invalid_range"
+    },
+    {
+      "code": "classday.class_trip_no_students",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_no_students"
+    },
+    {
+      "code": "classday.class_trip_past_date",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_past_date"
+    },
+    {
+      "code": "classday.class_trip_return_time_multi_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_return_time_multi_day"
+    },
+    {
+      "code": "classday.class_trip_return_time_weekend",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_return_time_weekend"
+    },
+    {
+      "code": "classday.class_trip_status_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_status_conflict"
+    },
+    {
+      "code": "classday.class_trip_student_not_in_class",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_student_not_in_class"
+    },
+    {
       "code": "classday.morning_attendance_no_school_day",
       "class": "input",
       "parameters": [],

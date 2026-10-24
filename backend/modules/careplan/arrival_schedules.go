@@ -44,6 +44,9 @@ type ArrivalExceptions interface {
 	UpdateStudentArrivalException(ctx context.Context, exception *ArrivalException) error
 	DeleteStudentArrivalException(ctx context.Context, exceptionID, studentID int64) error
 	DeleteAllStudentArrivalExceptions(ctx context.Context, studentID int64) error
+	// CreateOrReclaimExceptionForClass rechecks membership under the student lock
+	// before writing a per-child exception on behalf of a school class.
+	CreateOrReclaimExceptionForClass(ctx context.Context, schoolClass string, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*ArrivalException, error)
 	CreateOrReclaimException(ctx context.Context, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*ArrivalException, error)
 	UpdateException(ctx context.Context, exceptionID, studentID int64, date calendar.Date, reason *string, arrivalTime *time.Time, clearArrivalTime bool, resolveStaffID func() (int64, error)) (*ArrivalException, error)
 }

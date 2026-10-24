@@ -67,6 +67,9 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(write, withTx).Put("/arrival-exceptions/{schoolClass}/{date}", rs.putArrivalException)
 	r.With(write, withTx).Delete("/arrival-exceptions/{schoolClass}/{date}", rs.deleteArrivalException)
 
+	// Class trips and day outings (#4799): the permission plus the school's
+	// setting (checked in the handler).
+	r.With(common.RequiresPermission(permissions.ClassDayClassTripWrite), withTx).Post("/class-trips/{schoolClass}", rs.postClassTrip)
 	// Morning attendance (#4790): the Lehrkraft marks today's school morning
 	// of an assigned class; the setting and the day are checked behind it.
 	morningWrite := common.RequiresPermission(permissions.ClassDayMorningAttendanceWrite)
@@ -80,6 +83,10 @@ type ClassesResponse struct {
 	// class_day:arrival_exception_write AND the school opened moto schule
 	// for it (#2970); the class view shows its action only then.
 	CanWriteArrivalException bool `json:"can_write_arrival_exception"`
+	// CanReportClassTrip is true when the caller holds
+	// class_day:class_trip_write AND the school opened moto schule for it
+	// (#4799).
+	CanReportClassTrip bool `json:"can_report_class_trip"`
 	// WeekendFollowsFriday is true when the school runs Saturday and Sunday
 	// on Friday's plan (operations.weekend_follows_friday, #3921). The class
 	// views then load the weekend like a school day instead of skipping it.
@@ -100,6 +107,11 @@ func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
 	// Without the write seam the flag stays false instead of failing the
 	// list: the classes are the answer, the flag is an extra.
 	resp.CanWriteArrivalException, err = rs.canWriteArrivalException(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	resp.CanReportClassTrip, err = rs.canReportClassTrip(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

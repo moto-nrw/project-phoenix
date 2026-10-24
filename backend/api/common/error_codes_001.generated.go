@@ -2,6 +2,14 @@
 package common
 
 const (
+	CodeImportFileUnreadable                          = "import.file_unreadable"
+	CodeImportImportBatchFailed                       = "import.import_batch_failed"
+	CodeImportModeForbidden                           = "import.mode_forbidden"
+	CodeIotActivityCapacityExceeded                   = "iot.activity_capacity_exceeded"
+	CodeIotDeviationReasonRequired                    = "iot.deviation_reason_required"
+	CodeIotDeviceApiKeyFormatInvalid                  = "iot.device_api_key_format_invalid"
+	CodeIotDeviceApiKeyInvalid                        = "iot.device_api_key_invalid"
+	CodeIotDeviceApiKeyRequired                       = "iot.device_api_key_required"
 	CodeIotDeviceIdTaken                              = "iot.device_id_taken"
 	CodeIotDeviceInactive                             = "iot.device_inactive"
 	CodeIotDevicePinInvalid                           = "iot.device_pin_invalid"
@@ -294,17 +302,17 @@ const (
 	CodeTimetableStudentAlreadyActive                 = "timetable.student_already_active"
 	CodeTimetableStudentCareEnded                     = "timetable.student_care_ended"
 	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
-	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
-	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
-	CodeTimetableStudentsNotPresent                   = "timetable.students_not_present"
-	CodeTimetableSubstituteAbsent                     = "timetable.substitute_absent"
-	CodeTimetableSubstituteAbsentOnDate               = "timetable.substitute_absent_on_date"
-	CodeTimetableSubstituteConflict                   = "timetable.substitute_conflict"
-	CodeTimetableSubstituteNotOnInstances             = "timetable.substitute_not_on_instances"
-	CodeTimetableSubstituteSelf                       = "timetable.substitute_self"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"import.file_unreadable":                              "input",
+	"import.import_batch_failed":                          "server",
+	"import.mode_forbidden":                               "permission",
+	"iot.activity_capacity_exceeded":                      "business_rejection",
+	"iot.deviation_reason_required":                       "input",
+	"iot.device_api_key_format_invalid":                   "permission",
+	"iot.device_api_key_invalid":                          "permission",
+	"iot.device_api_key_required":                         "permission",
 	"iot.device_id_taken":                                 "business_rejection",
 	"iot.device_inactive":                                 "permission",
 	"iot.device_pin_invalid":                              "permission",
@@ -597,14 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_already_active":                    "business_rejection",
 	"timetable.student_care_ended":                        "business_rejection",
 	"timetable.student_graduated":                         "business_rejection",
-	"timetable.student_not_checked_in":                    "business_rejection",
-	"timetable.student_not_found":                         "business_rejection",
-	"timetable.students_not_present":                      "business_rejection",
-	"timetable.substitute_absent":                         "input",
-	"timetable.substitute_absent_on_date":                 "input",
-	"timetable.substitute_conflict":                       "business_rejection",
-	"timetable.substitute_not_on_instances":               "input",
-	"timetable.substitute_self":                           "input",
 }
 
 func init() {

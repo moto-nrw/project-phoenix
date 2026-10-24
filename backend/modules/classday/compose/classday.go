@@ -28,8 +28,9 @@ type (
 	MorningAttendanceDependencies = application.MorningAttendanceDependencies
 )
 
-// ClassDayDependencies wire the day report, the supervision sheet and the two
-// write seams of moto schule (#2970, #4790); a nil seam answers "not configured".
+// ClassDayDependencies wire the day report, the supervision sheet and the
+// write seams of moto schule (#2970, #4790, #4799); a nil seam answers "not
+// configured".
 type ClassDayDependencies struct {
 	Caller                 CallerReader
 	Rosters                DayRosters
@@ -41,10 +42,11 @@ type ClassDayDependencies struct {
 	Students               SheetStudents
 	EmergencyContacts      EmergencyContacts
 	AccessLog              AccessLog
-	ClassArrivalExceptions careplan.ClassArrivalExceptions
-	WriteScope             ArrivalWriteScope
+	ClassArrivalExceptions careplan.ArrivalScheduleService
+	WriteScope             SchoolWriteScope
 	BlockStarts            BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
+	TripStatusDays         ClassTripStatusDays
 	MorningAttendanceDependencies
 }
 
@@ -54,15 +56,11 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	if deps.Caller != nil {
 		caller = application.CallerBinding{CallerReader: deps.Caller}
 	}
-	var writeScope application.ArrivalWriteScope
-	if deps.WriteScope != nil {
-		writeScope = deps.WriteScope
-	}
 	app := application.ClassDayDependencies{
 		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
-		AccessLog: deps.AccessLog, WriteScope: writeScope, Announcer: deps.Announcer,
-		MorningAttendanceDependencies: deps.MorningAttendanceDependencies,
+		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, TripScope: deps.WriteScope, Announcer: deps.Announcer,
+		TripStatusDays: deps.TripStatusDays, MorningAttendanceDependencies: deps.MorningAttendanceDependencies,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}
@@ -72,6 +70,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	}
 	if deps.ClassArrivalExceptions != nil {
 		app.ClassArrivalExceptions = application.ClassArrivalExceptionBinding{Store: deps.ClassArrivalExceptions}
+		app.StudentArrivals = deps.ClassArrivalExceptions
 	}
 	if deps.BlockStarts != nil {
 		app.BlockStarts = application.BlockStartBinding{Starts: deps.BlockStarts}

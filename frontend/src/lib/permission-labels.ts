@@ -63,6 +63,7 @@ export const actionLabels: Record<string, string> = {
   health: "Gesundheitsdaten",
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
+  class_trip_write: "Ausflug melden",
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
   "*": "Alle",
 };
@@ -240,6 +241,8 @@ const permissionDescriptions: Record<string, string> = {
   "class_day:read": "Tagesansicht der eigenen Klassen ansehen",
   "class_day:arrival_exception_write":
     "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
+  "class_day:class_trip_write":
+    "Für eine eigene Klasse einen Ausflug oder eine Klassenfahrt melden",
   "class_day:morning_attendance_write":
     "Für eine eigene Klasse heute eintragen, wer am Vormittag da ist",
   "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
