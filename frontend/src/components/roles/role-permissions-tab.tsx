@@ -29,9 +29,11 @@ import type { Permission, Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   formatPermissionDisplay,
+  isReservedPermission,
   localizeAction,
   localizeDescription,
   localizeResource,
+  riskyPermissionHint,
 } from "~/lib/permission-labels";
 
 const logger = createLogger({ component: "RolePermissionsTab" });
@@ -61,6 +63,26 @@ function groupByResource(
 
 function permissionLabel(permission: Permission): string {
   return formatPermissionDisplay(permission.resource, permission.action);
+}
+
+function isReserved(permission: Permission): boolean {
+  return isReservedPermission(permission.resource, permission.action);
+}
+
+/**
+ * Der Warnhinweis unter einem Recht im Bearbeiten-Zustand (#4574): ein
+ * gesperrtes Recht, das die Rolle noch aus der Zeit vor der Sperre trägt, oder
+ * ein Recht, mit dem jemand Rollen, Konten oder Einstellungen ändern kann.
+ */
+function permissionHint(permission: Permission): string | undefined {
+  if (isReserved(permission)) {
+    const owner =
+      permission.resource === "admin"
+        ? "die Rolle Verwaltung"
+        : "das moto-Team";
+    return `Nur für ${owner}. Sie können es entfernen, aber nicht wieder vergeben.`;
+  }
+  return riskyPermissionHint(permission.resource, permission.action);
 }
 
 /**
@@ -164,10 +186,20 @@ export function RolePermissionsTab({
     [allPermissions, assignedMap],
   );
 
+  // Gesperrte Rechte bekommt eine Rolle der Schule nicht (#4574). Trägt sie
+  // eins schon, bleibt es sichtbar, damit es entfernt werden kann.
+  const selectablePermissions = useMemo(
+    () =>
+      allPermissions.filter(
+        (p) => !isReserved(p) || assignedMap[p.id] === true,
+      ),
+    [allPermissions, assignedMap],
+  );
+
   const filteredPermissions = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return allPermissions;
-    return allPermissions.filter(
+    if (!query) return selectablePermissions;
+    return selectablePermissions.filter(
       (permission) =>
         permission.name.toLowerCase().includes(query) ||
         permission.description.toLowerCase().includes(query) ||
@@ -178,7 +210,7 @@ export function RolePermissionsTab({
           .toLowerCase()
           .includes(query),
     );
-  }, [allPermissions, searchTerm]);
+  }, [selectablePermissions, searchTerm]);
 
   const editGroups = useMemo(
     () => groupByResource(filteredPermissions),
@@ -314,7 +346,8 @@ export function RolePermissionsTab({
       <FormErrorAlert message={saveError} />
 
       <p className="text-sm text-gray-600">
-        {draftCount} von {allPermissions.length} Berechtigungen ausgewählt.
+        {draftCount} von {selectablePermissions.length} Berechtigungen
+        ausgewählt.
       </p>
 
       <div className="flex flex-wrap items-end gap-2">
@@ -405,6 +438,7 @@ export function RolePermissionsTab({
                         permission.action,
                         permission.description,
                       );
+                      const hint = permissionHint(permission);
 
                       return (
                         <label
@@ -418,6 +452,11 @@ export function RolePermissionsTab({
                             disabled={saving}
                             onChange={() => toggleOne(permission.id)}
                             aria-label={permissionLabel(permission)}
+                            aria-describedby={
+                              hint
+                                ? `role-permission-hint-${permission.id}`
+                                : undefined
+                            }
                             className="mt-0.5"
                           />
                           <span className="min-w-0 flex-1">
@@ -431,6 +470,14 @@ export function RolePermissionsTab({
                               )}
                               {description ? ` · ${description}` : ""}
                             </span>
+                            {hint ? (
+                              <span
+                                id={`role-permission-hint-${permission.id}`}
+                                className="text-moto-amber-strong mt-0.5 block text-xs font-medium"
+                              >
+                                {hint}
+                              </span>
+                            ) : null}
                           </span>
                         </label>
                       );

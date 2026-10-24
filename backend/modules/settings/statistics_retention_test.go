@@ -12,6 +12,14 @@ import (
 
 type retentionSource map[string]int
 
+func (s retentionSource) ResolveBool(_ context.Context, key string) (bool, error) {
+	value, ok := s[key]
+	if !ok {
+		return false, errors.New("unknown key " + key)
+	}
+	return value != 0, nil
+}
+
 func (s retentionSource) ResolveInt(_ context.Context, key string) (int, error) {
 	value, ok := s[key]
 	if !ok {
@@ -23,7 +31,7 @@ func (s retentionSource) ResolveInt(_ context.Context, key string) (int, error) 
 func TestRetentionWindowsReadTheirSettings(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	source := retentionSource{configModel.KeyPrivacyConsentRetentionDays: 30, configModel.KeyGDPRTimetableRetentionDays: 90, configModel.KeyGDPRStatusDayRetentionDays: 60}
+	source := retentionSource{configModel.KeyAttendanceLogEnabled: 1, configModel.KeyPrivacyConsentRetentionDays: 30, configModel.KeyGDPRTimetableRetentionDays: 90, configModel.KeyGDPRStatusDayRetentionDays: 60}
 	rooms, err := NewStatisticsRetention(source).RoomRetentionDays(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 30, rooms)
@@ -64,4 +72,13 @@ func TestGuardianRetentionReadsItsSetting(t *testing.T) {
 	require.ErrorContains(t, err, "resolve "+configModel.KeyGDPRGuardianRetentionDays+": ")
 	refused := errors.New("window")
 	require.ErrorIs(t, NewGuardianRetention(retentionSource{}).SettingError(refused), refused)
+}
+
+func TestRoomRetentionRespectsAttendanceLogSetting(t *testing.T) {
+	t.Parallel()
+	days, err := NewStatisticsRetention(retentionSource{configModel.KeyAttendanceLogEnabled: 0}).RoomRetentionDays(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, days)
+	_, err = NewStatisticsRetention(retentionSource{}).RoomRetentionDays(context.Background())
+	require.ErrorContains(t, err, configModel.KeyAttendanceLogEnabled)
 }

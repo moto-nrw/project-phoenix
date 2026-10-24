@@ -174,6 +174,24 @@ follow-up slices. This PR implements one workflow capability, not all of those
 slices. No follow-up issues are created. No new owner, policy rule, epoch,
 projection grant, baseline key, pass-through allowance or budget is needed.
 
+### E5 mandatory operator audit (#3842, slice 3842-b)
+
+The security correction in #3842 narrows E5's best-effort audit exception:
+device transfer and person retirement now return audit failures from their
+existing administrative transaction. Key rotation and device, school and
+organisation deletion use the same fail-closed rule. The scope transitions,
+owner commands, device locks and their order do not change; no operation is
+combined with another provisioning operation or extended to another owner.
+
+Port-failure tests reproduce successful privileged writes despite a rejected
+audit append. Production-composition tests with a rejecting PostgreSQL trigger
+verify rollback of the source device, absence of a target device, preserved
+credentials, undeleted records and rolled-back session revocations. See
+`api/operator_audit_failure_test.go` and the
+[operating note](../operations/operator-audit-3842-b.md). A wider workflow
+extraction would not improve this bounded audit invariant and remains separate
+from this correction. Other E5 best-effort/post-commit paths stay unchanged.
+
 ### E2 lock-order correction (#4636)
 
 The two-connection regression in `api/care_exit_lock_order_test.go` reproduces

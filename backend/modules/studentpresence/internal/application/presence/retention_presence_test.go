@@ -38,8 +38,8 @@ type retentionDeleteFault struct {
 	deleted     int64
 }
 
-func (p *retentionDeleteFault) DeleteCompletedVisitsBefore(ctx context.Context, id int64, cutoff time.Time) (int64, error) {
-	count, err := p.PresenceRetention.DeleteCompletedVisitsBefore(ctx, id, cutoff)
+func (p *retentionDeleteFault) DeleteCompletedVisitsBefore(ctx context.Context, id int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (int64, error) {
+	count, err := p.PresenceRetention.DeleteCompletedVisitsBefore(ctx, id, policy, cutoff)
 	if err == nil {
 		p.deleted += count
 		err = p.afterDelete
@@ -132,20 +132,20 @@ type failedRetentionRead struct {
 	oldestErr, monthlyErr error
 }
 
-func (*failedRetentionRead) CountExpiredVisits(context.Context, int) (int64, error) {
+func (*failedRetentionRead) CountExpiredVisits(context.Context, studentpresence.VisitRetentionPolicy) (int64, error) {
 	return 1, nil
 }
 
-func (*failedRetentionRead) ListVisitRetentionCounts(context.Context, int) ([]studentpresence.VisitRetentionCount, error) {
+func (*failedRetentionRead) ListVisitRetentionCounts(context.Context, studentpresence.VisitRetentionPolicy) ([]studentpresence.VisitRetentionCount, error) {
 	return []studentpresence.VisitRetentionCount{{StudentID: 1, Count: 1}}, nil
 }
 
-func (r *failedRetentionRead) OldestExpiredVisitDate(context.Context, int) (*time.Time, error) {
+func (r *failedRetentionRead) OldestExpiredVisitDate(context.Context, studentpresence.VisitRetentionPolicy) (*time.Time, error) {
 	oldest := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	return &oldest, r.oldestErr
 }
 
-func (r *failedRetentionRead) ListExpiredVisitMonths(context.Context, int) ([]studentpresence.VisitMonthCount, error) {
+func (r *failedRetentionRead) ListExpiredVisitMonths(context.Context, studentpresence.VisitRetentionPolicy) ([]studentpresence.VisitMonthCount, error) {
 	return nil, r.monthlyErr
 }
 

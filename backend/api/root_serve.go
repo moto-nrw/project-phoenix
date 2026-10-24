@@ -249,7 +249,7 @@ func composeServeRoot(
 		},
 		func() (err error) { mealPlanSettings, err = owners.BuildMealPlanSettings(settings.Service); return },
 		func() (err error) {
-			mealPlan, err = owners.BuildServeMealPlan(db, mealPlanSettings, owners.NewStudentRootReads(people.Students))
+			mealPlan, err = owners.BuildServeMealPlan(db, mealPlanSettings, calendar, owners.NewStudentRootReads(people.Students))
 			return
 		},
 		func() (err error) { feedbackSettings, err = owners.BuildFeedbackSettings(settings.Service); return },
@@ -475,7 +475,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, hub)
+			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, owners.BuildPresenceCleanup(env, presence, audit, settings.Service), hub)
 			return
 		},
 		func() (err error) {

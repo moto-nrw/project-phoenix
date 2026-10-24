@@ -276,13 +276,14 @@ func TestProvisioningSoftDeletePerson(t *testing.T) {
 		assert.NotContains(t, h.people.persons, personID)
 	})
 
-	t.Run("audit failure does not fail the deletion", func(t *testing.T) {
+	t.Run("audit failure fails the transaction", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		seedStaffWithAccount(h)
 		h.audit.err = errBoom
 
-		require.NoError(t, h.svc.SoftDeletePerson(context.Background(), personID, testOperatorID, operatorIP))
+		require.ErrorIs(t, h.svc.SoftDeletePerson(context.Background(), personID, testOperatorID, operatorIP), errBoom)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom)
 	})
 
 	for name, tc := range map[string]struct {

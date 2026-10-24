@@ -250,7 +250,16 @@
     "useRegular": "Përdor regjistrimin e rregullt",
     "errorObjectSchools": "përmbledhja e ushqimit",
     "errorObjectWeek": "lista e ushqimeve për këtë javë",
-    "errorObjectParticipation": "regjistrimi për drekë"
+    "errorObjectParticipation": "regjistrimi për drekë",
+    "participationCutoffWeekday": "Mund ta ndryshoni regjistrimin deri të {weekday}, ora {time}, për gjithë javën e ardhshme.",
+    "participationCancellation": "Çregjistrimi mund të bëhet më vonë: deri në orën {time} {days, plural, =0 {në ditën e vaktit} one {një ditë pune para vaktit} other {# ditë pune para vaktit}}.",
+    "participationSicknessWeekday": "Një njoftim sëmundjeje i konfirmuar deri të {weekday}, ora {time}, në javën para vaktit e çregjistron fëmijën tuaj nga vakti. Pas kësaj regjistrimi mbetet.",
+    "closedDay": "Nuk ka vakt: festë ose ditë pushimi",
+    "registerWeek": "Regjistro për gjithë javën",
+    "unregisterWeek": "Çregjistro për gjithë javën",
+    "weekActionsHint": "Vlen për të gjitha ditët e kësaj jave që mund t’i ndryshoni ende.",
+    "unregisterWeekTitle": "Të çregjistrohet për gjithë javën?",
+    "unregisterWeekText": "{name} do të çregjistrohet nga dreka për {count, plural, one {# ditë} other {# ditë}} të kësaj jave. Regjistrimi sërish është i mundur vetëm deri në afatin e ndryshimeve."
   },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
@@ -289,7 +298,26 @@
     "weekRegistered": "i regjistruar",
     "weekNotRegistered": "i paregjistruar",
     "weekCountsLabel": "Numri i drekave për ditë",
-    "weekCount": "{count, plural, one {# fëmijë} other {# fëmijë}}"
+    "weekCount": "{count, plural, one {# fëmijë} other {# fëmijë}}",
+    "cutoffWeekday": "Ndryshimet janë të mundshme deri të {weekday} e javës së kaluar, ora {time}.",
+    "cancellationCutoff": "Çregjistrimi është i mundur deri në orën {time} {days, plural, =0 {në ditën e vaktit} one {një ditë pune më parë} other {# ditë pune më parë}}.",
+    "closedTitle": "Nuk ka vakt këtë ditë",
+    "closedDescription": "Kjo ditë është festë ose ditë pushimi e shkollës.",
+    "weekClosed": "pa vakt",
+    "staffChangeHint": "Këtu mund t’i regjistroni ose çregjistroni fëmijët edhe pas afatit.",
+    "addChild": "Regjistro fëmijën",
+    "addChildTitle": "Regjistro një fëmijë për {date}",
+    "addChildLabel": "Fëmija",
+    "addChildPlaceholder": "Zgjidhni fëmijën",
+    "addChildEmpty": "Të gjithë fëmijët e kësaj dite janë regjistruar tashmë.",
+    "addChildRequired": "Ju lutemi zgjidhni një fëmijë.",
+    "cancel": "Anulo",
+    "saving": "Po ruhet…",
+    "rowActions": "Veprime për {name}",
+    "unregister": "Çregjistro",
+    "registeredToast": "{name} është regjistruar për {date}.",
+    "unregisteredToast": "{name} është çregjistruar për {date}.",
+    "changeErrorObject": "regjistrimi"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
@@ -2408,6 +2436,7 @@
         "preview_token_invalid": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "read_only_preview": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "role_platform_permission": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
         "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
@@ -2874,6 +2903,9 @@
         "external_email_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_has_account": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "not_external": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+      },
+      "operator": {
+        "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       }
     },
     "actions": {

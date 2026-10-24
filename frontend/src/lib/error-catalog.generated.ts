@@ -280,6 +280,8 @@ export const ERROR_CATALOG = {
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte verwenden Sie eine andere Adresse.",
       "identity.role_name_taken":
         "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+      "identity.role_platform_permission":
+        "Eigene Rollen können dieses Recht nicht bekommen.",
       "identity.invitation_account_login_required":
         "Für diese E-Mail-Adresse gibt es schon ein Konto. Bitte melden Sie sich zuerst damit an und öffnen Sie dann die Einladung erneut.",
       "identity.invitation_account_mismatch":
@@ -1186,6 +1188,8 @@ export const ERROR_CATALOG = {
         "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
       "communication.group_thread_no_recipients":
         "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
+      "operator.audit_unavailable":
+        "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
     },
   },
   en: {

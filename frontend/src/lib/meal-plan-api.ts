@@ -39,19 +39,56 @@ export interface DailyMealParticipant {
   schoolClass: string;
 }
 
-export interface DailyMealList {
-  date: string;
+/** Die Fristen der Schule für das Mittagessen. */
+export interface MealCutoffs {
   cutoffTime: string;
   /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
   cutoffLeadDays: number;
-  participants: DailyMealParticipant[];
+  /**
+   * 1-5 (Mo-Fr): Die Frist der ganzen Woche endet an diesem Wochentag der
+   * Vorwoche; 0 = Vorlauf in Werktagen.
+   */
+  cutoffWeekday: number;
+  /** Spätere Abmeldefrist; leer, wenn sie der Änderungsfrist entspricht. */
+  cancellationCutoffTime: string;
+  cancellationCutoffLeadDays: number;
 }
 
-export interface WeeklyMealList {
+export interface DailyMealList extends MealCutoffs {
+  date: string;
+  /** Feiertag oder Schließtag: kein Essen. */
+  closed: boolean;
+  participants: DailyMealParticipant[];
+  /** Kinder des Tages ohne Anmeldung; das Team kann sie anmelden. */
+  available: DailyMealParticipant[];
+}
+
+export interface WeeklyMealList extends MealCutoffs {
   weekStart: string;
-  cutoffTime: string;
-  cutoffLeadDays: number;
-  days: Array<{ date: string; participants: DailyMealParticipant[] }>;
+  days: Array<{
+    date: string;
+    closed: boolean;
+    participants: DailyMealParticipant[];
+  }>;
+}
+
+/** Wire shape of the cutoffs (snake_case). */
+interface BackendMealCutoffs {
+  cutoff_time: string;
+  cutoff_lead_days?: number;
+  cutoff_weekday?: number;
+  cancellation_cutoff_time?: string;
+  cancellation_cutoff_lead_days?: number;
+}
+
+function mapMealCutoffs(data: BackendMealCutoffs): MealCutoffs {
+  return {
+    cutoffTime: data.cutoff_time,
+    cutoffLeadDays: data.cutoff_lead_days ?? 0,
+    cutoffWeekday: data.cutoff_weekday ?? 0,
+    cancellationCutoffTime: data.cancellation_cutoff_time ?? "",
+    cancellationCutoffLeadDays: data.cancellation_cutoff_lead_days ?? 0,
+  };
 }
 
 interface BackendMealParticipant {
@@ -132,20 +169,21 @@ export async function getDailyMealParticipants(
     throw await apiErrorFromResponse(response, "meal participants load failed");
   }
   const json = (await response.json()) as {
-    data?: {
+    data?: BackendMealCutoffs & {
       date: string;
-      cutoff_time: string;
-      cutoff_lead_days?: number;
+      closed?: boolean;
       participants: BackendMealParticipant[];
+      available?: BackendMealParticipant[];
     };
   };
   const data = json.data;
   if (!data) throw new Error("Meal participant response is missing data");
   return {
+    ...mapMealCutoffs(data),
     date: data.date,
-    cutoffTime: data.cutoff_time,
-    cutoffLeadDays: data.cutoff_lead_days ?? 0,
+    closed: data.closed ?? false,
     participants: data.participants.map(mapParticipant),
+    available: (data.available ?? []).map(mapParticipant),
   };
 }
 
@@ -164,25 +202,59 @@ export async function getWeeklyMealParticipants(
     );
   }
   const json = (await response.json()) as {
-    data?: {
+    data?: BackendMealCutoffs & {
       week_start: string;
-      cutoff_time: string;
-      cutoff_lead_days: number;
-      days: Array<{ date: string; participants: BackendMealParticipant[] }>;
+      days: Array<{
+        date: string;
+        closed?: boolean;
+        participants: BackendMealParticipant[];
+      }>;
     };
   };
   const data = json.data;
   if (!data)
     throw new Error("Weekly meal participant response is missing data");
   return {
+    ...mapMealCutoffs(data),
     weekStart: data.week_start,
-    cutoffTime: data.cutoff_time,
-    cutoffLeadDays: data.cutoff_lead_days,
     days: data.days.map((day) => ({
       date: day.date,
+      closed: day.closed ?? false,
       participants: day.participants.map(mapParticipant),
     })),
   };
+}
+
+/**
+ * Das Team meldet ein Kind für einen Tag an (true) oder ab (false), auch
+ * nach der Frist; null setzt den Tag auf die festen Tage des Kindes zurück.
+ */
+export async function setMealParticipantDay(
+  studentId: string,
+  date: string,
+  participating: boolean | null,
+): Promise<void> {
+  const path = `/api/meal-plan/participants/${encodeURIComponent(studentId)}/${encodeURIComponent(date)}`;
+  const response = await sessionFetch(
+    path,
+    participating === null
+      ? { method: "DELETE", credentials: "include" }
+      : {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participating }),
+        },
+  );
+  if (!response.ok) {
+    logger.error("meal_participant_day_change_failed", {
+      status: response.status,
+    });
+    throw await apiErrorFromResponse(
+      response,
+      "meal participant day change failed",
+    );
+  }
 }
 
 async function downloadMealList(path: string, filename: string): Promise<void> {

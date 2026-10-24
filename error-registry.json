@@ -1007,6 +1007,14 @@
       "legacy": "identity.role_name_taken"
     },
     {
+      "code": "identity.role_platform_permission",
+      "class": "input",
+      "parameters": [
+        "permission"
+      ],
+      "legacy": "identity.role_platform_permission"
+    },
+    {
       "code": "identity.invitation_account_login_required",
       "class": "permission",
       "parameters": [],
@@ -4229,6 +4237,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "communication.group_thread_no_recipients"
+    },
+    {
+      "code": "operator.audit_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "operator.audit_unavailable"
     }
   ]
 }

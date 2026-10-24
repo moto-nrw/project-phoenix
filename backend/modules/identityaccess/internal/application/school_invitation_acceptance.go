@@ -60,7 +60,7 @@ func (s *SchoolInvitation) provisionInvitationIdentity(ctx context.Context, invi
 		return failed("provision school identity", domain.ErrRoleNotFound)
 	}
 	facts := *role.Facts()
-	lehrkraft := s.policy.IsLehrkraftSystemRole(&facts)
+	lehrkraft := s.policy.IsLehrkraftRole(&facts)
 	if err := s.assignCaregiverRole(ctx, accountID, invitation, facts, lehrkraft); err != nil {
 		return err
 	}

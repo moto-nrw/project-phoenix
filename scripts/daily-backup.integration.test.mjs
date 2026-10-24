@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const scripts = dirname(fileURLToPath(import.meta.url));
-test('encrypted daily backup restores an isolated cluster and files, prunes by age and fails closed', { timeout: 240000 }, t => {
+test('encrypted daily backup restores an isolated cluster and files, prunes by age and fails closed', { timeout: 600000 }, t => {
   const root = mkdtempSync(join(tmpdir(), 'moto-daily-test-'));
   const project = `moto-daily-${process.pid}-${Date.now()}`;
   const volume = `${project}-uploads`;
@@ -64,7 +64,7 @@ volumes:
     { BACKUP_UPLOADS_VOLUME: restoredVolume, BACKUP_AGE_IDENTITY_FILE: join(root, 'identity'), ...overrides });
   t.after(() => {
     invoke('docker', ['compose', '-f', compose, '-p', project, 'down', '-v', '--remove-orphans']);
-    invoke('docker', ['volume', 'rm', volume, restoredVolume]);
+    invoke('docker', ['volume', 'rm', volume, restoredVolume, `${project}-rejected`]);
     rmSync(root, { recursive: true, force: true });
   });
   const restoreConfig = JSON.parse(run('docker', ['compose', '--env-file', join(root, '.env'),
@@ -94,6 +94,9 @@ exec '${transport}' "$@"
   docker('volume', 'create', volume);
   sql(`CREATE ROLE phoenix_auth LOGIN PASSWORD '${credential}';
 CREATE ROLE phoenix_demo LOGIN;
+CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
+CREATE ROLE "diagnose synthetic" LOGIN NOINHERIT;
+GRANT phoenix_diagnostics TO "diagnose synthetic";
 CREATE ROLE tenant_scope;
 GRANT tenant_scope TO phoenix_auth;
 CREATE TABLE records(tenant_id bigint, marker text);
@@ -177,6 +180,9 @@ exec '${realDocker}' "$@"
   result = restore(name);
   assert.equal(result.status, 0, result.stdout);
   assert.match(result.stdout, /restore_result=ok step=deletion_review_required app_start=blocked/);
+  assert.match(result.stdout, /restore_diagnostics_disabled=1/);
+  assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname = 'diagnose synthetic';`), 'f');
+  assert.equal(sql(`SELECT pg_has_role('diagnose synthetic', 'phoenix_diagnostics', 'SET');`), 't');
   assert.equal(sql('SELECT count(*) FROM records;'), '2');
   assert.equal(createHash('sha256').update(sql('SELECT tenant_id, marker FROM records ORDER BY tenant_id, marker;')).digest('hex'), rowsBefore);
   // Passwordless role dumps are not usable app logins until explicitly re-keyed.
@@ -229,4 +235,45 @@ exec '${realDocker}' "$@"
   assert(!result.stdout.includes(credential)); assert(!result.stderr.includes(marker));
   assert.deepEqual(readdirSync(work), []);
   assert.deepEqual(readdirSync(env.BACKUP_CIPHER_DIR), []);
+  // An unrelated or more privileged personal login still blocks recovery.
+  // Exercise real globals AND database dumps: direct ACLs/ownership are absent
+  // from globals and must be rejected after database_restore as well.
+  const unsafeRoles = [
+    'CREATE ROLE unrelated LOGIN;',
+    'GRANT tenant_scope TO "diagnose synthetic";',
+    'ALTER ROLE "diagnose synthetic" SUPERUSER;',
+    'ALTER ROLE "diagnose synthetic" BYPASSRLS;',
+    'GRANT phoenix_diagnostics TO "diagnose synthetic" WITH ADMIN TRUE;',
+    'GRANT phoenix_diagnostics TO "diagnose synthetic" WITH INHERIT TRUE;',
+    'GRANT phoenix_diagnostics TO "diagnose synthetic" WITH SET FALSE;',
+    'ALTER ROLE "diagnose synthetic" SET search_path = public;',
+    'GRANT SELECT ON records TO "diagnose synthetic";',
+    'GRANT SELECT (tenant_id) ON records TO "diagnose synthetic";',
+    'ALTER TABLE records OWNER TO "diagnose synthetic";',
+    'ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO "diagnose synthetic";',
+    'GRANT pg_monitor TO phoenix_diagnostics;',
+  ];
+  for (const [index, unsafe] of unsafeRoles.entries()) {
+    dc('down', '-v');
+    dc('up', '-d', '--wait', 'postgres');
+    rmSync(reviewMarker, { force: true });
+    sql(`CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
+CREATE ROLE "diagnose synthetic" LOGIN NOINHERIT;
+GRANT phoenix_diagnostics TO "diagnose synthetic";
+CREATE ROLE tenant_scope;
+CREATE TABLE records(tenant_id bigint);
+${unsafe}`);
+    const destination = join(root, `unsafe-${index}`); mkdirSync(destination);
+    result = backup({ BACKUP_UPLOADS_VOLUME: restoredVolume, BACKUP_TARGET: destination });
+    assert.equal(result.status, 0, result.stdout);
+    const unsafeName = readdirSync(destination).find(n => n.endsWith('.age'));
+    dc('down', '-v');
+    dc('up', '-d', '--wait', 'postgres');
+    result = restore(unsafeName, { BACKUP_TARGET: destination, BACKUP_UPLOADS_VOLUME: `${project}-rejected` });
+    assert.notEqual(result.status, 0, `unsafe role case ${index} must fail`);
+    assert.equal(result.stdout, 'restore_result=failed step=role_passwords app_start=blocked\n');
+    assert.equal(result.stderr, '');
+    assert.equal(JSON.parse(readFileSync(reviewMarker, 'utf8')).app_start, 'blocked');
+    assert.notEqual(invoke('docker', ['volume', 'inspect', `${project}-rejected`]).status, 0);
+  }
 });
