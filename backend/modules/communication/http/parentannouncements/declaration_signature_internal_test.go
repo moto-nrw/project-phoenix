@@ -44,6 +44,35 @@ func TestDeclarationReportPrintsSignatures(t *testing.T) {
 	assert.Equal(t, []byte("\x89PNG-bytes"), printed)
 }
 
+func TestDeclarationReportDoesNotPrintInvalidSignatures(t *testing.T) {
+	t.Parallel()
+	for name, invalidate := range map[string]func(*announcementService.ParentDeclarationStatus){
+		"submission": func(status *announcementService.ParentDeclarationStatus) {
+			status.Submissions[0].IntegrityOK = false
+		},
+		"signature": func(status *announcementService.ParentDeclarationStatus) {
+			status.Submissions[0].Signature.IntegrityOK = false
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			status := signedStatusFixture()
+			invalidate(status)
+
+			doc := declarationReport(status)
+			for _, section := range doc.Sections {
+				for _, card := range section.Cards {
+					for _, field := range card.Fields {
+						if field.Label == "Unterschrift" {
+							assert.Empty(t, field.PNG)
+						}
+					}
+				}
+			}
+			assert.NotContains(t, reportTexts(doc), "Prüfsumme der unterschriebenen Fassung=")
+		})
+	}
+}
+
 // The CSV names the signature and its checksum; an unsigned row says so.
 func TestDeclarationCSVCarriesSignatureColumns(t *testing.T) {
 	t.Parallel()

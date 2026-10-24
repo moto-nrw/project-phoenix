@@ -270,7 +270,9 @@ func declarationHistoryCards(submissions []announcementService.DeclarationSubmis
 			{Label: "Fassung", Value: strconv.Itoa(sub.VersionNo)},
 			{Label: "Passwort bestätigt", Value: confirmed},
 		}
-		fields = append(fields, signatureReportFields(sub.Signature)...)
+		if sub.IntegrityOK {
+			fields = append(fields, signatureReportFields(sub.Signature)...)
+		}
 		if !sub.IntegrityOK {
 			fields = append(fields, ReportField{Label: "Prüfung", Value: "Dieser Eintrag wurde nachträglich verändert."})
 		}
@@ -282,10 +284,10 @@ func declarationHistoryCards(submissions []announcementService.DeclarationSubmis
 	return cards
 }
 
-// signatureReportFields print a signed answer's signature (#4785): the image
-// and, for the keyboard alternative, the typed name.
+// signatureReportFields print an intact signed answer's signature (#4785):
+// the image and, for the keyboard alternative, the typed name.
 func signatureReportFields(s *announcementService.DeclarationSignature) []ReportField {
-	if s == nil {
+	if s == nil || !s.IntegrityOK {
 		return nil
 	}
 	value := ""
