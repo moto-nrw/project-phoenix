@@ -13,6 +13,10 @@ func (s *fakeStore) ListTraegerRoles(context.Context, int64, int64) ([]string, d
 	return nil, domain.OperationStats{}, nil
 }
 
+func (s *fakeStore) LockLiveTraegerAccount(context.Context, int64) (bool, domain.OperationStats, error) {
+	return true, domain.OperationStats{}, nil
+}
+
 func (s *fakeStore) InsertTraegerRole(context.Context, int64, int64, string) (domain.OperationStats, error) {
 	return domain.OperationStats{}, nil
 }

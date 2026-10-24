@@ -310,6 +310,7 @@ type AccountLoginStore interface {
 // the caller's administrative transaction.
 type TraegerRoleStore interface {
 	ListTraegerRoles(ctx context.Context, organizationID, accountID int64) ([]string, domain.OperationStats, error)
+	LockLiveTraegerAccount(ctx context.Context, accountID int64) (bool, domain.OperationStats, error)
 	InsertTraegerRole(ctx context.Context, organizationID, accountID int64, role string) (domain.OperationStats, error)
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]domain.TraegerAccount, domain.OperationStats, error)
 }

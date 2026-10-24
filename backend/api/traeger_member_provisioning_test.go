@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -121,4 +122,56 @@ func TestOperatorTraegerMemberListQueryBudgetIsFlat(t *testing.T) {
 	member()
 	assert.Len(t, list(), len(three), "the member list reads the same statements for any number of members")
 	testpkg.AssertQueryBudget(t, "api.operator.traeger_members", three)
+}
+
+// The erasure of unused accounts locks an account before it anonymizes it. A
+// grant that meets that lock waits, and once the erasure commits it finds no
+// live account: the erased account gets no membership and no Träger role.
+func TestOperatorTraegerGrantLosesToAConcurrentErasure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-erasure")
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("erased-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource)
+
+	erasure, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = erasure.Rollback() }()
+	var lockedID int64
+	require.NoError(t, erasure.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID).Scan(ctx, &lockedID))
+
+	granted := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		body := bytes.NewBufferString(fmt.Sprintf(`{"email":%q,"role":"administration"}`, account.Email))
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/organizations/%d/traeger-members", organizationID), body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		granted <- rec
+	}()
+
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(ctx, &waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 20*time.Millisecond, "the grant waits for the erasure's lock")
+	_, err = erasure.ExecContext(ctx, `UPDATE auth.accounts SET personal_data_erased_at = now() WHERE id = ?`, account.ID)
+	require.NoError(t, err)
+	require.NoError(t, erasure.Commit())
+
+	rec := <-granted
+	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"identity.account_not_found"`)
+	var rows int
+	require.NoError(t, db.NewRaw(`SELECT (SELECT count(*) FROM platform.organization_accounts WHERE account_id = ?)
+		+ (SELECT count(*) FROM auth.organization_account_roles WHERE account_id = ?)`, account.ID, account.ID).Scan(ctx, &rows))
+	assert.Zero(t, rows, "an erased account gets neither membership nor Träger role")
 }

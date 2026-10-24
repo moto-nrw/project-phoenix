@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -116,24 +117,18 @@ export function AssignTraegerMemberModal({
           Träger-Portal von {organizationName} an.
         </p>
         <FormErrorAlert message={formErrors.error} />
-        <FormField
+        <Input
+          id="assign-traeger-member-email"
           label="E-Mail des Kontos"
-          htmlFor="assign-traeger-member-email"
-          required
+          name="email"
           error={formErrors.fieldError("email")}
-        >
-          <input
-            id="assign-traeger-member-email"
-            name="email"
-            type="email"
-            autoComplete="off"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            maxLength={255}
-            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            required
-          />
-        </FormField>
+          type="email"
+          autoComplete="off"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          maxLength={255}
+          required
+        />
         <FormField
           label="Rolle"
           htmlFor="assign-traeger-member-role"

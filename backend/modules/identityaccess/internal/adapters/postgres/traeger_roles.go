@@ -33,6 +33,29 @@ func (s *Store) ListTraegerRoles(ctx context.Context, organizationID, accountID 
 	return roles, stats, nil
 }
 
+const lockLiveTraegerAccountQuery = `SELECT id FROM auth.accounts
+	WHERE id = ? AND personal_data_erased_at IS NULL
+	FOR UPDATE`
+
+// LockLiveTraegerAccount locks the account row until the grant commits and
+// reports whether the account is still live. auth.erase_unused_accounts locks
+// with SKIP LOCKED and passes over it; when the erasure locked first, the
+// re-checked row is erased and the grant finds no live account.
+func (s *Store) LockLiveTraegerAccount(ctx context.Context, accountID int64) (bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	var ids []int64
+	started := time.Now()
+	err = db.NewRaw(lockLiveTraegerAccountQuery, accountID).Scan(ctx, &ids)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(ids))}
+	if err != nil {
+		return false, stats, fmt.Errorf("identity access postgres: lock Träger account: %w", err)
+	}
+	return len(ids) == 1, stats, nil
+}
+
 const insertTraegerRoleQuery = `INSERT INTO auth.organization_account_roles (organization_id, account_id, role)
 	VALUES (?, ?, ?)
 	ON CONFLICT ON CONSTRAINT uq_organization_account_roles_role DO NOTHING`

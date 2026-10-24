@@ -294,8 +294,11 @@ func (p ProvisioningIdentity) FindAccountIDByEmail(ctx context.Context, email st
 // AssignTraegerRole grants the Träger role on the operator's transaction.
 func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {
 	err := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)
-	if errors.Is(err, identityaccess.ErrInvalidTraegerRole) {
+	switch {
+	case errors.Is(err, identityaccess.ErrInvalidTraegerRole):
 		return organizationtenancy.ErrInvalidTraegerRole
+	case errors.Is(err, identityaccess.ErrAccountNotFound):
+		return organizationtenancy.ErrTraegerAccountNotFound
 	}
 	return err
 }

@@ -121809,18 +121809,6 @@
     },
     {
       "source_owner": "organization-tenancy",
-      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.AssignTraegerRole",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.AssignTraegerRole",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignTraegerRole",
-      "target_owner": "identity-access",
-      "binding_digest": "79ea3a037bb346ba313f848c86010056",
-      "effect": "mutation",
-      "classification": "leaf",
-      "adr": "0067",
-      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity & Access validates the Träger role and inserts it on the operator's administrative unit, which the Träger membership grant of Organisation & Tenancy owns (ADR 0084, #4649). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
-    },
-    {
-      "source_owner": "organization-tenancy",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.FindAccountIDByEmail",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.FindAccountIDByEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
@@ -121840,6 +121828,18 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read on the supplied interface: modules/identityaccess.Owner.ListTraegerAccounts reads address and Träger roles on the operator's administrative unit (ADR 0084, #4649). No mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.AssignTraegerRole",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.AssignTraegerRole",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignTraegerRole",
+      "target_owner": "identity-access",
+      "binding_digest": "3cf3935d4265a0dc4e270e8eeade4332",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity & Access validates the Träger role, locks the live account against a concurrent erasure and inserts the role on the operator's administrative unit, which the Träger membership grant of Organisation & Tenancy owns (ADR 0084, #4649). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
     }
   ]
 }

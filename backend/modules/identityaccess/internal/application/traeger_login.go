@@ -145,7 +145,16 @@ func (s *AccountAuthentication) AssignTraegerRole(ctx context.Context, organizat
 	if !s.runtime.HasTransaction(ctx) || !s.runtime.IsAdminTx(ctx) {
 		return identityaccess.ErrTraegerTransactionRequired
 	}
-	_, err := s.store.InsertTraegerRole(ctx, organizationID, accountID, role)
+	// The membership and this grant commit together; an account the erasure
+	// of unused accounts already anonymized gets no Träger access.
+	live, _, err := s.store.LockLiveTraegerAccount(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if !live {
+		return identityaccess.ErrAccountNotFound
+	}
+	_, err = s.store.InsertTraegerRole(ctx, organizationID, accountID, role)
 	return err
 }
 
