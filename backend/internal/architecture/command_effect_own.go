@@ -26,10 +26,7 @@ func (s *effectScanner) resolveOwnMethod(port, binding string, receiver types.Ty
 
 func (s *effectScanner) resolveOwnCallables(port, binding string, callables []types.Object, seen map[string]bool, trail []string) {
 	for _, callable := range callables {
-		evidence := s.callableTrail(callable, trail)
-		if !s.resolveCallableOnce(port, binding, callable, evidence) {
-			s.record(port, binding, "unresolved:"+effectCallableIdentity(callable), "", evidence)
-		}
+		s.resolveOrDiagnose(port, binding, callable, "unresolved:"+effectCallableIdentity(callable), trail)
 	}
 }
 
@@ -42,7 +39,7 @@ type ownEffectSummary struct {
 }
 
 func (s *effectScanner) ownReachable(start *types.Func) []types.Object {
-	if cached, ok := s.ownClosures[start]; ok {
+	if cached, ok := s.ownCallables[start]; ok {
 		return cached
 	}
 	found := map[types.Object]bool{}
@@ -62,7 +59,7 @@ func (s *effectScanner) ownReachable(start *types.Func) []types.Object {
 		}
 	}
 	result := sortedEffectObjects(found)
-	s.ownClosures[start] = result
+	s.ownCallables[start] = result
 	return result
 }
 
@@ -142,7 +139,7 @@ func (s *effectScanner) ownSelectorSummary(pkg *packages.Package, owner string, 
 		}
 		return nil, nil
 	}
-	if _, callable := selection.Obj().Type().Underlying().(*types.Signature); callable && selection.Kind() == types.FieldVal {
+	if selection.Kind() == types.FieldVal && effectCallableCarrier(selection.Obj().Type(), map[types.Type]bool{}) {
 		return selection.Obj(), nil
 	}
 	return nil, nil

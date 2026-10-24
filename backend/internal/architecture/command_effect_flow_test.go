@@ -404,3 +404,77 @@ func Build() {
 		}
 	}
 }
+
+func TestCommandEffectsResolveCallableContainerFields(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, domain, roots string }{
+		{"domain slice field", "type reads struct { list []func() }; func NewReads(list ...func()) Writer { return reads{list: list} }; func (r reads) Record() { for _, f := range r.list { f() } }",
+			"type unused struct{}\nfunc Build() { enrollment.Run(enrollment.NewReads(func() { foreign.Ledger{}.Record() })) }"},
+		{"domain map field", "type reads struct { list map[string]func() }; func NewReads(list map[string]func()) Writer { return reads{list: list} }; func (r reads) Record() { r.list[\"write\"]() }",
+			"type unused struct{}\nfunc Build() { enrollment.Run(enrollment.NewReads(map[string]func(){\"write\": foreign.Ledger{}.Record})) }"},
+		{"root slice field", "",
+			"type binding struct { commands []func() }\nfunc (b binding) Record() { b.commands[0]() }\nfunc Build() { enrollment.Run(binding{commands: []func(){foreign.Ledger{}.Record}}) }"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			project, policy := commandEffectGateFixture(t)
+			if tc.domain != "" {
+				writeFile(t, filepath.Join(project, "enrollment", "reads.go"), "package enrollment\n"+tc.domain+"\n")
+			}
+			writeFile(t, filepath.Join(project, "roots", "binding.go"), "package roots\nimport (\"example.test/effects/enrollment\"; \"example.test/effects/foreign\")\n"+tc.roots+"\n")
+			requireFixtureTargets(t, project, policy, "enrollment: foreign.Ledger.Record")
+		})
+	}
+}
+
+// A same-owner interface field supplied by the root is its own port: the
+// domain struct that holds it does not hide the foreign implementation.
+func TestCommandEffectsSameOwnerInterfaceProviderBehindDomainField(t *testing.T) {
+	t.Parallel()
+	project, policy := commandEffectGateFixture(t)
+	writeFile(t, filepath.Join(project, "enrollment", "reads.go"), `package enrollment
+type Ledger interface { Record() }
+type reads struct { ledger Ledger }
+func NewReads(ledger Ledger) Writer { return reads{ledger: ledger} }
+func (r reads) Record() { r.ledger.Record() }
+`)
+	writeFile(t, filepath.Join(project, "roots", "binding.go"), `package roots
+import (
+ "example.test/effects/enrollment"
+ "example.test/effects/foreign"
+)
+func Build() { enrollment.Run(enrollment.NewReads(foreign.Ledger{})) }
+`)
+	requireFixtureTargets(t, project, policy, "enrollment: foreign.Ledger.Record")
+}
+
+// A diagnostic that stays unresolved still fingerprints every assignment: a
+// changed traceable closure beside an untraceable source needs fresh approval.
+func TestCommandEffectsUnresolvedCallableEvidenceChangeNeedsApproval(t *testing.T) {
+	t.Parallel()
+	project, policy := commandEffectGateFixture(t)
+	filename := filepath.Join(project, "roots", "binding.go")
+	source := `package roots
+import (
+ "example.test/effects/enrollment"
+ "example.test/effects/foreign"
+)
+type binding struct { command func() }
+func (b binding) Record() { b.command() }
+func Build(external func()) {
+ enrollment.Run(binding{command: external})
+ enrollment.Run(binding{command: func() { foreign.Ledger{}.Record() }})
+}
+`
+	writeFile(t, filename, source)
+	reviewGapFixture(t, project, policy, "mutation", "debt", "0083")
+	base := commitGapFixture(t, project)
+	writeFile(t, filename, strings.Replace(source, "foreign.Ledger{}.Record() }", "foreign.Ledger{}.Record(); foreign.Ledger{}.Record() }", 1))
+	if err := GenerateCommandEffects(project, policy); err != nil {
+		t.Fatal(err)
+	}
+	err := CompareCommandEffects(project, base)
+	if err == nil || !strings.Contains(err.Error(), "exception binding changed without a new approval_adr: enrollment|example.test/effects/enrollment.Writer.Record|example.test/effects/roots.binding.Record|unresolved:function:") {
+		t.Fatalf("changed evidence of an unresolved diagnostic = %v", err)
+	}
+}

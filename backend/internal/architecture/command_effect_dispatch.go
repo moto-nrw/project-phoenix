@@ -26,6 +26,16 @@ func (c *effectCapture) add(target, owner string, trail []string) {
 	}
 }
 
+// resolveOrDiagnose resolves a callable for the port and records its exact
+// unresolved diagnostic when any of its values cannot be followed. Both carry
+// the callable's assignment evidence.
+func (s *effectScanner) resolveOrDiagnose(port, binding string, callable types.Object, diagnostic string, trail []string) {
+	evidence := s.callableTrail(callable, trail)
+	if !s.resolveCallableOnce(port, binding, callable, evidence) {
+		s.record(port, binding, diagnostic, "", evidence)
+	}
+}
+
 func (s *effectScanner) resolveCallableOnce(port, binding string, object types.Object, trail []string) bool {
 	object = effectOriginObject(object)
 	key := s.sourceOwner + "\x00" + object.Pkg().Path() + "\x00" + effectCallableIdentity(object) + "\x00" + effectObjectPosition(object)

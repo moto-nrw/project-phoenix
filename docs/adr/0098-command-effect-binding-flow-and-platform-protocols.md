@@ -27,9 +27,13 @@ their typed values to the code that populates them. Each value resolves as follo
 
 A resolved callable records its terminals, not an `unresolved:` diagnostic. The
 assignment evidence from ADR 0094 stays in those terminals' fingerprints, so a
-changed closure still fails as a changed binding. A diagnostic remains when a
-value cannot be traced. In practice those are parameters of `testhooks` helpers
-whose values come only from `_test.go`, plus non-static expressions.
+changed closure still fails as a changed binding. A diagnostic remains when any
+value cannot be traced, for example a parameter whose callers are only in
+`_test.go` (most `api` and `roots` `testhooks` helpers), a non-static
+expression or an anonymous interface. Its fingerprint keeps every assignment,
+so a changed traceable closure beside an untraceable source still needs fresh
+approval. Function fields of container type (`[]func()`, `map[K]func()`) are
+followed like single callables.
 
 Two precision rules keep this a may-bind inventory rather than a union of all
 code. First, a value the source owner computes or leaves unset is the owner's
@@ -79,7 +83,9 @@ protocol, and is inventoried, when its signature shows one of these traits:
 
 Pure value helpers such as `tenant.FromContext`, `realtime.NewEvent` and
 `HasPermission`, and the context-free metric sinks `observability.Observe*`,
-are not protocol effects. The rule reads the typed signature, not a name.
+are not protocol effects. The rule reads the typed signature, not a name, so
+it overapproximates: fallible helpers such as `tenant.TenantFromContext`,
+`VerifyPassword` or `FillRandom` are inventoried too, reviewed as `query`.
 
 Non-query platform entries use the new classification `platform` and cite this
 ADR. It describes reviewed participation in an infrastructure protocol, not a

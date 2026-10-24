@@ -51,7 +51,7 @@ type effectScanner struct {
 	callables   map[types.Object][]string
 	// Port-independent summaries of the owner's own functions (M3).
 	ownSummaries map[*types.Func]ownEffectSummary
-	ownClosures  map[*types.Func][]types.Object
+	ownCallables map[*types.Func][]types.Object
 	// Port-independent callable resolutions, replayed for every port.
 	capture        *effectCapture
 	callableSites  map[string]*effectCapture
@@ -84,7 +84,7 @@ func discoverCommandEffects(policy *Policy, loaded []*packages.Package) []comman
 }
 
 func newEffectScanner(policy *Policy, loaded []*packages.Package) *effectScanner {
-	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), values: collectEffectValues(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}, callables: map[types.Object][]string{}, ownSummaries: map[*types.Func]ownEffectSummary{}, ownClosures: map[*types.Func][]types.Object{}, callableSites: map[string]*effectCapture{}, callableActive: map[string]bool{}}
+	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), values: collectEffectValues(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}, callables: map[types.Object][]string{}, ownSummaries: map[*types.Func]ownEffectSummary{}, ownCallables: map[*types.Func][]types.Object{}, callableSites: map[string]*effectCapture{}, callableActive: map[string]bool{}}
 	for _, owner := range policy.Owners {
 		s.ownerKinds[owner.ID] = owner.Kind
 	}
@@ -342,13 +342,10 @@ func (s *effectScanner) walkSelector(port, binding string, pkg *packages.Package
 }
 
 func (s *effectScanner) walkCallableField(port, binding string, pkg *packages.Package, selector *ast.SelectorExpr, selection *types.Selection, seen map[string]bool, trail []string) {
-	if _, ok := selection.Obj().Type().Underlying().(*types.Signature); !ok || selection.Kind() != types.FieldVal {
+	if selection.Kind() != types.FieldVal || !effectCallableCarrier(selection.Obj().Type(), map[types.Type]bool{}) {
 		return
 	}
-	evidence := s.callableTrail(selection.Obj(), trail)
-	if !s.resolveCallableOnce(port, binding, selection.Obj(), evidence) {
-		s.record(port, binding, "unresolved:function:"+effectTypeID(pkg.TypesInfo.TypeOf(selector.X))+"."+selector.Sel.Name, "", evidence)
-	}
+	s.resolveOrDiagnose(port, binding, selection.Obj(), "unresolved:function:"+effectTypeID(pkg.TypesInfo.TypeOf(selector.X))+"."+selector.Sel.Name, trail)
 }
 
 func (s *effectScanner) resolveFunction(port, binding string, fn *types.Func, seen map[string]bool, trail []string) {
@@ -545,9 +542,6 @@ func (s *effectScanner) walkCallable(port, binding string, pkg *packages.Package
 		return
 	}
 	if _, callable := variable.Type().Underlying().(*types.Signature); callable {
-		evidence := s.callableTrail(variable, trail)
-		if !s.resolveCallableOnce(port, binding, variable, evidence) {
-			s.record(port, binding, "unresolved:callable:"+pkg.PkgPath+"."+id.Name, "", evidence)
-		}
+		s.resolveOrDiagnose(port, binding, variable, "unresolved:callable:"+pkg.PkgPath+"."+id.Name, trail)
 	}
 }
