@@ -30,7 +30,7 @@ func TestSchoolPortalRoles(t *testing.T) {
 	require.True(t, exists)
 	assert.Contains(t, view, "school_portal")
 	var marked int
-	// The system role schulverwaltung (1.15.505, #4789) is marked by its own
+	// The system role schulverwaltung (1.15.520, #4789) is marked by its own
 	// migration; 1.15.480 marks none of the schools' own roles.
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.roles WHERE school_portal AND tenant_id IS NOT NULL`).Scan(ctx, &marked))
 	assert.Zero(t, marked, "no existing school role is marked")

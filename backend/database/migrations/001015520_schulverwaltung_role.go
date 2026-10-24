@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	schulverwaltungRoleVersion     = "1.15.505"
+	schulverwaltungRoleVersion     = "1.15.520"
 	schulverwaltungRoleDescription = "Schulverwaltung system role for Sekretariat and Schulleitung with class_day:all_classes (#4789)"
 
 	// schulverwaltungRoleName mirrors identityaccess.SchulverwaltungRoleName;
@@ -27,6 +27,11 @@ func init() {
 			schoolPortalArrivalExceptionsVersion,
 			staffNoticesAudienceVersion,
 			schoolPortalRolesVersion,
+			// Lehrkraft permissions granted after #4574: the copy below takes
+			// them only when it runs after their grant.
+			morningAttendanceVersion,
+			classHandoverVersion,
+			schoolPortalClassTripsVersion,
 		},
 	})
 	Migrations.MustRegister(schulverwaltungRoleUp, schulverwaltungRoleDown)

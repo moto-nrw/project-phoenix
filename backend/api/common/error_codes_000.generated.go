@@ -30,6 +30,8 @@ const (
 	CodeCareDeclarationNotPermitted                      = "care.declaration_not_permitted"
 	CodeCareDeclarationPasswordIncorrect                 = "care.declaration_password_incorrect"
 	CodeCareDeclarationPasswordRequired                  = "care.declaration_password_required"
+	CodeCareDeclarationSignatureInvalid                  = "care.declaration_signature_invalid"
+	CodeCareDeclarationSignatureRequired                 = "care.declaration_signature_required"
 	CodeCareDeclarationVersionChanged                    = "care.declaration_version_changed"
 	CodeCareExcusedRequestNotPending                     = "care.excused_request_not_pending"
 	CodeCareExcusedRequestOverlap                        = "care.excused_request_overlap"
@@ -78,6 +80,18 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayClassHandoverNoSchoolDay                 = "classday.class_handover_no_school_day"
+	CodeClassdayClassHandoverNotFound                    = "classday.class_handover_not_found"
+	CodeClassdayClassHandoverNotToday                    = "classday.class_handover_not_today"
+	CodeClassdayClassHandoverUnknownChild                = "classday.class_handover_unknown_child"
+	CodeClassdayClassTripArrivalConflict                 = "classday.class_trip_arrival_conflict"
+	CodeClassdayClassTripInvalidRange                    = "classday.class_trip_invalid_range"
+	CodeClassdayClassTripNoStudents                      = "classday.class_trip_no_students"
+	CodeClassdayClassTripPastDate                        = "classday.class_trip_past_date"
+	CodeClassdayClassTripReturnTimeMultiDay              = "classday.class_trip_return_time_multi_day"
+	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
+	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
+	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -288,20 +302,6 @@ const (
 	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
 	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
 	CodeIdentityUsernameTaken                            = "identity.username_taken"
-	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
-	CodeImportFileMissing                                = "import.file_missing"
-	CodeImportFileNoRows                                 = "import.file_no_rows"
-	CodeImportFileRowInvalid                             = "import.file_row_invalid"
-	CodeImportFileTooLarge                               = "import.file_too_large"
-	CodeImportFileTypeInvalid                            = "import.file_type_invalid"
-	CodeImportFileUnreadable                             = "import.file_unreadable"
-	CodeImportImportBatchFailed                          = "import.import_batch_failed"
-	CodeImportModeForbidden                              = "import.mode_forbidden"
-	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
-	CodeIotDeviationReasonRequired                       = "iot.deviation_reason_required"
-	CodeIotDeviceApiKeyFormatInvalid                     = "iot.device_api_key_format_invalid"
-	CodeIotDeviceApiKeyInvalid                           = "iot.device_api_key_invalid"
-	CodeIotDeviceApiKeyRequired                          = "iot.device_api_key_required"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -333,6 +333,8 @@ var errorCodeClasses0 = map[string]string{
 	"care.declaration_not_permitted":                       "permission",
 	"care.declaration_password_incorrect":                  "input",
 	"care.declaration_password_required":                   "input",
+	"care.declaration_signature_invalid":                   "input",
+	"care.declaration_signature_required":                  "input",
 	"care.declaration_version_changed":                     "business_rejection",
 	"care.excused_request_not_pending":                     "business_rejection",
 	"care.excused_request_overlap":                         "business_rejection",
@@ -381,6 +383,18 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.class_handover_no_school_day":                "input",
+	"classday.class_handover_not_found":                    "business_rejection",
+	"classday.class_handover_not_today":                    "input",
+	"classday.class_handover_unknown_child":                "business_rejection",
+	"classday.class_trip_arrival_conflict":                 "business_rejection",
+	"classday.class_trip_invalid_range":                    "input",
+	"classday.class_trip_no_students":                      "input",
+	"classday.class_trip_past_date":                        "input",
+	"classday.class_trip_return_time_multi_day":            "input",
+	"classday.class_trip_return_time_weekend":              "input",
+	"classday.class_trip_status_conflict":                  "business_rejection",
+	"classday.class_trip_student_not_in_class":             "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",
@@ -591,20 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.use_parent_portal":                           "permission",
 	"identity.use_school_portal":                           "permission",
 	"identity.username_taken":                              "business_rejection",
-	"import.file_columns_missing":                          "input",
-	"import.file_missing":                                  "input",
-	"import.file_no_rows":                                  "input",
-	"import.file_row_invalid":                              "input",
-	"import.file_too_large":                                "input",
-	"import.file_type_invalid":                             "input",
-	"import.file_unreadable":                               "input",
-	"import.import_batch_failed":                           "server",
-	"import.mode_forbidden":                                "permission",
-	"iot.activity_capacity_exceeded":                       "business_rejection",
-	"iot.deviation_reason_required":                        "input",
-	"iot.device_api_key_format_invalid":                    "permission",
-	"iot.device_api_key_invalid":                           "permission",
-	"iot.device_api_key_required":                          "permission",
 }
 
 func init() {

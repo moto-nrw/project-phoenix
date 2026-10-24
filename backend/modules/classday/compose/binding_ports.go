@@ -3,7 +3,8 @@ package compose
 import app "github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 
 type CallerReader interface{ app.CallerReader }
-type ArrivalWriteScope interface{ app.ArrivalWriteScope }
+type SchoolWriteScope interface{ app.SchoolWriteScope }
+type ClassTripStatusDays interface{ app.ClassTripStatusDays }
 type ClassDayPickupReader interface{ app.ClassDayPickupReader }
 type CareDayResolver interface{ app.CareDayResolver }
 type PickupTimeReader interface{ app.PickupTimeReader }

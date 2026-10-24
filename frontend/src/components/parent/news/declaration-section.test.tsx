@@ -55,6 +55,7 @@ function declaration(
     signers: "any",
     revocable: true,
     requires_password: false,
+    requires_signature: false,
     deadline: null,
     closed: false,
     version: { id: "12", version_no: 2, content_hash: "ab".repeat(32) },

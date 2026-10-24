@@ -103,6 +103,7 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		Subdomain:                 school.Subdomain,
 		OrganizationID:            school.OrganizationID,
 		OrganizationName:          school.OrganizationName,
+		TraegerName:               school.TraegerName,
 		Hidden:                    school.Hidden,
 		Settings:                  schoolSettings,
 		PresenceMode:              resolved.presenceMode,

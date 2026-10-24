@@ -3710,6 +3710,14 @@
       "write_owner": "student-presence"
     },
     {
+      "name": "active.class_handover_children",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.class_handovers",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.combined_groups",
       "write_owner": "student-presence"
     },
@@ -3871,6 +3879,10 @@
     },
     {
       "name": "audit.guardian_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.signatures",
       "write_owner": "audit-platform"
     },
     {

@@ -76,6 +76,10 @@ func (d authSchoolDirectory) GetSchoolBySubdomain(ctx context.Context, subdomain
 	if err != nil {
 		return nil, err
 	}
+	// The tenant shell names the Träger only while it runs several schools.
+	if views[0].TraegerName, err = d.schools.FindVisibleTraegerName(ctx, school.OrganizationID); err != nil {
+		return nil, err
+	}
 	return &views[0], nil
 }
 

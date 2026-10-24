@@ -53,6 +53,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Das Passwort stimmt nicht. Bitte versuchen Sie es noch einmal.",
       "care.declaration_password_required": "Bitte geben Sie Ihr Passwort ein.",
+      "care.declaration_signature_invalid":
+        "Die Unterschrift konnte nicht gespeichert werden. Bitte unterschreiben Sie noch einmal.",
+      "care.declaration_signature_required":
+        "Bitte unterschreiben Sie, bevor Sie zustimmen.",
       "care.declaration_version_changed":
         "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
       "care.excused_request_not_pending":
@@ -123,6 +127,30 @@ export const ERROR_CATALOG = {
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "classday.arrival_exception_past_date":
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
+      "classday.class_handover_no_school_day":
+        "Heute ist kein Schultag. Eine Klasse lässt sich nur an Schultagen übergeben.",
+      "classday.class_handover_not_found":
+        "Die Klasse ist heute noch nicht übergeben. Bitte laden Sie die Seite neu.",
+      "classday.class_handover_not_today":
+        "Eine Klasse lässt sich nur heute übergeben. Bitte öffnen Sie den heutigen Tag.",
+      "classday.class_handover_unknown_child":
+        "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.class_trip_arrival_conflict":
+        "Die OGS hat für ein Kind schon eine andere Ankunftszeit eingetragen. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+      "classday.class_trip_invalid_range":
+        "Dieser Zeitraum geht nicht. Bitte wählen Sie höchstens 31 Tage, das Ende nach dem Beginn.",
+      "classday.class_trip_no_students":
+        "Bitte wählen Sie mindestens ein Kind aus.",
+      "classday.class_trip_past_date":
+        "Der erste Tag liegt in der Vergangenheit. Bitte wählen Sie heute oder einen späteren Tag.",
+      "classday.class_trip_return_time_multi_day":
+        "Eine Rückkehrzeit geht nur für einen einzelnen Tag. Bitte löschen Sie die Uhrzeit oder wählen Sie einen Tag.",
+      "classday.class_trip_return_time_weekend":
+        "Am Wochenende kommt kein Kind in die OGS. Bitte löschen Sie die Rückkehrzeit.",
+      "classday.class_trip_status_conflict":
+        "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+      "classday.class_trip_student_not_in_class":
+        "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
         "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
       "classday.morning_attendance_not_today":
@@ -1262,6 +1290,9 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "The password is not correct. Please try again.",
       "care.declaration_password_required": "Please enter your password.",
+      "care.declaration_signature_invalid":
+        "The signature could not be saved. Please sign again.",
+      "care.declaration_signature_required": "Please sign before you agree.",
       "care.declaration_version_changed":
         "The school has changed the text. Please read it again and then answer again.",
       "care.excused_request_not_pending":
@@ -1326,6 +1357,14 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.class_handover_no_school_day":
+        "Today is not a school day. A class can only be handed over on school days.",
+      "classday.class_handover_not_found":
+        "The class has not been handed over today. Please reload the page.",
+      "classday.class_handover_not_today":
+        "A class can only be handed over today. Please open today.",
+      "classday.class_handover_unknown_child":
+        "A child no longer belongs to this class. Please reload the page.",
       "classday.morning_attendance_no_school_day":
         "Today is not a school day. Attendance can only be recorded on school days.",
       "classday.morning_attendance_not_today":
@@ -1573,6 +1612,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неверный. Пожалуйста, попробуйте ещё раз.",
       "care.declaration_password_required": "Пожалуйста, введите пароль.",
+      "care.declaration_signature_invalid":
+        "Не удалось сохранить подпись. Пожалуйста, распишитесь ещё раз.",
+      "care.declaration_signature_required":
+        "Пожалуйста, распишитесь, прежде чем согласиться.",
       "care.declaration_version_changed":
         "Школа изменила текст. Прочитайте его ещё раз и затем ответьте заново.",
       "care.excused_request_not_pending":
@@ -1635,6 +1678,14 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.class_handover_no_school_day":
+        "Сегодня не учебный день. Передать класс можно только в учебные дни.",
+      "classday.class_handover_not_found":
+        "Класс сегодня ещё не передан. Обновите страницу.",
+      "classday.class_handover_not_today":
+        "Передать класс можно только сегодня. Откройте сегодняшний день.",
+      "classday.class_handover_unknown_child":
+        "Один ребёнок больше не относится к этому классу. Обновите страницу.",
       "classday.morning_attendance_no_school_day":
         "Сегодня не учебный день. Посещаемость можно отмечать только в учебные дни.",
       "classday.morning_attendance_not_today":
@@ -1866,6 +1917,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
       "care.declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+      "care.declaration_signature_invalid":
+        "Nënshkrimi nuk u ruajt dot. Ju lutemi nënshkruani përsëri.",
+      "care.declaration_signature_required":
+        "Ju lutemi nënshkruani para se të jepni pëlqimin.",
       "care.declaration_version_changed":
         "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
       "care.excused_request_not_pending":
@@ -1930,6 +1985,14 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.class_handover_no_school_day":
+        "Sot nuk është ditë shkolle. Klasa dorëzohet vetëm në ditë shkolle.",
+      "classday.class_handover_not_found":
+        "Klasa nuk është dorëzuar ende sot. Ringarkoni faqen.",
+      "classday.class_handover_not_today":
+        "Klasa dorëzohet vetëm sot. Hapni ditën e sotme.",
+      "classday.class_handover_unknown_child":
+        "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
       "classday.morning_attendance_no_school_day":
         "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
       "classday.morning_attendance_not_today":
@@ -2173,6 +2236,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Hasło jest nieprawidłowe. Spróbuj ponownie.",
       "care.declaration_password_required": "Wpisz swoje hasło.",
+      "care.declaration_signature_invalid":
+        "Nie udało się zapisać podpisu. Podpisz się ponownie.",
+      "care.declaration_signature_required":
+        "Podpisz się, zanim wyrazisz zgodę.",
       "care.declaration_version_changed":
         "Szkoła zmieniła tekst. Przeczytaj go ponownie, a potem odpowiedz jeszcze raz.",
       "care.excused_request_not_pending":
@@ -2236,6 +2303,14 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.class_handover_no_school_day":
+        "Dziś nie ma lekcji. Klasę można przekazać tylko w dni szkolne.",
+      "classday.class_handover_not_found":
+        "Klasa nie została dziś jeszcze przekazana. Odśwież stronę.",
+      "classday.class_handover_not_today":
+        "Klasę można przekazać tylko dzisiaj. Otwórz dzisiejszy dzień.",
+      "classday.class_handover_unknown_child":
+        "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
       "classday.morning_attendance_no_school_day":
         "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
       "classday.morning_attendance_not_today":
@@ -2467,6 +2542,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Şifre doğru değil. Lütfen tekrar deneyin.",
       "care.declaration_password_required": "Lütfen şifrenizi girin.",
+      "care.declaration_signature_invalid":
+        "İmza kaydedilemedi. Lütfen yeniden imza atın.",
+      "care.declaration_signature_required":
+        "Lütfen onay vermeden önce imza atın.",
       "care.declaration_version_changed":
         "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
       "care.excused_request_not_pending":
@@ -2531,6 +2610,14 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.class_handover_no_school_day":
+        "Bugün okul günü değil. Sınıf yalnızca okul günlerinde teslim edilebilir.",
+      "classday.class_handover_not_found":
+        "Sınıf bugün henüz teslim edilmedi. Lütfen sayfayı yenileyin.",
+      "classday.class_handover_not_today":
+        "Sınıf yalnızca bugün teslim edilebilir. Lütfen bugünü açın.",
+      "classday.class_handover_unknown_child":
+        "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
       "classday.morning_attendance_no_school_day":
         "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
       "classday.morning_attendance_not_today":
@@ -2767,6 +2854,10 @@ export const ERROR_CATALOG = {
       "care.declaration_password_incorrect":
         "Пароль неправильний. Будь ласка, спробуйте ще раз.",
       "care.declaration_password_required": "Будь ласка, введіть пароль.",
+      "care.declaration_signature_invalid":
+        "Не вдалося зберегти підпис. Будь ласка, підпишіться ще раз.",
+      "care.declaration_signature_required":
+        "Будь ласка, підпишіться, перш ніж погодитися.",
       "care.declaration_version_changed":
         "Школа змінила текст. Будь ласка, прочитайте його ще раз і дайте відповідь заново.",
       "care.excused_request_not_pending":
@@ -2829,6 +2920,14 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.class_handover_no_school_day":
+        "Сьогодні не навчальний день. Передати клас можна лише в навчальні дні.",
+      "classday.class_handover_not_found":
+        "Клас сьогодні ще не передано. Оновіть сторінку.",
+      "classday.class_handover_not_today":
+        "Передати клас можна лише сьогодні. Відкрийте сьогоднішній день.",
+      "classday.class_handover_unknown_child":
+        "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
       "classday.morning_attendance_no_school_day":
         "Сьогодні не навчальний день. Присутність можна позначати лише в навчальні дні.",
       "classday.morning_attendance_not_today":

@@ -41,6 +41,99 @@ var (
 	ErrArrivalExceptionNotFound = errors.New("class arrival exception not found")
 )
 
+// ErrClassTripsNotConfigured is returned by the class-trip capability when
+// the projection was composed without its write seams. The HTTP adapter
+// keeps its route table stable and answers 500.
+var ErrClassTripsNotConfigured = errors.New("class trips are not configured")
+
+// Sentinels the HTTP layer classifies for a class trip a Lehrkraft reports
+// through moto schule (#4799).
+var (
+	// ErrClassTripsDisabled means the school keeps class trips closed in
+	// operations.school_portal_write_scope.
+	ErrClassTripsDisabled = errors.New("the school has not opened class trips for moto schule")
+	// ErrClassTripPastDate refuses a trip that starts before today.
+	ErrClassTripPastDate = errors.New("class trip starts in the past")
+	// ErrClassTripInvalidRange refuses an end before the start or a trip
+	// longer than ClassTripMaxDays.
+	ErrClassTripInvalidRange = errors.New("class trip date range is invalid")
+	// ErrClassTripReturnTimeMultiDay refuses a return time on a trip of more
+	// than one day: the arrival in the OGS is set for one day only.
+	ErrClassTripReturnTimeMultiDay = errors.New("a return time is only possible for a one-day trip")
+	// ErrClassTripReturnTimeWeekend refuses a return time on Saturday or
+	// Sunday, where no arrival in the OGS is planned.
+	ErrClassTripReturnTimeWeekend = errors.New("a return time can only be set from Monday to Friday")
+	// ErrClassTripNoStudents refuses a report without children.
+	ErrClassTripNoStudents = errors.New("class trip names no children")
+	// ErrClassTripStudentNotInClass refuses a child that is not an OGS child
+	// of the reported class.
+	ErrClassTripStudentNotInClass = errors.New("a child of the class trip is not in this class")
+	// ErrClassTripStatusConflict means a child already has a status (sick,
+	// excused, class trip) or a partial absence on one of the days. Nothing
+	// is written; the OGS clears the old entry first.
+	ErrClassTripStatusConflict = errors.New("a child already has a status on a day of the class trip")
+	// ErrClassTripArrivalConflict means the OGS already entered another
+	// arrival time for a child on that day. Nothing is written.
+	ErrClassTripArrivalConflict = errors.New("a child already has another arrival time on the day of the trip")
+)
+
+// ClassTripMaxDays is the longest trip one report covers, the limit of the
+// OGS's class-trip dialog.
+const ClassTripMaxDays = 31
+
+// ClassTripKind says what a class trip report wrote.
+const (
+	// ClassTripKindStatusDays: the status "Klassenfahrt" for every day.
+	ClassTripKindStatusDays = "class_trip"
+	// ClassTripKindReturnTime: a one-day outing with a return time; the
+	// children's arrival in the OGS is set to that time.
+	ClassTripKindReturnTime = "return_time"
+)
+
+// ClassTripWrite is a class trip or day outing a Lehrkraft reports for an
+// assigned class (#4799).
+type ClassTripWrite struct {
+	SchoolClass string
+	From        Date
+	To          Date
+	StudentIDs  []int64
+	// ReturnTime is set only for a one-day outing; only hour and minute are
+	// used.
+	ReturnTime *time.Time
+	// Reason is the optional destination or occasion ("Zoo").
+	Reason *string
+	// CreatedBy is the users.staff row the entries are attributed to.
+	CreatedBy int64
+}
+
+// ClassTripResult says what a class trip report wrote.
+type ClassTripResult struct {
+	Kind         string `json:"kind"`
+	StudentCount int    `json:"student_count"`
+	DateCount    int    `json:"date_count"`
+}
+
+// ClassTripConflict is one day a chosen child already has a status on.
+type ClassTripConflict struct {
+	StudentID int64  `json:"student_id"`
+	Date      Date   `json:"date"`
+	Status    string `json:"status"`
+}
+
+// ClassTripStatusConflictError names the days that refused a class trip,
+// like the OGS's own status-day write does: at most a sample of Conflicts
+// and the full Total. It answers errors.Is for ErrClassTripStatusConflict.
+type ClassTripStatusConflictError struct {
+	Conflicts []ClassTripConflict
+	Total     int
+}
+
+func (e *ClassTripStatusConflictError) Error() string { return ErrClassTripStatusConflict.Error() }
+
+func (e *ClassTripStatusConflictError) Is(target error) bool {
+	return target == ErrClassTripStatusConflict
+}
+
 // ErrMorningAttendanceNotConfigured is returned by the morning attendance
 // write when the projection was composed without the Student Presence seam.
 var ErrMorningAttendanceNotConfigured = errors.New("morning attendance is not configured")
@@ -61,6 +154,29 @@ var (
 	// ErrMorningAttendanceInvalid refuses a mark without a child or with an
 	// unknown status.
 	ErrMorningAttendanceInvalid = errors.New("morning attendance mark is invalid")
+)
+
+// ErrClassHandoverNotConfigured is returned by the class handover when the
+// projection was composed without the Student Presence seam.
+var ErrClassHandoverNotConfigured = errors.New("class handover is not configured")
+
+// Sentinels the HTTP layer classifies for the class handover (#4794).
+var (
+	// ErrClassHandoverDisabled means the school did not tick the handover in
+	// operations.school_portal_write_scope.
+	ErrClassHandoverDisabled = errors.New("die OGS hat das Übergeben der Klasse nicht freigegeben")
+	// ErrClassHandoverNotToday refuses a handover or withdrawal for any day
+	// but today.
+	ErrClassHandoverNotToday = errors.New("a class can only be handed over today")
+	// ErrClassHandoverNoSchoolDay refuses a handover on a day without school.
+	ErrClassHandoverNoSchoolDay = errors.New("a class can only be handed over on a school day")
+	// ErrClassHandoverUnknownChild refuses a child without an OGS record on
+	// the class roster of the day.
+	ErrClassHandoverUnknownChild = errors.New("child with an OGS record is not on the class roster of the day")
+	// ErrClassHandoverNotFound answers a withdrawal without a handover.
+	ErrClassHandoverNotFound = errors.New("the class has not been handed over today")
+	// ErrClassHandoverInvalid refuses a malformed handover.
+	ErrClassHandoverInvalid = errors.New("class handover is invalid")
 )
 
 // Morning attendance statuses (#4790) and where a row's status comes from:
@@ -129,6 +245,9 @@ type DayRow struct {
 	// excused or class-trip day. Nil when neither exists or on a day without
 	// school.
 	MorningAttendance *DayMorningAttendance `json:"morning_attendance,omitempty"`
+	// HandoverAbsent is true when the Lehrkraft marked the child "nicht da"
+	// at today's handover of the class (#4794).
+	HandoverAbsent bool `json:"handover_absent,omitempty"`
 }
 
 // DayMorningAttendance is one child's school-morning status on the wire.
@@ -181,6 +300,40 @@ type DayReport struct {
 	// school day, the school left the setting on, and the token holds
 	// class_day:morning_attendance_write.
 	CanRecordMorningAttendance bool `json:"can_record_morning_attendance"`
+	// Handover is the class's handover to the OGS on the date (#4794), nil
+	// while the class has not been handed over.
+	Handover *DayHandover `json:"handover,omitempty"`
+	// CanHandOver is true when the caller may hand the class over or take
+	// the handover back (#4794): the date is today and a school day, the
+	// school ticked the handover in its write scope, and the token holds
+	// class_day:handover_write.
+	CanHandOver bool `json:"can_hand_over"`
+}
+
+// DayHandover is the handover of a class as the class view shows it.
+type DayHandover struct {
+	HandedOverAt time.Time `json:"handed_over_at"`
+	// HandedOverBy is the display name of the staff member, empty when the
+	// staff member was removed since.
+	HandedOverBy string `json:"handed_over_by,omitempty"`
+	// AbsentCount is the number of children marked "nicht da".
+	AbsentCount int `json:"absent_count"`
+}
+
+// ClassHandoverChange hands one class over to the OGS after lessons, or
+// takes today's handover back (#4794).
+type ClassHandoverChange struct {
+	SchoolClass string
+	Date        Date
+	// HandedOverBy is the users.staff_school_memberships row of the
+	// Lehrkraft.
+	HandedOverBy int64
+	// PresentStudentIDs and AbsentStudentIDs are the children with an OGS
+	// record she handed over "da" and "nicht da".
+	PresentStudentIDs []int64
+	AbsentStudentIDs  []int64
+	// Withdraw takes the handover back instead; the children are ignored.
+	Withdraw bool
 }
 
 // MorningAttendanceMark is one child's mark as the Lehrkraft enters it:
@@ -228,6 +381,19 @@ type ArrivalExceptionWrite struct {
 	CreatedBy int64
 }
 
+// ClassTrips lets a Lehrkraft report a class trip or day outing of an
+// assigned class through moto schule (#4799).
+type ClassTrips interface {
+	// MayReportClassTrips applies operations.school_portal_write_scope to
+	// class trips (#4799).
+	MayReportClassTrips(ctx context.Context) (bool, error)
+	// ReportClassTrip records a class trip or day outing of an assigned
+	// class: the status "Klassenfahrt" for every day through the OGS's
+	// status-day write, or, for one day with a return time, the children's
+	// arrival in the OGS at that time. All or nothing.
+	ReportClassTrip(ctx context.Context, in ClassTripWrite) (*ClassTripResult, error)
+}
+
 // ClassDay is the school-portal capability of the projection: the caller's
 // class assignments, the per-class day view and the class-wide arrival day
 // exceptions (#2970). Caller scoping (which classes the account may see) is
@@ -261,9 +427,17 @@ type ClassDay interface {
 	// on the class roster of the day, and only while the school leaves the
 	// setting on. It never changes the OGS attendance.
 	RecordMorningAttendance(ctx context.Context, in MorningAttendanceWrite) error
+	// ChangeClassHandover hands one class the caller may see over to the OGS
+	// or takes today's handover back (#4794): only for today, on a school day,
+	// for children with an OGS record on the class roster of the day, and
+	// only while the school ticks the handover. It never changes the morning
+	// attendance or the OGS attendance.
+	ChangeClassHandover(ctx context.Context, in ClassHandoverChange) error
 	// EarliestBlockStart returns the "HH:MM" start of the first block of the
 	// date that addresses the class, "" when there is none.
 	EarliestBlockStart(ctx context.Context, schoolClass string, date Date) (string, error)
+	// ClassTrips is the class-trip write of moto schule (#4799).
+	ClassTrips
 	// SupervisionStudentSheet is the per-child pickup and emergency sheet a
 	// supervisor opens from a running block (#2527). It carries guardian
 	// names and phone numbers, which the day report deliberately does not,

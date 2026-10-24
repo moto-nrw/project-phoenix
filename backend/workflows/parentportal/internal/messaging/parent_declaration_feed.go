@@ -105,7 +105,7 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *Annou
 	rules := feedDeclarationRules(settings, item.ResponseDeadline)
 	out := &AnnouncementFeedDeclaration{
 		Kind: settings.Kind, Signers: settings.Signers, Revocable: settings.Revocable,
-		RequiresPassword: settings.RequiresPassword, Deadline: item.ResponseDeadline,
+		RequiresPassword: settings.RequiresPassword, RequiresSignature: settings.RequiresSignature, Deadline: item.ResponseDeadline,
 		Closed: policy.Closed(rules.Deadline, now), Version: facts.versions[item.ID],
 		Children: []*AnnouncementFeedDeclarationChild{},
 	}
@@ -155,6 +155,8 @@ type DeclarationProof struct {
 	Kind        string
 	Versions    map[int64]*DeclarationVersion
 	Submissions []*DeclarationSubmission
+	// Signatures are the signatures of the signed answers, by id (#4785).
+	Signatures map[int64]*DeclarationSignature
 	// IntegrityOK is false when a shown version or answer no longer matches
 	// its stored checksum.
 	IntegrityOK bool
@@ -210,6 +212,9 @@ func (s *Service) loadDeclarationProof(ctx context.Context, proof *DeclarationPr
 	for _, v := range versions {
 		proof.Versions[v.ID] = v
 	}
+	if err := s.loadProofSignatures(ctx, proof, tenantID); err != nil {
+		return fmt.Errorf("parent: load declaration signatures: %w", err)
+	}
 	proof.IntegrityOK = s.declarationProofIntact(proof)
 	return nil
 }
@@ -223,6 +228,9 @@ func (s *Service) declarationProofIntact(proof *DeclarationProof) bool {
 		}
 		v, ok := proof.Versions[sub.VersionID]
 		if !ok || s.declarationContentHash(v) != v.ContentHash || sub.ContentHash != v.ContentHash {
+			return false
+		}
+		if !proofSignatureIntact(proof, sub) {
 			return false
 		}
 	}

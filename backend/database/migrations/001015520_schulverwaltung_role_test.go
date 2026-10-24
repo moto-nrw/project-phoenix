@@ -1,6 +1,6 @@
 package migrations
 
-// Coverage for 1.15.505 (#4789): the system role schulverwaltung is a
+// Coverage for 1.15.520 (#4789): the system role schulverwaltung is a
 // school-portal role with every Lehrkraft permission plus
 // class_day:all_classes, a rerun changes nothing, a school's own role of the
 // same name stays untouched, and Down removes role and permission.

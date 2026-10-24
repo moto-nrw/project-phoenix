@@ -432,6 +432,9 @@ function appOverviewTopic(): HelpTopic {
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihrer Rolle und den Einstellungen Ihrer OGS ab.",
       "Unter `Bausteine` fehlt eine Karte? Dann steht sie schon auf Ihrer Startseite. Oder Ihre Rolle oder Ihre OGS sieht sie nicht vor.",
+      // Kopfzeile aus BrandTraegerLine (#4656): nur bei einem Träger mit
+      // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
+      "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
     notes: [
       "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
@@ -4069,8 +4072,9 @@ function parentSurveyTopic(): HelpTopic {
 
 /**
  * Einverständnis (#3430): Eltern stimmen je Kind zu oder lehnen ab. Einfache
- * Erklärung per Knopfdruck, mit Fassung und Nachweis. Eine reine
- * Lesebestätigung ist ein Elternbrief.
+ * Erklärung per Knopfdruck, mit Fassung und Nachweis, auf Wunsch mit
+ * gezeichneter Unterschrift (#4785). Eine reine Lesebestätigung ist ein
+ * Elternbrief.
  */
 function parentDeclarationTopic(): HelpTopic {
   const steps = parentAnnouncementSteps(
@@ -4102,6 +4106,7 @@ function parentDeclarationTopic(): HelpTopic {
       "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
     notes: [
       "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+      "Mit `Mit Unterschrift` unterschreiben Eltern ihre Zustimmung mit dem Finger oder der Maus. Ablehnen geht ohne Unterschrift. Die Unterschrift steht im Nachweis der Eltern und in `Bericht als PDF`.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
       "Unter `Herunterladen` lädt `Bericht als PDF` den Stand und alle Antworten als PDF herunter. `Verlauf als CSV` enthält dieselben Antworten als Tabelle.",
@@ -5016,7 +5021,7 @@ function leadTeacherAccessTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Die Lehrkraft sieht keine Kinder? Dann fehlt die Klasse im Reiter `Klassen` oder sie ist anders geschrieben.",
-      "Soll die Lehrkraft die Ankunftszeit selbst ändern dürfen? Geben Sie das in den `Einstellungen` frei.",
+      "Soll die Lehrkraft die Ankunftszeit selbst ändern oder ihre Klasse an die OGS übergeben dürfen? Haken Sie das in den `Einstellungen` unter `Was Lehrkräfte in moto schule eintragen dürfen` an.",
     ],
     related: [
       HELP_TOPICS.leadInviteStaff,
@@ -6915,6 +6920,7 @@ function parentNewsTopic(): HelpTopic {
           "Lesen Sie den Text und die Dateien.",
           "Tippen Sie beim Kind auf `Zustimmen` oder `Ablehnen`.",
           "Prüfen Sie im Fenster das Kind und Ihre Antwort.",
+          "Verlangt die Schule eine Unterschrift? Unterschreiben Sie im Feld mit dem Finger oder der Maus. Tippen Sie dann auf `Unterschrift bestätigen`.",
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
@@ -7478,6 +7484,7 @@ function teacherClassDayTopic(): HelpTopic {
       HELP_TOPICS.teacherClassList,
       HELP_TOPICS.teacherChildDetails,
       HELP_TOPICS.teacherArrivalChange,
+      HELP_TOPICS.teacherClassTrip,
     ],
   };
 }
@@ -7587,6 +7594,51 @@ function teacherMorningAttendanceTopic(): HelpTopic {
 }
 
 /**
+ * Übergabe nach dem Unterricht (#4794): die Lehrkraft übergibt ihre Klasse
+ * heute an die OGS und markiert Kinder, die nicht da sind. Die OGS sieht sie
+ * in Aufsicht, Gruppe und Kindersuche als „Nach dem Unterricht da“ oder
+ * „Nach dem Unterricht nicht da“.
+ */
+function teacherClassHandoverTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherClassHandover,
+    title: "Klasse an die OGS übergeben",
+    question: "Wie übergebe ich meine Klasse nach dem Unterricht?",
+    summary:
+      "Sie bestätigen die Übergabe und markieren Kinder, die nicht da sind.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "ArrowsLeftRight",
+    steps: [
+      "Öffnen Sie in der `Klassenansicht` Ihre Klasse für heute.",
+      "Tippen Sie auf `Klasse übergeben`.",
+      "Tippen Sie bei jedem Kind, das nicht da ist, auf `Nicht da`.",
+      "Tippen Sie auf `Übergeben`.",
+    ],
+    result:
+      "Oben steht, wann Sie übergeben haben. Die OGS sieht sofort bei jedem Kind, ob es da ist.",
+    notes: [
+      "In der Liste stehen nur die Kinder, die heute in die OGS gehen.",
+      "Kinder, die am Morgen als `Fehlt` eingetragen sind, stehen schon auf `Nicht da`.",
+      "Die Anwesenheit am Morgen ändert sich dadurch nicht.",
+      "Mit `Übergabe ändern` korrigieren Sie einzelne Kinder. Die OGS sieht dann den neuen Stand.",
+      "Mit `Übergabe zurücknehmen` nehmen Sie die Übergabe heute wieder zurück.",
+    ],
+    differences: [
+      "Fehlt `Klasse übergeben`? Übergeben geht nur heute und an Schultagen. Oder Ihre OGS hat es nicht freigegeben.",
+    ],
+    troubleshootingDetails: [
+      "Übergeben klappt nicht und ein Kind gehört nicht mehr zur Klasse? Laden Sie die Seite neu.",
+    ],
+    related: [
+      HELP_TOPICS.teacherMorningAttendance,
+      HELP_TOPICS.teacherClassList,
+      HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
+/**
  * Kindangaben. Die harte Grenze: Abhol- und Notfallkontakte gibt es nur zu
  * Kindern einer laufenden Aufsicht (`student-sheet-modal.tsx`).
  */
@@ -7663,6 +7715,48 @@ function teacherArrivalChangeTopic(): HelpTopic {
       HELP_TOPICS.teacherClassDay,
       HELP_TOPICS.teacherMessages,
       HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
+/**
+ * `Ausflug oder Klassenfahrt melden` (`class-day-class.tsx`, #4799). Nur mit
+ * Freigabe der OGS; ohne Rückkehrzeit gilt jeder Tag als Klassenfahrt.
+ */
+function teacherClassTripTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherClassTrip,
+    title: "Einen Ausflug oder eine Klassenfahrt melden",
+    question: "Meine Klasse ist unterwegs. Wie sage ich das der OGS?",
+    summary: "Sie melden den Zeitraum und welche Kinder mitfahren.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "MapPin",
+    steps: [
+      "Öffnen Sie die Liste Ihrer Klasse.",
+      "Wählen Sie `Ausflug oder Klassenfahrt melden`.",
+      "Wählen Sie bei `Von` und `Bis` die Tage.",
+      "Alle Kinder der Klasse sind ausgewählt. Öffnen Sie `Kinder` und nehmen Sie den Haken bei Kindern weg, die nicht mitfahren.",
+      "Ist es nur ein Tag und kommt die Klasse am selben Tag zurück? Tragen Sie bei `Rückkehrzeit (optional)` die Uhrzeit ein.",
+      "Wählen Sie `Für … Kinder melden`.",
+    ],
+    result:
+      "Ohne Rückkehrzeit sieht die OGS die Kinder an jedem dieser Tage als unterwegs. Mit Rückkehrzeit kommen die Kinder um diese Uhrzeit in die OGS.",
+    notes: [
+      "Bei `Ziel (optional)` können Sie zum Beispiel `Zoo` eintragen. Die OGS sieht das.",
+    ],
+    differences: [
+      "Fehlt `Ausflug oder Klassenfahrt melden`? Dann hat Ihre OGS das Melden nicht freigegeben.",
+      "Kinder mit `Keine Betreuung` stehen nicht in der Auswahl. Die OGS betreut sie nicht.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, für ein Kind steht an einem Tag schon etwas? Unter der Meldung stehen das Kind und der Tag. Das Kind ist dann zum Beispiel krank gemeldet. Es wurde nichts gespeichert. Sprechen Sie mit der OGS.",
+      "moto sagt, die OGS hat schon eine andere Ankunftszeit eingetragen? Auch dann wurde nichts gespeichert. Sprechen Sie mit der OGS.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassDay,
+      HELP_TOPICS.teacherArrivalChange,
+      HELP_TOPICS.teacherMessages,
     ],
   };
 }
@@ -7971,8 +8065,10 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherClassDayTopic(),
   teacherClassListTopic(),
   teacherMorningAttendanceTopic(),
+  teacherClassHandoverTopic(),
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
+  teacherClassTripTopic(),
 
   // --- Aufsicht ---
   teacherSupervisionTopic(),

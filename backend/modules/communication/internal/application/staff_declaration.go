@@ -81,6 +81,7 @@ type DeclarationSubmissionView struct {
 	RecordHash        string
 	SubmittedAt       time.Time
 	IntegrityOK       bool
+	Signature         *declarations.DeclarationSignature
 }
 
 // DeclarationSignerView is one eligible guardian of a child.
@@ -410,12 +411,66 @@ func (s *service) ParentDeclarationStatus(ctx context.Context, id int64) (*Decla
 	for _, c := range out.Children {
 		out.Summary[c.State]++
 	}
+	signatures, err := s.submissionSignatures(ctx, facts.submissions)
+	if err != nil {
+		return nil, err
+	}
 	for _, sub := range facts.submissions {
 		record := s.publicSubmission(sub, versionNo[sub.VersionID], names[sub.StudentID])
+		record = withSubmissionSignature(record, sub, signatures)
 		out.IntegrityAllGood = out.IntegrityAllGood && record.IntegrityOK
 		out.Submissions = append(out.Submissions, record)
 	}
 	return out, nil
+}
+
+// DeclarationSignatures reads the signatures of signed answers (#4785).
+type DeclarationSignatures = declarations.DeclarationSignatureReader
+
+// submissionSignatures loads the signatures the signed answers name, in one
+// read.
+func (s *service) submissionSignatures(ctx context.Context, submissions []*StaffDeclarationSubmission) (map[int64]declarations.DeclarationSignature, error) {
+	ids := make([]int64, 0)
+	for _, sub := range submissions {
+		if sub.SignatureID != nil {
+			ids = append(ids, *sub.SignatureID)
+		}
+	}
+	if len(ids) == 0 {
+		return map[int64]declarations.DeclarationSignature{}, nil
+	}
+	if s.signatures == nil {
+		return nil, fmt.Errorf("announcement: signature reader is not wired")
+	}
+	signatures, err := s.signatures.DeclarationSignatures(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: load declaration signatures: %w", err)
+	}
+	return signatures, nil
+}
+
+// withSubmissionSignature attaches a signed answer's signature. A signed
+// answer is intact only when its signature is stored, unchanged, and was
+// given on the version the answer names.
+func withSubmissionSignature(record DeclarationSubmissionView, sub *StaffDeclarationSubmission, signatures map[int64]declarations.DeclarationSignature) DeclarationSubmissionView {
+	if sub.SignatureID == nil {
+		if sub.Method == declarations.DeclarationMethodSimpleElectronicSignature {
+			record.IntegrityOK = false
+		}
+		return record
+	}
+	signature, ok := signatures[*sub.SignatureID]
+	if !ok {
+		record.IntegrityOK = false
+		return record
+	}
+	signature.IntegrityOK = signature.IntegrityOK &&
+		signature.IsDeclaration &&
+		signature.StudentID != nil && *signature.StudentID == sub.StudentID &&
+		signature.DocumentSHA256 == sub.ContentHash
+	record.Signature = &signature
+	record.IntegrityOK = record.IntegrityOK && signature.IntegrityOK
+	return record
 }
 
 func declarationChildStatuses(facts *declarationFacts, now time.Time) []DeclarationChildView {
