@@ -39,3 +39,16 @@ func (s *RequestReads) ListPickupChangeRequests(ctx context.Context, studentID i
 func (s *RequestReads) ListPickupPermissionRequests(ctx context.Context, studentID int64, since time.Time) ([]carerequests.Request, error) {
 	return s.Records.ListCareRequests(ctx, studentID, []string{carerequests.KindPickupPermission}, nil, since)
 }
+
+func (s *RequestReads) FindStudentRequest(ctx context.Context, studentID, requestID int64) (*carerequests.Request, error) {
+	rows, err := s.Records.ListCareRequests(ctx, studentID, nil, nil, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	for i := range rows {
+		if rows[i].ID == requestID {
+			return &rows[i], nil
+		}
+	}
+	return nil, carerequests.ErrNotFound
+}

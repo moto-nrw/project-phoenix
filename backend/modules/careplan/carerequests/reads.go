@@ -12,4 +12,6 @@ type Reads interface {
 	// ListPickupPermissionRequests lists the child's pickup permission
 	// requests created since the instant, newest first (#4780).
 	ListPickupPermissionRequests(context.Context, int64, time.Time) ([]Request, error)
+	// FindStudentRequest returns one request of the child, or ErrNotFound.
+	FindStudentRequest(ctx context.Context, studentID, requestID int64) (*Request, error)
 }
