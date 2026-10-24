@@ -32,6 +32,42 @@ func TestNextPeriodMovesByDayOrWeek(t *testing.T) {
 	assert.Equal(t, calendar.NewDate(2026, 9, 21), nextPeriod(domain.RhythmWeekly, monday, friday), "the next Monday, never Saturday")
 }
 
+func TestOpenOrderViewUsesRemainingPeriodDeadline(t *testing.T) {
+	t.Parallel()
+	monday := calendar.NewDate(2026, 9, 14)
+	friday := monday.AddDays(4)
+	for _, tc := range []struct {
+		name   string
+		rhythm domain.Rhythm
+		today  domain.Date
+		want   domain.Date
+	}{
+		{"daily", domain.RhythmDaily, monday, friday},
+		{"weekly before Monday", domain.RhythmWeekly, monday.AddDays(-1), monday},
+		{"weekly from Wednesday", domain.RhythmWeekly, monday.AddDays(2), monday.AddDays(2)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rules := defaultOrderingRules("09:00")
+			rules.Rhythm = tc.rhythm
+			// Even a Friday-only view must use the whole remaining period.
+			view := buildOrderView(rules, orderWindow{}, nil, friday, friday, tc.today)
+			require.Len(t, view.Days, 1)
+			assert.Equal(t, rules.FreezeAt(tc.want), view.Days[0].Deadline)
+		})
+	}
+
+	rules := defaultOrderingRules("09:00")
+	rules.Rhythm = domain.RhythmWeekly
+	state := domain.OrderState{Orders: []domain.Order{{Days: []domain.Date{monday}, DeadlineAt: rules.FreezeAt(monday)}}}
+	view := buildOrderView(rules, orderWindow{state: state}, nil, monday, friday, monday)
+	require.Len(t, view.Days, 5)
+	assert.Equal(t, rules.FreezeAt(monday), view.Days[0].Deadline, "stored orders keep their deadline")
+	for _, day := range view.Days[1:] {
+		assert.Equal(t, rules.FreezeAt(monday.AddDays(1)), day.Deadline, "remaining days share the next open deadline")
+	}
+}
+
 func TestRecordChangesNamesOnlyTheWrittenChild(t *testing.T) {
 	t.Parallel()
 	today := calendar.NewDate(2026, 9, 15)

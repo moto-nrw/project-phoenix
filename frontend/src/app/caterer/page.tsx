@@ -124,7 +124,7 @@ export default function CatererOverviewPage() {
   const [exporting, setExporting] = useState<string | null>(null);
   const { error, show, clear } = useApiLoadError();
   const { show: showActionError } = useApiErrorDisplay();
-  const reloadRef = useRef<() => void>(() => undefined);
+  const reloadRef = useRef<() => Promise<void>>(async () => undefined);
 
   const generationRef = useRef(0);
   const requestRef = useRef(0);
@@ -191,7 +191,7 @@ export default function CatererOverviewPage() {
     }
   }, [clear, loadOrders, show]);
   useEffect(() => {
-    reloadRef.current = () => void load();
+    reloadRef.current = load;
   });
   useEffect(() => {
     void load();
@@ -428,7 +428,7 @@ export default function CatererOverviewPage() {
                   <CatererSchoolOrders
                     school={school}
                     orders={schoolOrders}
-                    onConfirmed={() => loadOrders(list)}
+                    onConfirmed={() => reloadRef.current()}
                   />
                 ) : (
                   <p className="text-sm text-gray-600">

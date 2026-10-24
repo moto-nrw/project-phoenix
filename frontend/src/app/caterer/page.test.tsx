@@ -190,4 +190,39 @@ describe("CatererOverviewPage (#3873)", () => {
       .closest("tr")!;
     expect(within(north).getAllByText("10")).toHaveLength(2);
   });
+
+  it("keeps the selected period when a previous period's confirmation finishes", async () => {
+    const confirmation = deferred<void>();
+    mocks.confirmCatererOrder.mockReturnValueOnce(confirmation.promise);
+    render(<CatererOverviewPage />, { wrapper: ToastProvider });
+    await screen.findByText("Bestellungen für Küche am Markt");
+    fireEvent.click(
+      screen.getByRole("button", { name: "OGS Nord ausklappen" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Erhalten bestätigen" })[0]!,
+    );
+    expect(mocks.confirmCatererOrder).toHaveBeenCalledWith("1", "1");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+    });
+    expect(mocks.fetchCatererOrders).toHaveBeenLastCalledWith(
+      "2",
+      "2026-09-10",
+      "2026-09-10",
+    );
+    await act(async () => {
+      confirmation.resolve();
+    });
+    expect(mocks.fetchCatererOrders).toHaveBeenLastCalledWith(
+      "2",
+      "2026-09-10",
+      "2026-09-10",
+    );
+    const north = within(screen.getAllByRole("table")[0]!)
+      .getByText("OGS Nord")
+      .closest("tr")!;
+    expect(within(north).getAllByText("10")).toHaveLength(2);
+  });
 });
