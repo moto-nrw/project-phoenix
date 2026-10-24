@@ -3,7 +3,7 @@
 Stand: 23.10.2026. Entscheidung:
 [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md) und
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md).
-Grundlage für #3837 und #3838, Slices 3837-a/b und 3838-a.
+Grundlage für #3837 und #3838, Slices 3837-a/b und 3838-a/b/c.
 
 ## Stand und Quelle
 
@@ -51,8 +51,18 @@ dem DB-Schritt bei `db_done`, nicht `completed`.
 
 **CLI und Dateiphase im Code umgesetzt (3837-c):**
 [Runbook](../operations/tenant-erasure.md), Migration `1.15.490`.
+**Personenauskunft im Code (3838-b/c):** `tenant export --person
+kind:<id>|guardian:<id>|staff:<id>` leitet ein internes Prüfpaket aus demselben
+Tabellenexport ab, mit benötigtem Kontext, referenzierten Originalen und
+verbindlichen Zeilen-/Dateimarkierungen in `review.json`. Kontextpersonen
+werden nicht zu neuen Auswahlwurzeln. Geheimnisausschlüsse bleiben wirksam.
+Die manuelle Ergänzungs-/Drittpersonenprüfung und Schulfreigabe sind Bestandteil
+des [Verfahrens](../operations/auskunft-und-rueckgabe.md#6-personenauskunft-auf-weisung-der-schule),
+nicht durch `COMPLETE` erledigt.
+
 **Offen:** produktiver Nachweis, manuelle Nebensystemschritte, Trägerwurzel,
-Wiederholung nach Restore (3837-d) und Personenauskunft (3838-b).
+Wiederholung nach Restore (3837-d), organisatorische Fristenbestätigung
+(3838-d) und Data-Act-Abgleich (3838-e).
 Die Katalogeinträge selbst sind
 keine Berechtigungen und kein produktiver Durchführungsnachweis.
 Die breiten Ausschlüsse geheimer/undurchsichtiger Container bleiben wirksam;
