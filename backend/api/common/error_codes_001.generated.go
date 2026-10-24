@@ -45,6 +45,7 @@ const (
 	CodeMealsPlanDisabled                             = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                       = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                     = "meals.registration_disabled"
+	CodeModuleNotBooked                               = "module.not_booked"
 	CodeOperatorAuditUnavailable                      = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableStudentCareEnded                     = "timetable.student_care_ended"
 	CodeTimetableStudentGraduated                     = "timetable.student_graduated"
 	CodeTimetableStudentNotCheckedIn                  = "timetable.student_not_checked_in"
-	CodeTimetableStudentNotFound                      = "timetable.student_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -348,6 +348,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.plan_disabled":                                 "permission",
 	"meals.plan_week_out_of_range":                        "input",
 	"meals.registration_disabled":                         "permission",
+	"module.not_booked":                                   "permission",
 	"operator.audit_unavailable":                          "unavailable",
 	"pickup.bulk_exception_confirmation_required":         "input",
 	"pickup.future_manual_reset":                          "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.student_care_ended":                        "business_rejection",
 	"timetable.student_graduated":                         "business_rejection",
 	"timetable.student_not_checked_in":                    "business_rejection",
-	"timetable.student_not_found":                         "business_rejection",
 }
 
 func init() {
