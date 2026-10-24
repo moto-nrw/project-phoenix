@@ -1,8 +1,10 @@
 package emailoutbox
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,6 +77,28 @@ func TestResolveTenantMailIdentity_NothingConfigured_IsZero(t *testing.T) {
 	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
 	require.NoError(t, err)
 	assert.True(t, identity.IsZero())
+}
+
+// A school without any usable address gets no Reply-To and no moto fallback;
+// the gap is logged with the tenant so the operator can add the address
+// (#2872).
+func TestResolveTenantMailIdentity_NothingConfigured_LogsTheGap(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS Am Berg", Email: "keine-adresse"}, nil),
+		settingsReturning("", nil),
+		slog.New(slog.NewTextHandler(&logs, nil)),
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.True(t, identity.IsZero())
+	assert.Contains(t, logs.String(), "level=WARN")
+	assert.Contains(t, logs.String(), "school has no usable reply address")
+	assert.Contains(t, logs.String(), "tenant_id=4711")
+	assert.NotContains(t, logs.String(), "keine-adresse", "the stored value stays out of the log")
 }
 
 // Whitespace-only values are not addresses. Trimming them to empty keeps the

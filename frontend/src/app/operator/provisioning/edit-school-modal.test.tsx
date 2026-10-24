@@ -80,7 +80,7 @@ const mockSchool: School = {
   city: "Berlin",
   zip: "10115",
   phone: "",
-  email: "",
+  email: "info@test-school.example",
   active: true,
   hidden: false,
   deletedAt: null,
@@ -189,6 +189,24 @@ describe("EditSchoolModal", () => {
       "test-school",
       "test-school",
     ]);
+  });
+
+  // Replies from parents reach the school only through this address (#2872).
+  it("cannot save a school without contact email", () => {
+    render(
+      <EditSchoolModal
+        isOpen={true}
+        onClose={onClose}
+        school={{ ...mockSchool, email: "" }}
+        organizations={[mockOrg]}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    expect(screen.getByLabelText(/E-Mail/)).toBeRequired();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(mockUpdateSchool).not.toHaveBeenCalled();
   });
 
   it("sends hidden=false when school is visible", async () => {
