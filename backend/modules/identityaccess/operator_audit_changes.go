@@ -45,13 +45,18 @@ func (e OperatorAuditEntry) MFAAuditChanges() (json.RawMessage, error) {
 		return nil, nil
 	case evidence.Override != nil:
 		override := evidence.Override
-		return json.Marshal(map[string]any{
+		changes := map[string]any{
 			"action":            override.Action,
 			"scope":             override.Scope,
 			"override":          override.Override,
 			"previous_override": override.PreviousOverride,
 			"reason":            override.Reason,
-		})
+		}
+		if override.SchoolID > 0 {
+			changes["school_id"] = override.SchoolID
+			delete(changes, "reason") // School actions retain IDs and fixed action values only.
+		}
+		return json.Marshal(changes)
 	case evidence.Reason != "":
 		return json.Marshal(map[string]any{"reason": evidence.Reason})
 	case evidence.LockedUntil != nil:
