@@ -1427,6 +1427,12 @@
       "legacy": "iot.wc_not_configured"
     },
     {
+      "code": "meals.invalid_allergens",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.invalid_allergens"
+    },
+    {
       "code": "meals.invalid_dishes",
       "class": "input",
       "parameters": [],

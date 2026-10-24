@@ -25,6 +25,13 @@ interface MultiCheckboxSelectProps {
   readonly emptyLabel?: string;
   readonly unavailableLabel?: string;
   readonly multipleLabel?: (count: number) => string;
+  /**
+   * Trigger text for any non-empty selection; replaces the single label and
+   * multipleLabel, e.g. to list short marks of every chosen option.
+   */
+  readonly summaryLabel?: (
+    selected: readonly MultiCheckboxSelectOption[],
+  ) => string;
   readonly disabled?: boolean;
   readonly className?: string;
   readonly menuClassName?: string;
@@ -53,6 +60,7 @@ export function MultiCheckboxSelect({
   emptyLabel = "Keine Auswahl",
   unavailableLabel = "Keine Optionen verfügbar",
   multipleLabel = defaultMultipleLabel,
+  summaryLabel,
   disabled = false,
   className = "",
   menuClassName = "",
@@ -80,9 +88,11 @@ export function MultiCheckboxSelect({
       ? unavailableLabel
       : selectedOptions.length === 0
         ? emptyLabel
-        : selectedOptions.length === 1
-          ? selectedOptions[0]?.label
-          : multipleLabel(selectedOptions.length);
+        : summaryLabel
+          ? summaryLabel(selectedOptions)
+          : selectedOptions.length === 1
+            ? selectedOptions[0]?.label
+            : multipleLabel(selectedOptions.length);
 
   const closeMenu = useCallback(() => {
     setOpen(false);
@@ -243,7 +253,7 @@ export function MultiCheckboxSelect({
                     {option.label}
                   </span>
                   {option.badge ? (
-                    <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                    <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                       {option.badge}
                     </span>
                   ) : null}
