@@ -210,11 +210,13 @@ jobs:
           PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
-          # them exactly as migration 001014001_create_tenant_roles.go does,
+          # them exactly as the role migrations do (001014001_create_tenant_roles.go,
+          # 001015489_tenant_export_reader.go and later),
           # BEFORE restoring the dump — it contains GRANTs and RLS policies
           # referencing these roles. If a future migration adds a role, update
-          # this block too; drift fails loudly (ON_ERROR_STOP on the restore),
-          # never silently, because new migrations also change the cache key.
+          # this block too, including role memberships such as pg_read_all_data.
+          # A role the dump references fails the restore (ON_ERROR_STOP); a role
+          # used only through SET ROLE fails later, in the tests that need it.
           # Everything runs inside the postgres:17 service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
@@ -226,6 +228,8 @@ jobs:
           CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
           CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_tenant_export NOLOGIN BYPASSRLS;
+          GRANT pg_read_all_data TO phoenix_tenant_export;
           GRANT phoenix_tenant TO phoenix_auth;
           GRANT phoenix_admin TO phoenix_auth;
           ALTER ROLE phoenix_auth SET search_path TO public, platform;
