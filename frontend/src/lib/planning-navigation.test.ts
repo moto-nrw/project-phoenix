@@ -6,6 +6,13 @@ import {
   getPlanningMobileActivePaths,
   isPlanningPageHref,
 } from "./planning-navigation";
+import {
+  COMMUNICATION_SUB_PAGES,
+  DATABASE_SUB_PAGES,
+  ENROLLMENT_SUB_PAGES,
+  PARENT_SUB_PAGES,
+  STAFF_FLAT_PAGES,
+} from "./section-navigation";
 
 describe("planning navigation", () => {
   it.each([
@@ -73,5 +80,26 @@ describe("planning navigation", () => {
   it("recognizes only canonical planning hrefs", () => {
     expect(isPlanningPageHref("/dienstplan")).toBe(true);
     expect(isPlanningPageHref("/staff/dienstplan")).toBe(false);
+  });
+});
+
+describe("navigation labels follow the module catalog (#4778)", () => {
+  const labels = [
+    ...PLANNING_SUB_PAGES,
+    ...DATABASE_SUB_PAGES,
+    ...COMMUNICATION_SUB_PAGES,
+    ...PARENT_SUB_PAGES,
+    ...ENROLLMENT_SUB_PAGES,
+    ...Object.values(STAFF_FLAT_PAGES),
+  ].map((page) => page.label);
+
+  it("names exactly one navigation entry with the word Vertretung", () => {
+    expect(labels.filter((label) => label.includes("Vertretung"))).toEqual([
+      "Vertretungsplan",
+    ]);
+  });
+
+  it("names the daily handover page Übergaben", () => {
+    expect(STAFF_FLAT_PAGES.substitutions.label).toBe("Übergaben");
   });
 });

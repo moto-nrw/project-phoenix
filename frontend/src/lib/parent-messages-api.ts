@@ -18,7 +18,11 @@ import type { ChatMessage } from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 // The wire message shape is shared with the parent client; see ChatMessage.
-export type Message = ChatMessage;
+// A guardian's answer to a Gruppennachricht (#4784) names that thread.
+export type Message = ChatMessage & {
+  readonly group_thread_id?: string;
+  readonly group_thread_title?: string;
+};
 
 export interface InboxThread {
   thread_id: string;

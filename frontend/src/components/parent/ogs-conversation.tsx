@@ -10,6 +10,7 @@ import {
 import { XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { BackLink } from "~/components/ui/back-link";
+import NavigationLink from "~/components/ui/navigation-link";
 import { parentPath } from "~/lib/parent-url";
 import {
   FormErrorAlert,
@@ -358,40 +359,49 @@ export function OgsConversation({
                   locale={locale}
                 />
               ) : (
-                <ChatBubble
-                  key={message.id}
-                  body={message.body}
-                  own={message.sender_kind === "guardian"}
-                  senderName={
-                    message.sender_kind === "staff" &&
-                    message.sender_name === counterpart &&
-                    thread?.school_name
-                      ? tm("ogsTeam", { school: thread.school_name })
-                      : message.sender_name
-                  }
-                  createdAt={message.created_at}
-                  locale={locale}
-                  // The parent's own bubbles are always the logged-in guardian
-                  // (one guardian account per thread), so drop the redundant name
-                  // and keep just the time. Staff bubbles still show "Vorname N.".
-                  showOwnSenderName={false}
-                  showSenderName={!genericStaffSender && !sameSenderAsPrevious}
-                  tone="parent"
-                  deliveryStatus={
-                    message.sender_kind === "guardian"
-                      ? message.read_by_staff
-                        ? "read"
-                        : "sent"
-                      : undefined
-                  }
-                  deliveryStatusLabel={
-                    message.sender_kind === "guardian"
-                      ? message.read_by_staff
-                        ? tm("readByOgs")
-                        : tm("sent")
-                      : undefined
-                  }
-                />
+                <div key={message.id}>
+                  {message.group_thread_id && (
+                    <GroupThreadReference
+                      groupThreadId={message.group_thread_id}
+                      title={message.group_thread_title}
+                    />
+                  )}
+                  <ChatBubble
+                    body={message.body}
+                    own={message.sender_kind === "guardian"}
+                    senderName={
+                      message.sender_kind === "staff" &&
+                      message.sender_name === counterpart &&
+                      thread?.school_name
+                        ? tm("ogsTeam", { school: thread.school_name })
+                        : message.sender_name
+                    }
+                    createdAt={message.created_at}
+                    locale={locale}
+                    // The parent's own bubbles are always the logged-in guardian
+                    // (one guardian account per thread), so drop the redundant name
+                    // and keep just the time. Staff bubbles still show "Vorname N.".
+                    showOwnSenderName={false}
+                    showSenderName={
+                      !genericStaffSender && !sameSenderAsPrevious
+                    }
+                    tone="parent"
+                    deliveryStatus={
+                      message.sender_kind === "guardian"
+                        ? message.read_by_staff
+                          ? "read"
+                          : "sent"
+                        : undefined
+                    }
+                    deliveryStatusLabel={
+                      message.sender_kind === "guardian"
+                        ? message.read_by_staff
+                          ? tm("readByOgs")
+                          : tm("sent")
+                        : undefined
+                    }
+                  />
+                </div>
               );
             })
           ) : loadError ? (
@@ -624,6 +634,25 @@ function QuickActionPill({
       </span>
       <span className="hidden sm:inline">{label}</span>
     </button>
+  );
+}
+
+// Eine Antwort auf eine Gruppennachricht (#4784) traegt den Verweis auf die
+// Gruppennachricht, damit klar ist, worauf sie sich bezieht.
+function GroupThreadReference({
+  groupThreadId,
+  title,
+}: Readonly<{ groupThreadId: string; title?: string }>) {
+  const t = useTranslations("parentGroupThreads");
+  return (
+    <div className="mb-1 flex justify-end">
+      <NavigationLink
+        href={parentPath(`/parents/messages/group/${groupThreadId}`)}
+        className="text-moto-blue max-w-[85%] truncate text-xs font-medium underline-offset-2 hover:underline"
+      >
+        {t("answerTo", { title: title ?? "" })}
+      </NavigationLink>
+    </div>
   );
 }
 

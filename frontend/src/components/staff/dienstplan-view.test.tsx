@@ -494,13 +494,13 @@ describe("DienstplanView", () => {
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Liste der Schichtarten"),
+        catalogText("general.unavailable", "die Liste der Dienstarten"),
       ),
     ).toBeInTheDocument();
     // Seit #3114 führt die Kopf-Aktion auf die Route der Schichtarten, die
     // ihre Liste selbst lädt: ein Ladefehler HIER sperrt sie nicht mehr.
     expect(
-      screen.getByRole("link", { name: "Schichtarten verwalten" }),
+      screen.getByRole("link", { name: "Dienstarten verwalten" }),
     ).toHaveAttribute(
       "href",
       expect.stringContaining("/database/shift-types") as unknown as string,

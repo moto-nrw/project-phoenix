@@ -18,6 +18,7 @@ import {
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { NewMessageModal } from "~/components/messaging/new-message-modal";
+import { messagesTabs } from "~/components/messaging/messages-tabs";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
@@ -186,6 +187,7 @@ function MessagesInboxContent() {
   return (
     <TenantPage
       title="Nachrichten"
+      tabs={messagesTabs("conversations")}
       stats={inboxSummary}
       statsLoading={showSkeleton}
       actions={composeButton}

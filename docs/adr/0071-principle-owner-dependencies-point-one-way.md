@@ -183,7 +183,7 @@ error identities, not the workflow command.
 
 ## Addendum 2026-10-24: ungranted debt removed (#4825)
 
-[ADR 0098](0098-domain-applications-no-longer-call-workflows.md) removes the
+[ADR 0099](0099-domain-applications-no-longer-call-workflows.md) removes the
 remaining domain-to-workflow runtime bindings of the #4825 inventory. PR #4833
 removed the first two. No domain application now calls workflow code at
 runtime, apart from the Care Exit Roster/Bookings E2 callbacks granted above.

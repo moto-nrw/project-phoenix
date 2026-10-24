@@ -44,9 +44,9 @@ export default function GradeTransitionsPage() {
     [],
   );
   const statusLine = (() => {
-    if (!canRead) return "Kein Zugriff auf Jahrgangswechsel";
+    if (!canRead) return "Kein Zugriff auf Schuljahreswechsel";
     if (!summary) return null;
-    if (summary.total === 0) return "Noch kein Jahrgangswechsel angelegt";
+    if (summary.total === 0) return "Noch kein Schuljahreswechsel angelegt";
     const parts: string[] = [];
     if (summary.latestYear) parts.push(`Schuljahr ${summary.latestYear}`);
     parts.push(`${summary.total} Wechsel`);
@@ -56,13 +56,13 @@ export default function GradeTransitionsPage() {
 
   return (
     <TenantPage
-      title="Jahrgangswechsel"
+      title="Schuljahreswechsel"
       stats={statusLine}
       statsLoading={statusLine === null}
       loading={status === "loading"}
       back
     >
-      <DesktopOnlyNotice description="Der Jahrgangswechsel ist für die Arbeit am Computer optimiert. Bitte öffnen Sie diese Seite auf einem Laptop oder Desktop-Rechner." />
+      <DesktopOnlyNotice description="Der Schuljahreswechsel ist für die Arbeit am Computer optimiert. Bitte öffnen Sie diese Seite auf einem Laptop oder Desktop-Rechner." />
 
       {/* Flex-Spalte, damit die Liste als letzte Fläche bis zur Unterkante
           wächst (`.moto-tenant-body`). */}
@@ -75,7 +75,7 @@ export default function GradeTransitionsPage() {
         ) : (
           <ForbiddenPage
             embedded
-            message="Sie haben nicht die nötige Berechtigung, um Jahrgangswechsel anzusehen."
+            message="Sie haben nicht die nötige Berechtigung, um Schuljahreswechsel anzusehen."
           />
         )}
       </div>

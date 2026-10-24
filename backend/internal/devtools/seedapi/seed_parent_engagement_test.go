@@ -17,6 +17,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	var message map[string]any
 	var mealException map[string]any
 	var appointments []map[string]any
+	var groupThreads []map[string]any
+	var groupAnswer map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -31,6 +33,22 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		}
 		if r.URL.Path == "/api/students/44" && r.Method == seedHTTPMethodGet {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"group_id":"7"}}`)
+			return
+		}
+		if r.URL.Path == "/api/groups/7" {
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"name":"Sternengruppe"}}`)
+			return
+		}
+		if r.URL.Path == "/api/messages/group-threads" && r.Method == seedHTTPMethodPost {
+			var thread map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&thread))
+			groupThreads = append(groupThreads, thread)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread":{"id":"%d"}}}`, 60+len(groupThreads))
+			return
+		}
+		if r.URL.Path == "/parent/me/messages/children/44" && r.Method == seedHTTPMethodPost && message != nil {
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&groupAnswer))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"thread_id":"91","messages":[{"id":"94"}]}}`)
 			return
 		}
 		if r.URL.Path == "/api/calendar/appointments" {
@@ -74,6 +92,14 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/messages/threads/91",
 		"/api/messages/threads/91/unread",
 		"/parent/me/messages/children/44",
+		"/api/students/44",
+		"/api/groups/7",
+		"/api/messages/group-threads",
+		"/api/messages/group-threads/61/messages",
+		"/api/messages/group-threads",
+		"/api/messages/group-threads/62/close",
+		"/parent/me/messages/group-threads/61",
+		"/parent/me/messages/children/44",
 		"/parent/me/children/44/guardians",
 		"/parent/me/children/44/guardians/93/pickup",
 		"/api/settings/values/guardians.parent_invite_mode",
@@ -93,6 +119,11 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	}, paths)
 	assert.Equal(t, "Können Sie bitte prüfen, ob die neue Abholzeit eingetragen ist?", message["body"])
 	assert.Equal(t, map[string]any{"participating": false}, mealException)
+	require.Len(t, groupThreads, 2)
+	assert.Equal(t, "group", groupThreads[0]["target_type"])
+	assert.Equal(t, "7", groupThreads[0]["target_id"])
+	assert.Equal(t, "Gruppe Sternengruppe", groupThreads[0]["target_label"])
+	assert.Equal(t, "61", groupAnswer["group_thread_id"], "the parent answers the open group thread")
 
 	titles := make([]any, 0, len(appointments))
 	for _, appointment := range appointments {

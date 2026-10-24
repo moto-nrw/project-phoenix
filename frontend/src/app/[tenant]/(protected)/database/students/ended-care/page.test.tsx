@@ -140,7 +140,7 @@ describe("Beendete Betreuungen", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        /Abgänge aus dem Jahrgangswechsel stehen weiterhin dort/,
+        /Abgänge aus dem Schuljahreswechsel stehen weiterhin dort/,
       ),
     ).toBeVisible();
   });

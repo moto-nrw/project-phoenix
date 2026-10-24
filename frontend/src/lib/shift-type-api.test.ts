@@ -225,7 +225,7 @@ describe("shiftTypeService errors", () => {
       }),
     ).rejects.toMatchObject({
       status: 409,
-      message: "Schichtart konnte nicht gespeichert werden",
+      message: "Dienstart konnte nicht gespeichert werden",
       detail: "name already exists",
     });
   });
@@ -291,7 +291,7 @@ describe("shiftTypeService errors", () => {
       }),
     ).rejects.toMatchObject({
       status: 400,
-      message: "Schichtart konnte nicht gespeichert werden",
+      message: "Dienstart konnte nicht gespeichert werden",
     });
   });
 
@@ -305,7 +305,7 @@ describe("shiftTypeService errors", () => {
 
     await expect(shiftTypeService.getShiftTypes()).rejects.toMatchObject({
       status: 422,
-      message: "Schichtarten konnten nicht geladen werden",
+      message: "Dienstarten konnten nicht geladen werden",
     });
   });
 
@@ -314,7 +314,7 @@ describe("shiftTypeService errors", () => {
 
     await expect(shiftTypeService.deleteShiftType("12")).rejects.toMatchObject({
       status: 403,
-      message: "Schichtart konnte nicht gelöscht werden",
+      message: "Dienstart konnte nicht gelöscht werden",
     });
   });
 

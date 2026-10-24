@@ -110,7 +110,7 @@ func mountCommunicationRoutes(
 	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
 	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
 ) {
-	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging).Router(ProtectedTenantRoutes))
+	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutes))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Visual-only staff reminders (#1457).
 	tenant.Mount("/reminders", remindersHTTP.NewResource(reminders, ReminderHTTPRuntime()).Router())

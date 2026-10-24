@@ -25,7 +25,7 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 const logger = createLogger({ component: "ShiftMoveDialog" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
 const INACTIVE_TYPE_MOVE_MESSAGE =
-  "Diese Schichtart ist inaktiv. Bitte wählen Sie für die andere Person eine aktive Schichtart oder „Keine Schichtart“.";
+  "Diese Dienstart ist inaktiv. Bitte wählen Sie für die andere Person eine aktive Dienstart oder „Keine Dienstart“.";
 
 // "Verschieben nach": move one
 // materialized shift to another person and/or day in one confirmed, atomic
@@ -95,7 +95,7 @@ export function ShiftMoveDialog({
 
   const typeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
-      { value: "", label: "Keine Schichtart" },
+      { value: "", label: "Keine Dienstart" },
     ];
     for (const type of shiftTypes) {
       if (type.isActive || type.id === shift.shiftTypeId) {
@@ -171,7 +171,7 @@ export function ShiftMoveDialog({
     }
     if (inactiveTypeBlocksMove) {
       formErrors.invalid(INACTIVE_TYPE_MOVE_MESSAGE, {
-        shift_type_id: "Bitte eine aktive Schichtart wählen.",
+        shift_type_id: "Bitte eine aktive Dienstart wählen.",
       });
       return;
     }
@@ -333,15 +333,15 @@ export function ShiftMoveDialog({
             </Field>
           </div>
           {typeOptions.length > 1 && (
-            <Field label="Schichtart">
+            <Field label="Dienstart">
               <CustomSelect
                 value={shiftTypeId}
                 options={typeOptions}
                 onChange={setShiftTypeId}
                 name="shift_type_id"
                 invalid={!!formErrors.fieldError("shift_type_id")}
-                ariaLabel="Schichtart"
-                placeholder="Keine Schichtart"
+                ariaLabel="Dienstart"
+                placeholder="Keine Dienstart"
               />
             </Field>
           )}

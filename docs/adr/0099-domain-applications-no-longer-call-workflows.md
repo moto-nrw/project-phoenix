@@ -23,7 +23,7 @@ from HTTP or the root.
 | Binding | Path | Result |
 |---|---|---|
 | Enrollment → Data Import `MapRelationshipType` | (a) | The relationship vocabulary belongs to People Directory (`contact.MapRelationshipType`). Enrollment's root rule and Data Import's ports call it. |
-| Care Plan → Parent Portal `SameDayCutoff` | (a) | `carerequests.SameDayCutoff` is a Care Plan value. The request inputs carry it by value, and the workflow builds it with Care Plan's constructor. |
+| Care Plan → Parent Portal `SameDayCutoff` | (a) | `carerequests.SameDayCutoff` is a Care Plan value. The request inputs carry it by value. The workflow builds it with Care Plan's constructor and its injected clock, not with a workflow method. |
 | Workforce → Staff Offboarding `NewAbsenceDeletion` | (a) | Workforce builds the deletion record of the absences it deletes. The root binds only that value and the Audit Platform append. |
 | School Membership runs a Staff Offboarding closure | (a) | School Membership offers `LockLiveStaff`. The workflow locks first and then writes in the same caller transaction. |
 | School Structure → Shift Plan Sync `GroupHandovers` | (a) | The handover store binds Workforce's group-substitution commands like the store's other methods. The root translates only the duplicate error. |
@@ -63,10 +63,11 @@ interfaces.
   any more. HTTP ports into workflows are transport entries. This follows the
   existing distinction in `validateEffectDirection`.
 - The re-keyed entries cite this ADR as `approval_adr`. They are the
-  HTTP-to-workflow commands classified `workflow`, plus the three unresolved
-  `SubstitutionCaller.HasPermission` boundaries whose port moved from
-  `workforce.Substitutions` into the Workforce substitutions HTTP package.
-  The unresolved boundary itself is unchanged and is not approved as a query
-  or leaf.
+  HTTP-to-workflow commands classified `workflow`, plus the five unresolved
+  `carerequests.SameDayCutoff.now` boundaries. They replace the `api.now`
+  boundary of the former `DayCutoff` port; the Parent Portal workflow fills
+  the field with its injected `Config.Now`. The boundary is not approved as a
+  query or leaf. The permission checks of the Workforce substitutions HTTP
+  port resolve to `permissions.Principal.HasPermission` and are queries.
 - Platform triggers remain the open question of ADR 0071. This decision does
   not settle it.

@@ -1039,6 +1039,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/organizationtenancy/erasureledger",
+      "owner": "organization-tenancy",
+      "role": "public",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/organizationtenancy/internal/adapters/postgres",
       "owner": "organization-tenancy",
       "role": "postgres",
@@ -4179,6 +4186,14 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_upload_cleanup",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_uploads",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.requests",
       "write_owner": "enrollment"
     },
@@ -4460,6 +4475,22 @@
     },
     {
       "name": "users.parent_announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_message_recipients",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_thread_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_threads",
       "write_owner": "communication"
     },
     {
