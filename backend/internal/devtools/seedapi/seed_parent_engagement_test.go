@@ -71,6 +71,22 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian_profile_id":"93"}}`)
 			return
 		}
+		// The signed pickup permission, the one-day collector and the way home
+		// alone (#4780).
+		if r.URL.Path == "/parent/me/children/44/pickup-permission-requests" {
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"95","guardian_profile_id":"93","status":"pending"}]}`)
+			return
+		}
+		if r.URL.Path == "/api/students/change-requests" {
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"items":[`+
+				`{"request_type":"care_schedule","expected_version":"v95","data":{"id":"95","impact_token":""}},`+
+				`{"request_type":"care_schedule","expected_version":"v96","data":{"id":"96","impact_token":""}}]}}`)
+			return
+		}
+		if r.URL.Path == "/parent/me/children/44/care-exception" {
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"96"}}`)
+			return
+		}
 		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 	})
 	defer srv.Close()
@@ -102,6 +118,13 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/parent/me/messages/children/44",
 		"/parent/me/children/44/guardians",
 		"/parent/me/children/44/guardians/93/pickup",
+		"/parent/me/children/44/pickup-permission-requests",
+		"/api/students/change-requests",
+		"/api/students/care-schedule-change-requests/95/decide",
+		"/parent/me/children/44/care-exception",
+		"/api/students/change-requests",
+		"/api/students/care-schedule-change-requests/96/decide",
+		"/parent/me/children/44/care-exception",
 		"/api/settings/values/guardians.parent_invite_mode",
 		"/parent/me/children/44/related-accounts",
 		"/api/settings/values/guardians.parent_invite_mode",

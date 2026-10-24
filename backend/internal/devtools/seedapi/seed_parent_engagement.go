@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -228,6 +229,8 @@ func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error
 		"address_street": "Nebenweg 3", "address_postal_code": "50667", "address_city": "Köln",
 		"phones":            []map[string]any{{"phone_number": "+49 221 555 778", "phone_type": "mobile", "label": "Privat", "is_primary": true}},
 		"relationship_type": "relative", "can_pickup": true, "is_emergency_contact": false,
+		// The pickup permission is a signed request the OGS confirms (#4780).
+		"pickup_weekdays": []int{2, 4}, "pickup_signature": map[string]any{"method": "drawn", "image_png": demoSignaturePNG()},
 	})
 	if err != nil {
 		return fmt.Errorf("seed parent-managed pickup contact: %w", err)
@@ -241,6 +244,9 @@ func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error
 		map[string]any{"can_pickup": false, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache"},
 	); err != nil {
 		return fmt.Errorf("update parent-managed pickup contact: %w", err)
+	}
+	if err := seedParentPickupPermissions(rt, auth, studentID, contactID); err != nil {
+		return err
 	}
 	return withTemporarySeedSetting(rt, rt.TenantAuth, "guardians.parent_invite_mode", "staff_approval", "direct", func() error {
 		if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/related-accounts", studentID), map[string]any{
@@ -313,4 +319,84 @@ func parseThreadMessageIDs(raw []byte) (int64, int64, error) {
 		return 0, 0, fmt.Errorf("invalid message id")
 	}
 	return id, messageID, nil
+}
+
+// seedParentPickupPermissions confirms the signed pickup permission of the
+// parent-managed contact (#4780), so the child profile shows a pickup
+// permission limited to Tuesdays and Thursdays, approves the contact as the
+// collector of the next care day, and files an open request to walk home
+// alone four days out. Every one carries the drawn demo signature, so the
+// proofs open for the parent and the OGS.
+func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID int64) error {
+	raw, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/pickup-permission-requests", studentID))
+	if err != nil {
+		return fmt.Errorf("list seeded pickup permission requests: %w", err)
+	}
+	permissionID, err := seedPickupPermissionRequestID(raw, contactID)
+	if err != nil {
+		return err
+	}
+	if err := seedDecideCareRequest(rt, studentID, permissionID, "Danke, die Abholberechtigung ist eingetragen."); err != nil {
+		return err
+	}
+	signature := map[string]any{"method": "drawn", "image_png": demoSignaturePNG()}
+	collectorRaw, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), map[string]any{
+		"date":                              seedWeekdayOnOrAfter(todaySeedDate()).String(),
+		"pickup_person_guardian_profile_id": strconv.FormatInt(contactID, 10),
+		"reason":                            "Rita holt heute ab.",
+		"signature":                         signature,
+	})
+	if err != nil {
+		return fmt.Errorf("seed one-day collector: %w", err)
+	}
+	collectorID, err := parseEnvelopeStringID(collectorRaw)
+	if err != nil {
+		return fmt.Errorf("parse one-day collector: %w", err)
+	}
+	if err := seedDecideCareRequest(rt, studentID, collectorID, "Alles klar, wir geben Ihr Kind Rita mit."); err != nil {
+		return err
+	}
+	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), map[string]any{
+		"date":           seedWeekdayOnOrAfter(todaySeedDate().AddDays(4)).String(),
+		"departure_mode": "alone",
+		"reason":         "Ab heute darf es allein nach Hause gehen.",
+		"signature":      signature,
+	}); err != nil {
+		return fmt.Errorf("seed walking home alone request: %w", err)
+	}
+	return nil
+}
+
+// seedDecideCareRequest approves one parent care request as the OGS.
+func seedDecideCareRequest(rt *Runtime, studentID, requestID int64, reason string) error {
+	impactToken, expectedVersion, err := loadSeedCareRequestDecisionTokens(rt, rt.TenantAuth, studentID, requestID)
+	if err != nil {
+		return err
+	}
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/students/care-schedule-change-requests/%d/decide", requestID), map[string]any{
+		"approve": true, "reason": reason, "impact_token": impactToken, "expected_version": expectedVersion,
+	}); err != nil {
+		return fmt.Errorf("approve seeded care request %d: %w", requestID, err)
+	}
+	return nil
+}
+
+func seedPickupPermissionRequestID(raw []byte, contactID int64) (int64, error) {
+	var envelope struct {
+		Data []struct {
+			ID                string `json:"id"`
+			GuardianProfileID string `json:"guardian_profile_id"`
+			Status            string `json:"status"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return 0, fmt.Errorf("parse seeded pickup permission requests: %w", err)
+	}
+	want := strconv.FormatInt(contactID, 10)
+	for _, row := range envelope.Data {
+		if row.GuardianProfileID == want && row.Status == "pending" {
+			return strconv.ParseInt(row.ID, 10, 64)
+		}
+	}
+	return 0, fmt.Errorf("seeded pickup permission request for contact %d not found", contactID)
 }
