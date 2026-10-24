@@ -130,7 +130,9 @@ test.describe("Planung navigation", () => {
     expect(new URL(page.url()).pathname.endsWith("/substitutions")).toBe(true);
     const main = page.locator("main");
     await expect(main.getByText("Laufende Betreuungen")).toBeVisible();
-    await expect(main.getByText("Termine", { exact: true })).toBeVisible();
+    await expect(
+      main.getByText("Vertretungen heute", { exact: true }),
+    ).toBeVisible();
     await expect(main.getByText("Gruppen", { exact: true })).toBeVisible();
     await expect(main.getByText("Gruppenzugriff")).toHaveCount(0);
   });
