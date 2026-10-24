@@ -1789,7 +1789,7 @@ function staffSurveysTopic(): HelpTopic {
     result:
       "Sie sehen `Danke, Ihre Antwort ist gespeichert.` Die Umfrage steht danach mit `Teilgenommen` in der Liste.",
     notes: [
-      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, und erst ab 5 Antworten.",
+      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, erst nach dem Ende und ab 5 Antworten.",
       "`Nicht anonym` heißt: Die Schule sieht Ihren Namen bei Ihren Antworten.",
       "Nach dem Absenden können Sie Ihre Antwort nicht mehr ändern.",
       "Die Schule erfährt nie, wer noch nicht teilgenommen hat. Eine Erinnerung geht an alle, die noch offen sind.",
@@ -4113,7 +4113,7 @@ function parentSurveyTopic(): HelpTopic {
 /**
  * `/umfragen` mit `surveys:manage`: Umfragen mit Fragebogen an Eltern oder
  * das Team (#4781). Anonym nach Variante A: Teilnahme und Antwort getrennt,
- * Auswertung erst ab 5 Antworten. Die kurze Frage je Kind bleibt die
+ * Auswertung erst nach dem Ende und ab 5 Antworten. Die kurze Frage je Kind bleibt die
  * Elternumfrage unter `Mitteilungen` (`parentSurveyTopic`).
  */
 function leadSurveysTopic(): HelpTopic {
@@ -4159,6 +4159,7 @@ function leadSurveysTopic(): HelpTopic {
         title: "Die Auswertung ansehen",
         steps: [
           "Öffnen Sie die Umfrage in der Liste.",
+          "Bei einer anonymen Umfrage erscheint die Auswertung, sobald die Umfrage beendet ist.",
           "Im Reiter `Auswertung` sehen Sie je Frage die Verteilung: bei der Skala den Durchschnitt, den höchsten und den niedrigsten Wert, bei Auswahlfragen die am häufigsten und am seltensten gewählte Antwort, dazu die Freitexte.",
           "Oben stehen `Stärken und Verbesserungsbedarf`: die Skalenfragen mit dem höchsten und dem niedrigsten Durchschnitt.",
           "Für eine Datei öffnen Sie das Menü mit den drei Punkten und wählen `Auswertung als PDF`.",
@@ -4168,7 +4169,7 @@ function leadSurveysTopic(): HelpTopic {
         title: "Erinnern, beenden oder löschen",
         steps: [
           "Öffnen Sie die Umfrage und oben das Menü mit den drei Punkten.",
-          "`Erinnern` schickt allen, die noch nicht teilgenommen haben, eine Erinnerung. Sie sehen nur die Zahl.",
+          "`Erinnern` schickt allen eine Erinnerung, die noch nicht teilgenommen haben und Benachrichtigungen bekommen. Sie sehen nur die Zahl.",
           "`Beenden` schließt die Teilnahme sofort. Die Auswertung bleibt.",
           "`Löschen` entfernt die Umfrage mit allen Antworten.",
         ],
@@ -4178,7 +4179,8 @@ function leadSurveysTopic(): HelpTopic {
       "Die Eltern finden die Umfrage unter `Elternbriefe`, das Team unter `Umfragen`. Jede Person antwortet einmal, Eltern einmal je Elternkonto, nicht je Kind.",
     notes: [
       "Anonym heißt: Sie sehen nicht, wer was geantwortet hat. Sie sehen auch nicht, wer noch nicht teilgenommen hat. Die Auswertung zeigt nur Summen.",
-      "Die Auswertung einer anonymen Umfrage erscheint erst ab 5 Antworten. So ist niemand an seinen Antworten erkennbar. Bis dahin sehen Sie nur, wie viele teilgenommen haben.",
+      "Die Auswertung einer anonymen Umfrage erscheint erst nach dem Ende und ab 5 Antworten. So ist niemand an seinen Antworten erkennbar. Bis dahin sehen Sie nur, wie viele teilgenommen haben.",
+      "Auch einzelne Fragen einer anonymen Umfrage zeigen ihr Ergebnis erst ab 5 Antworten. Bei weniger steht dort nur die Zahl.",
       "Freitexte stehen ohne Namen und ohne Uhrzeit, in zufälliger Reihenfolge. Die PDF-Datei enthält dieselben Summen wie der Bildschirm.",
       "Bei einer Umfrage, die nicht anonym ist, sehen Sie im Reiter `Antworten je Person` jede Antwort mit Namen.",
       "Befragen Sie Mitarbeitende? Ein Fragebogen an Beschäftigte kann mitbestimmungspflichtig sein. Klären Sie das vorher mit Ihrem Betriebsrat oder Personalrat. moto prüft das nicht.",
@@ -4186,7 +4188,7 @@ function leadSurveysTopic(): HelpTopic {
     ],
     differences: [
       "Sehen Sie `Umfrage anlegen` nicht? Dann fehlt Ihnen die Berechtigung `Umfragen: Verwalten`. Die Leitung vergibt sie über die Rollen.",
-      "Steht im Reiter `Auswertung` `Noch keine Auswertung`? Dann haben weniger als 5 Personen geantwortet.",
+      "Steht im Reiter `Auswertung` `Noch keine Auswertung`? Dann läuft die anonyme Umfrage noch, oder es haben weniger als 5 Personen geantwortet. Mit `Beenden` endet die Teilnahme sofort.",
     ],
     image: "/help/screens/umfrage-auswertung.webp",
     imageAlt:
@@ -7030,7 +7032,7 @@ function parentSurveysTopic(): HelpTopic {
     result:
       "Sie sehen `Danke, Ihre Antwort ist gespeichert.` Der Eintrag steht danach mit `Teilgenommen` unter `Erledigt`.",
     notes: [
-      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, und erst ab 5 Antworten.",
+      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, erst nach dem Ende und ab 5 Antworten.",
       "`Nicht anonym` heißt: Die Schule sieht Ihren Namen bei Ihren Antworten.",
       "Sie antworten einmal für Ihr Elternkonto, nicht für jedes Kind.",
       "Nach dem Absenden können Sie Ihre Antwort nicht mehr ändern.",

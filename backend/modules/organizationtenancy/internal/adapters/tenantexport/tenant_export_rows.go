@@ -72,11 +72,7 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if len(columns) == 0 {
 		return 0, exportTableError(table.Name)
 	}
-	order, err := exportOrder(table, model)
-	if err != nil {
-		return 0, err
-	}
-	query := "SELECT row_to_json(export_row) FROM (SELECT " + strings.Join(columns, ", ") + " FROM " + quoteExportTable(table.Name) + " AS t WHERE " + where + " ORDER BY " + order + ") AS export_row"
+	query := "SELECT row_to_json(export_row) FROM (SELECT " + strings.Join(columns, ", ") + " FROM " + quoteExportTable(table.Name) + " AS t WHERE " + where + " ORDER BY t.ctid) AS export_row"
 	rows, err := r.tx.QueryContext(ctx, query, r.options.SchoolID)
 	if err != nil {
 		return 0, exportTableError(table.Name)
@@ -257,25 +253,4 @@ func (r *exportRun) collectStoredOriginal(table string, fields map[string]json.R
 	}
 	r.references[key] = true
 	return nil
-}
-
-// exportOrder is the ORDER BY of a table artifact: the physical order, or the
-// catalog's columns where the physical order would link rows the table keeps
-// apart (ExportOrder). Every named column must be one the artifact exports.
-func exportOrder(table organizationtenancy.LifecycleTable, model organizationtenancy.ExportModelTable) (string, error) {
-	if len(table.ExportOrder) == 0 {
-		return "t.ctid", nil
-	}
-	exported := make(map[string]bool, len(model.Columns))
-	for _, col := range model.Columns {
-		exported[col.Name] = true
-	}
-	parts := make([]string, 0, len(table.ExportOrder))
-	for _, name := range table.ExportOrder {
-		if !exported[name] {
-			return "", exportTableError(table.Name)
-		}
-		parts = append(parts, "t."+quoteExportIdentifier(name))
-	}
-	return strings.Join(parts, ", "), nil
 }

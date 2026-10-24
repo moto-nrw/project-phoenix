@@ -13,11 +13,13 @@ import (
 // improvement lists name.
 const maxSurveyHighlights = 3
 
-// buildSurveyResults turns the counted answers into the evaluation. Below the
-// minimum, an anonymous survey reports its count and nothing else: with two
-// or three answers a distribution already reads as single persons. The free
-// texts are shuffled once more with shuffle, so their order follows neither
-// the insertion nor the database.
+// buildSurveyResults turns the counted answers into the evaluation. An
+// anonymous survey is evaluated once, after its end, and only from the
+// minimum on, overall and per question: two views of a running survey differ
+// by exactly the answers given in between, and with two or three answers a
+// distribution already reads as single persons. Until then it reports its
+// count and nothing else. The free texts are shuffled once more with shuffle,
+// so their order follows neither the insertion nor the database.
 func buildSurveyResults(survey *communication.Survey, tally *communication.SurveyTally, now time.Time, shuffle func([]string)) *communication.SurveyResults {
 	results := &communication.SurveyResults{
 		SurveyID: survey.ID, Title: survey.Title, Anonymous: survey.Anonymous, Status: survey.Status(now),
@@ -27,22 +29,39 @@ func buildSurveyResults(survey *communication.Survey, tally *communication.Surve
 	if !survey.Anonymous {
 		results.MinResponses = 0
 	}
-	results.Available = tally.ResponseCount >= results.MinResponses
+	results.Available = tally.ResponseCount >= results.MinResponses &&
+		(!survey.Anonymous || results.Status == communication.SurveyStatusClosed)
 	if !results.Available {
 		return results
 	}
 	for _, q := range survey.Questions {
+		if tally.AnswerCounts[q.ID] < results.MinResponses {
+			results.Questions = append(results.Questions, withheldQuestion(q, tally))
+			continue
+		}
 		results.Questions = append(results.Questions, questionResult(q, tally, shuffle))
 	}
 	results.Strengths, results.Improvements = surveyHighlights(results.Questions)
 	return results
 }
 
-func questionResult(q communication.SurveyQuestion, tally *communication.SurveyTally, shuffle func([]string)) communication.SurveyQuestionResult {
-	result := communication.SurveyQuestionResult{
+// withheldQuestion is a question of an anonymous survey answered by fewer
+// people than the minimum: its count, without a value or a text.
+func withheldQuestion(q communication.SurveyQuestion, tally *communication.SurveyTally) communication.SurveyQuestionResult {
+	result := emptyQuestionResult(q, tally)
+	result.Withheld = true
+	return result
+}
+
+func emptyQuestionResult(q communication.SurveyQuestion, tally *communication.SurveyTally) communication.SurveyQuestionResult {
+	return communication.SurveyQuestionResult{
 		QuestionID: q.ID, Position: q.Position, Kind: q.Kind, Prompt: q.Prompt, AnswerCount: tally.AnswerCounts[q.ID],
 		Options: []communication.SurveyOptionCount{}, ScaleCounts: []int{}, Texts: []string{}, Highest: []string{}, Lowest: []string{},
 	}
+}
+
+func questionResult(q communication.SurveyQuestion, tally *communication.SurveyTally, shuffle func([]string)) communication.SurveyQuestionResult {
+	result := emptyQuestionResult(q, tally)
 	switch q.Kind {
 	case communication.SurveyQuestionSingle, communication.SurveyQuestionMultiple:
 		labels := make([]string, 0, len(q.Options))

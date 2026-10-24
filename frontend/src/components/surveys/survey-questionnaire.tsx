@@ -124,6 +124,7 @@ function QuestionField({
   disabled,
   error,
   anonymous,
+  name,
 }: Readonly<{
   question: SurveyQuestion;
   index: number;
@@ -133,6 +134,8 @@ function QuestionField({
   disabled: boolean;
   error: string | null;
   anonymous: boolean;
+  /** The form name of the question's controls; the error path focuses it. */
+  name: string;
 }>) {
   const t = useTranslations("surveyForm");
   const baseId = useId();
@@ -176,6 +179,7 @@ function QuestionField({
               >
                 {question.kind === "multiple" ? (
                   <Checkbox
+                    name={name}
                     checked={active}
                     onChange={() =>
                       onChange(toggleSurveyOption(draft, question, option.id))
@@ -183,7 +187,7 @@ function QuestionField({
                   />
                 ) : (
                   <Radio
-                    name={`${baseId}-option`}
+                    name={name}
                     checked={active}
                     onChange={() =>
                       onChange(toggleSurveyOption(draft, question, option.id))
@@ -207,7 +211,7 @@ function QuestionField({
                 className="min-h-12 flex-col justify-center gap-1 px-2 py-2 text-base font-semibold has-[:disabled]:cursor-not-allowed"
               >
                 <Radio
-                  name={`${baseId}-scale`}
+                  name={name}
                   checked={answer.scaleValue === value}
                   aria-label={
                     value === 1
@@ -237,6 +241,7 @@ function QuestionField({
       {question.kind === "text" && (
         <Textarea
           id={`${baseId}-text`}
+          name={name}
           aria-label={question.prompt}
           placeholder={t("textLabel")}
           rows={4}
@@ -295,6 +300,8 @@ export function SurveyAnswerPanel({
   const [reloadToken, setReloadToken] = useState(0);
   const loadErrors = useApiLoadError();
   const submitErrors = useApiFormError();
+  const fieldPrefix = useId();
+  const fieldName = (questionId: string) => `${fieldPrefix}-q${questionId}`;
   const { show: showLoadError, clear: clearLoadError } = loadErrors;
   const loadRef = useRef(load);
   useLayoutEffect(() => {
@@ -354,8 +361,13 @@ export function SurveyAnswerPanel({
   const handleSubmit = async () => {
     setAttempted(true);
     submitErrors.clear();
-    if (missingRequiredQuestions(questions, draft).length > 0) {
-      submitErrors.invalid(t("missingRequired"));
+    const [firstMissing] = missingRequiredQuestions(questions, draft);
+    if (firstMissing) {
+      // Marks nothing new (each question shows its own hint), only moves
+      // focus to the first unanswered question.
+      submitErrors.invalid(t("missingRequired"), {
+        [fieldName(firstMissing.id)]: t("missingField"),
+      });
       return;
     }
     setSubmitting(true);
@@ -420,6 +432,7 @@ export function SurveyAnswerPanel({
               disabled={submitting}
               error={missingIds.has(question.id) ? t("missingField") : null}
               anonymous={form.survey.anonymous}
+              name={fieldName(question.id)}
             />
           ))}
           <div className="space-y-3 border-t border-gray-100 pt-4">

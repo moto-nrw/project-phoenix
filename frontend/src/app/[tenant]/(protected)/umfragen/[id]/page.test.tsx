@@ -115,6 +115,8 @@ describe("Umfrage, Objektseite (#4781)", () => {
   });
 
   it("explains the minimum instead of showing results below 5 answers", async () => {
+    // Beendet, damit allein die Mindestzahl fehlt.
+    state.results = results({ status: "closed" });
     renderPage();
 
     // Anker: die Umfrage ist geladen, die Auswertung erklärt die Mindestzahl.

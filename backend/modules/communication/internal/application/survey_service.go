@@ -184,7 +184,7 @@ func (s *surveyService) PublishSurvey(ctx context.Context, publishedBy, id int64
 	}
 	var announcementID *int64
 	if survey.Audience == communication.SurveyAudienceParents {
-		carrier, err := s.announcements.publishSurveyCarrier(ctx, survey, publishedBy)
+		carrier, err := s.announcements.publishSurveyCarrier(ctx, survey, publishedBy, now)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +198,7 @@ func (s *surveyService) PublishSurvey(ctx context.Context, publishedBy, id int64
 		return nil, communication.ErrSurveyNotDraft
 	}
 	if survey.Audience == communication.SurveyAudienceStaff {
-		if err := s.notifyStaff(ctx, survey, "staff-survey:%d", false, nil); err != nil {
+		if _, err := s.notifyStaff(ctx, survey, "staff-survey:%d", false, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -227,8 +227,8 @@ func (s *surveyService) CloseSurvey(ctx context.Context, id int64) (*communicati
 	return s.find(ctx, id, false)
 }
 
-// RemindSurvey nudges everyone of the audience who has not taken part. The
-// school learns how many were reminded, never who.
+// RemindSurvey nudges everyone of the audience who has not taken part and
+// gets notifications. The school learns how many were reminded, never who.
 func (s *surveyService) RemindSurvey(ctx context.Context, id int64) (int, error) {
 	survey, err := s.find(ctx, id, false)
 	if err != nil {
@@ -248,19 +248,16 @@ func (s *surveyService) RemindSurvey(ctx context.Context, id int64) (int, error)
 	if survey.Audience == communication.SurveyAudienceParents {
 		return s.announcements.remindSurveyGuardians(ctx, survey, participated)
 	}
-	reminded := 0
 	key := fmt.Sprintf("staff-survey-reminder:%d:%d:", id, s.now().UnixNano()) + "%d"
-	err = s.notifyStaff(ctx, survey, key, true, func(accountIDs []int64) []int64 {
+	return s.notifyStaff(ctx, survey, key, true, func(accountIDs []int64) []int64 {
 		remaining := accountIDs[:0:0]
 		for _, accountID := range accountIDs {
 			if !participated[accountID] {
 				remaining = append(remaining, accountID)
 			}
 		}
-		reminded = len(remaining)
 		return remaining
 	})
-	return reminded, err
 }
 
 func (s *surveyService) SurveyResults(ctx context.Context, id int64) (*communication.SurveyResults, error) {

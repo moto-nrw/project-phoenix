@@ -78,6 +78,11 @@ export interface SurveyQuestionResult {
   highest: string[];
   /** Verbesserungsbedarf: die Labels mit den niedrigsten Werten. */
   lowest: string[];
+  /**
+   * Anonyme Umfrage, Frage mit weniger Antworten als die Mindestzahl: nur
+   * `answer_count`, keine Werte und keine Freitexte.
+   */
+  withheld: boolean;
 }
 
 export interface SurveyScaleSummary {
@@ -93,7 +98,10 @@ export interface SurveyResults {
   status: SurveyStatus;
   response_count: number;
   min_responses: number;
-  /** false: noch zu wenige Antworten, `questions` ist dann leer. */
+  /**
+   * false: noch zu wenige Antworten oder eine anonyme Umfrage läuft noch;
+   * `questions` ist dann leer.
+   */
   available: boolean;
   questions: SurveyQuestionResult[];
   strengths: SurveyScaleSummary[];

@@ -10,7 +10,8 @@ function results(patch: Partial<SurveyResults> = {}): SurveyResults {
     survey_id: "7",
     title: "Zufriedenheit",
     anonymous: true,
-    status: "open",
+    // Eine anonyme Umfrage wird erst nach dem Ende ausgewertet.
+    status: "closed",
     response_count: 6,
     min_responses: 5,
     available: true,
@@ -27,6 +28,7 @@ function results(patch: Partial<SurveyResults> = {}): SurveyResults {
         texts: [],
         highest: ["4", "5"],
         lowest: ["1"],
+        withheld: false,
       },
       {
         question_id: "q2",
@@ -43,19 +45,27 @@ function results(patch: Partial<SurveyResults> = {}): SurveyResults {
         texts: [],
         highest: ["Zu Fuß"],
         lowest: ["Mit dem Bus"],
+        withheld: false,
       },
       {
         question_id: "q3",
         position: 3,
         kind: "text",
         prompt: "Was sollen wir beibehalten?",
-        answer_count: 2,
+        answer_count: 5,
         options: [],
         scale_counts: [],
         average: null,
-        texts: ["Die AGs", "Das Mittagessen"],
+        texts: [
+          "Die AGs",
+          "Das Mittagessen",
+          "Den Garten",
+          "Die Ruhe",
+          "Die Ausflüge",
+        ],
         highest: [],
         lowest: [],
+        withheld: false,
       },
     ],
     strengths: [
@@ -113,5 +123,53 @@ describe("SurveyResultsView", () => {
     expect(screen.queryByText("Die AGs")).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(container.textContent).not.toContain("Zu Fuß");
+  });
+
+  it("waits for the end of a running anonymous survey", () => {
+    render(
+      <SurveyResultsView
+        results={results({ status: "open", available: false })}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Auswertung erscheint nach dem Ende der Umfrage, wenn mindestens 5 geantwortet haben. So ist niemand an seinen Antworten erkennbar. Bisher: 6.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows only the count of a question with too few answers", () => {
+    const base = results();
+    const { container } = render(
+      <SurveyResultsView
+        results={results({
+          questions: [
+            {
+              ...base.questions[0]!,
+              answer_count: 2,
+              scale_counts: [],
+              average: null,
+              highest: [],
+              lowest: [],
+              withheld: true,
+            },
+          ],
+          strengths: [],
+        })}
+      />,
+    );
+
+    // Anker: die Frage mit ihrer Zahl und dem Hinweis.
+    expect(
+      screen.getByText("Frage 1: Mein Kind fühlt sich wohl."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Zu wenige Antworten. Das Ergebnis dieser Frage erscheint erst ab 5 Antworten, damit niemand erkennbar ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Durchschnitt/)).not.toBeInTheDocument();
+    expect(container.querySelectorAll("li")).toHaveLength(0);
   });
 });

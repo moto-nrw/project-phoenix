@@ -35,9 +35,12 @@ func evaluatedTally(responses int) *communication.SurveyTally {
 	}
 }
 
+// afterClose is a moment after evaluatedSurvey has ended.
+var afterClose = time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+
 func TestSurveyResultsHideEverythingBelowTheMinimum(t *testing.T) {
 	t.Parallel()
-	now := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+	now := afterClose
 	shuffled := false
 	results := buildSurveyResults(evaluatedSurvey(true), evaluatedTally(4), now, func([]string) { shuffled = true })
 	if results.Available || len(results.Questions) != 0 || len(results.Strengths) != 0 || shuffled {
@@ -52,19 +55,81 @@ func TestSurveyResultsHideEverythingBelowTheMinimum(t *testing.T) {
 	}
 }
 
+// An anonymous survey is evaluated once, after its end: two views of a running
+// survey would differ by exactly the answers given in between.
+func TestAnonymousSurveyResultsWaitForTheEnd(t *testing.T) {
+	t.Parallel()
+	running := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+	results := buildSurveyResults(evaluatedSurvey(true), evaluatedTally(9), running, func([]string) {})
+	if results.Available || len(results.Questions) != 0 || len(results.Strengths) != 0 {
+		t.Fatalf("a running anonymous survey shows %+v", results)
+	}
+	if results.ResponseCount != 9 || results.Status != communication.SurveyStatusOpen {
+		t.Fatalf("count/status = %d/%s", results.ResponseCount, results.Status)
+	}
+	named := buildSurveyResults(evaluatedSurvey(false), evaluatedTally(9), running, func([]string) {})
+	if !named.Available || len(named.Questions) != 4 {
+		t.Fatal("a named survey is evaluated while it runs")
+	}
+}
+
+// Below the minimum a single question of an anonymous survey shows its count
+// only: one optional answer among six would read as one person.
+func TestAnonymousSurveyWithholdsQuestionsBelowTheMinimum(t *testing.T) {
+	t.Parallel()
+	tally := evaluatedTally(6)
+	tally.AnswerCounts[3] = 1
+	tally.ScaleCounts[3] = []int{1, 0, 0, 0, 0}
+	results := buildSurveyResults(evaluatedSurvey(true), tally, afterClose, func([]string) {})
+	if !results.Available {
+		t.Fatal("six answers are evaluated")
+	}
+	sparse := results.Questions[2]
+	if !sparse.Withheld || sparse.AnswerCount != 1 || sparse.Average != nil || len(sparse.Highest)+len(sparse.Lowest) != 0 || sum(sparse.ScaleCounts) != 0 {
+		t.Fatalf("a question with one answer shows %+v", sparse)
+	}
+	texts := results.Questions[3]
+	if !texts.Withheld || len(texts.Texts) != 0 || texts.AnswerCount != 3 {
+		t.Fatalf("three free texts show %+v", texts)
+	}
+	if results.Questions[1].Withheld {
+		t.Fatal("a question with six answers is shown")
+	}
+	for _, h := range append(results.Strengths, results.Improvements...) {
+		if h.QuestionID == sparse.QuestionID {
+			t.Fatalf("a withheld question is ranked: %+v", h)
+		}
+	}
+	named := buildSurveyResults(evaluatedSurvey(false), tally, afterClose, func([]string) {})
+	if named.Questions[2].Withheld || named.Questions[2].Average == nil {
+		t.Fatal("a named survey shows every question")
+	}
+}
+
+func sum(values []int) int {
+	total := 0
+	for _, v := range values {
+		total += v
+	}
+	return total
+}
+
 func TestSurveyResultsShuffleTextsAndRankHighlights(t *testing.T) {
 	t.Parallel()
-	now := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+	now := afterClose
 	reverse := func(texts []string) {
 		for i, j := 0, len(texts)-1; i < j; i, j = i+1, j-1 {
 			texts[i], texts[j] = texts[j], texts[i]
 		}
 	}
-	results := buildSurveyResults(evaluatedSurvey(true), evaluatedTally(6), now, reverse)
+	tally := evaluatedTally(6)
+	tally.AnswerCounts[4] = 5
+	tally.Texts[4] = []string{"erster", "zweiter", "dritter", "vierter", "fünfter"}
+	results := buildSurveyResults(evaluatedSurvey(true), tally, now, reverse)
 	if !results.Available || len(results.Questions) != 4 {
 		t.Fatalf("results = %+v", results)
 	}
-	if got := results.Questions[3].Texts; len(got) != 3 || got[0] != "dritter" {
+	if got := results.Questions[3].Texts; len(got) != 5 || got[0] != "fünfter" {
 		t.Fatalf("texts must pass through the shuffle, got %v", got)
 	}
 	if got := results.Questions[0]; got.Highest[0] != "Ja" || got.Lowest[0] != "Nein" {

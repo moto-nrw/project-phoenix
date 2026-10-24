@@ -105,12 +105,11 @@ Personen**. Ein späterer Export muss Feldprojektionen und den Auftragszweck
 anwenden. Interne Protokolle können erforderlichen Auskunftskontext enthalten;
 ein Tabellenausschluss ersetzt dessen rechtliche Prüfung nicht.
 
-`exportOrder` ersetzt die physische Zeilenfolge (`ctid`) eines Exports durch
-die genannten Spalten. Die physische Folge ist die Einfügefolge; bei Tabellen,
-die zusammen geschrieben werden und getrennt bleiben müssen, würde sie die
-Zeilen wieder paaren. Die Teilnahmen und Antworten anonymer Umfragen (#4781)
-werden deshalb nach Umfrage und Konto bzw. nach zufälliger Antwort-ID
-exportiert. Jede genannte Spalte muss Teil des Exports sein.
+Teilnahmen, Antwortbögen und Einzelantworten von Umfragen (#4781) bleiben als
+`excludeSecret` außerhalb des Schulexports. Ihre Zeilen würden die Antworten
+einer Person bündeln, und zwei Exporte im Vergleich würden auf die Antworten
+derer zeigen, die dazwischen teilgenommen haben. Die Schule erhält die Summen
+der Auswertung.
 
 `personKeys` enthält direkte FK-Belege zu Kind, Erziehungsberechtigten,
 Beschäftigten, Person, Konto oder Eltern-Kind-Beziehung. Der Wächter prüft die

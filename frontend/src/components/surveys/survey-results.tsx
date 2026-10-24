@@ -104,7 +104,25 @@ function HighLow({ question }: Readonly<{ question: SurveyQuestionResult }>) {
 function QuestionResultCard({
   question,
   number,
-}: Readonly<{ question: SurveyQuestionResult; number: number }>) {
+  minResponses,
+}: Readonly<{
+  question: SurveyQuestionResult;
+  number: number;
+  minResponses: number;
+}>) {
+  if (question.withheld) {
+    return (
+      <SectionCard
+        title={`Frage ${number}: ${question.prompt}`}
+        description={answersLabel(question.answer_count)}
+        headingLevel={3}
+      >
+        <p className="text-sm text-gray-600">
+          {`Zu wenige Antworten. Das Ergebnis dieser Frage erscheint erst ab ${minResponses} Antworten, damit niemand erkennbar ist.`}
+        </p>
+      </SectionCard>
+    );
+  }
   return (
     <SectionCard
       title={`Frage ${number}: ${question.prompt}`}
@@ -200,7 +218,11 @@ export function SurveyResultsView({
       <SectionCard>
         <EmptyState
           title="Noch keine Auswertung"
-          description={`Die Auswertung erscheint ab ${results.min_responses} Antworten, damit niemand erkennbar ist. Bisher: ${results.response_count}.`}
+          description={
+            results.anonymous && results.status !== "closed"
+              ? `Die Auswertung erscheint nach dem Ende der Umfrage, wenn mindestens ${results.min_responses} geantwortet haben. So ist niemand an seinen Antworten erkennbar. Bisher: ${results.response_count}.`
+              : `Die Auswertung erscheint ab ${results.min_responses} Antworten, damit niemand erkennbar ist. Bisher: ${results.response_count}.`
+          }
         />
       </SectionCard>
     );
@@ -248,6 +270,7 @@ export function SurveyResultsView({
           key={question.question_id}
           question={question}
           number={index + 1}
+          minResponses={results.min_responses}
         />
       ))}
     </div>

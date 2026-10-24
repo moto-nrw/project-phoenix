@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	surveysVersion     = "1.15.512"
+	surveysVersion     = "1.15.513"
 	surveysDescription = "Umfragen an Eltern oder Mitarbeitende, wahlweise anonym: Teilnahme und Antwort getrennt gespeichert (#4781)"
 
 	surveysManagePermissionName = "surveys:manage"
@@ -23,6 +23,7 @@ func init() {
 		Version:     surveysVersion,
 		Description: surveysDescription,
 		DependsOn: []string{
+			"1.15.501",                 // previous head
 			"1.15.499",                 // previous head
 			"1.15.497",                 // previous head
 			morningAttendanceVersion,   // previous subject check of audit.data_deletions
@@ -53,9 +54,9 @@ func init() {
 //     response to a participation.
 //   - Accepted limit: a participation and its response are written in one
 //     transaction, so both rows carry the same xmin and sit near each other in
-//     the heap. Only database access sees either; the app, its exports and its
-//     logs never read them (the tenant export orders both tables by a column,
-//     see the data lifecycle catalog).
+//     the heap. Only database access sees either; the app and its logs never
+//     read them, and the tenant export leaves the participations, responses
+//     and answers out (see the data lifecycle catalog).
 const surveysTablesSQL = `
 		ALTER TABLE users.parent_announcements
 			DROP CONSTRAINT IF EXISTS chk_parent_announcements_system_kind,

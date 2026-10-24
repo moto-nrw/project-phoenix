@@ -77,6 +77,6 @@ export const SURVEY_LIST_KEY = "surveys-list";
 /** Der Erfolgstoast nach „Erinnern“: nur die Zahl, nie wer. */
 export function remindedMessage(count: number): string {
   return count === 0
-    ? "Alle haben schon teilgenommen. Es wurde niemand erinnert."
+    ? "Es wurde niemand erinnert. Entweder haben alle teilgenommen, oder die übrigen bekommen keine Benachrichtigungen."
     : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} an die Umfrage erinnert.`;
 }

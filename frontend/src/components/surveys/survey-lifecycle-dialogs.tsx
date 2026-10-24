@@ -120,7 +120,7 @@ export function PublishSurveyDialog({ survey, onClose, onDone }: DialogProps) {
         </p>
         <p>
           {survey.anonymous
-            ? `Anonym: Niemand sieht, wer was geantwortet hat. Die Auswertung erscheint ab ${SURVEY_MIN_RESPONSES} Antworten.`
+            ? `Anonym: Niemand sieht, wer was geantwortet hat. Die Auswertung erscheint nach dem Ende und ab ${SURVEY_MIN_RESPONSES} Antworten.`
             : "Nicht anonym: Bei jeder Antwort steht der Name."}
         </p>
         {survey.audience === "parents" && survey.send_email && (

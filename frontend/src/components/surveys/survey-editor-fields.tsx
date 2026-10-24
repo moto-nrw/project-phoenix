@@ -190,7 +190,7 @@ export function SurveyEditorFields({
           <span className="text-sm text-gray-800">
             <span className="block font-medium">Anonym</span>
             <span className="block text-gray-500">
-              {`Niemand sieht, wer was geantwortet hat. Die Auswertung erscheint erst ab ${SURVEY_MIN_RESPONSES} Antworten. Nach dem Veröffentlichen lässt sich das nicht mehr ändern.`}
+              {`Niemand sieht, wer was geantwortet hat. Die Auswertung erscheint erst nach dem Ende und ab ${SURVEY_MIN_RESPONSES} Antworten. Nach dem Veröffentlichen lässt sich das nicht mehr ändern.`}
             </span>
           </span>
         </ChoiceTile>

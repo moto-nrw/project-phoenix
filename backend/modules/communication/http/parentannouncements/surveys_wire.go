@@ -214,6 +214,7 @@ type surveyQuestionResultResponse struct {
 	Texts       []string                    `json:"texts"`
 	Highest     []string                    `json:"highest"`
 	Lowest      []string                    `json:"lowest"`
+	Withheld    bool                        `json:"withheld"`
 }
 
 type surveyHighlightResponse struct {
@@ -251,7 +252,7 @@ func toSurveyResultsResponse(r *announcementService.SurveyResults) surveyResults
 		out.Questions = append(out.Questions, surveyQuestionResultResponse{
 			QuestionID: strconv.FormatInt(q.QuestionID, 10), Position: q.Position, Kind: q.Kind, Prompt: q.Prompt,
 			AnswerCount: q.AnswerCount, Options: options, ScaleCounts: q.ScaleCounts, Average: q.Average,
-			Texts: q.Texts, Highest: q.Highest, Lowest: q.Lowest,
+			Texts: q.Texts, Highest: q.Highest, Lowest: q.Lowest, Withheld: q.Withheld,
 		})
 	}
 	return out

@@ -27,8 +27,8 @@ const (
 
 // publishSurveyCarrier creates and publishes the carrier of a parent survey
 // in the caller's school transaction and sends its push and, if chosen, its
-// e-mail. It returns the announcement id.
-func (s *service) publishSurveyCarrier(ctx context.Context, survey *communication.Survey, createdBy int64) (int64, error) {
+// e-mail at the survey's own publication time. It returns the announcement id.
+func (s *service) publishSurveyCarrier(ctx context.Context, survey *communication.Survey, createdBy int64, now time.Time) (int64, error) {
 	kind := StaffParentAnnouncementSystemKindSurvey
 	body := survey.Intro
 	if body == "" {
@@ -55,7 +55,6 @@ func (s *service) publishSurveyCarrier(ctx context.Context, survey *communicatio
 	if err := s.repo.ReplaceTargets(ctx, a.GetTenantID(), a.ID, targets); err != nil {
 		return 0, fmt.Errorf("survey: set carrier targets: %w", err)
 	}
-	now := time.Now()
 	published, err := s.repo.PublishIfDraft(ctx, a.ID, now)
 	if err != nil {
 		return 0, fmt.Errorf("survey: publish carrier announcement: %w", err)
@@ -141,7 +140,7 @@ func (s *service) remindSurveyGuardians(ctx context.Context, survey *communicati
 // surveyMailSpec words the publish mail of a survey carrier; any other
 // announcement keeps its spec.
 func surveyMailSpec(a *StaffParentAnnouncement, spec mailSpec) mailSpec {
-	if !a.IsSystem() || *a.SystemKind != StaffParentAnnouncementSystemKindSurvey {
+	if !isSurveyCarrier(a) {
 		return spec
 	}
 	spec.kicker = surveyEmailKicker
@@ -159,10 +158,28 @@ func surveyMailSpec(a *StaffParentAnnouncement, spec mailSpec) mailSpec {
 func withoutSurveyCarriers(rows []*StaffParentAnnouncement) []*StaffParentAnnouncement {
 	out := rows[:0:0]
 	for _, a := range rows {
-		if a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey {
+		if isSurveyCarrier(a) {
 			continue
 		}
 		out = append(out, a)
 	}
 	return out
+}
+
+func isSurveyCarrier(a *StaffParentAnnouncement) bool {
+	return a.IsSystem() && *a.SystemKind == StaffParentAnnouncementSystemKindSurvey
+}
+
+// findManaged loads an announcement for the staff's announcement routes. A
+// survey carrier is none of theirs: its read times per guardian would line
+// up with the answers of an anonymous survey, so it is not found here.
+func (s *service) findManaged(ctx context.Context, id int64, step string) (*StaffParentAnnouncement, error) {
+	a, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: %s: %w", step, err)
+	}
+	if a == nil || isSurveyCarrier(a) {
+		return nil, ErrNotFound
+	}
+	return a, nil
 }

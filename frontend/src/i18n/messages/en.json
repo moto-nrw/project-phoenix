@@ -2983,7 +2983,7 @@
   },
   "surveyForm": {
     "anonymousTitle": "Anonymous",
-    "anonymousText": "The school does not see who gave which answer. It only sees results once there are {min} answers.",
+    "anonymousText": "The school does not see who gave which answer. It only sees results after the survey has ended and once there are {min} answers.",
     "anonymousTextHint": "Please do not write any names if you want to stay anonymous.",
     "notAnonymousTitle": "Not anonymous",
     "notAnonymousText": "The school sees your name next to your answers.",

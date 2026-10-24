@@ -58,7 +58,7 @@ describe("SurveyAnswerPanel", () => {
     const question = screen.getByText("Mein Kind fühlt sich wohl.");
     expect(
       screen.getByText(
-        /Die Schule sieht nicht, wer was geantwortet hat\. Sie sieht erst ab 5 Antworten eine Auswertung\. Sie antworten einmal für Ihr Elternkonto/,
+        /Die Schule sieht nicht, wer was geantwortet hat\. Sie sieht erst nach dem Ende und ab 5 Antworten eine Auswertung\. Sie antworten einmal für Ihr Elternkonto/,
       ),
     ).toBeInTheDocument();
     // Der Hinweis steht im Dokument vor der ersten Frage.
@@ -108,6 +108,12 @@ describe("SurveyAnswerPanel", () => {
     expect(
       screen.getByText("Bitte beantworten Sie diese Frage."),
     ).toBeInTheDocument();
+    // Der Fokus springt in die erste unbeantwortete Pflichtfrage.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("radio", { name: "1, trifft gar nicht zu" }),
+      ).toHaveFocus(),
+    );
     expect(submit).not.toHaveBeenCalled();
   });
 

@@ -29,7 +29,7 @@ func surveyReport(r *announcementService.SurveyResults, now time.Time) ReportDoc
 		doc.Sections = append(doc.Sections, ReportSection{
 			Title: "Noch keine Auswertung",
 			Cards: []ReportCard{{
-				Title:  fmt.Sprintf("Die Auswertung erscheint ab %d Antworten.", r.MinResponses),
+				Title:  surveyReportPending(r),
 				Fields: []ReportField{{Label: "Antworten bisher", Value: strconv.Itoa(r.ResponseCount)}},
 			}},
 		})
@@ -47,6 +47,16 @@ func surveyReport(r *announcementService.SurveyResults, now time.Time) ReportDoc
 	}
 	doc.Sections = append(doc.Sections, ReportSection{Title: "Fragen", Cards: cards})
 	return doc
+}
+
+// surveyReportPending says why an evaluation is not there yet: a running
+// anonymous survey is evaluated after its end, any anonymous one from the
+// minimum on.
+func surveyReportPending(r *announcementService.SurveyResults) string {
+	if r.Anonymous && r.Status != announcementService.SurveyStatusClosed {
+		return fmt.Sprintf("Die Auswertung erscheint nach dem Ende der Umfrage, wenn mindestens %d geantwortet haben.", r.MinResponses)
+	}
+	return fmt.Sprintf("Die Auswertung erscheint ab %d Antworten.", r.MinResponses)
 }
 
 func surveyReportSubtitle(r *announcementService.SurveyResults) string {
@@ -69,6 +79,10 @@ func questionCard(q announcementService.SurveyQuestionResult) ReportCard {
 	card := ReportCard{
 		Title:  fmt.Sprintf("%d. %s", q.Position+1, q.Prompt),
 		Fields: []ReportField{{Label: "Antworten", Value: strconv.Itoa(q.AnswerCount)}},
+	}
+	if q.Withheld {
+		card.Fields = append(card.Fields, ReportField{Label: "Auswertung", Value: "Zu wenige Antworten. So bleibt niemand erkennbar."})
+		return card
 	}
 	switch q.Kind {
 	case announcementService.SurveyQuestionSingle, announcementService.SurveyQuestionMultiple:

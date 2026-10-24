@@ -154,14 +154,14 @@ func (s *surveyService) submit(ctx context.Context, survey *communication.Survey
 
 // notifyStaff pushes a staff survey to the staff audience that opted into
 // survey notifications. narrow, if set, picks who of the audience is asked.
-func (s *surveyService) notifyStaff(ctx context.Context, survey *communication.Survey, keyFormat string, reminder bool, narrow func([]int64) []int64) error {
+func (s *surveyService) notifyStaff(ctx context.Context, survey *communication.Survey, keyFormat string, reminder bool, narrow func([]int64) []int64) (int, error) {
 	n := s.announcements.notifier
 	if n == nil {
-		return nil
+		return 0, nil
 	}
 	staff, err := s.staffAudience(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	accountIDs := make([]int64, 0, len(staff))
 	for _, member := range staff {
@@ -171,14 +171,14 @@ func (s *surveyService) notifyStaff(ctx context.Context, survey *communication.S
 		accountIDs = narrow(accountIDs)
 	}
 	if len(accountIDs) == 0 || s.announcements.preferences == nil {
-		return nil
+		return 0, nil
 	}
 	accountIDs, err = s.announcements.preferences.FilterOptedIn(ctx, TypeStaffSurvey, accountIDs)
 	if err != nil {
-		return fmt.Errorf("survey: filter opted-in staff: %w", err)
+		return 0, fmt.Errorf("survey: filter opted-in staff: %w", err)
 	}
 	if len(accountIDs) == 0 {
-		return nil
+		return 0, nil
 	}
 	title, body := "Neue Umfrage", fmt.Sprintf("Bitte nehmen Sie an der Umfrage „%s“ teil.", survey.Title)
 	if reminder {
@@ -192,12 +192,12 @@ func (s *surveyService) notifyStaff(ctx context.Context, survey *communication.S
 		Audience: NotificationAudience{TenantID: survey.TenantID, Scope: ScopeStaff, StaffAccountIDs: accountIDs},
 	}.Public())
 	if s.announcements.deliveryPolicy.IsNotificationsDisabled(err) || s.announcements.deliveryPolicy.IsOutsideActiveWindow(err) {
-		return nil
+		return 0, nil
 	}
 	if err != nil {
-		return fmt.Errorf("survey: notify staff: %w", err)
+		return 0, fmt.Errorf("survey: notify staff: %w", err)
 	}
-	return nil
+	return len(accountIDs), nil
 }
 
 // DeleteExpiredSurveys deletes the surveys of one audience past the window,

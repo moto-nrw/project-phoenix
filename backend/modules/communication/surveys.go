@@ -174,6 +174,9 @@ type SurveyQuestionResult struct {
 	Texts   []string
 	Highest []string
 	Lowest  []string
+	// Withheld is set for a question of an anonymous survey with fewer answers
+	// than the minimum: it shows its count and nothing else.
+	Withheld bool
 }
 
 // SurveyHighlight is one scale question in the overall strengths or
