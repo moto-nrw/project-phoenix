@@ -40,43 +40,40 @@ func validateValue(def *config.Definition, value any) error {
 			return fmt.Errorf("value is not a valid option")
 		}
 	case config.FieldMultiSelect:
-		_, err := normalizeMultiSelectValue(def, value)
-		return err
+		return validateMultiSelectValue(def, value)
 	}
 	return nil
 }
 
-// normalizeMultiSelectValue checks a FieldMultiSelect write and returns it in
-// option order, so equal choices are stored identically. The value must be a
-// JSON array (never null) of distinct option values; an empty array is valid.
-func normalizeMultiSelectValue(def *config.Definition, value any) ([]string, error) {
-	if value == nil {
-		return nil, fmt.Errorf("expected a list")
+// validateMultiSelectValue accepts an array of distinct option values; an
+// empty array selects nothing.
+func validateMultiSelectValue(def *config.Definition, value any) error {
+	if def.Options == nil || len(def.Options.Static) == 0 {
+		return fmt.Errorf("select field has no options defined")
 	}
-	values, err := config.MultiSelectValues(value)
-	if err != nil {
-		return nil, fmt.Errorf("expected a list of options")
-	}
-	if def.Options == nil {
-		return nil, fmt.Errorf("select field has no options defined")
-	}
-	chosen := make(map[string]bool, len(values))
-	for _, element := range values {
-		if chosen[element] {
-			return nil, fmt.Errorf("option %q is listed twice", element)
+	var items []any
+	switch v := value.(type) {
+	case []any:
+		items = v
+	case []string:
+		for _, item := range v {
+			items = append(items, item)
 		}
-		if !isValidSelectOption(element, def.Options.Static) {
-			return nil, fmt.Errorf("value is not a valid option")
-		}
-		chosen[element] = true
+	default:
+		return fmt.Errorf("expected a list of options")
 	}
-	normalized := make([]string, 0, len(values))
-	for _, option := range def.Options.Static {
-		if text, ok := option.Value.(string); ok && chosen[text] {
-			normalized = append(normalized, text)
+	seen := make(map[string]bool, len(items))
+	for _, item := range items {
+		if !isValidSelectOption(item, def.Options.Static) {
+			return fmt.Errorf("value is not a valid option")
 		}
+		key := fmt.Sprint(item)
+		if seen[key] {
+			return fmt.Errorf("option %v is selected twice", item)
+		}
+		seen[key] = true
 	}
-	return normalized, nil
+	return nil
 }
 
 func validateNumberValue(def *config.Definition, value any) error {
@@ -137,6 +134,9 @@ func validateTextValue(def *config.Definition, value any) error {
 // so a rejection here only asks the admin to set the values in a consistent
 // order — never blocks a reachable configuration.
 func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
+	if module, ok := config.ModuleForSettingKey(key); ok {
+		return s.validateModuleBooking(ctx, key, module, value)
+	}
 	switch key {
 	case config.KeyOperationalOverviewScope, config.KeyAttendanceEditScope, config.KeyBlockStartScope, config.KeyBlockCompleteScope:
 		return s.validateOverviewScopeDependents(ctx, key, value)

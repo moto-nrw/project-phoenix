@@ -193,6 +193,11 @@ func (rs *Resource) finishStudentListPage(ctx context.Context, page studentListP
 	if err := rs.enrichWithCareExitFlag(ctx, responses); err != nil {
 		return nil, 0, err
 	}
+	if plan.isToday {
+		if err := rs.enrichWithClassHandovers(ctx, responses, plan.planningDate); err != nil {
+			return nil, 0, err
+		}
+	}
 
 	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
 	// grouping is per weekday, so a list rendered for another planning date must

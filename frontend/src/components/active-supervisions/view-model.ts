@@ -1,4 +1,5 @@
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import type { ClassHandover } from "~/lib/class-handover";
 import type { Student, TeacherHint } from "~/lib/student-helpers";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
@@ -449,6 +450,7 @@ export interface VisitDisplayLike {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  classHandover?: ClassHandover;
   photoUrl?: string;
 }
 
@@ -647,6 +649,7 @@ function mapVisitToSupervisionStudent(
     sick_since: visit.sickSince,
     excused: visit.excused,
     excused_since: visit.excusedSince,
+    class_handover: visit.classHandover,
     actual_arrival_time: visit.actualArrivalTime,
     actual_pickup_time: visit.actualPickupTime,
     activeGroupId: visit.activeGroupId,

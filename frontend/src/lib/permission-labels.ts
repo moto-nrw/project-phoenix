@@ -66,6 +66,7 @@ export const actionLabels: Record<string, string> = {
   class_trip_write: "Ausflug melden",
   day_hint_write: "Hinweis für die OGS",
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
+  handover_write: "Klasse an die OGS übergeben",
   "*": "Alle",
 };
 
@@ -248,6 +249,8 @@ const permissionDescriptions: Record<string, string> = {
     "Für eine eigene Klasse oder eines ihrer Kinder einen Hinweis für heute an die OGS schreiben",
   "class_day:morning_attendance_write":
     "Für eine eigene Klasse heute eintragen, wer am Vormittag da ist",
+  "class_day:handover_write":
+    "Eine eigene Klasse nach dem Unterricht an die OGS übergeben",
   "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
   "supervision:own": "Eigene Aufsichten aus dem Betreuungsplan durchführen",
 

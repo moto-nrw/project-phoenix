@@ -1,6 +1,7 @@
 "use client";
 
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 
 interface SelectOption {
@@ -15,8 +16,8 @@ interface SelectFieldProps {
   readonly options: SelectOption[];
   readonly disabled?: boolean;
   /**
-   * Multi-select: one checkbox per option. `value` is the list of chosen
-   * option values, and `onChange` receives the new list in option order.
+   * Mehrfachauswahl (Feldtyp `multiselect`, #4794): der Wert ist die Liste der
+   * angehakten Optionen, jede Option ist eine eigene Zeile zum Abhaken.
    */
   readonly multiple?: boolean;
 }
@@ -28,6 +29,11 @@ function toStr(v: unknown): string {
   return JSON.stringify(v);
 }
 
+/** Die angehakten Werte einer Mehrfachauswahl; alles andere ist leer. */
+function selectedValues(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(toStr) : [];
+}
+
 export function SelectField({
   ariaLabel = "Einstellung",
   value,
@@ -37,32 +43,38 @@ export function SelectField({
   multiple = false,
 }: SelectFieldProps) {
   if (multiple) {
-    const chosen = new Set(Array.isArray(value) ? value.map(toStr) : []);
+    const selected = selectedValues(value);
+    // Die gespeicherte Liste folgt der Reihenfolge der Optionen.
+    const toggle = (option: SelectOption, checked: boolean) =>
+      onChange(
+        options
+          .filter((opt) =>
+            opt === option ? checked : selected.includes(toStr(opt.value)),
+          )
+          .map((opt) => opt.value),
+      );
     return (
-      <div role="group" aria-label={ariaLabel} className="flex flex-col gap-2">
+      <div
+        role="group"
+        aria-label={ariaLabel}
+        className="flex flex-col gap-1.5"
+      >
         {options.map((opt) => {
-          const key = toStr(opt.value);
+          const checked = selected.includes(toStr(opt.value));
           return (
-            <label
-              key={key}
-              className="flex items-start gap-2 text-sm text-gray-700"
+            <ChoiceTile
+              key={toStr(opt.value)}
+              selected={checked}
+              disabled={disabled}
+              tone="green"
             >
               <Checkbox
-                checked={chosen.has(key)}
+                checked={checked}
                 disabled={disabled}
-                onChange={(event) => {
-                  const next = new Set(chosen);
-                  if (event.target.checked) next.add(key);
-                  else next.delete(key);
-                  onChange(
-                    options
-                      .filter((option) => next.has(toStr(option.value)))
-                      .map((option) => option.value),
-                  );
-                }}
+                onChange={(event) => toggle(opt, event.target.checked)}
               />
-              <span>{opt.label}</span>
-            </label>
+              <span className="min-w-0">{opt.label}</span>
+            </ChoiceTile>
           );
         })}
       </div>

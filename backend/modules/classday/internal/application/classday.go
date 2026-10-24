@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ClassDayDependencies wires the school-portal capability of the projection.
@@ -38,15 +37,14 @@ type ClassDayDependencies struct {
 	TripScope       ClassTripWriteScope
 	TripStatusDays  ClassTripStatusDays
 	StudentArrivals studentArrivals
-	// DayHints is the day-hint seam of moto schule (#4795); without it the
-	// day-hint capabilities answer classday.ErrDayHintsNotConfigured and the
-	// day report carries no hints. HintScope opens it. Today defaults to the
-	// Berlin calendar day.
-	DayHints  DayHints
+	// HintScope opens the day-hint seam (#4795).
 	HintScope DayHintWriteScope
-	Today     func() calendar.Date
+	// DayHintDependencies are the day-hint seam (#4795).
+	DayHintDependencies
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
+	// ClassHandoverDependencies are the class handover seam (#4794).
+	ClassHandoverDependencies
 }
 
 // classDayService is the capability: the caller's classes and staff row
@@ -61,6 +59,7 @@ type classDayService struct {
 	classTrips
 	dayHints
 	morningAttendance
+	classHandover
 }
 
 // NewClassDay creates the school-portal capability. Caller and Rosters are
@@ -86,6 +85,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		},
 		dayHints:          hints,
 		morningAttendance: newMorningAttendance(deps),
+		classHandover:     newClassHandover(deps),
 	}
 }
 

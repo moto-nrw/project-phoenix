@@ -111,6 +111,7 @@ DELETE /parent/me/push/subscriptions
 DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
 DELETE /school/class-day/day-hints/{schoolClass}/{date}
 DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
+DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
@@ -1100,6 +1101,7 @@ PUT /parent/me/profile
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
 PUT /school/class-day/day-hints/{schoolClass}/{date}
 PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
+PUT /school/class-day/handover/{schoolClass}/{date}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 QUERY /.well-known/caldav

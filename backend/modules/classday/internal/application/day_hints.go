@@ -13,6 +13,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// DayHintDependencies are the day-hint seam of moto schule (#4795): without
+// DayHints the day-hint capabilities answer classday.ErrDayHintsNotConfigured
+// and the day report carries no hints. Today defaults to the Berlin calendar
+// day.
+type DayHintDependencies struct {
+	DayHints DayHints
+	Today    func() calendar.Date
+}
+
 // dayHints is the Lehrkraft's day hint for the OGS (#4795): a short message
 // for today, for an assigned class or for one of its children. The hints are
 // People Directory's dated notes with origin school; this seam adds what the

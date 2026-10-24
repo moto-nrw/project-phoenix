@@ -7,6 +7,7 @@
 // replacing the former BFF fan-out of ~11 backend calls. Errors are
 // forwarded as-is: the backend fails the whole request instead of
 // degrading sections to empty arrays.
+import type { ClassHandover } from "~/lib/class-handover";
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
@@ -159,6 +160,7 @@ interface WireRosterRow {
   pickup_time?: string | null;
   warnings?: WireRosterWarning[];
   care_day_status?: CareDayStatus;
+  class_handover?: ClassHandover;
 }
 
 interface WireRosterWarning {
@@ -184,6 +186,7 @@ interface WireVisit {
   sick_since?: string;
   excused: boolean;
   excused_since?: string;
+  class_handover?: ClassHandover;
   photo_url?: string;
 }
 
@@ -262,6 +265,9 @@ interface SupervisionVisit {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  // Übergabe nach dem Unterricht (#4794): heute mit der Klasse an die OGS
+  // übergeben, „da“ oder „nicht da“ (auch wenn das Kind jetzt hier ist).
+  classHandover?: ClassHandover;
   photoUrl?: string;
 }
 
@@ -282,6 +288,7 @@ function toSupervisionVisit(v: WireVisit): SupervisionVisit {
     sickSince: v.sick_since,
     excused: v.excused,
     excusedSince: v.excused_since,
+    classHandover: v.class_handover,
     photoUrl: v.photo_url,
   };
 }
@@ -422,6 +429,7 @@ interface ActiveSupervisionDashboardResponse {
       checkedInAt: string | null;
       visitEntryTime: string | null;
       pickupTime?: string | null;
+      classHandover?: ClassHandover;
     }>;
   }>;
   // Folded-in sections of the selected session (#2096) — replace the former
@@ -607,6 +615,7 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
         checkedInAt: row.checked_in_at ?? null,
         visitEntryTime: row.visit_entry_time ?? null,
         pickupTime: row.pickup_time,
+        classHandover: row.class_handover,
         careDayStatus: row.care_day_status ?? "unknown",
         warnings: (row.warnings ?? []).map((warning) => ({
           kind: warning.kind,

@@ -5019,7 +5019,7 @@ function leadTeacherAccessTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Die Lehrkraft sieht keine Kinder? Dann fehlt die Klasse im Reiter `Klassen` oder sie ist anders geschrieben.",
-      "Soll die Lehrkraft die Ankunftszeit selbst ändern dürfen? Geben Sie das in den `Einstellungen` frei.",
+      "Soll die Lehrkraft die Ankunftszeit selbst ändern oder ihre Klasse an die OGS übergeben dürfen? Haken Sie das in den `Einstellungen` unter `Was Lehrkräfte in moto schule eintragen dürfen` an.",
     ],
     related: [
       HELP_TOPICS.leadInviteStaff,
@@ -5710,6 +5710,16 @@ function settingsGuideTopic(): HelpTopic {
           "`Geräte-PIN`: Mit dieser PIN meldet sich Ihr Team am Tablet an.",
           "`„Nach Hause“ ab Uhrzeit`: Ab dieser Uhrzeit können Kinder am Tablet „Nach Hause“ wählen.",
           "`„Toilette“ am Tablet anbieten`: Kinder können beim Auschecken „Toilette“ wählen. Für „Schulhof“ und „Raumwechsel“ gibt es eigene Schalter.",
+        ],
+      },
+      {
+        title: "Module",
+        description: "Welche Zusatzmodule Ihre OGS gebucht hat.",
+        ordered: false,
+        steps: [
+          "`Gebuchte Module`: Zeigt die Zusatzmodule Ihrer OGS.",
+          "Die Schalter sind nur zur Information. Sie können sie nicht ändern.",
+          "Die gebuchten Module stehen im Vertrag mit moto. Wenn Sie etwas ändern möchten, wenden Sie sich an das moto-Team.",
         ],
       },
       {
@@ -7581,6 +7591,51 @@ function teacherMorningAttendanceTopic(): HelpTopic {
 }
 
 /**
+ * Übergabe nach dem Unterricht (#4794): die Lehrkraft übergibt ihre Klasse
+ * heute an die OGS und markiert Kinder, die nicht da sind. Die OGS sieht sie
+ * in Aufsicht, Gruppe und Kindersuche als „Nach dem Unterricht da“ oder
+ * „Nach dem Unterricht nicht da“.
+ */
+function teacherClassHandoverTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherClassHandover,
+    title: "Klasse an die OGS übergeben",
+    question: "Wie übergebe ich meine Klasse nach dem Unterricht?",
+    summary:
+      "Sie bestätigen die Übergabe und markieren Kinder, die nicht da sind.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "ArrowsLeftRight",
+    steps: [
+      "Öffnen Sie in der `Klassenansicht` Ihre Klasse für heute.",
+      "Tippen Sie auf `Klasse übergeben`.",
+      "Tippen Sie bei jedem Kind, das nicht da ist, auf `Nicht da`.",
+      "Tippen Sie auf `Übergeben`.",
+    ],
+    result:
+      "Oben steht, wann Sie übergeben haben. Die OGS sieht sofort bei jedem Kind, ob es da ist.",
+    notes: [
+      "In der Liste stehen nur die Kinder, die heute in die OGS gehen.",
+      "Kinder, die am Morgen als `Fehlt` eingetragen sind, stehen schon auf `Nicht da`.",
+      "Die Anwesenheit am Morgen ändert sich dadurch nicht.",
+      "Mit `Übergabe ändern` korrigieren Sie einzelne Kinder. Die OGS sieht dann den neuen Stand.",
+      "Mit `Übergabe zurücknehmen` nehmen Sie die Übergabe heute wieder zurück.",
+    ],
+    differences: [
+      "Fehlt `Klasse übergeben`? Übergeben geht nur heute und an Schultagen. Oder Ihre OGS hat es nicht freigegeben.",
+    ],
+    troubleshootingDetails: [
+      "Übergeben klappt nicht und ein Kind gehört nicht mehr zur Klasse? Laden Sie die Seite neu.",
+    ],
+    related: [
+      HELP_TOPICS.teacherMorningAttendance,
+      HELP_TOPICS.teacherClassList,
+      HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
+/**
  * Kindangaben. Die harte Grenze: Abhol- und Notfallkontakte gibt es nur zu
  * Kindern einer laufenden Aufsicht (`student-sheet-modal.tsx`).
  */
@@ -7678,7 +7733,7 @@ function teacherClassTripTopic(): HelpTopic {
       "Öffnen Sie die Liste Ihrer Klasse.",
       "Wählen Sie `Ausflug oder Klassenfahrt melden`.",
       "Wählen Sie bei `Von` und `Bis` die Tage.",
-      "Alle Kinder der Klasse sind ausgewählt. Nehmen Sie den Haken bei Kindern weg, die nicht mitfahren.",
+      "Alle Kinder der Klasse sind ausgewählt. Öffnen Sie `Kinder` und nehmen Sie den Haken bei Kindern weg, die nicht mitfahren.",
       "Ist es nur ein Tag und kommt die Klasse am selben Tag zurück? Tragen Sie bei `Rückkehrzeit (optional)` die Uhrzeit ein.",
       "Wählen Sie `Für … Kinder melden`.",
     ],
@@ -7692,7 +7747,7 @@ function teacherClassTripTopic(): HelpTopic {
       "Kinder mit `Keine Betreuung` stehen nicht in der Auswahl. Die OGS betreut sie nicht.",
     ],
     troubleshootingDetails: [
-      "moto sagt, für ein Kind steht an einem Tag schon etwas? Dann ist das Kind zum Beispiel krank gemeldet. Es wurde nichts gespeichert. Sprechen Sie mit der OGS.",
+      "moto sagt, für ein Kind steht an einem Tag schon etwas? Unter der Meldung stehen das Kind und der Tag. Das Kind ist dann zum Beispiel krank gemeldet. Es wurde nichts gespeichert. Sprechen Sie mit der OGS.",
       "moto sagt, die OGS hat schon eine andere Ankunftszeit eingetragen? Auch dann wurde nichts gespeichert. Sprechen Sie mit der OGS.",
     ],
     related: [
@@ -8047,6 +8102,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherClassDayTopic(),
   teacherClassListTopic(),
   teacherMorningAttendanceTopic(),
+  teacherClassHandoverTopic(),
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
   teacherDayHintTopic(),

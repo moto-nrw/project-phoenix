@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	schoolPortalClassTripsVersion     = "1.15.502"
+	schoolPortalClassTripsVersion     = "1.15.513"
 	schoolPortalClassTripsDescription = "class_day:class_trip_write for the lehrkraft role (#4799)"
 )
 
@@ -15,7 +15,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     schoolPortalClassTripsVersion,
 		Description: schoolPortalClassTripsDescription,
-		DependsOn:   []string{schoolPortalArrivalExceptionsVersion, schoolPortalWriteScopeMultiSelectVersion},
+		DependsOn:   []string{schoolPortalArrivalExceptionsVersion, classHandoverVersion},
 	})
 
 	Migrations.MustRegister(schoolPortalClassTripsUp, schoolPortalClassTripsDown)

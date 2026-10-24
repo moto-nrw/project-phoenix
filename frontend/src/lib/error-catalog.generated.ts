@@ -123,6 +123,14 @@ export const ERROR_CATALOG = {
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "classday.arrival_exception_past_date":
         "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
+      "classday.class_handover_no_school_day":
+        "Heute ist kein Schultag. Eine Klasse lässt sich nur an Schultagen übergeben.",
+      "classday.class_handover_not_found":
+        "Die Klasse ist heute noch nicht übergeben. Bitte laden Sie die Seite neu.",
+      "classday.class_handover_not_today":
+        "Eine Klasse lässt sich nur heute übergeben. Bitte öffnen Sie den heutigen Tag.",
+      "classday.class_handover_unknown_child":
+        "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.class_trip_arrival_conflict":
         "Die OGS hat für ein Kind schon eine andere Ankunftszeit eingetragen. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.class_trip_invalid_range":
@@ -1210,6 +1218,10 @@ export const ERROR_CATALOG = {
         "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
       "settings.attendance_retention_below_visible":
         "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
+      "settings.module_requires":
+        "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
+      "settings.module_required_by":
+        "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab.",
       "communication.announcement_not_found":
         "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":
@@ -1346,6 +1358,14 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.class_handover_no_school_day":
+        "Today is not a school day. A class can only be handed over on school days.",
+      "classday.class_handover_not_found":
+        "The class has not been handed over today. Please reload the page.",
+      "classday.class_handover_not_today":
+        "A class can only be handed over today. Please open today.",
+      "classday.class_handover_unknown_child":
+        "A child no longer belongs to this class. Please reload the page.",
       "classday.day_hint_class_empty":
         "No child in this class attends the OGS. A note for the whole class is therefore not possible.",
       "classday.day_hint_invalid":
@@ -1663,6 +1683,14 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.class_handover_no_school_day":
+        "Сегодня не учебный день. Передать класс можно только в учебные дни.",
+      "classday.class_handover_not_found":
+        "Класс сегодня ещё не передан. Обновите страницу.",
+      "classday.class_handover_not_today":
+        "Передать класс можно только сегодня. Откройте сегодняшний день.",
+      "classday.class_handover_unknown_child":
+        "Один ребёнок больше не относится к этому классу. Обновите страницу.",
       "classday.day_hint_class_empty":
         "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "classday.day_hint_student_not_in_class":
@@ -1962,6 +1990,14 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.class_handover_no_school_day":
+        "Sot nuk është ditë shkolle. Klasa dorëzohet vetëm në ditë shkolle.",
+      "classday.class_handover_not_found":
+        "Klasa nuk është dorëzuar ende sot. Ringarkoni faqen.",
+      "classday.class_handover_not_today":
+        "Klasa dorëzohet vetëm sot. Hapni ditën e sotme.",
+      "classday.class_handover_unknown_child":
+        "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
       "classday.day_hint_class_empty":
         "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "classday.day_hint_student_not_in_class":
@@ -2272,6 +2308,14 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.class_handover_no_school_day":
+        "Dziś nie ma lekcji. Klasę można przekazać tylko w dni szkolne.",
+      "classday.class_handover_not_found":
+        "Klasa nie została dziś jeszcze przekazana. Odśwież stronę.",
+      "classday.class_handover_not_today":
+        "Klasę można przekazać tylko dzisiaj. Otwórz dzisiejszy dzień.",
+      "classday.class_handover_unknown_child":
+        "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
       "classday.day_hint_class_empty":
         "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "classday.day_hint_student_not_in_class":
@@ -2571,6 +2615,14 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.class_handover_no_school_day":
+        "Bugün okul günü değil. Sınıf yalnızca okul günlerinde teslim edilebilir.",
+      "classday.class_handover_not_found":
+        "Sınıf bugün henüz teslim edilmedi. Lütfen sayfayı yenileyin.",
+      "classday.class_handover_not_today":
+        "Sınıf yalnızca bugün teslim edilebilir. Lütfen bugünü açın.",
+      "classday.class_handover_unknown_child":
+        "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
       "classday.day_hint_class_empty":
         "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "classday.day_hint_student_not_in_class":
@@ -2873,6 +2925,14 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.class_handover_no_school_day":
+        "Сьогодні не навчальний день. Передати клас можна лише в навчальні дні.",
+      "classday.class_handover_not_found":
+        "Клас сьогодні ще не передано. Оновіть сторінку.",
+      "classday.class_handover_not_today":
+        "Передати клас можна лише сьогодні. Відкрийте сьогоднішній день.",
+      "classday.class_handover_unknown_child":
+        "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
       "classday.day_hint_class_empty":
         "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "classday.day_hint_student_not_in_class":

@@ -165,6 +165,15 @@ export function StudentRow({
             color={LOCATION_COLORS.WARNING}
           />
         ) : null}
+        {/* Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind
+            beim Übergeben als „nicht da“ markiert. Navy, damit es sich von
+            „Fehlt ohne Meldung“ (Amber) unterscheidet, das daneben stehen kann. */}
+        {row.handover_absent ? (
+          <StatusColorBadge
+            label="Bei Übergabe nicht da"
+            color={LOCATION_COLORS.NOT_ARRIVAL}
+          />
+        ) : null}
       </div>
       {/* Auf dem Handy steht die Auswahl unter dem Namen und nimmt die
           ganze Breite, sonst bliebe vom Namen nur „Albrecht, …“. */}

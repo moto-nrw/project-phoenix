@@ -2291,6 +2291,10 @@
         "arrival_exception_editor_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "arrival_exception_past_date": "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",
         "arrival_exception_weekend": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+        "class_handover_no_school_day": "Heute ist kein Schultag. Eine Klasse lässt sich nur an Schultagen übergeben.",
+        "class_handover_not_found": "Die Klasse ist heute noch nicht übergeben. Bitte laden Sie die Seite neu.",
+        "class_handover_not_today": "Eine Klasse lässt sich nur heute übergeben. Bitte öffnen Sie den heutigen Tag.",
+        "class_handover_unknown_child": "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
         "class_trip_arrival_conflict": "Die OGS hat für ein Kind schon eine andere Ankunftszeit eingetragen. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
         "class_trip_invalid_range": "Dieser Zeitraum geht nicht. Bitte wählen Sie höchstens 31 Tage, das Ende nach dem Beginn.",
         "class_trip_no_students": "Bitte wählen Sie mindestens ein Kind aus.",
@@ -2946,7 +2950,9 @@
         "presence_mode_switch_blocked": "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
         "booking_authority_blocked": "Der Buchungsmodus wurde nicht aktiviert: Für mindestens ein betreutes Kind ist kein Betreuungstag gebucht. Bitte prüfen Sie die Auswirkungen erneut.",
         "attendance_visible_exceeds_retention": "Das Team kann die Anwesenheit höchstens {retention_days} Tage zurück sehen. So lange bewahrt moto sie auf.",
-        "attendance_retention_below_visible": "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein."
+        "attendance_retention_below_visible": "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
+        "module_requires": "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
+        "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab."
       },
       "devices": {
         "tag_scan_not_found": "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",

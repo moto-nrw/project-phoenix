@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityUseSchoolPortal                       = "identity.use_school_portal"
+	CodeIdentityUsernameTaken                         = "identity.username_taken"
+	CodeImportFileColumnsMissing                      = "import.file_columns_missing"
+	CodeImportFileMissing                             = "import.file_missing"
 	CodeImportFileNoRows                              = "import.file_no_rows"
 	CodeImportFileRowInvalid                          = "import.file_row_invalid"
 	CodeImportFileTooLarge                            = "import.file_too_large"
@@ -108,6 +112,8 @@ const (
 	CodeSettingsBookingAuthorityBlocked               = "settings.booking_authority_blocked"
 	CodeSettingsInvalidValue                          = "settings.invalid_value"
 	CodeSettingsManagedByUpload                       = "settings.managed_by_upload"
+	CodeSettingsModuleRequiredBy                      = "settings.module_required_by"
+	CodeSettingsModuleRequires                        = "settings.module_requires"
 	CodeSettingsNotFound                              = "settings.not_found"
 	CodeSettingsPresenceModeSwitchBlocked             = "settings.presence_mode_switch_blocked"
 	CodeStaffExternalAccessInvalid                    = "staff.external_access_invalid"
@@ -296,15 +302,13 @@ const (
 	CodeTimetableSpontaneousCategoryArchived          = "timetable.spontaneous_category_archived"
 	CodeTimetableStaffAbsentOnDate                    = "timetable.staff_absent_on_date"
 	CodeTimetableStaffAbsentOnSource                  = "timetable.staff_absent_on_source"
-	CodeTimetableStaffAbsentOnTarget                  = "timetable.staff_absent_on_target"
-	CodeTimetableStaffAlreadyOnTarget                 = "timetable.staff_already_on_target"
-	CodeTimetableStaffNotFound                        = "timetable.staff_not_found"
-	CodeTimetableStaffNotOnSource                     = "timetable.staff_not_on_source"
-	CodeTimetableStaffPresentAndAbsent                = "timetable.staff_present_and_absent"
-	CodeTimetableStartTooEarly                        = "timetable.start_too_early"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.use_school_portal":                          "permission",
+	"identity.username_taken":                             "business_rejection",
+	"import.file_columns_missing":                         "input",
+	"import.file_missing":                                 "input",
 	"import.file_no_rows":                                 "input",
 	"import.file_row_invalid":                             "input",
 	"import.file_too_large":                               "input",
@@ -411,6 +415,8 @@ var errorCodeClasses1 = map[string]string{
 	"settings.booking_authority_blocked":                  "business_rejection",
 	"settings.invalid_value":                              "input",
 	"settings.managed_by_upload":                          "business_rejection",
+	"settings.module_required_by":                         "input",
+	"settings.module_requires":                            "input",
 	"settings.not_found":                                  "business_rejection",
 	"settings.presence_mode_switch_blocked":               "business_rejection",
 	"staff.external_access_invalid":                       "input",
@@ -599,12 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.spontaneous_category_archived":             "business_rejection",
 	"timetable.staff_absent_on_date":                      "business_rejection",
 	"timetable.staff_absent_on_source":                    "input",
-	"timetable.staff_absent_on_target":                    "business_rejection",
-	"timetable.staff_already_on_target":                   "business_rejection",
-	"timetable.staff_not_found":                           "business_rejection",
-	"timetable.staff_not_on_source":                       "input",
-	"timetable.staff_present_and_absent":                  "input",
-	"timetable.start_too_early":                           "business_rejection",
 }
 
 func init() {

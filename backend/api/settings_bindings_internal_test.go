@@ -60,8 +60,8 @@ func (writeScopeSettingsDouble) ResolveBool(_ context.Context, key string) (bool
 
 // TestClassDayWriteScopeReadsTheMultiSelect pins how the school-portal writes
 // read operations.school_portal_write_scope (#4799): every chosen value opens
-// its own write, the empty default opens none, and a read failure or a
-// malformed row is an error, never an opened write.
+// its own write, the empty default and a malformed row open none, and a read
+// failure is an error, never an opened write.
 func TestClassDayWriteScopeReadsTheMultiSelect(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -74,6 +74,9 @@ func TestClassDayWriteScopeReadsTheMultiSelect(t *testing.T) {
 		{name: "arrival exceptions only", value: []any{configModels.SchoolPortalWriteScopeClassArrivalExceptions}, arrivalExceptions: true},
 		{name: "class trips only", value: []any{configModels.SchoolPortalWriteScopeClassTrips}, reports: true},
 		{name: "both", value: []any{configModels.SchoolPortalWriteScopeClassArrivalExceptions, configModels.SchoolPortalWriteScopeClassTrips}, arrivalExceptions: true, reports: true},
+		{name: "class handover only", value: []any{configModels.SchoolPortalWriteScopeClassHandover}},
+		{name: "legacy single string", value: configModels.SchoolPortalWriteScopeClassTrips},
+		{name: "non-string element", value: []any{true}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -87,19 +90,13 @@ func TestClassDayWriteScopeReadsTheMultiSelect(t *testing.T) {
 		})
 	}
 
-	for name, settings := range map[string]writeScopeSettingsDouble{
-		"read failure":         {err: errors.New("settings unavailable")},
-		"legacy single string": {value: configModels.SchoolPortalWriteScopeClassArrivalExceptions},
-		"non-string element":   {value: []any{true}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			scope := ClassDayWriteScope{Settings: settings}
-			allowed, err := scope.SchoolMayWriteClassArrivalExceptions(context.Background())
-			require.Error(t, err)
-			require.False(t, allowed)
-			allowed, err = scope.SchoolMayReportClassTrips(context.Background())
-			require.Error(t, err)
-			require.False(t, allowed)
-		})
-	}
+	t.Run("read failure", func(t *testing.T) {
+		scope := ClassDayWriteScope{Settings: writeScopeSettingsDouble{err: errors.New("settings unavailable")}}
+		allowed, err := scope.SchoolMayWriteClassArrivalExceptions(context.Background())
+		require.Error(t, err)
+		require.False(t, allowed)
+		allowed, err = scope.SchoolMayReportClassTrips(context.Background())
+		require.Error(t, err)
+		require.False(t, allowed)
+	})
 }

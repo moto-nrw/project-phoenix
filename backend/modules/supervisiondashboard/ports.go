@@ -285,3 +285,19 @@ type Calendar interface {
 	// Clock renders an instant as the local wall clock (HH:MM).
 	Clock(at time.Time) string
 }
+
+// ClassHandover is today's handover of a child to the OGS with its class
+// (#4794): the class, the moment, the Lehrkraft's name (empty when she was
+// removed since) and whether she marked the child "nicht da".
+type ClassHandover struct {
+	SchoolClass  string    `json:"school_class"`
+	HandedOverAt time.Time `json:"handed_over_at"`
+	HandedOverBy string    `json:"handed_over_by,omitempty"`
+	Absent       bool      `json:"absent"`
+}
+
+// HandoverReader returns, in one read, the handover on day of each child
+// among studentIDs the Lehrkraft handed over to the OGS.
+type HandoverReader interface {
+	ClassHandovers(ctx context.Context, studentIDs []int64, day Date) (map[int64]ClassHandover, error)
+}

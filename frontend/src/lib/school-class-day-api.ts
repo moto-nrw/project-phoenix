@@ -3,7 +3,9 @@
 // Routen unter /api/school/* laufen über die school-Session und rufen das
 // Backend mit dem school-Token unter /school/class-day auf.
 
+import { ApiError } from "./api-error";
 import { authFetch } from "./api-helpers";
+import type { StudentStatusKind } from "./student-status-days-api";
 import type { ClassDayReport, MorningAttendanceStatus } from "./class-day-api";
 import type {
   ClassArrivalException,
@@ -126,6 +128,50 @@ export interface ClassTripReportInput {
   returnTime?: string;
 }
 
+/** Ein Tag, an dem ein gewähltes Kind schon einen Status hat (#4799). */
+export interface ClassTripConflictDay {
+  student_id: string;
+  date: string;
+  status: StudentStatusKind;
+}
+
+/**
+ * Liest die blockierenden Tage aus der Ablehnung einer Meldung, wie die OGS
+ * sie bei ihrer Klassenfahrt zeigt. Ohne genannte Tage `null`.
+ */
+export function classTripConflictsFromError(
+  err: unknown,
+): { conflicts: ClassTripConflictDay[]; total: number } | null {
+  if (
+    !(err instanceof ApiError) ||
+    err.code !== "classday.class_trip_status_conflict"
+  ) {
+    return null;
+  }
+  const raw = err.details?.conflicts;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return null;
+  }
+  const conflicts = raw.flatMap((entry: unknown): ClassTripConflictDay[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const { student_id, date, status } = entry as Record<string, unknown>;
+    if (
+      typeof student_id !== "number" ||
+      typeof date !== "string" ||
+      (status !== "sick" && status !== "excused" && status !== "class_trip")
+    ) {
+      return [];
+    }
+    return [{ student_id: student_id.toString(), date, status }];
+  });
+  const count = err.details?.conflict_count;
+  const total =
+    typeof count === "number" && Number.isFinite(count)
+      ? count
+      : conflicts.length;
+  return conflicts.length > 0 ? { conflicts, total } : null;
+}
+
 /** Was eine Meldung geschrieben hat (#4799). */
 export interface ClassTripReportResult {
   /** "class_trip": Status Klassenfahrt; "return_time": Ankunft in der OGS. */
@@ -215,4 +261,39 @@ export async function recordMorningAttendanceSchool(
     `/api/school/class-day/morning-attendance/${encodeURIComponent(schoolClass)}/${encodeURIComponent(date)}`,
     { method: "PUT", body: { marks } },
   );
+}
+
+function classHandoverPath(schoolClass: string, date: string): string {
+  return `/api/school/class-day/handover/${encodeURIComponent(schoolClass)}/${encodeURIComponent(date)}`;
+}
+
+/** Die übergebenen Kinder, die in die OGS gehen: „da“ und „nicht da“. */
+export interface ClassHandoverChildren {
+  readonly present: readonly number[];
+  readonly absent: readonly number[];
+}
+
+/** Übergibt eine zugewiesene Klasse heute an die OGS (#4794). */
+export async function handOverClassSchool(
+  schoolClass: string,
+  date: string,
+  children: ClassHandoverChildren,
+): Promise<void> {
+  await authFetch<unknown>(classHandoverPath(schoolClass, date), {
+    method: "PUT",
+    body: {
+      present_student_ids: children.present,
+      absent_student_ids: children.absent,
+    },
+  });
+}
+
+/** Nimmt die heutige Übergabe einer zugewiesenen Klasse zurück (#4794). */
+export async function withdrawClassHandoverSchool(
+  schoolClass: string,
+  date: string,
+): Promise<void> {
+  await authFetch<unknown>(classHandoverPath(schoolClass, date), {
+    method: "DELETE",
+  });
 }

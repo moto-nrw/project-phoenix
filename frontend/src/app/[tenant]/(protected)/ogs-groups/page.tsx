@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  HANDOVER_ABSENT_WORDING,
+  handoverDetail,
+  handoverLine,
+} from "~/lib/class-handover";
+import {
   useState,
   useEffect,
   Suspense,
@@ -59,6 +64,7 @@ import {
   StudentAbsenceRow,
   StudentInfoRow,
   StudentPendingExcusedRow,
+  SchoolClassIcon,
 } from "~/components/students/student-card";
 import { StickyNote } from "lucide-react";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
@@ -257,6 +263,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
     teacher_hints: student.teacher_hints,
+    class_handover: student.class_handover,
     actual_arrival_time: student.actual_arrival_time,
     actual_pickup_time: student.actual_pickup_time,
     // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -1190,6 +1197,17 @@ function OGSGroupPageContent() {
                           note={student.pending_excused_note}
                         />
                       )}
+                      {student.class_handover &&
+                        (student.class_handover.absent ? (
+                          <StudentAbsenceRow
+                            wording={HANDOVER_ABSENT_WORDING}
+                            label={handoverDetail(student.class_handover)}
+                          />
+                        ) : (
+                          <StudentInfoRow icon={<SchoolClassIcon />}>
+                            {handoverLine(student.class_handover)}
+                          </StudentInfoRow>
+                        ))}
                       {(student.teacher_hints ?? []).map((hint) => (
                         <StudentInfoRow
                           key={`${hint.school_class ?? ""}-${hint.body}`}

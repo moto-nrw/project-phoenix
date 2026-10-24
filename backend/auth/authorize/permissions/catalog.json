@@ -69,6 +69,10 @@
   },
   {
     "resource": "class_day",
+    "action": "handover_write"
+  },
+  {
+    "resource": "class_day",
     "action": "morning_attendance_write"
   },
   {

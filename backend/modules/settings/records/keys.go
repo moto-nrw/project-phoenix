@@ -1,7 +1,6 @@
 package records
 
 import (
-	"slices"
 	"strconv"
 
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
@@ -187,7 +186,6 @@ const (
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
 	KeyPresenceMode                          = "operations.presence_mode"
 	KeyAttendanceWebEnabled                  = "attendance.web_enabled"
-	KeyAttendanceNFCEnabled                  = "attendance.nfc_enabled"
 	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
 	KeyWebExceedParticipantLimit             = "attendance.web_exceed_participant_limit_enabled"
 	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
@@ -376,14 +374,18 @@ const (
 	ClassArrivalExceptionEditorsAllStaff = "all_staff"
 )
 
-// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970,
-// #4799). The OGS decides what a Lehrkraft may write into OGS data through
-// "moto schule". The setting is a multi-select: every chosen value opens one
-// write, and the default empty list keeps the school portal read-only.
+// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
+// The OGS decides what a Lehrkraft may write into OGS data through "moto
+// schule"; the setting is a multi-select (#4794), and the default selects
+// nothing, which keeps the school portal read-only.
 const (
 	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
 	// class-wide arrival day exception (#2962) for her assigned classes.
 	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
+	// SchoolPortalWriteScopeClassHandover lets a Lehrkraft hand her
+	// assigned class over to the OGS after lessons and mark the children
+	// who are not there (#4794).
+	SchoolPortalWriteScopeClassHandover = "class_handover"
 	// SchoolPortalWriteScopeClassTrips lets a Lehrkraft report a class trip
 	// (Ausflug or Klassenfahrt) for her assigned classes (#4799).
 	SchoolPortalWriteScopeClassTrips = "class_trips"
@@ -392,22 +394,25 @@ const (
 	SchoolPortalWriteScopeDayHints = "day_hints"
 )
 
-// SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
-// the school portal set class-wide arrival day exceptions.
-func SchoolPortalWritesClassArrivalExceptions(scope []string) bool {
-	return slices.Contains(scope, SchoolPortalWriteScopeClassArrivalExceptions)
-}
-
-// SchoolPortalWritesClassTrips reports a write scope that lets the school
-// portal report class trips.
-func SchoolPortalWritesClassTrips(scope []string) bool {
-	return slices.Contains(scope, SchoolPortalWriteScopeClassTrips)
-}
-
-// SchoolPortalWritesDayHints reports a write scope that lets the school
-// portal leave today's hints for the OGS (#4795).
-func SchoolPortalWritesDayHints(scope []string) bool {
-	return slices.Contains(scope, SchoolPortalWriteScopeDayHints)
+// SchoolPortalWriteScopeIncludes reports whether the resolved write scope
+// (the JSON array of KeySchoolPortalWriteScope) selects scope. A value that
+// is no list selects nothing.
+func SchoolPortalWriteScopeIncludes(value any, scope string) bool {
+	switch v := value.(type) {
+	case []string:
+		for _, item := range v {
+			if item == scope {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s == scope {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The
@@ -690,4 +695,22 @@ const (
 	KeyAnalyticsEnabled                = "analytics.enabled"
 	KeyAnalyticsFreigabe               = "analytics.freigabe"
 	KeyAnalyticsRecordingSamplePercent = "analytics.recording_sample_percent"
+)
+
+// Module switches (#4892): one per additional module of the module catalog.
+// The moto team books them per school (AccessOperatorManaged); records/modules.go
+// holds the list with names and prerequisites.
+const (
+	KeyModuleNFCAnwesenheit      = "module.nfc_anwesenheit"
+	KeyModuleMittagessen         = "module.mittagessen"
+	KeyModuleElternApp           = "module.eltern_app"
+	KeyModuleOnlineAnmeldung     = "module.online_anmeldung"
+	KeyModuleUnterrichtVormittag = "module.unterricht_vormittag"
+	KeyModuleDienstplan          = "module.dienstplan"
+	KeyModuleZeiterfassung       = "module.zeiterfassung"
+	KeyModulePersonalakte        = "module.personalakte"
+	KeyModuleTraegerUebersicht   = "module.traeger_uebersicht"
+	KeyModuleFerienbetreuung     = "module.ferienbetreuung"
+	KeyModuleVertraege           = "module.vertraege"
+	KeyModuleElternbeitraege     = "module.elternbeitraege"
 )

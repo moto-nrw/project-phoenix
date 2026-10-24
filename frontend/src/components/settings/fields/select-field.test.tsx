@@ -32,81 +32,44 @@ describe("SelectField", () => {
     expect(screen.getByRole("combobox")).toBeDisabled();
   });
 
-  describe("multiple", () => {
-    it("shows one checkbox per option, ticked for each chosen value", () => {
-      render(
-        <SelectField
-          ariaLabel="Freigaben"
-          value={["en"]}
-          onChange={vi.fn()}
-          options={options}
-          multiple
-        />,
-      );
-      const group = screen.getByRole("group", { name: "Freigaben" });
-      expect(group).toBeInTheDocument();
-      expect(screen.getAllByRole("checkbox")).toHaveLength(3);
-      expect(screen.getByRole("checkbox", { name: "English" })).toBeChecked();
-      expect(
-        screen.getByRole("checkbox", { name: "Deutsch" }),
-      ).not.toBeChecked();
-      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    });
-
-    it("adds a ticked option in option order", () => {
+  describe("multiple (#4794)", () => {
+    it("ticks the stored values and saves the list in option order", () => {
       const onChange = vi.fn();
       render(
         <SelectField
+          ariaLabel="Sprachen"
           value={["tr"]}
           onChange={onChange}
           options={options}
           multiple
         />,
       );
+      expect(screen.getByRole("group", { name: "Sprachen" })).toBeVisible();
+      expect(screen.getByRole("checkbox", { name: "Türkçe" })).toBeChecked();
+      expect(
+        screen.getByRole("checkbox", { name: "Deutsch" }),
+      ).not.toBeChecked();
+
       fireEvent.click(screen.getByRole("checkbox", { name: "Deutsch" }));
-      expect(onChange).toHaveBeenCalledExactlyOnceWith(["de", "tr"]);
+      expect(onChange).toHaveBeenLastCalledWith(["de", "tr"]);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Türkçe" }));
+      expect(onChange).toHaveBeenLastCalledWith([]);
     });
 
-    it("removes an unticked option and allows an empty list", () => {
-      const onChange = vi.fn();
+    it("reads anything but a list as nothing ticked and can be disabled", () => {
       render(
         <SelectField
-          value={["de"]}
-          onChange={onChange}
-          options={options}
-          multiple
-        />,
-      );
-      fireEvent.click(screen.getByRole("checkbox", { name: "Deutsch" }));
-      expect(onChange).toHaveBeenCalledExactlyOnceWith([]);
-    });
-
-    it("reads a missing value as nothing chosen", () => {
-      render(
-        <SelectField
-          value={null}
-          onChange={vi.fn()}
-          options={options}
-          multiple
-        />,
-      );
-      for (const checkbox of screen.getAllByRole("checkbox")) {
-        expect(checkbox).not.toBeChecked();
-      }
-    });
-
-    it("disables every checkbox when disabled", () => {
-      render(
-        <SelectField
-          value={["de"]}
+          value="none"
           onChange={vi.fn()}
           options={options}
           multiple
           disabled
         />,
       );
-      for (const checkbox of screen.getAllByRole("checkbox")) {
-        expect(checkbox).toBeDisabled();
+      for (const option of options) {
+        const box = screen.getByRole("checkbox", { name: option.label });
+        expect(box).not.toBeChecked();
+        expect(box).toBeDisabled();
       }
     });
   });

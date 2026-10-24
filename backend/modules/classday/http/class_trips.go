@@ -33,6 +33,8 @@ type ClassTripRequest struct {
 	// ReturnTime is "HH:MM", only for a one-day outing.
 	ReturnTime *string `json:"return_time,omitempty"`
 	Reason     *string `json:"reason,omitempty"`
+
+	returnTime *time.Time
 }
 
 // Bind implements render.Binder.
@@ -41,9 +43,11 @@ func (r *ClassTripRequest) Bind(_ *http.Request) error {
 		return errors.New("from and to are required")
 	}
 	if r.ReturnTime != nil {
-		if _, err := time.Parse("15:04", strings.TrimSpace(*r.ReturnTime)); err != nil {
+		returnTime, err := time.Parse("15:04", strings.TrimSpace(*r.ReturnTime))
+		if err != nil {
 			return errors.New("invalid return_time format, expected HH:MM")
 		}
+		r.returnTime = &returnTime
 	}
 	if r.Reason != nil && utf8.RuneCountInString(*r.Reason) > 200 {
 		return errors.New("reason cannot exceed 200 characters")
@@ -52,16 +56,32 @@ func (r *ClassTripRequest) Bind(_ *http.Request) error {
 }
 
 // classTripRejection carries a refused class trip as a business rejection:
-// 409 with its code, and the request transaction rolls back the children
-// already written.
+// 409 with its code and details, and the request transaction rolls back the
+// children already written.
 type classTripRejection struct {
 	error
-	code string
+	code    string
+	details any
 }
 
 func (e classTripRejection) Unwrap() error     { return e.error }
 func (e classTripRejection) ErrorCode() string { return e.code }
-func (e classTripRejection) ErrorDetails() any { return nil }
+func (e classTripRejection) ErrorDetails() any { return e.details }
+
+// classTripConflictDetails are the blocking days of a status conflict, the
+// shape of the OGS's own conflict answer; nil without a named day.
+type classTripConflictDetails struct {
+	Conflicts     []classday.ClassTripConflict `json:"conflicts"`
+	ConflictCount int                          `json:"conflict_count"`
+}
+
+func classTripStatusConflictDetails(err error) any {
+	var conflict *classday.ClassTripStatusConflictError
+	if !errors.As(err, &conflict) {
+		return nil
+	}
+	return classTripConflictDetails{Conflicts: conflict.Conflicts, ConflictCount: conflict.Total}
+}
 
 var classTripErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: classday.ErrClassTripsDisabled, Render: func(err error) render.Renderer {
@@ -86,7 +106,9 @@ var classTripErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 		return common.ErrorBusinessRejection(classTripRejection{error: err, code: common.CodeClassdayClassTripStudentNotInClass})
 	}},
 	{Target: classday.ErrClassTripStatusConflict, Render: func(err error) render.Renderer {
-		return common.ErrorBusinessRejection(classTripRejection{error: err, code: common.CodeClassdayClassTripStatusConflict})
+		return common.ErrorBusinessRejection(classTripRejection{
+			error: err, code: common.CodeClassdayClassTripStatusConflict, details: classTripStatusConflictDetails(err),
+		})
 	}},
 	{Target: classday.ErrClassTripArrivalConflict, Render: func(err error) render.Renderer {
 		return common.ErrorBusinessRejection(classTripRejection{error: err, code: common.CodeClassdayClassTripArrivalConflict})
@@ -145,11 +167,8 @@ func (rs *Resource) postClassTrip(w http.ResponseWriter, r *http.Request) {
 		To:          classday.Date(to.String()),
 		StudentIDs:  req.StudentIDs,
 		Reason:      req.Reason,
+		ReturnTime:  req.returnTime,
 		CreatedBy:   staffID,
-	}
-	if req.ReturnTime != nil {
-		returnTime, _ := time.Parse("15:04", strings.TrimSpace(*req.ReturnTime))
-		in.ReturnTime = &returnTime
 	}
 
 	result, err := rs.ClassDay.ReportClassTrip(r.Context(), in)

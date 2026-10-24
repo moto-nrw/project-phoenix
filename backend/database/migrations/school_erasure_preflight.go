@@ -23,6 +23,8 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     active.activity_session_attendance,
     active.activity_sessions,
     active.attendance,
+    active.class_handover_children,
+    active.class_handovers,
     active.combined_groups,
     active.excused_absence_requests,
     active.group_mappings,
@@ -280,11 +282,13 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'cc93958213bac77bfbb56a1a42ffb350e5c305fd1c6738c8f466a92bbfd4147c' THEN
+    ) AS edge) <> '4b396b704fd400fca1a02a347ac362b01314ba4ea9fb654aa50cecd2aef28334' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
    IF EXISTS (
+    SELECT 1 FROM active.class_handovers AS c JOIN users.staff_school_memberships AS p ON c."handed_over_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
     SELECT 1 FROM active.excused_absence_requests AS c JOIN users.student_profiles AS p ON c."student_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM active.morning_attendance AS c JOIN users.class_list_entries AS p ON c."class_list_entry_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)

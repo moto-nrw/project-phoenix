@@ -17,7 +17,9 @@ import {
   fetchClassDayClassesSchool,
   fetchClassDaySchool,
   reportClassTripSchool,
+  handOverClassSchool,
   recordMorningAttendanceSchool,
+  withdrawClassHandoverSchool,
 } from "~/lib/school-class-day-api";
 
 function ClassFromAddress() {
@@ -31,6 +33,8 @@ function ClassFromAddress() {
       fetchClasses={fetchClassDayClassesSchool}
       reportClassTrip={reportClassTripSchool}
       recordMorningAttendance={recordMorningAttendanceSchool}
+      handOverClass={handOverClassSchool}
+      withdrawClassHandover={withdrawClassHandoverSchool}
     />
   );
 }

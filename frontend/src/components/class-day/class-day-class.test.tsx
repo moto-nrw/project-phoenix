@@ -579,6 +579,225 @@ describe("ClassDayClass", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  describe("class handover (#4794)", () => {
+    function handoverReport(
+      overrides: Partial<ClassDayReport> = {},
+    ): ClassDayReport {
+      return report({
+        can_hand_over: true,
+        totals: {
+          students: 3,
+          staying: 2,
+          leaving: 1,
+          absent: 0,
+          list_entries: 0,
+        },
+        rows: [
+          {
+            student_id: 1,
+            first_name: "Klara",
+            last_name: "Klassentag",
+            registered: true,
+            stays_today: true,
+            offerings: ["Ganztag"],
+          },
+          {
+            student_id: 2,
+            first_name: "Mia",
+            last_name: "Morgenfehlt",
+            registered: true,
+            stays_today: true,
+            offerings: ["Ganztag"],
+            morning_attendance: { status: "absent", source: "teacher" },
+          },
+          {
+            student_id: 3,
+            first_name: "Hugo",
+            last_name: "Heimgeher",
+            registered: true,
+            stays_today: false,
+            offerings: [],
+          },
+        ],
+        ...overrides,
+      });
+    }
+
+    function choice(name: string) {
+      return screen.getByRole("group", { name: `Übergabe von ${name}` });
+    }
+
+    it("prefills the children going to the OGS from the morning and hands the class over", async () => {
+      const handOver = vi.fn(() => Promise.resolve());
+      let current = handoverReport();
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(current)}
+          handOverClass={handOver}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+
+      expect(
+        await screen.findByText(
+          "Die Klasse ist noch nicht an die OGS übergeben.",
+        ),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Klasse übergeben" }));
+
+      // Nur wer in die OGS geht; Mia fehlt laut Vormittag.
+      expect(
+        screen.queryByRole("group", { name: "Übergabe von Hugo Heimgeher" }),
+      ).not.toBeInTheDocument();
+      expect(
+        within(choice("Mia Morgenfehlt")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(choice("Klara Klassentag")).getByRole("button", { name: "Da" }),
+      ).toHaveAttribute("aria-pressed", "true");
+
+      fireEvent.click(
+        within(choice("Klara Klassentag")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      );
+      fireEvent.click(
+        within(choice("Mia Morgenfehlt")).getByRole("button", { name: "Da" }),
+      );
+      current = handoverReport({
+        handover: {
+          handed_over_at: "2026-09-09T09:45:00Z",
+          handed_over_by: "Petra Lehrkraft",
+          absent_count: 1,
+        },
+      });
+      current.rows[0]!.handover_absent = true;
+      fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
+
+      await waitFor(() =>
+        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), {
+          present: [2],
+          absent: [1],
+        }),
+      );
+      expect(
+        await screen.findByText(
+          "Übergeben um 11:45 Uhr von Petra Lehrkraft · 1 Kind nicht da",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Bei Übergabe nicht da")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+      ).toBeInTheDocument();
+    });
+
+    it("reopens a stored handover with its marks to change it", async () => {
+      const handOver = vi.fn(() => Promise.resolve());
+      const report = handoverReport({
+        handover: {
+          handed_over_at: "2026-09-09T09:45:00Z",
+          absent_count: 1,
+        },
+      });
+      report.rows[0]!.handover_absent = true;
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(report)}
+          handOverClass={handOver}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Übergabe ändern" }),
+      );
+      // Der gespeicherte Stand, nicht der Vormittag.
+      expect(
+        within(choice("Klara Klassentag")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(
+        within(choice("Mia Morgenfehlt")).getByRole("button", { name: "Da" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
+      await waitFor(() =>
+        expect(handOver).toHaveBeenCalledWith("4a", todayISO(), {
+          present: [2],
+          absent: [1],
+        }),
+      );
+    });
+
+    it("takes the handover back only after the confirmation", async () => {
+      const withdraw = vi.fn(() => Promise.resolve());
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() =>
+            Promise.resolve(
+              handoverReport({
+                handover: {
+                  handed_over_at: "2026-09-09T09:45:00Z",
+                  absent_count: 0,
+                },
+              }),
+            )
+          }
+          handOverClass={() => Promise.resolve()}
+          withdrawClassHandover={withdraw}
+        />,
+      );
+
+      expect(
+        await screen.findByText("Übergeben um 11:45 Uhr · alle da"),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+      );
+      expect(withdraw).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Zurücknehmen" }));
+      await waitFor(() =>
+        expect(withdraw).toHaveBeenCalledWith("4a", todayISO()),
+      );
+    });
+
+    it("shows the handover as a plain line without the write verdict", async () => {
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() =>
+            Promise.resolve(
+              handoverReport({
+                can_hand_over: false,
+                handover: {
+                  handed_over_at: "2026-09-09T09:45:00Z",
+                  handed_over_by: "Petra Lehrkraft",
+                  absent_count: 2,
+                },
+              }),
+            )
+          }
+          handOverClass={() => Promise.resolve()}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+
+      expect(
+        await screen.findByText(
+          "Übergeben um 11:45 Uhr von Petra Lehrkraft · 2 Kinder nicht da",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /übergeben|zurücknehmen/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("ClassDayClass class trips (#4799)", () => {

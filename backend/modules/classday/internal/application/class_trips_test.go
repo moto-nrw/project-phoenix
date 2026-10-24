@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -118,12 +117,10 @@ func TestReportClassTripRefusesInvalidReports(t *testing.T) {
 	t.Parallel()
 
 	returnTime := time.Date(0, 1, 1, 13, 30, 0, 0, time.UTC)
-	longReason := strings.Repeat("ä", classTripReasonMaxRunes+1)
 	cases := []struct {
 		name string
 		in   classday.ClassTripWrite
 		want error
-		text string
 	}{
 		{name: "no children", in: classday.ClassTripWrite{From: "2026-11-02", To: "2026-11-02"}, want: classday.ErrClassTripNoStudents},
 		{name: "past start", in: classday.ClassTripWrite{From: "2026-10-30", To: "2026-11-02", StudentIDs: []int64{11}}, want: classday.ErrClassTripPastDate},
@@ -133,7 +130,6 @@ func TestReportClassTripRefusesInvalidReports(t *testing.T) {
 		{name: "return time on a Saturday", in: classday.ClassTripWrite{From: "2026-11-07", To: "2026-11-07", StudentIDs: []int64{11}, ReturnTime: &returnTime}, want: classday.ErrClassTripReturnTimeWeekend},
 		{name: "child of another class", in: classday.ClassTripWrite{From: "2026-11-02", To: "2026-11-02", StudentIDs: []int64{11, 42}}, want: classday.ErrClassTripStudentNotInClass},
 		{name: "class-list entry without OGS record", in: classday.ClassTripWrite{From: "2026-11-02", To: "2026-11-02", StudentIDs: []int64{99}}, want: classday.ErrClassTripStudentNotInClass},
-		{name: "reason too long", in: classday.ClassTripWrite{From: "2026-11-02", To: "2026-11-02", StudentIDs: []int64{11}, Reason: &longReason}, text: "reason cannot exceed 200 characters"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -142,11 +138,7 @@ func TestReportClassTripRefusesInvalidReports(t *testing.T) {
 			arrivals := &fakeStudentArrivals{}
 			tc.in.SchoolClass = "3b"
 			_, err := newTripSeam(statusDays, arrivals, nil).ReportClassTrip(context.Background(), tc.in)
-			if tc.want != nil {
-				require.ErrorIs(t, err, tc.want)
-			} else {
-				require.EqualError(t, err, tc.text)
-			}
+			require.ErrorIs(t, err, tc.want)
 			assert.Empty(t, statusDays.calls, "a refused report writes no status day")
 		})
 	}

@@ -38,8 +38,17 @@ the same.
   `BulkCreateForDates`, `CreateForDates` and `DeleteStatusDay`
   (3 unresolved entries).
 
-These 9 entries cite `approval_adr: "0101"`. The counterprobe that removes
+These 9 entries cite `approval_adr: "0102"`. The counterprobe that removes
 this ADR rejects exactly those 9 entries. This approves only the changed
 evidence; it does not review the Student Presence → Care Plan lock protocol.
 That review remains follow-up work under ADR 0098. Once this ADR is in the
 base, it approves nothing further.
+
+## Compose budget
+
+The class-day composition gains exactly two lines for this seam: the
+`TripStatusDays` dependency and its `ClassTripStatusDays` port type. The arrival
+write is reused for the return time, the write scope serves both writes, and
+nothing else in `modules/classday/compose` grows. ADR 0057 point 5 requires an
+ADR for a raised budget, so this ADR raises `modules/classday/compose` from 212
+to 214 and `moduleComposeBudgetTotal` from 12384 to 12386.

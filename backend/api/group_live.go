@@ -97,8 +97,8 @@ type (
 )
 
 // groupLiveSources are the owner reads the root binds to the live-group
-// projection. Logger, Now and ExcusedRequests are optional; every other
-// source is required.
+// projection. Logger, Now, ExcusedRequests and Handovers are optional; every
+// other source is required.
 type groupLiveSources struct {
 	Presence          groupLivePresenceRows
 	People            GroupRoster
@@ -113,6 +113,7 @@ type groupLiveSources struct {
 	CareDays          groupLiveCareDays
 	CareParticipation groupLiveCareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
+	Handovers         grouplive.HandoverReader
 	StatusDays        groupLiveStatusDays
 	Logger            *slog.Logger
 	Now               func() time.Time
@@ -147,6 +148,7 @@ func newGroupLive(sources groupLiveSources, hints peopledirectory.SchoolDayHintQ
 		Calendar:        groupLiveCalendar{now: sources.Now},
 		ExcusedRequests: sources.ExcusedRequests,
 		TeacherHints:    groupLiveTeacherHints(hints),
+		Handovers:       sources.Handovers,
 		Logger:          sources.Logger,
 	}), nil
 }

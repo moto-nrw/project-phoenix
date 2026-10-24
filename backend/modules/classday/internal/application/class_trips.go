@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
@@ -17,10 +16,6 @@ import (
 // classTripArrivalReason is the reason the OGS reads at a child's arrival
 // time when a Lehrkraft reported a day outing with a return time.
 const classTripArrivalReason = "Ausflug"
-
-// classTripReasonMaxRunes bounds the optional destination or occasion, the
-// limit both the status-day note and the arrival reason accept.
-const classTripReasonMaxRunes = 200
 
 // classTrips is the second write seam of the class-day view (#4799): a
 // Lehrkraft reports a class trip or day outing of an assigned class through
@@ -159,9 +154,6 @@ func (t classTrips) validate(in classday.ClassTripWrite) ([]calendar.Date, strin
 	reason := ""
 	if in.Reason != nil {
 		reason = strings.TrimSpace(*in.Reason)
-	}
-	if utf8.RuneCountInString(reason) > classTripReasonMaxRunes {
-		return nil, "", fmt.Errorf("reason cannot exceed %d characters", classTripReasonMaxRunes)
 	}
 	dates := make([]calendar.Date, 0, from.DaysUntil(to)+1)
 	for day := from; !day.After(to); day = day.AddDays(1) {

@@ -136,6 +136,9 @@ func TestSchoolClassTripWritesStatusDays(t *testing.T) {
 	code, resp = f.post(t, body, classTripWritePermission)
 	require.Equal(t, http.StatusConflict, code, resp)
 	assert.Contains(t, resp, "classday.class_trip_status_conflict")
+	// Like the OGS, the refusal names every blocking child and day.
+	assert.Contains(t, resp, `"conflict_count":6`)
+	assert.Contains(t, resp, fmt.Sprintf(`{"date":%q,"status":"class_trip","student_id":%d}`, classTripWednesday, f.first))
 	assert.Equal(t, 3, f.classTripDays(t, f.first))
 
 	// A child of another class is refused before anything is written.

@@ -70,6 +70,10 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return ClassDayTestModule{}, err
 	}
 	hub := deliveryCompose.NewRealtimeHub(slog.Default())
+	members, err := owners.NewMembershipTestRepositories(db)
+	if err != nil {
+		return ClassDayTestModule{}, err
+	}
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: activeCaller, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
@@ -80,7 +84,10 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 			StudentStatusDayService: presenceservice.NewStatusDays(rCare.StudentStatusDay, owners.NewManualPartialAbsenceDates(rCare.CarePlan),
 				db.Pool(), rCare.CarePlan.LockExceptionDay, clockOrNow(clocks)),
 		})),
-		DayHints: people, Today: calendar.CalendarDateClock(clocks...),
+		DayHintDependencies: classdayCompose.DayHintDependencies{DayHints: people, Today: calendar.CalendarDateClock(clocks...)},
+		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
+			Handovers: presence, HandoverStaffNames: classHandoverStaffNames(members.Staff),
+		},
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
 		hub, slog.Default())
 	return ClassDayTestModule{ClassDay: classDay}, nil

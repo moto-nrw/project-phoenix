@@ -69,6 +69,8 @@ type SlimStudentResponse struct {
 	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
 	// TeacherHints are today's hints of the Lehrkraft (#4795).
 	TeacherHints []TeacherHint `json:"teacher_hints,omitempty"`
+	// ClassHandover: today's handover of the child to the OGS (#4794).
+	ClassHandover *ClassHandover `json:"class_handover,omitempty"`
 
 	// Planned + actual times (the arrival/pickup rows and their sort/group
 	// modes). Only populated for full-access rows and when the caller passes
@@ -126,6 +128,7 @@ func slimStudentResponses(responses []StudentResponse, planningDate calendar.Dat
 			DayPlanningLabel:     r.DayPlanningLabel,
 			PendingExcusedNote:   r.PendingExcusedNote,
 			TeacherHints:         r.TeacherHints,
+			ClassHandover:        r.ClassHandover,
 			DepartureModes:       departure.Modes,
 			DepartureLabel:       departure.LegacyLabel,
 			DepartureIsException: departure.Exception,

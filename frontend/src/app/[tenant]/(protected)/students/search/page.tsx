@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  HANDOVER_ABSENT_WORDING,
+  handoverDetail,
+  handoverLine,
+} from "~/lib/class-handover";
+import {
   Suspense,
   useCallback,
   useEffect,
@@ -3630,6 +3635,18 @@ function SearchPageContent() {
                               {teacherHintText(hint)}
                             </StudentInfoRow>
                           ))}
+                          {student.has_full_access !== false &&
+                            student.class_handover &&
+                            (student.class_handover.absent ? (
+                              <StudentAbsenceRow
+                                wording={HANDOVER_ABSENT_WORDING}
+                                label={handoverDetail(student.class_handover)}
+                              />
+                            ) : (
+                              <StudentInfoRow icon={<SchoolClassIcon />}>
+                                {handoverLine(student.class_handover)}
+                              </StudentInfoRow>
+                            ))}
                           {student.has_full_access !== false &&
                             (() => {
                               const absence = getStudentAbsence({

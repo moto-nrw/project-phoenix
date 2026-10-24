@@ -2,6 +2,7 @@
 // Type definitions and helper functions for students
 
 import { schoolClassLabel } from "./school-class-label";
+import type { ClassHandover } from "~/lib/class-handover";
 import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
@@ -469,6 +470,9 @@ export interface BackendStudent {
   pending_excused_note?: string;
   // Hinweise der Lehrkraft für heute (#4795); nur mit Lesezugriff.
   teacher_hints?: TeacherHint[];
+  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
+  // mit der Klasse übergeben, „da“ oder „nicht da“.
+  class_handover?: ClassHandover;
   group_id?: number;
   group_name?: string;
   address_street?: string;
@@ -553,6 +557,9 @@ export interface BackendSlimStudent {
   pending_excused_note?: string;
   // Hinweise der Lehrkraft für heute (#4795); nur mit Lesezugriff.
   teacher_hints?: TeacherHint[];
+  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
+  // mit der Klasse übergeben, „da“ oder „nicht da“.
+  class_handover?: ClassHandover;
   departure_modes?: DepartureMode[];
   departure_label?: string;
   departure_is_exception?: boolean;
@@ -703,6 +710,9 @@ export interface Student {
   pending_excused_note?: string;
   // Hinweise der Lehrkraft für heute (#4795); nur mit Lesezugriff.
   teacher_hints?: TeacherHint[];
+  // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
+  // mit der Klasse übergeben, „da“ oder „nicht da“.
+  class_handover?: ClassHandover;
   address_street?: string;
   address_city?: string;
   address_postal_code?: string;
@@ -833,6 +843,7 @@ export function mapStudentResponse(
     care_exit_recorded: backendStudent.care_exit_recorded ?? false,
     pending_excused_note: backendStudent.pending_excused_note,
     teacher_hints: backendStudent.teacher_hints,
+    class_handover: backendStudent.class_handover,
     address_street: backendStudent.address_street,
     address_city: backendStudent.address_city,
     address_postal_code: backendStudent.address_postal_code,
@@ -911,6 +922,7 @@ export function mapSlimStudentResponse(
     day_planning_label: backendStudent.day_planning_label,
     pending_excused_note: backendStudent.pending_excused_note,
     teacher_hints: backendStudent.teacher_hints,
+    class_handover: backendStudent.class_handover,
     departure_modes: backendStudent.departure_modes,
     departure_label: backendStudent.departure_label,
     departure_is_exception: backendStudent.departure_is_exception,

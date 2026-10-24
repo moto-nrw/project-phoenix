@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	schoolDayHintsVersion     = "1.15.503"
+	schoolDayHintsVersion     = "1.15.514"
 	schoolDayHintsDescription = "Tageshinweis der Lehrkraft: Tagesnotiz aus moto schule für die OGS (#4795)"
 )
 
@@ -19,7 +19,7 @@ func init() {
 		Version:     schoolDayHintsVersion,
 		Description: schoolDayHintsDescription,
 		DependsOn: []string{
-			schoolPortalClassTripsVersion, // the last migration before this one (#4871, stack parent)
+			schoolPortalClassTripsVersion, // the last migration before this one (#4871)
 			studentNotesVersion,           // the table the hints are rows of
 			lehrkraftRoleVersion,          // the role the write permission goes to
 		},
