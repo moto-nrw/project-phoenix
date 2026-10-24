@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -353,39 +352,57 @@ func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, prese
 		if current.RotatedAt == nil {
 			return current, current.ID != presented.ID, nil
 		}
-		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
+		if current.ReplacementTokenHash == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
 			return current, false, identityaccess.ErrInvalidToken
 		}
 		if err := s.requireAccountRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
 			return current, false, err
 		}
 		proofValidated = true
-		next, err := s.sessions.findAccountSessionForUpdate(ctx, *current.ReplacementToken)
+		next, err := s.handoffSuccessor(ctx, current)
 		if err != nil {
-			if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-				return current, false, identityaccess.ErrInvalidToken
-			}
-			return current, false, fmt.Errorf("follow refresh-token handoff: %w", err)
-		}
-		// Tenant 0 is the legacy pre-tenant-claim state whose first successor
-		// may carry the resolved tenant; modern lineage stays pinned.
-		if !sameAccountSessionLineage(current, next) {
-			return current, false, identityaccess.ErrInvalidToken
+			return current, false, err
 		}
 		current = next
 	}
 	return current, false, identityaccess.ErrInvalidToken
 }
 
+// handoffSuccessor locks the session a rotated one handed off to. Only the
+// hash of the successor is stored, so its raw value is recomputed from the
+// token this hop was presented with (#4902); a hand-off recorded before
+// #4902 named a random successor and is not recoverable.
+func (s *AccountAuthentication) handoffSuccessor(ctx context.Context, current domain.AccountSession) (domain.AccountSession, error) {
+	successorToken := domain.SuccessorRefreshToken(current.Token)
+	if domain.HashToken(successorToken) != *current.ReplacementTokenHash {
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
+	}
+	next, err := s.sessions.findAccountSessionForUpdate(ctx, successorToken)
+	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return domain.AccountSession{}, fmt.Errorf("follow refresh-token handoff: %w", err)
+	}
+	// Tenant 0 is the legacy pre-tenant-claim state whose first successor
+	// may carry the resolved tenant; modern lineage stays pinned.
+	if !sameAccountSessionLineage(current, next) {
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
+	}
+	return next, nil
+}
+
 // createAndPersistSuccessor mints the successor and records the bounded
-// predecessor hand-off atomically.
+// predecessor hand-off atomically. The successor follows from the presented
+// token, so a lost response can be recomputed although only hashes are
+// stored (#4902).
 func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, predecessor domain.AccountSession, accountID, tenantID int64, scope string, now time.Time) (domain.AccountSession, error) {
 	expiry := now.Add(s.codec.RefreshExpiry())
 	if predecessor.FamilyExpiryCap != nil && predecessor.FamilyExpiryCap.Before(expiry) {
 		expiry = *predecessor.FamilyExpiryCap
 	}
 	successor := domain.AccountSession{
-		Token:           uuid.Must(uuid.NewV4()).String(),
+		Token:           domain.SuccessorRefreshToken(predecessor.Token),
 		AccountID:       accountID,
 		TenantID:        tenantID,
 		Expiry:          expiry,

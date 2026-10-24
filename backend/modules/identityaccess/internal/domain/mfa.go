@@ -7,7 +7,6 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -204,8 +203,7 @@ func GenerateTrustedDeviceToken() (string, error) {
 // SHA-256 is enough because the token is 256 bits of randomness: there is no
 // offline-guessing surface.
 func HashTrustedDeviceToken(rawToken string) string {
-	sum := sha256.Sum256([]byte(rawToken))
-	return hex.EncodeToString(sum[:])
+	return HashToken(rawToken)
 }
 
 // SignTrustedDeviceToken returns rawToken + "." + base64(HMAC-SHA256). The

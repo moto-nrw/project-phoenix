@@ -139,9 +139,12 @@ func TestOperatorTokenRuntimeEvidence(t *testing.T) {
 			if _, err := tokens.FindOperatorInvitation(ctx, stored.ID); err != nil {
 				return err
 			}
-			if err := tokens.ExtendOperatorInvitation(ctx, stored.ID, time.Now().Add(48*time.Hour)); err != nil {
+			// A resend replaces the link; the acceptance below follows the new one.
+			reissued, err := tokens.ExtendOperatorInvitation(ctx, stored.ID, time.Now().Add(48*time.Hour))
+			if err != nil {
 				return err
 			}
+			invitation.Token = reissued
 			return tokens.RecordOperatorInvitationDelivery(ctx, stored.ID, identityaccess.TokenDelivery{})
 		})
 		// Accept: redemption and operator creation commit together.

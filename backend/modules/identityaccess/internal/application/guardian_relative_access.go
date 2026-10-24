@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -419,10 +420,13 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 	}
 
 	// No account yet: refresh expiry, clear stale email tracking, dispatch.
+	// The frozen link was never mailed and only its hash is stored (#4902):
+	// the released mail carries a new one.
 	expiry, err := l.delivery.InvitationExpiry(ctx)
 	if err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
+	invitation.Token = uuid.Must(uuid.NewV4()).String()
 	invitation.ExpiresAt = now.Add(expiry)
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil

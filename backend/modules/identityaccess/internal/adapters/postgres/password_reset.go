@@ -10,7 +10,8 @@ import (
 )
 
 // Identity-owned rows behind the password reset flows (#2722). The tables
-// carry no tenant; the flows run before authentication.
+// carry no tenant; the flows run before authentication. The token column
+// holds the hex SHA-256 of the link token only (#4902).
 
 const passwordResetWindowLength = "1 hour"
 
@@ -18,7 +19,7 @@ type passwordResetTokenRow struct {
 	bun.BaseModel   `bun:"table:auth.password_reset_tokens,alias:password_reset_token"`
 	ID              int64      `bun:"id,pk,autoincrement"`
 	AccountID       int64      `bun:"account_id,notnull"`
-	Token           string     `bun:"token,notnull"`
+	TokenHash       string     `bun:"token,notnull"`
 	Expiry          time.Time  `bun:"expiry,notnull"`
 	Used            bool       `bun:"used,notnull"`
 	EmailSentAt     *time.Time `bun:"email_sent_at"`
@@ -30,7 +31,7 @@ type passwordResetTokenRow struct {
 
 func (r passwordResetTokenRow) toDomain() domain.PasswordResetToken {
 	return domain.PasswordResetToken{
-		ID: r.ID, AccountID: r.AccountID, Token: r.Token, Expiry: r.Expiry, Used: r.Used,
+		ID: r.ID, AccountID: r.AccountID, Expiry: r.Expiry, Used: r.Used,
 		Delivery:  domain.TokenDelivery{SentAt: r.EmailSentAt, Error: r.EmailError, RetryCount: r.EmailRetryCount},
 		CreatedAt: r.CreatedAt,
 	}
@@ -106,7 +107,7 @@ func (s *Store) InsertPasswordResetToken(ctx context.Context, token domain.Passw
 	if err != nil {
 		return domain.PasswordResetToken{}, domain.OperationStats{}, err
 	}
-	row := passwordResetTokenRow{AccountID: token.AccountID, Token: token.Token, Expiry: token.Expiry}
+	row := passwordResetTokenRow{AccountID: token.AccountID, TokenHash: domain.HashToken(token.Token), Expiry: token.Expiry}
 	started := time.Now()
 	result, err := db.NewInsert().Model(&row).Returning("*").Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
@@ -114,7 +115,9 @@ func (s *Store) InsertPasswordResetToken(ctx context.Context, token domain.Passw
 		return domain.PasswordResetToken{}, stats, fmt.Errorf("identity access postgres: insert password reset token: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
-	return row.toDomain(), stats, nil
+	created := row.toDomain()
+	created.Token = token.Token
+	return created, stats, nil
 }
 
 func (s *Store) FindRedeemablePasswordResetToken(ctx context.Context, token string, now time.Time) (domain.PasswordResetToken, bool, domain.OperationStats, error) {
@@ -125,13 +128,15 @@ func (s *Store) FindRedeemablePasswordResetToken(ctx context.Context, token stri
 	var row passwordResetTokenRow
 	started := time.Now()
 	err = db.NewSelect().Model(&row).
-		Where(`"password_reset_token".token = ?`, token).
+		Where(`"password_reset_token".token = ?`, domain.HashToken(token)).
 		Where(`"password_reset_token".expiry > ?`, now).
 		Where(`"password_reset_token".used = FALSE`).
 		Limit(1).
 		Scan(ctx)
 	found, stats, err := scanOne("find redeemable password reset token", started, err)
-	return row.toDomain(), found, stats, err
+	redeemable := row.toDomain()
+	redeemable.Token = token
+	return redeemable, found, stats, err
 }
 
 func (s *Store) RedeemPasswordResetToken(ctx context.Context, id int64) (bool, domain.OperationStats, error) {

@@ -183,7 +183,7 @@ func (s *fakeOperatorTokenStore) RevokeOperatorInvitationsForEmail(_ context.Con
 	return revoked, stats(), nil
 }
 
-func (s *fakeOperatorTokenStore) ExtendOperatorInvitation(_ context.Context, id int64, expiresAt, now time.Time) (bool, domain.OperationStats, error) {
+func (s *fakeOperatorTokenStore) ExtendOperatorInvitation(_ context.Context, id int64, expiresAt, now time.Time, token string) (bool, domain.OperationStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.record("ExtendOperatorInvitation")
@@ -195,6 +195,7 @@ func (s *fakeOperatorTokenStore) ExtendOperatorInvitation(_ context.Context, id 
 		return false, stats(), nil
 	}
 	invitation.ExpiresAt = expiresAt
+	invitation.Token = token
 	s.invitations[id] = invitation
 	return true, stats(), nil
 }

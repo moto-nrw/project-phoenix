@@ -89,6 +89,9 @@ func TestPasswordResetMailLinksToTheScopesPortal(t *testing.T) {
 	resetURL, _ := content["ResetURL"].(string)
 	assert.Contains(t, resetURL, "/reset-password?token="+link.Token)
 	assert.Positive(t, content["ExpiryMinutes"], "the mail names the link's lifetime")
+	var stored string
+	require.NoError(t, db.NewRaw(`SELECT token FROM auth.password_reset_tokens WHERE id = ?`, link.ID).Scan(ctx, &stored))
+	assert.Equal(t, sha256Hex(link.Token), stored, "the database keeps only the hash of the link (#4902)")
 
 	parentLink, err := module.AccountAuthentication.InitiatePasswordReset(ctx, parent.Email, identityaccess.PasswordResetScopeParent)
 	require.NoError(t, err)

@@ -122,20 +122,26 @@ type OperatorMFAAttempts struct {
 
 // OperatorSession is one persisted, revocable operator refresh session.
 // Rotation records the hand-off on the predecessor (RotatedAt,
-// ReplacementToken, RecoveryProofHash) so a replay can be detected and a
+// ReplacementTokenHash, RecoveryProofHash) so a replay can be detected and a
 // lost response recovered within the rotation grace.
+//
+// Token is the raw value the refresh JWT carries. Only the minting or
+// presenting request knows it; the store keeps TokenHash, its hex SHA-256,
+// and ReplacementTokenHash likewise names the successor by hash (#4902).
+// Listings and revocations return Token empty.
 type OperatorSession struct {
-	ID                int64
-	OperatorID        int64
-	Token             string
-	Expiry            time.Time
-	FamilyID          string
-	Generation        int
-	RotatedAt         *time.Time
-	ReplacementToken  *string
-	RecoveryProofHash []byte
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                   int64
+	OperatorID           int64
+	Token                string
+	TokenHash            string
+	Expiry               time.Time
+	FamilyID             string
+	Generation           int
+	RotatedAt            *time.Time
+	ReplacementTokenHash *string
+	RecoveryProofHash    []byte
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // OperatorQuery resolves operators. Every lookup returns ErrOperatorNotFound
@@ -202,28 +208,34 @@ type OperatorAccess interface {
 
 // AccountSession is one persisted, revocable refresh session of a platform
 // account at one school. A family groups the generations one login produced
-// through rotation; the hand-off (RotatedAt, ReplacementToken,
+// through rotation; the hand-off (RotatedAt, ReplacementTokenHash,
 // RecoveryProofHash) lets a lost rotation response be recovered within the
 // rotation grace and a replay be detected. FamilyExpiryCap bounds every
 // successor of a family a tenant switch retired.
+//
+// Token is the raw value the refresh JWT carries. Only the minting or
+// presenting request knows it; the store keeps TokenHash, its hex SHA-256,
+// and ReplacementTokenHash likewise names the successor by hash (#4902).
+// Listings and revocations return Token empty.
 type AccountSession struct {
-	ID                int64
-	TenantID          int64
-	AccountID         int64
-	Token             string
-	Expiry            time.Time
-	Mobile            bool
-	Identifier        *string
-	PortalScope       string
-	MFAVerified       bool
-	FamilyID          string
-	FamilyExpiryCap   *time.Time
-	Generation        int
-	RotatedAt         *time.Time
-	ReplacementToken  *string
-	RecoveryProofHash []byte
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                   int64
+	TenantID             int64
+	AccountID            int64
+	Token                string
+	TokenHash            string
+	Expiry               time.Time
+	Mobile               bool
+	Identifier           *string
+	PortalScope          string
+	MFAVerified          bool
+	FamilyID             string
+	FamilyExpiryCap      *time.Time
+	Generation           int
+	RotatedAt            *time.Time
+	ReplacementTokenHash *string
+	RecoveryProofHash    []byte
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // AccountSessionLiveness narrows a listing by expiry.
