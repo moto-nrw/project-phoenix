@@ -99,10 +99,7 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	if err := s.replaceGuardianPhones(ctx, profile, input.Contact.Phones); err != nil {
 		return nil, err
 	}
-	// The pickup permission itself waits for the OGS (#4780).
-	linkInput := input
-	linkInput.CanPickup = false
-	link, err := s.linkGuardianContact(ctx, child.TenantID, studentID, profile.ID, linkInput)
+	link, err := s.linkGuardianContact(ctx, child.TenantID, studentID, profile.ID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -114,8 +111,9 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	if err := s.auditContactChanges(ctx, accountID, studentID, profile.ID, guardianContactSnapshot{}, profile, phones); err != nil {
 		return nil, err
 	}
+	granted := false
 	flagInput := GuardianRelationshipInput{
-		CanPickup:          &linkInput.CanPickup,
+		CanPickup:          &granted,
 		IsEmergencyContact: &input.IsEmergencyContact,
 	}
 	if err := s.auditPickupFlagChanges(ctx, accountID, studentID, profile.ID, flagInput, false, false); err != nil {
@@ -200,6 +198,9 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 		EmergencyPriority:  1,
 	}
 	s.applyDefaultGuardianRole(link)
+	// The role follows what the family asks for; the pickup permission itself
+	// waits for the OGS to confirm the signed request (#4780).
+	link.CanPickup = false
 	link.TenantID = tenantID
 	if err := s.GuardianPolicy.NormalizeRelationship(link); err != nil {
 		return nil, err

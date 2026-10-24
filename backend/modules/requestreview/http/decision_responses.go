@@ -37,7 +37,7 @@ type CareRequestDetailResponse struct {
 	// weekly-plan rows. Dates are calendar days, times wall-clock "15:04".
 	PickupChange *CareRequestPickupChangeResponse `json:"pickup_change,omitempty"`
 	// Signed says the guardian signed the request (#4780).
-	Signed bool `json:"signed"`
+	Signed bool `json:"signed,omitempty"`
 }
 
 // CareRequestPickupChangeResponse is the stored ask of one day. PickupTime

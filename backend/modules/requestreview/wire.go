@@ -56,7 +56,7 @@ type CareRequestResponse struct {
 	ImpactToken     string                    `json:"impact_token"`
 	// Signed says the guardian signed the request (#4780); its proof is
 	// served as a PDF.
-	Signed bool `json:"signed"`
+	Signed bool `json:"signed,omitempty"`
 }
 
 // AffectedCareBlock is one timetable block a care-schedule change touches.
@@ -97,7 +97,7 @@ type CareRequestHistoryResponse struct {
 	CreatedAt      time.Time                 `json:"created_at"`
 	DecidedAt      time.Time                 `json:"decided_at"`
 	DecidedByName  string                    `json:"decided_by_name,omitempty"`
-	Signed         bool                      `json:"signed"`
+	Signed         bool                      `json:"signed,omitempty"`
 }
 
 // OfferingRequestResponse is the staff-facing projection of one parent
