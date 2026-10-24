@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.519 (#3873): the installed preflight that also locks the meal
+// 1.15.526 (#3873): the installed preflight that also locks the meal
 // ordering tables. Their foreign keys to platform.schools, to
 // users.student_profiles and among themselves change the fingerprint.
 func installMealOrderErasurePreflight(ctx context.Context, tx bun.Tx) error {
@@ -71,6 +71,7 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
     audit.guardian_financial_changes,
     audit.personnel_number_changes,
     audit.room_color_migration_backup,
+    audit.signatures,
     audit.staff_master_data_changes,
     audit.student_consent_changes,
     audit.student_deletions,
@@ -291,7 +292,7 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> 'b73f5b1389d299ef04337b5077066575a07b1df0c15b3dee81c9cfe7df8b8b81' THEN
+    ) AS edge) <> '847078b61aca4e7029f760fcf4f933f0cc28b1b5ad9e35d1eb3e3b157ed5917f' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

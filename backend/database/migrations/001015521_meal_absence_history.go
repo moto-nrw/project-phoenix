@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealAbsenceHistoryVersion     = "1.15.514"
+	mealAbsenceHistoryVersion     = "1.15.521"
 	mealAbsenceHistoryDescription = "Mittagessen: entschuldigt und Ausflug melden das Essen ab wie eine Krankmeldung (#3873)"
 )
 
@@ -23,7 +23,8 @@ func init() {
 			"1.15.499",                     // password login protection,
 			morningAttendanceVersion,       // morning attendance,
 			moduleNFCSwitchVersion,         // the NFC module switch
-			classHandoverVersion,           // the class handover
+			classHandoverVersion,           // the class handover,
+			signaturesVersion,              // the signatures
 			schoolPortalClassTripsVersion,  // and the class trip reports
 		},
 	})

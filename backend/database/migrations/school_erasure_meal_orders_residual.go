@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.519 (#3873): the installed residual check that also finds rows
+// 1.15.526 (#3873): the installed residual check that also finds rows
 // left in the meal ordering tables.
 func installMealOrderErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasureResidualSQL)
@@ -118,6 +118,8 @@ const mealOrderErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_
     SELECT 1 FROM audit.personnel_number_changes AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM audit.room_color_migration_backup AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM audit.signatures AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM audit.staff_master_data_changes AS r WHERE r.tenant_id = p_school_id
     UNION ALL

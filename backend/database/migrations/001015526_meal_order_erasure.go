@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	mealOrderErasureVersion     = "1.15.519"
+	mealOrderErasureVersion     = "1.15.526"
 	mealOrderErasureDescription = "Mandantenlöschung: Bestellungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen einer Schule (#3873, #3837)"
 )
 
@@ -18,7 +18,7 @@ func init() {
 		Description: mealOrderErasureDescription,
 		DependsOn: []string{
 			mealCaterersVersion,
-			classHandoverVersion, // development's newest reinstall of the erasure functions
+			signaturesVersion, // development's newest reinstall of the erasure functions
 		},
 	})
 	Migrations.MustRegister(mealOrderErasureUp, mealOrderErasureDown)
@@ -29,7 +29,7 @@ func init() {
 // the school erasure functions. Up installs them with the eight
 // school-scoped tables of the meal ordering (#3873) on top of development's
 // current functions (the school_erasure_*.go constants, last reinstalled by
-// 1.15.502); Down installs development's current functions. The caterer
+// 1.15.506); Down installs development's current functions. The caterer
 // business and its accounts are shared across schools and stay (ADR 0077).
 func mealOrderErasureUp(ctx context.Context, db *bun.DB) error {
 	return installSchoolErasureSteps(ctx, db, "add the meal orders to the school erasure",

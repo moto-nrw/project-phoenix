@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.519 (#3873): the installed static deletion with the meal ordering
+// 1.15.526 (#3873): the installed static deletion with the meal ordering
 // tables: an order's changes and lines before its days, its days before
 // the order, all before the children and the school root.
 func installMealOrderErasureDelete(ctx context.Context, tx bun.Tx) error {
@@ -390,6 +390,12 @@ const mealOrderErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_er
    SELECT count(*) INTO v_count FROM enrollment.request_reads AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM enrollment.request_reads AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('enrollment.request_reads', v_count);
+   SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_submissions', v_count);
+   SELECT count(*) INTO v_count FROM audit.signatures AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM audit.signatures AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('audit.signatures', v_count);
    SELECT count(*) INTO v_count FROM enrollment.requests AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM enrollment.requests AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('enrollment.requests', v_count);
@@ -576,9 +582,6 @@ const mealOrderErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_er
    SELECT count(*) INTO v_count FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.notification_preferences', v_count);
-   SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
-   DELETE FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
-   v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_submissions', v_count);
    SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_versions', v_count);

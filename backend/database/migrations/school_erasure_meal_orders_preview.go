@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.519 (#3873): the installed preview with the counts of the meal
+// 1.15.526 (#3873): the installed preview with the counts of the meal
 // ordering tables.
 func installMealOrderErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasurePreviewSQL)
@@ -73,6 +73,7 @@ const mealOrderErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('audit.guardian_financial_changes',(SELECT count(*) FROM audit.guardian_financial_changes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('audit.personnel_number_changes',(SELECT count(*) FROM audit.personnel_number_changes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('audit.room_color_migration_backup',(SELECT count(*) FROM audit.room_color_migration_backup AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('audit.signatures',(SELECT count(*) FROM audit.signatures AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('audit.staff_master_data_changes',(SELECT count(*) FROM audit.staff_master_data_changes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('audit.student_consent_changes',(SELECT count(*) FROM audit.student_consent_changes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('audit.student_deletions',(SELECT count(*) FROM audit.student_deletions AS r WHERE r.tenant_id = p_school));
