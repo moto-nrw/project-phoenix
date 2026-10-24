@@ -6,7 +6,8 @@ import { apiErrorFromBody, transportFetch } from "./api-error";
  * on the shared error path (#2517).
  */
 
-import { z } from "zod";
+// zod/mini: the full "zod" build adds ~20 kB to every route's client bundle.
+import * as z from "zod/mini";
 
 export type PreferencePortal = "tenant" | "parent" | "school";
 

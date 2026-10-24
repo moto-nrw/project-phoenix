@@ -23,6 +23,8 @@ type row struct {
 	Position      int           `bun:"position"`
 	Dish          string        `bun:"dish"`
 	Note          *string       `bun:"note"`
+	// nullzero: an unset list inserts the column default, the empty list.
+	Allergens []string `bun:"allergens,array,nullzero"`
 }
 
 type participationScheduleRow struct {
@@ -83,7 +85,7 @@ func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.
 	}
 	entries := make([]domain.Entry, 0, len(rows))
 	for _, value := range rows {
-		entries = append(entries, domain.Entry{Date: value.Date, Position: value.Position, Dish: value.Dish, Note: value.Note})
+		entries = append(entries, domain.Entry{Date: value.Date, Position: value.Position, Dish: value.Dish, Note: value.Note, Allergens: value.Allergens})
 	}
 	return entries, stats, nil
 }
@@ -99,7 +101,11 @@ func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []mealp
 	}
 	rows := make([]row, 0, len(dishes))
 	for position, dish := range dishes {
-		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note})
+		allergens := make([]string, 0, len(dish.Allergens))
+		for _, allergen := range dish.Allergens {
+			allergens = append(allergens, string(allergen))
+		}
+		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note, Allergens: allergens})
 	}
 	query := db.NewInsert().Model(&rows).ModelTableExpr(`schedule.meal_plan_entries`)
 	started := time.Now()

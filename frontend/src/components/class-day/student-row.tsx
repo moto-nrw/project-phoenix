@@ -7,10 +7,17 @@
 // dieselbe Zeile; die Zeile ist der einzige Ort, an dem eine Abweichung vom
 // üblichen Plan sichtbar wird.
 
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import type { ClassDayRow } from "~/lib/class-day-api";
+import type { ClassDayRow, MorningAttendanceStatus } from "~/lib/class-day-api";
 import { reportedTodayLabel } from "./day-changes";
+import {
+  missingWithoutReport,
+  morningStatus,
+  type MorningAttendanceDraft,
+} from "./morning-attendance";
 import { statusColor, statusLabel } from "./status-labels";
 
 function rowDetailLine(row: ClassDayRow, enrollmentKnown: boolean): string {
@@ -29,16 +36,40 @@ function rowDetailLine(row: ClassDayRow, enrollmentKnown: boolean): string {
   return parts.join(" · ");
 }
 
+const MORNING_ITEMS: readonly SegmentedControlItem<MorningAttendanceStatus>[] =
+  [
+    { value: "present", label: "Da", tone: "green" },
+    { value: "absent", label: "Fehlt", tone: "red" },
+  ];
+
+/**
+ * Anwesenheit am Vormittag (#4790) für die Zeilen einer Klasse. Ohne
+ * `onChange` zeigt die Zeile den Stand als nicht anklickbares Kennzeichen.
+ */
+export interface StudentRowMorning {
+  readonly draft: MorningAttendanceDraft;
+  readonly onChange?: (
+    row: ClassDayRow,
+    status: MorningAttendanceStatus,
+  ) => void;
+  readonly disabled?: boolean;
+}
+
 export function StudentRow({
   row,
   enrollmentKnown,
   now,
+  morning,
 }: {
   readonly row: ClassDayRow;
   readonly enrollmentKnown: boolean;
   readonly now: Date;
+  readonly morning?: StudentRowMorning;
 }) {
   const detail = rowDetailLine(row, enrollmentKnown);
+  const attendance = morning ? morningStatus(row, morning.draft) : null;
+  // Fehlt ohne Meldung: das Kennzeichen, das sofort auffallen soll.
+  const unreported = missingWithoutReport(row, attendance);
   // Nur bei Meldungen von heute: dann ist der Zeitpunkt eine Neuigkeit.
   const reported = reportedTodayLabel(row.reported_at, now);
   // Eine abweichende Abholzeit ohne gemeldeten Status: der Status trägt
@@ -50,7 +81,7 @@ export function StudentRow({
     // min-w-0: die Zeile ist ein Grid-Item, und Grid-Items haben
     // min-width:auto — ohne das schiebt ein langer Name die ganze Liste
     // auf schmalen Bildschirmen über den Rand.
-    <li className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5 shadow-sm">
+    <li className="moto-content-surface flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 shadow-sm">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-gray-900">
           {row.last_name}, {row.first_name}
@@ -107,7 +138,38 @@ export function StudentRow({
             color={statusColor(row.status)}
           />
         ) : null}
+        {attendance && !morning?.onChange ? (
+          <StatusColorBadge
+            label={`Vormittag: ${attendance === "present" ? "Da" : "Fehlt"}`}
+            color={
+              attendance === "present"
+                ? LOCATION_COLORS.GROUP_ROOM
+                : LOCATION_COLORS.DANGER
+            }
+          />
+        ) : null}
+        {unreported ? (
+          <StatusColorBadge
+            label="Fehlt ohne Meldung"
+            color={LOCATION_COLORS.WARNING}
+          />
+        ) : null}
       </div>
+      {/* Auf dem Handy steht die Auswahl unter dem Namen und nimmt die
+          ganze Breite, sonst bliebe vom Namen nur „Albrecht, …“. */}
+      {morning?.onChange ? (
+        <SegmentedControl
+          items={MORNING_ITEMS.map((item) => ({
+            ...item,
+            disabled: morning.disabled,
+          }))}
+          value={attendance}
+          onChange={(status) => morning.onChange?.(row, status)}
+          variant="pills"
+          ariaLabel={`Anwesenheit von ${row.first_name} ${row.last_name}`}
+          className="shrink-0 max-sm:w-full"
+        />
+      ) : null}
     </li>
   );
 }
@@ -119,6 +181,7 @@ export function Section({
   rows,
   enrollmentKnown = true,
   now,
+  morning,
 }: Readonly<{
   title: string;
   count: number;
@@ -126,6 +189,7 @@ export function Section({
   rows: ClassDayRow[];
   enrollmentKnown?: boolean;
   now: Date;
+  morning?: StudentRowMorning;
 }>) {
   if (rows.length === 0) return null;
   return (
@@ -145,6 +209,7 @@ export function Section({
             row={row}
             enrollmentKnown={enrollmentKnown}
             now={now}
+            morning={morning}
           />
         ))}
       </ul>

@@ -28,7 +28,7 @@ var security_init_pin_0Definitions = []config.Definition{
 		SortOrder:       1,
 		Validation:      &config.ValidationRules{Pattern: &pinPattern},
 		AccessPolicy:    config.AccessAdminOnly,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 }
 
@@ -84,7 +84,7 @@ var security_init_lockout_2Definitions = []config.Definition{
 	{
 		Key:             config.KeyAccountLockoutThreshold,
 		Label:           "Fehlversuche bis zur Kontosperre",
-		Description:     "Nach so vielen falschen Eingaben von PIN oder Code sperrt moto das Konto für eine Weile.",
+		Description:     "Nach so vielen falschen Bestätigungscodes sperrt moto die Code-Prüfung vorübergehend.",
 		Type:            config.FieldNumber,
 		Default:         5,
 		ReadPermission:  "config:read",

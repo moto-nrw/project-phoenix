@@ -1,5 +1,5 @@
-// Report-Vertrag der Klassenansicht (#1772): read-only Tagesansicht einer
-// Klasse. Das Backend scopt jeden Abruf auf die zugewiesenen Klassen der
+// Report-Vertrag der Klassenansicht (#1772): Tagesansicht einer Klasse;
+// geschrieben wird nur die Anwesenheit am Vormittag (#4790). Das Backend scopt jeden Abruf auf die zugewiesenen Klassen der
 // aufrufenden Person (education.class_teachers) und liefert hier nie
 // Kontaktdaten der Sorgeberechtigten.
 //
@@ -33,6 +33,17 @@ export interface ClassDayRow {
   // Zeilen mit Abweichung gesetzt: Status-Meldezeit, sonst der Eintrag der
   // Tages-Ausnahme.
   reported_at?: string;
+  // Anwesenheit am Vormittag (#4790): was die Lehrkraft eingetragen hat
+  // (source "teacher"), sonst "absent" aus einer Meldung krank, entschuldigt
+  // oder Klassenfahrt (source "report"). Fehlt, solange nichts davon vorliegt.
+  morning_attendance?: ClassDayMorningAttendance;
+}
+
+export type MorningAttendanceStatus = "present" | "absent";
+
+interface ClassDayMorningAttendance {
+  status: MorningAttendanceStatus;
+  source: "teacher" | "report";
 }
 
 interface ClassDayTotals {
@@ -59,6 +70,10 @@ export interface ClassDayReport {
   // Tagesausnahme der ganzen Klasse an diesem Tag (#2962/#2970), egal ob
   // OGS oder Schule sie eingetragen hat. Fehlt, wenn es keine gibt.
   class_arrival_exception?: ClassDayArrivalException;
+  // Die Lehrkraft darf die Anwesenheit am Vormittag eintragen (#4790): der
+  // Tag ist heute und ein Schultag, die OGS hat es nicht ausgeschaltet und
+  // die Berechtigung liegt vor.
+  can_record_morning_attendance?: boolean;
 }
 
 interface ClassDayArrivalException {

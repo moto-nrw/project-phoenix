@@ -35670,11 +35670,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35682,11 +35682,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35694,11 +35694,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35706,11 +35706,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35718,11 +35718,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9640ac6f6258e017531415a20fdf9633",
+      "binding_digest": "b212a93e4cd4f31b90bbbfdabc6e652e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35730,11 +35730,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "999d29266c80132aae4ade9c158e312c",
+      "binding_digest": "faa48507d72b77ad42de13b0e371eae7",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35742,11 +35742,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b13f04002c78d5a8130cff14c5aaf920",
+      "binding_digest": "4fee5b27d3394111b7e823b55d8fc439",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35754,11 +35754,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "7b2f59327ea1585da7de66ff04ac8649",
+      "binding_digest": "77e4a167f264d422f10594e7b79fe922",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35790,11 +35790,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35802,11 +35802,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35814,11 +35814,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35826,11 +35826,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36386,11 +36386,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36398,11 +36398,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36410,11 +36410,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "11a67f5f78837037891b17f2aa188274",
+      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36422,11 +36422,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "1fd6f36ecfaae9cb6a62df4f22f19065",
+      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36434,11 +36434,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9640ac6f6258e017531415a20fdf9633",
+      "binding_digest": "b212a93e4cd4f31b90bbbfdabc6e652e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36446,11 +36446,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "999d29266c80132aae4ade9c158e312c",
+      "binding_digest": "faa48507d72b77ad42de13b0e371eae7",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed MFA-login platform participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. The existing composition binds tenant-runtime callbacks for the MFA gate and its command transactions; these join an ambient unit or enter the administrative/current-tenant unit. This records a scope protocol, not a new cross-owner write grant (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36458,11 +36458,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b13f04002c78d5a8130cff14c5aaf920",
+      "binding_digest": "4fee5b27d3394111b7e823b55d8fc439",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -36470,11 +36470,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "7b2f59327ea1585da7de66ff04ac8649",
+      "binding_digest": "77e4a167f264d422f10594e7b79fe922",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -38120,10 +38120,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PasswordVerifier.VerifyPassword",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.VerifyPassword",
       "target_owner": "security-runtime",
-      "binding_digest": "b0ccdee7b0a94fba32de75f42aed1341",
+      "binding_digest": "38d455ccbbf04c2aa2e8190cf1b7c413",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/securityruntime.VerifyPassword (security-runtime) through modules/identityaccess/ports.PasswordVerifier.VerifyPassword. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed #3841-c: credential comparison, including a runtime-generated dummy hash for absent credentials. The binding calls Security Runtime verification and has no persistent, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -39338,11 +39338,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "d41ace1fb7afef2534cf674987a0f4fb",
+      "binding_digest": "8a10f81573e41a947a7293398b2aed5d",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39350,10 +39350,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "b58b8032bfa9efec74c3d7e954444e5d",
+      "binding_digest": "1cfdb8d9bb69b6b9cde1bf1a51820481",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39361,10 +39361,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "e2fb0889b4e047520843af075edb74fe",
+      "binding_digest": "77039c8ba058b9b7a8e186c27c87f11a",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39372,10 +39372,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "58cfda2cbed0fd78852f7d79052f006b",
+      "binding_digest": "640b3966664b172a25ca87a138f8745f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -39383,10 +39383,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform",
-      "binding_digest": "d7edcd0bd514f09c1940392da9efa832",
+      "binding_digest": "a55e1a21345b09c7723e7d180d17fc1e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40288,10 +40288,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.passwordVerifier.VerifyPassword",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.VerifyPassword",
       "target_owner": "security-runtime",
-      "binding_digest": "b0ccdee7b0a94fba32de75f42aed1341",
+      "binding_digest": "38d455ccbbf04c2aa2e8190cf1b7c413",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/securityruntime.VerifyPassword (security-runtime) through roots/owners.passwordVerifier.VerifyPassword. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed #3841-c: credential comparison through the root, including a runtime-generated dummy hash for absent credentials. No persistent, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -40942,10 +40942,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "bcba410f94eb284f111f6b56bd64aa94",
+      "binding_digest": "c0af36fb2db4bab4f329abe7c2616efc",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40953,10 +40953,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "33ca8271ff8a6a85b9c6d6c2ecfc3c83",
+      "binding_digest": "3a7e24388f5337f9a9071e589a038b2b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40964,10 +40964,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "8d6200ae474d3cbe1e21b9b7124db71a",
+      "binding_digest": "0d4c0f5cac836572494517b525493c0a",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40975,10 +40975,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.invitationDelivery.QueueSchoolWelcome",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform",
-      "binding_digest": "c0db0e8d04d6c96dd078746cdd40aaa7",
+      "binding_digest": "6a5c195df2588c1ce43fa37465400d0f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.invitationDelivery.QueueSchoolWelcome. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -73069,19 +73069,6 @@
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.AttendanceRetention.DeleteExpiredAttendance",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredAttendance",
-      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
-      "target_owner": "",
-      "binding_digest": "e227a8013824f329765590468b7e22d7",
-      "effect": "unresolved",
-      "classification": "unresolved",
-      "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
-    },
-    {
-      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.AttendanceSyncer.MirrorCheckInAtBatch",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PresenceAttendanceMirror.MirrorCheckInAtBatch",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.AttendanceMirror.MirrorCheckInAtBatch",
@@ -75167,6 +75154,19 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0100",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Morning attendance operation of #4790 through the module's observer, approved by ADR 0100; a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteGroupMapping",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
@@ -75921,6 +75921,19 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0100",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Morning attendance operation of #4790 through the module's observer, approved by ADR 0100; a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OccupiedActivityGroupIDs",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
@@ -76087,6 +76100,19 @@
       "adr": "0083",
       "approval_adr": "0098",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0100",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Morning attendance operation of #4790 through the module's observer, approved by ADR 0100; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "student-presence",
@@ -82250,6 +82276,17 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.DeleteMorningAttendanceBefore",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.DeleteMorningAttendanceBefore",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.DeleteMorningAttendanceBefore. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.DeleteVisit",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.DeleteVisit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
@@ -82522,6 +82559,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ListGroupMappings. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.ListMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ListMorningAttendance. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "student-presence",
@@ -83259,6 +83307,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.UnclaimedGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.UpsertMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.UpsertMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.UpsertMorningAttendance. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "student-presence",
@@ -90240,6 +90299,30 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "c2a9f7c189f73d6ca1943e57841158cd",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.DeleteExpiredMorningAttendance; modules/studentpresence/internal/application/morning_attendance.go:73.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "68ba01e9522cf5948b5423e152c624ae",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.DeleteExpiredMorningAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteGroupMapping",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteGroupMapping",
@@ -91550,6 +91633,28 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
+      "target_owner": "student-presence",
+      "binding_digest": "c537206b2cc1e20820eeb33ef3a332c8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.MorningAttendanceOn; modules/studentpresence/internal/application/morning_attendance.go:14. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
+      "target_owner": "student-presence",
+      "binding_digest": "9508c7c1f243f4668cf2303984c5fbb9",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.MorningAttendanceOn; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.OccupiedActivityGroupIDs",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.OccupiedActivityGroupIDs",
@@ -91853,6 +91958,30 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.RecordGroup; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "0816aef300cd2bb5aa75dc61c6c59100",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.RecordMorningAttendance; modules/studentpresence/internal/application/morning_attendance.go:42.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RecordMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "265b2eb320f1bc6223a20bca3b9609e3",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.RecordMorningAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "timetable-activities",

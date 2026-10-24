@@ -21,7 +21,6 @@ const (
 	KeyAnalyticsRecordingSamplePercent       = configModel.KeyAnalyticsRecordingSamplePercent
 	KeyAttendanceEditScope                   = configModel.KeyAttendanceEditScope
 	KeyAttendanceLogEnabled                  = configModel.KeyAttendanceLogEnabled
-	KeyAttendanceNFCEnabled                  = configModel.KeyAttendanceNFCEnabled
 	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
 	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
 	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled
@@ -49,6 +48,7 @@ const (
 	KeyGDPRWithdrawnEnrollmentRetentionDays  = configModel.KeyGDPRWithdrawnEnrollmentRetentionDays
 	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays
 	KeyGDPRAttendanceRetentionDays           = configModel.KeyGDPRAttendanceRetentionDays
+	KeyGDPRMorningAttendanceRetentionDays    = configModel.KeyGDPRMorningAttendanceRetentionDays
 	KeyGDPRStaffSickNoteRetentionDays        = configModel.KeyGDPRStaffSickNoteRetentionDays
 	KeyGDPRStudentRetentionDays              = configModel.KeyGDPRStudentRetentionDays
 	KeyGDPRTimetableRetentionDays            = configModel.KeyGDPRTimetableRetentionDays

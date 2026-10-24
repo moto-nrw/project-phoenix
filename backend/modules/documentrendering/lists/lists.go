@@ -134,6 +134,7 @@ const (
 	ColumnGuardianContacts  = records.ColumnGuardianContacts
 	ColumnSlot              = records.ColumnSlot
 	ColumnPresenceStatus    = records.ColumnPresenceStatus
+	ColumnChecklist         = records.ColumnChecklist
 )
 
 // Columns of the weekly plans (Dienstplan, Betreuungsplan): the row label and

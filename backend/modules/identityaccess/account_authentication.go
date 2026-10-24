@@ -322,6 +322,7 @@ type AccountLogin interface {
 
 // TenantAccountLogin authenticates accounts at the tenant portal.
 type TenantAccountLogin interface {
+	IssueTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error)
 	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
 	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
 	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
@@ -335,6 +336,7 @@ type ParentAccountLogin interface {
 
 // SchoolAccountLogin authenticates accounts and switches their school portal.
 type SchoolAccountLogin interface {
+	IssueSchoolTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error)
 	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, sourceFamilyID string) (accessToken, refreshToken string, err error)
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
 	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)

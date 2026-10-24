@@ -69,6 +69,9 @@ const (
 	// (active.attendance, #3957), counted from the care day. The window the
 	// team sees (gdpr.attendance_visible_days) never exceeds it.
 	KeyGDPRAttendanceRetentionDays = "gdpr.attendance_retention_days"
+	// Retention window (days) for the morning attendance a Lehrkraft marks
+	// (active.morning_attendance, #4790), counted from the school day.
+	KeyGDPRMorningAttendanceRetentionDays = "gdpr.morning_attendance_retention_days"
 	// Retention window (days) for the parent/OGS conversations
 	// (users.parent_messages, #3959), counted from sending.
 	KeyGDPRParentMessageRetentionDays = "gdpr.parent_message_retention_days"
@@ -170,6 +173,7 @@ const (
 	KeyStudentAbsenceEditScope               = "operations.student_absence_edit_scope"
 	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
 	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
+	KeySchoolPortalMorningAttendance         = "operations.school_portal_morning_attendance"
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
 	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
 	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"
@@ -182,7 +186,6 @@ const (
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
 	KeyPresenceMode                          = "operations.presence_mode"
 	KeyAttendanceWebEnabled                  = "attendance.web_enabled"
-	KeyAttendanceNFCEnabled                  = "attendance.nfc_enabled"
 	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
 	KeyWebExceedParticipantLimit             = "attendance.web_exceed_participant_limit_enabled"
 	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
@@ -670,4 +673,22 @@ const (
 	KeyAnalyticsEnabled                = "analytics.enabled"
 	KeyAnalyticsFreigabe               = "analytics.freigabe"
 	KeyAnalyticsRecordingSamplePercent = "analytics.recording_sample_percent"
+)
+
+// Module switches (#4892): one per additional module of the module catalog.
+// The moto team books them per school (AccessOperatorManaged); records/modules.go
+// holds the list with names and prerequisites.
+const (
+	KeyModuleNFCAnwesenheit      = "module.nfc_anwesenheit"
+	KeyModuleMittagessen         = "module.mittagessen"
+	KeyModuleElternApp           = "module.eltern_app"
+	KeyModuleOnlineAnmeldung     = "module.online_anmeldung"
+	KeyModuleUnterrichtVormittag = "module.unterricht_vormittag"
+	KeyModuleDienstplan          = "module.dienstplan"
+	KeyModuleZeiterfassung       = "module.zeiterfassung"
+	KeyModulePersonalakte        = "module.personalakte"
+	KeyModuleTraegerUebersicht   = "module.traeger_uebersicht"
+	KeyModuleFerienbetreuung     = "module.ferienbetreuung"
+	KeyModuleVertraege           = "module.vertraege"
+	KeyModuleElternbeitraege     = "module.elternbeitraege"
 )

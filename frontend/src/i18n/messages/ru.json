@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Отменить на всю неделю?",
     "unregisterWeekText": "Запись {name} на обед будет отменена на {count, plural, one {# день} few {# дня} many {# дней} other {# дня}} этой недели. Снова записаться можно только до срока изменений."
   },
+  "mealAllergens": {
+    "legendTitle": "Аллергены",
+    "choose": "Выбрать аллергены",
+    "marksShort": "Аллергены: {letters}",
+    "marksLabel": "Содержит: {names}",
+    "noneThisWeek": "На эту неделю аллергены не указаны.",
+    "source": "Эти данные предоставляет школа или поставщик питания. Блюдо без буквы не обязательно свободно от аллергенов. С вопросами обращайтесь в OGS.",
+    "names": {
+      "gluten": "Злаки, содержащие глютен",
+      "crustaceans": "Ракообразные",
+      "eggs": "Яйца",
+      "fish": "Рыба",
+      "peanuts": "Арахис",
+      "soybeans": "Соя",
+      "milk": "Молоко (включая лактозу)",
+      "nuts": "Орехи",
+      "celery": "Сельдерей",
+      "mustard": "Горчица",
+      "sesame": "Кунжут",
+      "sulphites": "Диоксид серы и сульфиты",
+      "lupin": "Люпин",
+      "molluscs": "Моллюски"
+    }
+  },
   "mealParticipantList": {
     "title": "Список на день для кухни",
     "description": "В списке указаны все дети, записанные на обед в этот день.",
@@ -2267,6 +2291,9 @@
         "arrival_exception_editor_required": "У вас нет доступа к: {object}. Обратитесь в школу.",
         "arrival_exception_past_date": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "arrival_exception_weekend": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "morning_attendance_no_school_day": "Сегодня не учебный день. Посещаемость можно отмечать только в учебные дни.",
+        "morning_attendance_not_today": "Посещаемость можно отметить только за сегодня. Откройте сегодняшний день.",
+        "morning_attendance_unknown_child": "Один ребёнок больше не относится к этому классу. Обновите страницу.",
         "school_write_disabled": "У вас нет доступа к: {object}. Обратитесь в школу."
       },
       "communication": {
@@ -2532,6 +2559,7 @@
         "wc_not_configured": "Не удалось обработать: {object}. Повторите попытку позже."
       },
       "meals": {
+        "invalid_allergens": "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
         "invalid_dishes": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "invalid_meal_date": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "invalid_participation": "Указаны неверные данные: {object}. Проверьте введённые данные.",
@@ -2906,7 +2934,9 @@
         "presence_mode_switch_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "booking_authority_blocked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "attendance_visible_exceeds_retention": "Не удалось сохранить: {object}. Проверьте введённые данные.",
-        "attendance_retention_below_visible": "Не удалось сохранить: {object}. Проверьте введённые данные."
+        "attendance_retention_below_visible": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "module_requires": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "module_required_by": "Не удалось сохранить: {object}. Проверьте введённые данные."
       },
       "devices": {
         "tag_scan_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",

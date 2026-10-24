@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 )
@@ -46,9 +45,9 @@ func stubSchoolMFA(runtime schoolportal.MFARuntime) schoolportal.MFARuntime {
 	if runtime.Enroll == nil {
 		runtime.Enroll = func(context.Context, int64) error { return nil }
 	}
-	if runtime.IssueTrustedDevice == nil {
-		runtime.IssueTrustedDevice = func(context.Context, int64, int64, string, net.IP) (string, time.Time, error) {
-			return "", time.Time{}, nil
+	if runtime.PrepareTrustedDevice == nil {
+		runtime.PrepareTrustedDevice = func(context.Context, int64, int64, string, net.IP) (schoolportal.TrustedDeviceIssue, error) {
+			return nil, nil
 		}
 	}
 	runtime.ChallengeUnusable = func(err error) bool { return errors.Is(err, errStubMFAChallengeUnusable) }

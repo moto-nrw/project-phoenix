@@ -183,7 +183,7 @@ var operations_init_nach_hause_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "nach-hause",
 		SortOrder:       5,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyPerStudentCheckoutEnabled,
@@ -196,7 +196,7 @@ var operations_init_nach_hause_2Definitions = []config.Definition{
 		Tab:             "devices",
 		Category:        "nach-hause",
 		SortOrder:       6,
-		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+		DependsOn:       config.DependsOnEq(config.KeyModuleNFCAnwesenheit, true),
 	},
 	{
 		Key:             config.KeyPerStudentCheckoutDeltaMinutes,
@@ -360,6 +360,18 @@ var operations_init_aufsicht_6Definitions = []config.Definition{
 				{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
 			},
 		},
+	},
+	{
+		Key:             config.KeySchoolPortalMorningAttendance,
+		Label:           "Lehrkräfte tragen in moto schule ein, wer am Vormittag da ist",
+		Description:     "Die Lehrkraft markiert für ihre Klasse heute bei jedem Kind „da“ oder „fehlt“. Die Anwesenheit in der OGS ändert sich dadurch nicht.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "aufsicht",
+		SortOrder:       4,
 	},
 }
 

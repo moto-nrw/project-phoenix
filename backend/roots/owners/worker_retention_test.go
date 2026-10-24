@@ -109,6 +109,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		settingsModule.KeyGDPRStatusDayRetentionDays,
 		settingsModule.KeyGDPRAttendanceRetentionDays,
+		settingsModule.KeyGDPRMorningAttendanceRetentionDays,
 		settingsModule.KeyGDPRParentMessageRetentionDays,
 		settingsModule.KeyGDPRStaffMessageRetentionDays,
 		settingsModule.KeyGDPRTimetableRetentionDays,
@@ -258,6 +259,39 @@ func TestNightlyRetentionFollowsTheSchoolsRecordedAttendanceWindow(t *testing.T)
 	assert.True(t, suite.exists(t, "active.attendance", kept))
 	assert.False(t, suite.exists(t, "active.attendance", expired), "a shorter contractual window deletes earlier")
 	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeAttendanceRetention))
+}
+
+// insertMorningAttendance stores a morning mark daysAgo Berlin calendar days
+// back (#4790).
+func (s retentionSuite) insertMorningAttendance(t *testing.T, tenantID, studentID int64, daysAgo int) int64 {
+	t.Helper()
+	return s.insertID(t, `INSERT INTO active.morning_attendance (tenant_id, student_id, date, status)
+		VALUES (?, ?, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date - ?, 'present')
+		RETURNING id`, tenantID, studentID, daysAgo)
+}
+
+func TestNightlyRetentionDeletesMorningAttendanceAfterItsWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	child := testpkg.CreateTestStudent(t, suite.admin, "Vormittag", "Frist", "2a")
+	otherChild := testpkg.CreateTestStudentForTenant(t, suite.admin, otherSchool, "Andere", "Schule", "2a")
+	_, err := suite.admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.morning_attendance_retention_days', '30'::jsonb)`, school)
+	require.NoError(t, err)
+
+	expired := suite.insertMorningAttendance(t, school, child.ID, 31)
+	keptOnCutoff := suite.insertMorningAttendance(t, school, child.ID, 30)
+	otherExpired := suite.insertMorningAttendance(t, otherSchool, otherChild.ID, 400)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "active.morning_attendance", expired), "a mark older than the school's window is deleted")
+	assert.True(t, suite.exists(t, "active.morning_attendance", keptOnCutoff), "the day exactly 30 days back is still inside the window")
+	assert.True(t, suite.exists(t, "active.morning_attendance", otherExpired), "the run of one school never touches another")
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, auditModels.DeletionTypeMorningAttendanceRetention))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, auditModels.DeletionTypeMorningAttendanceRetention))
 }
 
 type parentThreadFixture struct {

@@ -78,6 +78,9 @@ const (
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
 	CodeClassdayArrivalExceptionWeekend                  = "classday.arrival_exception_weekend"
+	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
+	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
+	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
 	CodeClassdaySchoolWriteDisabled                      = "classday.school_write_disabled"
 	CodeCommunicationAnnouncementNotFound                = "communication.announcement_not_found"
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
@@ -299,9 +302,6 @@ const (
 	CodeIotDeviceApiKeyFormatInvalid                     = "iot.device_api_key_format_invalid"
 	CodeIotDeviceApiKeyInvalid                           = "iot.device_api_key_invalid"
 	CodeIotDeviceApiKeyRequired                          = "iot.device_api_key_required"
-	CodeIotDeviceIdTaken                                 = "iot.device_id_taken"
-	CodeIotDeviceInactive                                = "iot.device_inactive"
-	CodeIotDevicePinInvalid                              = "iot.device_pin_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -381,6 +381,9 @@ var errorCodeClasses0 = map[string]string{
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
 	"classday.arrival_exception_weekend":                   "input",
+	"classday.morning_attendance_no_school_day":            "input",
+	"classday.morning_attendance_not_today":                "input",
+	"classday.morning_attendance_unknown_child":            "business_rejection",
 	"classday.school_write_disabled":                       "permission",
 	"communication.announcement_not_found":                 "business_rejection",
 	"communication.announcement_not_published":             "business_rejection",
@@ -602,9 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"iot.device_api_key_format_invalid":                    "permission",
 	"iot.device_api_key_invalid":                           "permission",
 	"iot.device_api_key_required":                          "permission",
-	"iot.device_id_taken":                                  "business_rejection",
-	"iot.device_inactive":                                  "permission",
-	"iot.device_pin_invalid":                               "permission",
 }
 
 func init() {

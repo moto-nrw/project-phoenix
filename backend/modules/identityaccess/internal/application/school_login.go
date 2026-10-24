@@ -53,7 +53,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 // re-validates the school-portal role at the tenant carried in the
 // challenge, so a role revoked mid-challenge cannot be laundered into a
 // school session.
-func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, proofs ...identityaccess.VerifiedMFAChallenge) (string, string, error) {
 	account, err := s.loadActiveAccountForSchoolMint(ctx, "issue school tokens", accountID)
 	if err != nil {
 		return "", "", err
@@ -70,7 +70,11 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 		return "", "", failed("issue school tokens", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 	var claims *domain.AccountClaimsPayload
-	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims), "", true)
+	var proof *identityaccess.VerifiedMFAChallenge
+	if len(proofs) > 0 {
+		proof = &proofs[0]
+	}
+	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims)), "", true)
 	if err != nil {
 		return "", "", wrapSchoolMintError("issue school tokens", err)
 	}

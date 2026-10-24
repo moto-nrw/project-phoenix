@@ -62,3 +62,5 @@ func (UnsentPasswordResets) DispatchPasswordReset(context.Context, identityacces
 
 	return nil
 }
+
+func UnavailablePasswordLoginPolicy() (int, time.Duration, error) { return 0, 0, errMaintenanceOnly }

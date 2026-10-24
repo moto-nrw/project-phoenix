@@ -261,6 +261,30 @@
     "unregisterWeekTitle": "Të çregjistrohet për gjithë javën?",
     "unregisterWeekText": "{name} do të çregjistrohet nga dreka për {count, plural, one {# ditë} other {# ditë}} të kësaj jave. Regjistrimi sërish është i mundur vetëm deri në afatin e ndryshimeve."
   },
+  "mealAllergens": {
+    "legendTitle": "Alergjenët",
+    "choose": "Zgjidhni alergjenët",
+    "marksShort": "Alergjenët: {letters}",
+    "marksLabel": "Përmban: {names}",
+    "noneThisWeek": "Për këtë javë nuk janë dhënë alergjenë.",
+    "source": "Këto të dhëna vijnë nga shkolla ose nga furnizuesi i ushqimit. Një gjellë pa shkronjë nuk është patjetër pa alergjenë. Për pyetje drejtohuni te OGS.",
+    "names": {
+      "gluten": "Drithëra me gluten",
+      "crustaceans": "Krustace",
+      "eggs": "Vezë",
+      "fish": "Peshk",
+      "peanuts": "Kikirikë",
+      "soybeans": "Sojë",
+      "milk": "Qumësht (përfshirë laktozën)",
+      "nuts": "Arra",
+      "celery": "Selino",
+      "mustard": "Mustardë",
+      "sesame": "Susam",
+      "sulphites": "Dioksid squfuri dhe sulfite",
+      "lupin": "Lupinë",
+      "molluscs": "Molusqe"
+    }
+  },
   "mealParticipantList": {
     "title": "Lista ditore për kuzhinën",
     "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",
@@ -2267,6 +2291,9 @@
         "arrival_exception_editor_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "arrival_exception_past_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "arrival_exception_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
+        "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
+        "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
         "school_write_disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "communication": {
@@ -2532,6 +2559,7 @@
         "wc_not_configured": "Nuk u përpunua: {object}. Provoni përsëri më vonë."
       },
       "meals": {
+        "invalid_allergens": "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
         "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
@@ -2906,7 +2934,9 @@
         "presence_mode_switch_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "booking_authority_blocked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "attendance_visible_exceeds_retention": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "attendance_retention_below_visible": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+        "attendance_retention_below_visible": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

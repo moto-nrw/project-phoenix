@@ -123,3 +123,45 @@ func TestModuleNormalizesDishesAtPublicSeam(t *testing.T) {
 		t.Fatalf("normalized note = %#v", engine.replaced.Dishes[0].Note)
 	}
 }
+
+func TestModuleNormalizesAllergensAtPublicSeam(t *testing.T) {
+	t.Parallel()
+
+	engine := &recordingEngine{available: true}
+	module := newTestModule(engine)
+	err := module.ReplaceDay(context.Background(), mealplan.ReplaceDay{
+		Date: "2026-09-07",
+		Dishes: []mealplan.Dish{
+			{Dish: "Fischstäbchen", Allergens: []mealplan.Allergen{mealplan.AllergenMilk, mealplan.AllergenFish, mealplan.AllergenGluten, mealplan.AllergenFish}},
+			{Dish: "Obst"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReplaceDay() error = %v", err)
+	}
+	want := []mealplan.Allergen{mealplan.AllergenGluten, mealplan.AllergenFish, mealplan.AllergenMilk}
+	if got := engine.replaced.Dishes[0].Allergens; !slices.Equal(got, want) {
+		t.Fatalf("normalized allergens = %v, want %v", got, want)
+	}
+	if got := engine.replaced.Dishes[1].Allergens; got == nil || len(got) != 0 {
+		t.Fatalf("unmarked dish allergens = %#v, want an empty list", got)
+	}
+}
+
+func TestModuleRejectsUnknownAllergensBeforeWriting(t *testing.T) {
+	t.Parallel()
+
+	engine := &recordingEngine{available: true}
+	module := newTestModule(engine)
+	err := module.ReplaceDay(context.Background(), mealplan.ReplaceDay{
+		Date: "2026-09-07",
+		// A blank dish does not hide an unknown code either.
+		Dishes: []mealplan.Dish{{Dish: " ", Allergens: []mealplan.Allergen{"strawberry"}}},
+	})
+	if !errors.Is(err, mealplan.ErrInvalidAllergens) {
+		t.Fatalf("ReplaceDay() error = %v, want ErrInvalidAllergens", err)
+	}
+	if engine.replaced.Date != "" {
+		t.Fatalf("an invalid day reached the store: %#v", engine.replaced)
+	}
+}
