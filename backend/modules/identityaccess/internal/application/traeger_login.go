@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 
@@ -75,9 +76,13 @@ func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, passwor
 // inside the session transaction, under the account lock: the claims and the
 // session commit together or not at all.
 func (s *AccountAuthentication) traegerMintGuard(organizationID int64, out **domain.AccountClaimsPayload) mintGuard {
-	return func(ctx context.Context, account domain.LoginAccount) error {
+	return func(ctx context.Context, presented domain.LoginAccount) error {
 		if s.traeger == nil {
 			return errTraegerMembershipsUnavailable
+		}
+		account, err := s.lockLiveTraegerAccount(ctx, presented.ID)
+		if err != nil {
+			return err
 		}
 		organizations, err := s.traeger.ListAccountTraegerOrganizations(ctx, account.ID)
 		if err != nil {
@@ -102,6 +107,23 @@ func (s *AccountAuthentication) traegerMintGuard(organizationID int64, out **dom
 		}
 		return nil
 	}
+}
+
+// lockLiveTraegerAccount locks and re-reads the account inside the mint
+// transaction: the credentials were checked in an earlier, committed unit,
+// and the account may have been switched off since.
+func (s *AccountAuthentication) lockLiveTraegerAccount(ctx context.Context, accountID int64) (domain.LoginAccount, error) {
+	account, found, _, err := findLoginAccount(ctx, s.runtime, s.store, accountID, true)
+	if err != nil {
+		return domain.LoginAccount{}, fmt.Errorf("re-check account %d at Träger token mint: %w", accountID, err)
+	}
+	if !found {
+		return domain.LoginAccount{}, identityaccess.ErrAccountNotFound
+	}
+	if !account.Active {
+		return domain.LoginAccount{}, identityaccess.ErrAccountInactive
+	}
+	return account, nil
 }
 
 // recordTraegerLogin files the sign-in in the authentication ledger of the

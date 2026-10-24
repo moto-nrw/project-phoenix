@@ -65,6 +65,9 @@ func (p *Provisioning) assignTraegerMember(adminCtx context.Context, input organ
 	if !found {
 		return organizationtenancy.TraegerMember{}, organizationtenancy.ErrTraegerAccountNotFound
 	}
+	if _, err := p.organizations.FindOrganization(adminCtx, input.OrganizationID); err != nil {
+		return organizationtenancy.TraegerMember{}, mapOrganizationError(err, input.OrganizationID)
+	}
 	// The role grant locks the live account first, before the membership
 	// insert takes its foreign-key lock: two grants of the same account then
 	// queue on that lock instead of deadlocking on each other's key share.

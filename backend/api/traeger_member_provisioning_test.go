@@ -59,6 +59,9 @@ func TestOperatorAssignsTheFirstPersonOfATraegerBuero(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.organization_accounts WHERE account_id = ?`, account.ID).Scan(ctx, &granted))
 	assert.Zero(t, granted, "a refused role leaves no membership behind")
 
+	rec = call(http.MethodPost, fmt.Sprintf("/organizations/%d/traeger-members", organizationID+100000), map[string]string{"email": account.Email, "role": "administration"})
+	assert.Equal(t, http.StatusNotFound, rec.Code, "an unknown Träger is refused before any grant: %s", rec.Body.String())
+
 	rec = call(http.MethodPost, members, map[string]string{"email": account.Email, "role": "administration"})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	member := decodeSchoolPortalData[struct {
