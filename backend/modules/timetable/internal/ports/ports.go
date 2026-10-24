@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Store interface {
@@ -156,6 +157,23 @@ type Store interface {
 	ListPickupExtensionWeekdayBlocks(context.Context, []domain.PickupExtensionTask, domain.Date) ([]domain.PickupExtensionBlock, domain.OperationStats, error)
 	ListPickupExtensionTemplateInstances(context.Context, int64, int64, int, domain.Date, *int64, *domain.Date) ([]domain.PickupExtensionInstance, domain.OperationStats, error)
 	ConsumeRosterRemovals(context.Context, int64, []int64) ([]domain.RosterRemoval, domain.OperationStats, error)
+	HomeworkStore
+}
+
+// HomeworkStore persists the homework of the classes and the OGS feedback on
+// it (#4796) in education.class_homework and education.homework_feedback.
+// Class keys are trimmed and lowercased; an entry is changed or deleted only
+// by its author, so a foreign entry reads as not found.
+type HomeworkStore interface {
+	ListClassHomework(ctx context.Context, classKeys []string, date calendar.Date) ([]timetable.HomeworkEntry, domain.OperationStats, error)
+	InsertClassHomework(ctx context.Context, in timetable.HomeworkInput) (timetable.HomeworkEntry, domain.OperationStats, error)
+	UpdateOwnClassHomework(ctx context.Context, in timetable.HomeworkChange, classKey string) (timetable.HomeworkEntry, bool, domain.OperationStats, error)
+	DeleteOwnClassHomework(ctx context.Context, ref timetable.HomeworkRef, classKey string) (bool, domain.OperationStats, error)
+	ListHomeworkFeedback(ctx context.Context, date calendar.Date, studentIDs []int64) ([]timetable.HomeworkFeedback, domain.OperationStats, error)
+	UpsertHomeworkFeedback(ctx context.Context, in timetable.HomeworkFeedbackInput) (timetable.HomeworkFeedback, domain.OperationStats, error)
+	// DeleteHomeworkBefore deletes the tenant's entries and feedback dated
+	// before cutoff and returns how many rows went.
+	DeleteHomeworkBefore(ctx context.Context, cutoff calendar.Date) (int, domain.OperationStats, error)
 }
 
 type Transaction interface {

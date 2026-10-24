@@ -69,6 +69,10 @@
   },
   {
     "resource": "class_day",
+    "action": "homework_write"
+  },
+  {
+    "resource": "class_day",
     "action": "read"
   },
   {

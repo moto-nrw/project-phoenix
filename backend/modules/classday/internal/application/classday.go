@@ -34,6 +34,8 @@ type ClassDayDependencies struct {
 	Announcer              ArrivalScheduleAnnouncer
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
+	// HomeworkDependencies are the homework seam (#4796).
+	HomeworkDependencies
 	// ClassHandoverDependencies are the class handover seam (#4794).
 	ClassHandoverDependencies
 }
@@ -48,6 +50,7 @@ type classDayService struct {
 	*dayReports
 	arrivalExceptions
 	morningAttendance
+	homework
 	classHandover
 }
 
@@ -66,6 +69,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 			blockStarts: deps.BlockStarts, announcer: deps.Announcer,
 		},
 		morningAttendance: newMorningAttendance(deps),
+		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
 	}
 }

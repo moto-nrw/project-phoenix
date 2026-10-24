@@ -64,6 +64,7 @@ export const actionLabels: Record<string, string> = {
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
+  homework_write: "Hausaufgaben eintragen",
   handover_write: "Klasse an die OGS übergeben",
   "*": "Alle",
 };
@@ -241,6 +242,8 @@ const permissionDescriptions: Record<string, string> = {
   "class_day:read": "Tagesansicht der eigenen Klassen ansehen",
   "class_day:arrival_exception_write":
     "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
+  "class_day:homework_write":
+    "Für eine eigene Klasse Hausaufgaben eintragen und eigene ändern",
   "class_day:morning_attendance_write":
     "Für eine eigene Klasse heute eintragen, wer am Vormittag da ist",
   "class_day:handover_write":

@@ -8,6 +8,7 @@ import { apiErrorFromBody, transportFetch } from "./api-error";
 
 import type {
   AttendancePatchBody,
+  HomeworkFeedbackBody,
   BackendStartOperationResult,
   BackendTimetableRoster,
   PlannedTimetableInstance,
@@ -195,6 +196,20 @@ export const schoolSupervisionsApi = {
       await transportFetch(
         `${base}/${instanceId}/students/${studentId}/attendance`,
         jsonRequest("PATCH", body),
+      ),
+    );
+  },
+
+  /** Rückmeldung zu den Hausaufgaben eines Kindes der Lernzeit (#4796). */
+  async saveHomeworkFeedback(
+    instanceId: string,
+    studentId: string,
+    body: HomeworkFeedbackBody,
+  ): Promise<void> {
+    await unwrap<unknown>(
+      await transportFetch(
+        `${base}/${instanceId}/students/${studentId}/homework-feedback`,
+        jsonRequest("PUT", body),
       ),
     );
   },

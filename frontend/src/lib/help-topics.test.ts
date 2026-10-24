@@ -205,6 +205,7 @@ describe("getParentHelpTopicForPath", () => {
           ![
             HELP_TOPICS.rooms,
             HELP_TOPICS.activeSupervision,
+            HELP_TOPICS.homeworkFeedback,
             HELP_TOPICS.manageActivity,
             HELP_TOPICS.changeLocation,
             HELP_TOPICS.dayPlan,
@@ -330,7 +331,7 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.transferGroup,
     });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“).
-    expect(caregiverTopics).toHaveLength(43);
+    expect(caregiverTopics).toHaveLength(44);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -505,13 +506,13 @@ describe("getParentHelpTopicForPath", () => {
 
           // Was es in der OGS nicht gibt, steht auch nicht in der Liste:
           // ohne NFC entfallen sieben Themen, bei einfacher Anwesenheit
-          // fuenf, bei offener Betreuung zwei. `Aktivitaet anlegen` faellt
+          // sechs, bei offener Betreuung zwei. `Aktivitaet anlegen` faellt
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            43 -
+            44 -
             (nfcEnabled ? 0 : 7) -
-            (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
+            (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
           expect(caregiverTopics).toHaveLength(expectedLength);
           expect(
@@ -548,7 +549,8 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    expect(leadTopics).toHaveLength(85);
+    // 86 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
+    expect(leadTopics).toHaveLength(86);
     expect(
       leadTopics.every(
         (topic) =>
@@ -607,7 +609,13 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(18);
+    expect(teacherTopics).toHaveLength(19);
+    expect([...visible]).toEqual(
+      expect.arrayContaining([
+        HELP_TOPICS.teacherHomework,
+        HELP_TOPICS.teacherClassHandover,
+      ]),
+    );
     expect(
       teacherTopics.every(
         (topic) =>

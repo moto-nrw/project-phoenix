@@ -760,3 +760,156 @@ describe("ClassDayClass", () => {
     });
   });
 });
+
+describe("ClassDayClass homework (#4796)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParams.delete("tag");
+    setTestClock(new Date("2026-09-07T12:00:00+02:00"));
+  });
+
+  function homeworkReport(overrides: Partial<ClassDayReport> = {}) {
+    return report({
+      can_write_homework: true,
+      homework: [
+        { id: "11", subject: "Mathe", description: "Seite 12", own: true },
+        { id: "12", description: "Lesen", own: false },
+      ],
+      rows: [
+        {
+          student_id: 1,
+          first_name: "Klara",
+          last_name: "Klassentag",
+          registered: true,
+          stays_today: true,
+          offerings: ["Ganztag"],
+          homework_feedback: { status: "difficult", note: "Aufgabe 3" },
+        },
+      ],
+      ...overrides,
+    });
+  }
+
+  function api() {
+    return {
+      add: vi.fn(() => Promise.resolve()),
+      change: vi.fn(() => Promise.resolve()),
+      remove: vi.fn(() => Promise.resolve()),
+    };
+  }
+
+  it("lists the day's homework and shows the OGS feedback at the child", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(homeworkReport())}
+        homework={api()}
+      />,
+    );
+
+    expect(await screen.findByText("Seite 12")).toBeInTheDocument();
+    expect(screen.getByText("Mathe")).toBeInTheDocument();
+    expect(screen.getByText("Lesen")).toBeInTheDocument();
+    expect(screen.getByText("Hausaufgaben: War schwer")).toBeInTheDocument();
+    expect(screen.getByText("OGS: Aufgabe 3")).toBeInTheDocument();
+    // Only the own entry carries actions.
+    expect(
+      screen.getByRole("button", { name: "Aktionen zur Hausaufgabe Mathe" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /Aktionen zur Hausaufgabe/ }),
+    ).toHaveLength(1);
+  });
+
+  it("stays read-only without the write permission", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() =>
+          Promise.resolve(homeworkReport({ can_write_homework: false }))
+        }
+        homework={api()}
+      />,
+    );
+
+    expect(await screen.findByText("Seite 12")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Hausaufgaben eintragen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Aktionen zur Hausaufgabe/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says when the day has no homework", async () => {
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() =>
+          Promise.resolve(homeworkReport({ homework: undefined }))
+        }
+        homework={api()}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Für diesen Tag sind keine Hausaufgaben eingetragen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("enters homework for the shown day with a trimmed subject", async () => {
+    const homework = api();
+    const fetchClassDay = vi.fn(() => Promise.resolve(homeworkReport()));
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={fetchClassDay}
+        homework={homework}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hausaufgaben eintragen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Fach (freiwillig)"), {
+      target: { value: "  Deutsch " },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Was ist zu tun?"), {
+      target: { value: "Diktat üben" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(homework.add).toHaveBeenCalledWith("4a", "2026-09-07", {
+        subject: "Deutsch",
+        description: "Diktat üben",
+      }),
+    );
+    await waitFor(() => expect(fetchClassDay).toHaveBeenCalledTimes(2));
+  });
+
+  it("refuses an entry without text and sends nothing", async () => {
+    const homework = api();
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(homeworkReport())}
+        homework={homework}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hausaufgaben eintragen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await within(dialog).findByText("Bitte ausfüllen."),
+    ).toBeInTheDocument();
+    expect(homework.add).not.toHaveBeenCalled();
+  });
+});

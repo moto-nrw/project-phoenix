@@ -82,6 +82,7 @@ const (
 	CodeClassdayClassHandoverNotFound                    = "classday.class_handover_not_found"
 	CodeClassdayClassHandoverNotToday                    = "classday.class_handover_not_today"
 	CodeClassdayClassHandoverUnknownChild                = "classday.class_handover_unknown_child"
+	CodeClassdayHomeworkNotFound                         = "classday.homework_not_found"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -301,7 +302,6 @@ const (
 	CodeImportFileUnreadable                             = "import.file_unreadable"
 	CodeImportImportBatchFailed                          = "import.import_batch_failed"
 	CodeImportModeForbidden                              = "import.mode_forbidden"
-	CodeIotActivityCapacityExceeded                      = "iot.activity_capacity_exceeded"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -385,6 +385,7 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_handover_not_found":                    "business_rejection",
 	"classday.class_handover_not_today":                    "input",
 	"classday.class_handover_unknown_child":                "business_rejection",
+	"classday.homework_not_found":                          "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
 	"import.mode_forbidden":                                "permission",
-	"iot.activity_capacity_exceeded":                       "business_rejection",
 }
 
 func init() {

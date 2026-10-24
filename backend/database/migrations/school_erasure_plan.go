@@ -14,7 +14,14 @@ func installSchoolErasurePlan(ctx context.Context, tx bun.Tx) error {
 // Frozen projection of ADR 0092's production catalog. The database guard
 // compares the installed function with the current catalog. Adding a table
 // requires a new migration updating the plan, not an implicit CASCADE.
-const schoolErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
+const schoolErasurePlanSQL = schoolErasurePlanPart1SQL + `  {"name": "education.class_homework","predicate": "r.tenant_id = $1"},
+` + schoolErasurePlanPart2SQL + `  {"name": "education.homework_feedback","predicate": "r.tenant_id = $1"},
+` + schoolErasurePlanPart3SQL
+
+// The pre-1.15.510 definition shares the unchanged SQL sections.
+const schoolErasurePlanWithoutHomeworkSQL = schoolErasurePlanPart1SQL + schoolErasurePlanPart2SQL + schoolErasurePlanPart3SQL
+
+const schoolErasurePlanPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
  RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = pg_catalog
  AS $plan$ SELECT $manifest$[
   {"name": "active.activity_session_attendance","predicate": "r.tenant_id = $1"},
@@ -119,7 +126,9 @@ const schoolErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure
   {"name": "documents.folders","predicate": "r.tenant_id = $1"},
   {"name": "education.class_arrival_exceptions","predicate": "r.tenant_id = $1"},
   {"name": "education.class_arrival_times","predicate": "r.tenant_id = $1"},
-  {"name": "education.class_teachers","predicate": "r.tenant_id = $1"},
+`
+
+const schoolErasurePlanPart2SQL = `  {"name": "education.class_teachers","predicate": "r.tenant_id = $1"},
   {"name": "education.grade_transition_class_list_entries","predicate": "r.tenant_id = $1"},
   {"name": "education.grade_transition_class_teachers","predicate": "r.tenant_id = $1"},
   {"name": "education.grade_transition_history","predicate": "r.tenant_id = $1"},
@@ -128,7 +137,9 @@ const schoolErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure
   {"name": "education.group_substitution","predicate": "r.tenant_id = $1"},
   {"name": "education.group_teacher","predicate": "r.tenant_id = $1"},
   {"name": "education.groups","predicate": "r.tenant_id = $1"},
-  {"name": "enrollment.care_offering_auto_triggers","predicate": "r.tenant_id = $1"},
+`
+
+const schoolErasurePlanPart3SQL = `  {"name": "enrollment.care_offering_auto_triggers","predicate": "r.tenant_id = $1"},
   {"name": "enrollment.care_offering_bookings","predicate": "r.tenant_id = $1"},
   {"name": "enrollment.care_offerings","predicate": "r.tenant_id = $1"},
   {"name": "enrollment.change_request_messages","predicate": "r.tenant_id = $1"},
@@ -250,3 +261,8 @@ const schoolErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure
 ]$manifest$::jsonb $plan$;
  REVOKE ALL ON FUNCTION platform.school_erasure_plan() FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin;
 `
+
+func restoreSchoolErasurePlanBeforeHomework(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePlanWithoutHomeworkSQL)
+	return err
+}
