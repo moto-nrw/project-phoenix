@@ -84,7 +84,11 @@ func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, pas
 		return s.mfaChallengeResult(ctx, account, metadata.TenantID, domain.ScopeTenant, ipAddress)
 	}
 
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
+	var guard mintGuard
+	if mfaRequired && enrolled {
+		guard = s.trustedDeviceMintGuard(account.ID, metadata.TenantID, trustedDeviceCookie, nil)
+	}
+	session, err := s.createRefreshSessionGuarded(ctx, account, metadata.TenantID, metadata.Scope, guard, "", mfaRequired && enrolled)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +107,7 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 	if !s.mfa.Configured() {
 		return false, false, nil
 	}
-	required, err = s.mfa.IsRequired(ctx, account.ID, account.Email, metadata.RoleNames, metadata.TenantID)
+	required, err = s.mfa.IsRequired(ctx, account.ID, account.Email, metadata.Permissions, metadata.TenantID)
 	if err != nil {
 		return false, false, failed("check mfa required", identityaccess.ErrMFAStatusUnavailable)
 	}
@@ -188,7 +192,7 @@ func (s *AccountAuthentication) IssueTokensForAuthenticatedAccount(ctx context.C
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant token issue")
 		return "", "", failed("issue tokens", identityaccess.ErrMustUseSchoolPortal)
 	}
-	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope)
+	session, err := s.createRefreshSession(ctx, account, metadata.TenantID, metadata.Scope, true)
 	if err != nil {
 		return "", "", err
 	}
@@ -251,8 +255,8 @@ func (s *AccountAuthentication) verifyPassword(account domain.LoginAccount, pass
 
 // createRefreshSession mints a refresh session with retry logic for
 // concurrent logins that collide on the token family.
-func (s *AccountAuthentication) createRefreshSession(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string) (domain.AccountSession, error) {
-	return s.createRefreshSessionGuarded(ctx, account, tenantID, scope, nil, "")
+func (s *AccountAuthentication) createRefreshSession(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, verified ...bool) (domain.AccountSession, error) {
+	return s.createRefreshSessionGuarded(ctx, account, tenantID, scope, nil, "", verified...)
 }
 
 // createRefreshSessionGuarded is createRefreshSession with an authorization
@@ -260,8 +264,9 @@ func (s *AccountAuthentication) createRefreshSession(ctx context.Context, accoun
 // the retry loop exists for token-family collisions only. retireFamilyID
 // names the caller's current family, retired in the same transaction before
 // the session cap runs so the new session replaces it (tenant switch, #2952).
-func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
+func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string, verified ...bool) (domain.AccountSession, error) {
 	session := s.newRefreshSession(account.ID, scope)
+	session.MFAVerified = len(verified) > 0 && verified[0]
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		stored, err := s.persistSessionInTransaction(ctx, account, session, tenantID, guard, retireFamilyID)
@@ -311,14 +316,9 @@ func (s *AccountAuthentication) newRefreshSession(accountID int64, scope string)
 func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
 	var stored domain.AccountSession
 	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if guard != nil {
-			if err := guard(txCtx, account); err != nil {
-				return &mintGuardError{err: err}
-			}
-		}
-		loginTime := time.Now()
-		if _, err := s.store.RecordAccountLogin(txCtx, account.ID, loginTime); err != nil {
-			return fmt.Errorf("update last login before token issuance: %w", err)
+		loginTime, err := s.prepareSessionMint(txCtx, account, &session, tenantID, guard, retireFamilyID)
+		if err != nil {
+			return err
 		}
 		if err := s.retireReplacedFamily(txCtx, account.ID, retireFamilyID, loginTime); err != nil {
 			return err

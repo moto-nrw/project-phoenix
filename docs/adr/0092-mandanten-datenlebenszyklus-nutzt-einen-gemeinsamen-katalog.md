@@ -65,6 +65,36 @@ von CASCADE-FKs ist unvollständig und kann gemeinsam genutzte Daten treffen.
 
 ## Grenzen und Folgen
 
+### Umsetzung Rückgabe, Slice 3838-a
+
+Der interne CLI-Einstieg `tenant export` liegt bei Organisation & Tenancy.
+Der neue Adapter `modules/organizationtenancy/internal/adapters/tenantexport`
+besitzt keine Schreiboperation. Die Policy bildet die oben beschlossene
+Ausnahme unter `organization-tenancy.tenant-data-lifecycle` mit genau den
+bekannten exportierten Datenobjekten ab, ohne einen neuen Owner zu schaffen.
+Die fünf Katalogtabellen ohne Runtime-Datenobjekt bleiben kataloggeführt;
+es wird ihnen nicht nur für eine Lesefreigabe ein Schreib-Owner zugewiesen.
+Der Architekturwächter akzeptiert ausschließlich diesen benannten
+Owner-/Paket-/Rollenpunkt und dessen kataloggebauten `exportTable`-Lesecall.
+Andere dynamische SQL-Aufrufe und owner-fremde Schreibzugriffe bleiben verboten.
+
+Migration 1.15.489 führt `phoenix_tenant_export` ein: `NOLOGIN`, `BYPASSRLS`,
+Leserechte über PostgreSQLs `pg_read_all_data`, keine Schreibrechte und keine
+Zuweisung an die HTTP-Rolle. Das Wartungs-CLI wechselt lokal in diese Rolle
+und prüft `REPEATABLE READ READ ONLY`. RLS-Bypass und Leserechte sind nicht
+selbst die Mandantengrenze: ausdrückliche Tabellen-/Spaltenprojektionen aus
+dem Katalog und Zwei-Schulen-Tests sichern den Exportumfang. Die Leserolle
+darf technisch auch geheime Spalten lesen; deren Ausgabe verhindern die
+getesteten Katalogprojektionen. Sie wird deshalb nicht als interaktiver
+Kundenzugang bereitgestellt. Das Zurückrollen einer einzelnen Datenbank
+entfernt die clusterweite Rolle nicht, da andere Datenbanken sie noch nutzen
+können.
+
+Der Fertig-Marker gilt nur für den technischen Katalogexport. Fachlich
+erforderliche Ergänzungen, Verschlüsselung und produktiver Nachweis folgen
+dem [Runbook](../operations/auskunft-und-rueckgabe.md). Die folgenden Aussagen
+beschreiben den Ausgangsstand von Slice 3837-a und die weiter geltenden Grenzen.
+
 - Der Katalog sagt **im Code klassifiziert**, nicht **Löschung/Export
   umgesetzt**. Slice 3837-a führt keine Migration, Löschung, Auskunft, CLI,
   Nachweistabelle oder Wiederholungsliste ein. 3837-b/c und 3838-a/b bauen
@@ -102,6 +132,41 @@ von CASCADE-FKs ist unvollständig und kann gemeinsam genutzte Daten treffen.
   Zugangsdaten oder unnötigen Dateinamen. Ein offener oder fehlgeschlagener
   Schritt verhindert den Gesamterfolg; ein DB-Erfolg bestätigt noch keine
   Dateilöschung oder Bereinigung von Sicherungen.
+
+## Ergänzung: unabhängige Wiederholungsliste (3837-d)
+
+Ein DB-Nachweis kann nach Restore eines älteren Stands die später vollzogene
+Löschung nicht kennen. Organisation & Tenancy führt deshalb zusätzlich eine
+append-only Hostdatei außerhalb der DB-/Upload-Volumes und Tagesbundles.
+Sie enthält ausschließlich Schul-ID, Vorgangsreferenz, Abschlusszeitpunkt und
+Quittungs-Prüfsumme. Erst ein synchronisierter Eintrag erlaubt CLI-Erfolg;
+ein fehlgeschlagener Schritt wird mit demselben Auftrag nachgeholt.
+
+Die Dateifähigkeit `organizationtenancy/erasureledger` ist als `public`
+klassifiziert, analog zur bereits öffentlich konstruierten Dateiablage
+`delivery/objects`. Der Root konstruiert sie und bindet sie an den
+`ErasureLedger`-Port des Löschbefehls; die Owner-Composition baut weiterhin
+DB-Adapter und Anwendung. Das hält die bestehende Compose-Fläche konstant.
+Der Root bindet die bestehende `securityruntime.Fingerprint`-Fähigkeit für
+SHA-256; es braucht keine neue Kryptografie-Freigabe und keine neue
+Cross-Owner-Schreibberechtigung. Der bestehende Owner, DB-Vertrag,
+Transaktionen und Rollen bleiben unverändert. Die Kette ist kein authentischer
+Aktualitätsnachweis: eine getrennte aktuelle Kopie und ein unabhängig
+verwahrter Dateiprüfwert gehören zwingend zum Betriebsverfahren.
+
+Der Restore prüft diese Liste nach dem Import und sperrt die Freigabe bei
+wieder vorhandenen Schulen, rückständiger Schul-ID-Sequenz oder
+unlesbarer/beschädigter Liste. Später angelegte und wieder gelöschte Schulen
+dürfen nach einem älteren Restore keine wiederverwendbaren IDs hinterlassen.
+Wiederholung
+läuft bewusst durch den bestehenden CLI, nicht durch einen neuen
+Superuser-Löschpfad. Die schreibfreie Nachprüfung hebt den Review-Marker
+nicht selbst auf. Die Liste läuft nach 97 Tagen aus (maximal 90 Tage für alle
+Sicherungen plus sieben Tage Puffer), bei täglicher Bereinigung mit bis zu
+24 Stunden Nachlauf und getrennten Vorgängerkopien für höchstens weitere
+sieben Tage also insgesamt höchstens 105 Tage. Fristbereinigung setzt nachgewiesenen
+Sicherungsablauf voraus. Produktive Rechte, Aktualität und Wirksamkeit bleiben
+nachzuweisen, siehe [Runbook](../operations/tenant-erasure.md).
 
 ## Verworfene Alternativen
 

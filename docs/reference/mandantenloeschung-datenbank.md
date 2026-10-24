@@ -12,17 +12,24 @@ Die bisherigen Schreib-Owner bleiben unverändert. Die neue Nachweistabelle
 `platform.school_erasures` und die begrenzte Abrechnungs-View
 `platform.live_billing_key_date_counts` gehören zu Organisation & Tenancy.
 
-**Nicht als vollständiges Verfahren freigegeben:** 3837-c liefert CLI,
-Dateiinventar, Dateilöschung, Nebensystemschritte, Gesamtabschluss und Runbook.
-3837-d behandelt die Wiederholung nach Restore. Produktiver Rollout,
+**CLI und Dateiphase im Code umgesetzt (3837-c):**
+[Runbook](../operations/tenant-erasure.md), Migration `1.15.490`.
+Der technische Abschluss umfasst DB und lokale Dateien, nicht die manuellen
+Nebensystemschritte oder den rechtlichen Gesamtabschluss.
+3837-d ergänzt eine außerhalb von DB-/Upload-Sicherungen liegende
+Löschungsliste und eine sperrende Restore-Prüfung. Der CLI bestätigt erst nach
+dauerhaftem Listeneintrag Erfolg; `completed` in der DB alleine beweist diesen
+externen Schritt nicht. [Betriebsverfahren](../operations/tenant-erasure.md).
+Keine neue Migration oder DB-Rollenfreigabe in 3837-d. Produktiver Rollout,
 Rollenvergabe und Wirksamkeit sind offen. Dieser Slice wurde nur an lokalen,
 synthetischen Testdaten geprüft. Kein Zugriff auf Produktion oder Staging.
 
 ## Berechtigung und Vorbedingungen
 
 Die neue Rolle `phoenix_school_erasure` ist `NOLOGIN NOINHERIT NOBYPASSRLS`.
-Sie erhält ausschließlich Schema-Nutzung und die vier unten genannten
-Funktionen, keine Tabellen- oder Sequenzrechte. Kein HTTP-/Schul-/Operator-
+Sie erhält ausschließlich Schema-Nutzung und die unten genannten
+Funktionen, keine Tabellen- oder Sequenzrechte. Migration `1.15.490` ergänzt
+die drei CLI-Funktionen für Probelauf, Trägerschulliste und Dateiphase. Kein HTTP-/Schul-/Operator-
 Web-Login erhält Mitgliedschaft. Der spätere CLI-Zugang muss diese Rolle
 gezielt übernehmen können; dessen Einrichtung ist ein Mensch-Schritt in
 3837-c, nicht Teil dieser Migration.
@@ -80,8 +87,10 @@ prüft nur Existenz, Länge und gebundene IDs.
    Ein technisch erfolgreicher SQL-Aufruf ist kein erfolgreicher Löschauftrag.
 4. `platform.read_school_erasure(erasure_id)` liefert den datensparsamen
    Nachweis. Die DB-Funktion setzt weder `files_done_at` noch `completed_at`.
-   Die Statuswerte `files_done` und `completed` sind für 3837-c vorbereitet,
-   aber noch nicht über eine CLI-Rollenfunktion beschreibbar. Ein erneuter
+   Migration `1.15.490` ergänzt die Rollenfunktion
+   `platform.school_erasure_file_phase` für Inventar, Fehler, `files_done`
+   und `completed`; Aufruf und Vorbedingungen stehen im
+   [CLI-Runbook](../operations/tenant-erasure.md). Ein erneuter
    DB-Aufruf nach `db_done_at` ist unabhängig vom späteren Phasenstatus ein
    No-op mit dem bestehenden Ergebnis. Ein fehlgeschlagener DB-Aufruf kann
    mit derselben Auftrags-ID erneut ausgeführt werden.
@@ -96,6 +105,27 @@ auch die Fehlerstatus-Schreiboperation verhindern. Dann bleibt der zuvor
 committete Auftrag offen; ohne `db_done_at`/`completed_at` gibt es keinen
 Erfolgsnachweis. Vor Fortsetzung Status erneut lesen. Keine Roh-DB-Fehler mit
 möglichen Datensatzinhalten in Logs oder Ausgaben übernehmen.
+
+## CLI-Ergänzung (3837-c, Migration 1.15.490)
+
+- `platform.school_erasure_preview(school_id, operator_id)` liefert nur
+  Anzahlen je Planzieltabelle, prüft aktive Operator-ID und Schulwurzel und
+  schreibt keinen Auftrag. Statische Selektoren entsprechen dem DB-Plan.
+- `platform.school_erasure_schools(organization_id, operator_id, reference)`
+  liefert Schul-IDs des Trägers sowie bereits gelöschte Schulen desselben
+  Vorgangs für die Wiederaufnahme. Kein Löschen der Trägerwurzel.
+- `platform.school_erasure_file_phase(erasure_id, phase, counts)` speichert
+  vor dem DB-Schritt neun Dateiart-Anzahlen und `files_inventory_at`.
+  Nach `db_done_at` sind `files_done`, danach `completed` erlaubt; ein
+  Dateifehler setzt `failed` mit dem generischen Code `F0001`. Der CLI muss
+  alle Namespaces entfernen und erneut auf Leere prüfen, bevor er diese
+  Zustände meldet. Die DB kann das Dateisystem nicht selbst prüfen.
+
+Die Funktionen sind `SECURITY DEFINER` mit festem `search_path`, ohne
+allgemeine Tabellenrechte für die CLI-Rolle. Nur die Rollenfunktion darf
+Inventar und Abschluss schreiben. Der technische Abschluss ersetzt keine
+menschliche Prüfung der Nebensysteme oder Sicherungskopien. Bestehende reine
+DB-Aufträge ohne Inventar können nicht automatisch abgeschlossen werden.
 
 ## Umfang und Schutz vor Teilverlust
 

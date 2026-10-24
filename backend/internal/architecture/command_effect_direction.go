@@ -8,6 +8,9 @@ import (
 // Runtime direction is independent of effect: a read-only callback into a
 // workflow is not an ordinary domain dependency either (ADR 0071 point 2).
 func validateEffectDirection(entry commandEffectEntry, ownerKinds map[string]string, classified map[string]Package) error {
+	if (entry.Classification == "platform") != (ownerKinds[entry.TargetOwner] == "platform" && entry.Effect != "query") {
+		return fmt.Errorf("platform classification %s is reserved for non-query platform protocol targets; platform reads are queries", entry.key())
+	}
 	if ownerKinds[entry.sourceOwner()] != "domain" || ownerKinds[entry.TargetOwner] != "workflow" {
 		return nil
 	}

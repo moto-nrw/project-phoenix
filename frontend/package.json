@@ -19,6 +19,8 @@
     "publish:screenshots": "playwright test -c playwright.screenshots.config.ts publish\\.pw",
     "test:layout": "playwright test -c playwright.layout.config.ts",
     "test:e2e": "playwright test",
+    "test:network": "playwright test -c playwright.network.config.ts",
+    "test:tenant-switch": "playwright test -c playwright.tenant-switch.config.ts",
     "generate:locales": "node scripts/generate-locales.mjs",
     "generate:error-catalog": "node scripts/verify-error-catalog.mjs --write",
     "lint": "oxlint .",

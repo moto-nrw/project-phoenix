@@ -55,14 +55,14 @@ test.describe("Planung navigation", () => {
     await expect(
       sidebar.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
-    await expect(sidebar.getByText("Schuljahr und Ferien")).toBeVisible();
+    await expect(sidebar.getByText("Schuljahr und Kalender")).toBeVisible();
     await expect(sidebar.getByText("Planungsübersicht")).toHaveCount(0);
     // Der zentrale Einstieg bündelt alle Vertretungsvorgänge; er steht im
     // Tagesbetrieb, der standardmäßig offen ist.
+    await expect(sidebar.getByText("Übergaben", { exact: true })).toBeVisible();
     await expect(
       sidebar.getByText("Vertretungen", { exact: true }),
-    ).toBeVisible();
-    await expect(sidebar.getByText("Übergaben")).toHaveCount(0);
+    ).toHaveCount(0);
 
     await sidebar.getByText("Betreuungsplan").click();
     await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));
@@ -130,7 +130,9 @@ test.describe("Planung navigation", () => {
     expect(new URL(page.url()).pathname.endsWith("/substitutions")).toBe(true);
     const main = page.locator("main");
     await expect(main.getByText("Laufende Betreuungen")).toBeVisible();
-    await expect(main.getByText("Termine", { exact: true })).toBeVisible();
+    await expect(
+      main.getByText("Vertretungen heute", { exact: true }),
+    ).toBeVisible();
     await expect(main.getByText("Gruppen", { exact: true })).toBeVisible();
     await expect(main.getByText("Gruppenzugriff")).toHaveCount(0);
   });
@@ -151,9 +153,7 @@ test.describe("Planung navigation", () => {
     await expect(
       drawer.getByText("Vertretungsplan", { exact: true }),
     ).toBeVisible();
-    await expect(
-      drawer.getByText("Vertretungen", { exact: true }),
-    ).toBeVisible();
+    await expect(drawer.getByText("Übergaben", { exact: true })).toBeVisible();
     await expect(drawer.getByText("Planung", { exact: true })).toBeVisible();
   });
 });

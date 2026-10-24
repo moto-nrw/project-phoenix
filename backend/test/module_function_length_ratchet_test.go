@@ -544,7 +544,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_bookings_profile.go:(seedEnrollmentBookingsProfileStep).Run": 71,
 	// ADR 0087.
-	"internal/devtools/seedapi/enrollment_weekly_profile.go:linkDeveloperAdmin": 80,
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:seedWeeklyProfileContents": 87,
 	// ADR 0087.
@@ -615,7 +614,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"realtime/hub.go:(*Hub).Unregister": 67,
 	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
-	"roots/owners/root_worker.go:ComposeWorker":                                              358,
+	"roots/owners/root_worker.go:ComposeWorker":                                              345,
 	"roots/owners/worker.go:NewWorker":                                                       91,
 	// ADR 0087.
 	"seed/avatar/avatar.go:tracePath": 64,

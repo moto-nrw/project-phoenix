@@ -36,6 +36,7 @@ DELETE /api/guardians/{id}/phone-numbers/{phoneId}
 DELETE /api/iot/*/{id}
 DELETE /api/iot/staff/{staffId}/rfid
 DELETE /api/me/profile/avatar
+DELETE /api/meal-plan/participants/{studentId}/{date}
 DELETE /api/meal-plan/{date}
 DELETE /api/notifications/preferences/
 DELETE /api/notifications/push/subscriptions
@@ -190,6 +191,7 @@ GET /api/enrollment/admin/requests/{id}/
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
 GET /api/enrollment/admin/requests/{id}/delete-impact
+GET /api/enrollment/admin/requests/{id}/uploads/{uploadId}
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
@@ -288,6 +290,9 @@ GET /api/meal-plan/participants/week
 GET /api/meal-plan/participants/week/export
 GET /api/messages/
 GET /api/messages/count-scope
+GET /api/messages/group-threads
+GET /api/messages/group-threads/audience
+GET /api/messages/group-threads/{groupThreadId}
 GET /api/messages/reachable-students
 GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
@@ -558,6 +563,8 @@ GET /parent/me/enrollments
 GET /parent/me/messages
 GET /parent/me/messages/children/{studentId}
 GET /parent/me/messages/children/{studentId}/threads
+GET /parent/me/messages/group-threads
+GET /parent/me/messages/group-threads/{groupThreadId}
 GET /parent/me/messages/unread-count
 GET /parent/me/news
 GET /parent/me/news/unread-count
@@ -673,6 +680,7 @@ POST /api/enrollment/requests/{statusToken}/confirm-renewal
 POST /api/enrollment/requests/{statusToken}/withdraw
 POST /api/enrollment/schema/
 POST /api/enrollment/{tenantSlug}/submit
+POST /api/enrollment/{tenantSlug}/uploads
 POST /api/feedback/
 POST /api/feedback/batch
 POST /api/files/folders
@@ -719,6 +727,9 @@ POST /api/iot/staff-clock
 POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
+POST /api/messages/group-threads
+POST /api/messages/group-threads/{groupThreadId}/close
+POST /api/messages/group-threads/{groupThreadId}/messages
 POST /api/messages/mark-all-read
 POST /api/messages/threads
 POST /api/messages/threads/open
@@ -926,6 +937,7 @@ POST /parent/auth/login
 POST /parent/auth/password-reset
 POST /parent/auth/password-reset/confirm
 POST /parent/enrollments/{tenantSlug}/submit
+POST /parent/enrollments/{tenantSlug}/uploads
 POST /parent/me/calendar/feed/rotate
 POST /parent/me/calendar/recipients/{recipientId}/response
 POST /parent/me/children/{studentId}/care-exception
@@ -996,6 +1008,7 @@ PUT /api/guardians/{id}/phone-numbers/{phoneId}
 PUT /api/iot/*/{id}
 PUT /api/iot/session/{sessionId}/supervisors
 PUT /api/me/profile
+PUT /api/meal-plan/participants/{studentId}/{date}
 PUT /api/meal-plan/{date}
 PUT /api/messages/count-scope
 PUT /api/notifications/email-subscriptions/{type}

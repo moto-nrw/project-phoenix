@@ -17,12 +17,9 @@ type liveStaffMembershipStub struct {
 	err   error
 }
 
-func (m liveStaffMembershipStub) WithLiveStaff(ctx context.Context, _ int64, write func(context.Context) error) error {
+func (m liveStaffMembershipStub) LockLiveStaff(context.Context, int64) error {
 	*m.calls = append(*m.calls, "lock")
-	if m.err != nil {
-		return m.err
-	}
-	return write(ctx)
+	return m.err
 }
 
 type staffEmploymentWritesStub struct {

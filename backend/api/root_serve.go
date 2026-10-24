@@ -249,7 +249,7 @@ func composeServeRoot(
 		},
 		func() (err error) { mealPlanSettings, err = owners.BuildMealPlanSettings(settings.Service); return },
 		func() (err error) {
-			mealPlan, err = owners.BuildServeMealPlan(db, mealPlanSettings, owners.NewStudentRootReads(people.Students))
+			mealPlan, err = owners.BuildServeMealPlan(db, mealPlanSettings, calendar, owners.NewStudentRootReads(people.Students))
 			return
 		},
 		func() (err error) { feedbackSettings, err = owners.BuildFeedbackSettings(settings.Service); return },
@@ -428,7 +428,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			fileStore, err = owners.BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements, parent)
+			fileStore, err = owners.BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements)
 			return
 		},
 		func() (err error) {
@@ -475,7 +475,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, hub)
+			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, owners.BuildPresenceCleanup(env, presence, audit, settings.Service), hub)
 			return
 		},
 		func() (err error) {
@@ -556,7 +556,7 @@ func composeServeRoot(
 				birthdays, emergency)
 			mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication)
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
-			return mountDeliveryRoutes(router, tenant, logger, fileStore, hub, caller, identity)
+			return mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity)
 		},
 		func() error {
 			operator, err := newOperatorRouter(db, logger, sessionAuth, limiters, iot, organizations, settings.Service, hub,
@@ -565,7 +565,7 @@ func composeServeRoot(
 				return err
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
-				operator, newParentResource(identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications))
+				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications))
 			return nil
 		},
 	)

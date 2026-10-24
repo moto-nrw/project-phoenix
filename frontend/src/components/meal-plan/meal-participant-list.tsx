@@ -9,15 +9,22 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Check, Utensils } from "lucide-react";
+import { CalendarOff, Check, UserPlus, Utensils } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ExportMenu } from "~/components/ui/export-menu";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { MealParticipantAddModal } from "~/components/meal-plan/meal-participant-add-modal";
+import {
+  useApiErrorDisplay,
+  useApiLoadError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
@@ -27,8 +34,11 @@ import {
   getDailyMealParticipants,
   getWeeklyMealParticipants,
   mondayOf,
+  setMealParticipantDay,
   workWeekDates,
+  type DailyMealList,
   type DailyMealParticipant,
+  type MealCutoffs,
   type WeeklyMealList,
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
@@ -80,8 +90,57 @@ function weeklyRows(week: WeeklyMealList | null): WeeklyMealRow[] {
   return [...rows.values()].sort(compareParticipants);
 }
 
-export function MealParticipantList() {
+// 2026-01-05 is a Monday: weekday n (1-5) falls on 2026-01-(4+n).
+function weekdayName(weekday: number, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(
+    new Date(2026, 0, 4 + weekday),
+  );
+}
+
+type Translate = ReturnType<typeof useTranslations<"mealParticipantList">>;
+
+/** Die Fristtexte der Küchenliste: Änderungsfrist und spätere Abmeldefrist. */
+function cutoffTexts(
+  cutoffs: MealCutoffs | null,
+  isWeek: boolean,
+  locale: string,
+  t: Translate,
+): string[] {
+  if (!cutoffs?.cutoffTime) return [];
+  const { cutoffTime: time, cutoffLeadDays: days, cutoffWeekday } = cutoffs;
+  const texts = [
+    cutoffWeekday > 0
+      ? t("cutoffWeekday", {
+          time,
+          weekday: weekdayName(cutoffWeekday, locale),
+        })
+      : isWeek
+        ? t("weekCutoff", { time, days })
+        : days > 0
+          ? t("cutoffLead", { time, days })
+          : t("cutoff", { time }),
+  ];
+  if (cutoffs.cancellationCutoffTime) {
+    texts.push(
+      t("cancellationCutoff", {
+        time: cutoffs.cancellationCutoffTime,
+        days: cutoffs.cancellationCutoffLeadDays,
+      }),
+    );
+  }
+  return texts;
+}
+
+/**
+ * Die Küchenliste. Mit `canChange` (config:update und users:read) meldet
+ * das Team Kinder eines heutigen oder späteren Tages auch nach der Frist an
+ * oder ab (#3164).
+ */
+export function MealParticipantList({
+  canChange = false,
+}: Readonly<{ canChange?: boolean }> = {}) {
   const t = useTranslations("mealParticipantList");
+  const toast = useToast();
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = useBerlinToday();
@@ -100,9 +159,11 @@ export function MealParticipantList() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const date = selectedDate ?? nextWeekday(today);
   const weekStart = mondayOf(parseISODate(date));
-  const [cutoffTime, setCutoffTime] = useState("");
-  const [cutoffLeadDays, setCutoffLeadDays] = useState(0);
-  const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
+  const [cutoffs, setCutoffs] = useState<MealCutoffs | null>(null);
+  const [day, setDay] = useState<DailyMealList | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [changingId, setChangingId] = useState<string | null>(null);
+  const participants = day?.participants ?? [];
   const [week, setWeek] = useState<WeeklyMealList | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
@@ -115,19 +176,17 @@ export function MealParticipantList() {
       if (view === "week") {
         const list = await getWeeklyMealParticipants(weekStart);
         setWeek(list);
-        setCutoffTime(list.cutoffTime);
-        setCutoffLeadDays(list.cutoffLeadDays);
+        setCutoffs(list);
       } else {
         const list = await getDailyMealParticipants(date);
-        setParticipants(list.participants);
-        setCutoffTime(list.cutoffTime);
-        setCutoffLeadDays(list.cutoffLeadDays);
+        setDay(list);
+        setCutoffs(list);
       }
     } catch (cause) {
       logger.error("meal_participant_list_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
-      setParticipants([]);
+      setDay(null);
       setWeek(null);
       void showLoadError(cause, {
         object: errorObject,
@@ -144,6 +203,48 @@ export function MealParticipantList() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const canChangeDay =
+    canChange &&
+    view === "day" &&
+    day !== null &&
+    day.date === date &&
+    !day.closed &&
+    date >= today &&
+    !loading &&
+    !loadError;
+  const dateLabel = formatDate(date, false, locale);
+
+  const unregister = useCallback(
+    async (participant: DailyMealParticipant) => {
+      setChangingId(participant.studentId);
+      try {
+        await setMealParticipantDay(participant.studentId, date, false);
+        toast.success(
+          t("unregisteredToast", {
+            name: `${participant.firstName} ${participant.lastName}`,
+            date: dateLabel,
+          }),
+        );
+        await load();
+      } catch (cause) {
+        logger.error("meal_participant_unregister_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        void showActionError(cause, {
+          object: t("changeErrorObject"),
+          retry: () => void unregisterRef.current(participant),
+        });
+      } finally {
+        setChangingId(null);
+      }
+    },
+    [date, dateLabel, load, showActionError, t, toast],
+  );
+  const unregisterRef = useRef(unregister);
+  useLayoutEffect(() => {
+    unregisterRef.current = unregister;
+  });
 
   const columns = useMemo<DataTableColumn<DailyMealParticipant>[]>(
     () => [
@@ -164,12 +265,46 @@ export function MealParticipantList() {
     ],
     [t],
   );
+  const dayColumns = useMemo<DataTableColumn<DailyMealParticipant>[]>(
+    () =>
+      canChangeDay
+        ? [
+            ...columns,
+            {
+              key: "actions",
+              header: "",
+              align: "right",
+              stacked: "meta",
+              render: (row) => (
+                <OverflowMenu
+                  ariaLabel={t("rowActions", {
+                    name: `${row.firstName} ${row.lastName}`,
+                  })}
+                  items={[
+                    {
+                      label: t("unregister"),
+                      disabled: changingId !== null,
+                      onClick: () => void unregister(row),
+                    },
+                  ]}
+                />
+              ),
+            },
+          ]
+        : columns,
+    [canChangeDay, changingId, columns, t, unregister],
+  );
 
   const weekDates = useMemo(
     () => week?.days.map((day) => day.date) ?? [],
     [week],
   );
   const weekRows = useMemo(() => weeklyRows(week), [week]);
+  const closedDates = useMemo(
+    () =>
+      new Set(week?.days.filter((day) => day.closed).map((day) => day.date)),
+    [week],
+  );
   const weekColumns = useMemo<DataTableColumn<WeeklyMealRow>[]>(() => {
     const dayLabel = new Intl.DateTimeFormat(locale, {
       weekday: "short",
@@ -184,7 +319,9 @@ export function MealParticipantList() {
         align: "center",
         stacked: "field",
         render: (row) =>
-          row.dates.has(day) ? (
+          closedDates.has(day) ? (
+            <span className="text-xs text-gray-500">{t("weekClosed")}</span>
+          ) : row.dates.has(day) ? (
             <>
               <Check
                 className="text-moto-green-strong inline-block h-4 w-4"
@@ -203,16 +340,10 @@ export function MealParticipantList() {
         sortValue: (row) => (row.dates.has(day) ? 1 : 0),
       })),
     ];
-  }, [columns, weekDates, locale, t]);
+  }, [columns, weekDates, closedDates, locale, t]);
 
-  const cutoffText = !cutoffTime
-    ? null
-    : view === "week"
-      ? t("weekCutoff", { time: cutoffTime, days: cutoffLeadDays })
-      : cutoffLeadDays > 0
-        ? t("cutoffLead", { time: cutoffTime, days: cutoffLeadDays })
-        : t("cutoff", { time: cutoffTime });
   const isWeek = view === "week";
+  const cutoffLines = cutoffTexts(cutoffs, isWeek, locale, t);
   const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: "short" });
   const weekEnd = workWeekDates(weekStart).at(-1) ?? weekStart;
 
@@ -257,9 +388,14 @@ export function MealParticipantList() {
             <p className="mt-1 text-sm text-gray-600">
               {isWeek ? t("weekDescription") : t("description")}
             </p>
-            {cutoffText ? (
-              <p className="mt-1 text-sm font-medium text-gray-700">
-                {cutoffText}
+            {cutoffLines.map((line) => (
+              <p key={line} className="mt-1 text-sm font-medium text-gray-700">
+                {line}
+              </p>
+            ))}
+            {canChangeDay ? (
+              <p className="mt-1 text-sm text-gray-600">
+                {t("staffChangeHint")}
               </p>
             ) : null}
           </div>
@@ -297,6 +433,19 @@ export function MealParticipantList() {
               triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
             />
 
+            {canChangeDay ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="gap-2"
+                onClick={() => setAdding(true)}
+              >
+                <UserPlus className="h-4 w-4" aria-hidden="true" />
+                {t("addChild")}
+              </Button>
+            ) : null}
+
             <div className="flex flex-wrap gap-2 sm:justify-end">
               <ExportMenu
                 label={isWeek ? t("weekDownloadGroup") : t("downloadGroup")}
@@ -329,10 +478,11 @@ export function MealParticipantList() {
               {week.days
                 .map(
                   (day) =>
-                    `${weekdayShort.format(parseISODate(day.date))} ${t(
-                      "weekCount",
-                      { count: day.participants.length },
-                    )}`,
+                    `${weekdayShort.format(parseISODate(day.date))} ${
+                      day.closed
+                        ? t("weekClosed")
+                        : t("weekCount", { count: day.participants.length })
+                    }`,
                 )
                 .join(" · ")}
             </span>
@@ -361,9 +511,15 @@ export function MealParticipantList() {
             />
           }
         />
+      ) : day?.closed && !loading ? (
+        <EmptyState
+          icon={<CalendarOff className="h-6 w-6" />}
+          title={t("closedTitle")}
+          description={t("closedDescription")}
+        />
       ) : (
         <DataTable
-          columns={columns}
+          columns={dayColumns}
           rows={participants}
           getRowKey={(row) => row.studentId}
           isLoading={loading}
@@ -380,6 +536,19 @@ export function MealParticipantList() {
           }
         />
       )}
+
+      {adding && day ? (
+        <MealParticipantAddModal
+          date={day.date}
+          dateLabel={dateLabel}
+          available={day.available}
+          onClose={() => setAdding(false)}
+          onAdded={async () => {
+            setAdding(false);
+            await load();
+          }}
+        />
+      ) : null}
     </section>
   );
 }

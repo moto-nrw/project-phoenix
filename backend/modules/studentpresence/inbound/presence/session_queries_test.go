@@ -42,7 +42,7 @@ func TestSessionVisitsPreserveExistenceGateAndErrors(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			queriedVisits := false
-			rs := &Resource{Presence: sessionQueryStub{
+			rs := &Resource{SettingsService: &settingsDouble{ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil }}, Presence: sessionQueryStub{
 				query: func(got context.Context, ids []int64) ([]studentpresence.LiveGroup, error) {
 					assert.Same(t, ctx, got)
 					assert.Equal(t, []int64{42}, ids)

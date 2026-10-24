@@ -937,7 +937,10 @@ policy domain source owner, preserving only exact reviewed identities. Review
 all new `unknown` labels before running `check`; do not label locking/audited
 reads as queries. `check` enforces canonical generator JSON and one effect per
 target method without rewriting files. E1–E5, workflow-backed bindings, known
-coordination debt and unresolved bindings remain distinct. See the
+coordination debt and unresolved bindings remain distinct. Callable fields and
+parameters resolve to their root closures, generic instances to their origin,
+and platform protocol entries are classified `platform`
+([ADR 0098](../../docs/adr/0098-command-effect-binding-flow-and-platform-protocols.md)). See the
 [ADR 0083 domain-source addendum](../../docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md#domain-source-expansion-2026-10-23-4739)
 and [all 40 reconciled hand rows](../../docs/architecture/4739-command-effect-reconciliation.md).
 

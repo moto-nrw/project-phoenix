@@ -308,8 +308,46 @@ func TestMealRegistrationSettings(t *testing.T) {
 	require.NotNil(t, lead.Validation.Max)
 	assert.Equal(t, float64(0), *lead.Validation.Min)
 	assert.Equal(t, float64(10), *lead.Validation.Max)
+	// A fixed weekday replaces the lead, so the lead only shows without one.
 	require.NotNil(t, lead.DependsOn)
-	assert.Equal(t, config.KeyMealRegistrationEnabled, lead.DependsOn.Key)
+	assert.Equal(t, config.KeyMealRegistrationCutoffWeekday, lead.DependsOn.Key)
+	assert.Equal(t, 0, lead.DependsOn.Value)
+
+	weekday := config.GetDefinition(config.KeyMealRegistrationCutoffWeekday)
+	require.NotNil(t, weekday)
+	assert.Equal(t, config.FieldSelect, weekday.Type)
+	assert.Equal(t, 0, weekday.Default)
+	require.NotNil(t, weekday.Options)
+	values := make([]any, 0, len(weekday.Options.Static))
+	for _, option := range weekday.Options.Static {
+		values = append(values, option.Value)
+	}
+	assert.Equal(t, []any{0, 1, 2, 3, 4, 5}, values)
+	require.NotNil(t, weekday.DependsOn)
+	assert.Equal(t, config.KeyMealRegistrationEnabled, weekday.DependsOn.Key)
+
+	// The later cancellation cutoff is off by default and its time and lead
+	// only show while it is on.
+	separate := config.GetDefinition(config.KeyMealCancellationCutoffSeparate)
+	require.NotNil(t, separate)
+	assert.Equal(t, config.FieldBoolean, separate.Type)
+	assert.Equal(t, false, separate.Default)
+	require.NotNil(t, separate.DependsOn)
+	assert.Equal(t, config.KeyMealRegistrationEnabled, separate.DependsOn.Key)
+	cancellationTime := config.GetDefinition(config.KeyMealCancellationCutoffTime)
+	require.NotNil(t, cancellationTime)
+	assert.Equal(t, config.FieldTime, cancellationTime.Type)
+	assert.Equal(t, "09:00", cancellationTime.Default)
+	require.NotNil(t, cancellationTime.DependsOn)
+	assert.Equal(t, config.KeyMealCancellationCutoffSeparate, cancellationTime.DependsOn.Key)
+	cancellationLead := config.GetDefinition(config.KeyMealCancellationCutoffLeadDays)
+	require.NotNil(t, cancellationLead)
+	assert.Equal(t, config.FieldNumber, cancellationLead.Type)
+	assert.Equal(t, 0, cancellationLead.Default)
+	require.NotNil(t, cancellationLead.Validation)
+	assert.Equal(t, float64(10), *cancellationLead.Validation.Max)
+	require.NotNil(t, cancellationLead.DependsOn)
+	assert.Equal(t, config.KeyMealCancellationCutoffSeparate, cancellationLead.DependsOn.Key)
 }
 
 // #3163: the same-day pickup cutoff is off unless a school sets a time, and it
@@ -1687,13 +1725,10 @@ func TestMFASettings_TypesAndDefaults(t *testing.T) {
 func TestMFASettings_DependsOnGraph(t *testing.T) {
 	t.Parallel()
 
-	t.Run("trusted_device_enabled hidden when mfa_mode is off", func(t *testing.T) {
+	t.Run("trusted_device_enabled remains visible for privileged MFA when mode is off", func(t *testing.T) {
 		def := config.GetDefinition(config.KeyMFATrustedDeviceEnabled)
 		require.NotNil(t, def)
-		require.NotNil(t, def.DependsOn)
-		assert.Equal(t, config.KeyMFAMode, def.DependsOn.Key)
-		assert.Equal(t, "neq", def.DependsOn.Condition)
-		assert.Equal(t, config.MFAModeOff, def.DependsOn.Value)
+		assert.Nil(t, def.DependsOn, "privileged accounts require MFA even when the school mode is off")
 	})
 
 	t.Run("trusted_device_days hidden when trusted_device_enabled is false", func(t *testing.T) {

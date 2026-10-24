@@ -188,10 +188,26 @@ type AuditCommand interface {
 	Append(context.Context, any) error
 }
 
-// Workforce go-live opening commands and their public values.
+// OpeningBalanceBookings is the Workforce go-live hours ledger the opening
+// balance import books through: preview validation is read-only, booking
+// repeats its guards under the ledger lock. Calendar dates use YYYY-MM-DD.
+type OpeningBalanceBookings interface {
+	ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, date string, minutes int, note string) error
+	CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, date string, minutes int, note string) (*StaffBalanceAdjustment, error)
+}
+
+// VacationTakeovers supplies the Workforce quota and opening commands in
+// booking order: apply any quota changes before deriving days already taken
+// from the opening.
+type VacationTakeovers interface {
+	VacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
+	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
+	SetVacationOpening(ctx context.Context, staffID, decidedBy int64, input SetVacationOpeningRequest) (*StaffVacationOpening, error)
+	ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, date string) error
+}
+
+// The Workforce go-live opening values.
 type (
-	OpeningBalanceBookings    = workforce.OpeningBalanceBookings
-	VacationTakeovers         = workforce.VacationTakeovers
 	StaffBalanceAdjustment    = workforce.StaffBalanceAdjustment
 	StaffVacationOpening      = workforce.StaffVacationOpening
 	VacationQuotaSummary      = workforce.VacationQuotaSummary

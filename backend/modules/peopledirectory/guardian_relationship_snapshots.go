@@ -46,6 +46,10 @@ type GuardianRelationshipReads interface {
 }
 
 func GuardianRelationshipTypeValid(value string) bool { return contact.IsValidRelationshipType(value) }
+
+// MapGuardianRelationshipType converts a German or English relationship label
+// to its stored type; an unknown label is "other".
+func MapGuardianRelationshipType(label string) string { return contact.MapRelationshipType(label) }
 func NormalizeGuardianRelationship(value *GuardianRelationshipSnapshot) error {
 	state := contact.GuardianRelationshipValues{StudentID: value.StudentID, GuardianProfileID: value.GuardianProfileID, RelationshipType: value.RelationshipType, GuardianRole: value.GuardianRole, PermissionsPresent: value.Permissions != nil}
 	err := contact.NormalizeGuardianRelationship(&state)

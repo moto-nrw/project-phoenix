@@ -40,18 +40,7 @@ func visitQuery(db bun.IDB, tenantID int64, rows any, filter studentpresence.Vis
 	if filter.ActiveGroupIDs != nil {
 		query = query.Where("visit.active_group_id IN (?)", bun.List(filter.ActiveGroupIDs))
 	}
-	if filter.EnteredFrom != nil {
-		query = query.Where("visit.entry_time >= ?", *filter.EnteredFrom)
-	}
-	if filter.EnteredUntil != nil {
-		query = query.Where("visit.entry_time <= ?", *filter.EnteredUntil)
-	}
-	if filter.OverlapFrom != nil {
-		query = query.Where("(visit.exit_time IS NULL OR visit.exit_time >= ?)", *filter.OverlapFrom)
-	}
-	if filter.OverlapUntil != nil {
-		query = query.Where("visit.entry_time <= ?", *filter.OverlapUntil)
-	}
+	query = visitTimeQuery(query, filter)
 	if filter.OpenOnly {
 		query = query.Where("visit.exit_time IS NULL")
 	}
@@ -74,6 +63,25 @@ func visitQuery(db bun.IDB, tenantID int64, rows any, filter studentpresence.Vis
 	}
 	if filter.ForUpdate {
 		query = query.For("UPDATE")
+	}
+	return query
+}
+
+func visitTimeQuery(query *bun.SelectQuery, filter studentpresence.VisitFilter) *bun.SelectQuery {
+	if filter.EnteredFrom != nil {
+		query = query.Where("visit.entry_time >= ?", *filter.EnteredFrom)
+	}
+	if filter.EnteredUntil != nil {
+		query = query.Where("visit.entry_time <= ?", *filter.EnteredUntil)
+	}
+	if filter.OverlapFrom != nil {
+		query = query.Where("(visit.exit_time IS NULL OR visit.exit_time >= ?)", *filter.OverlapFrom)
+	}
+	if filter.OverlapUntil != nil {
+		query = query.Where("visit.entry_time <= ?", *filter.OverlapUntil)
+	}
+	if filter.ClosedSince != nil {
+		query = query.Where("(visit.exit_time IS NULL OR visit.exit_time >= ?)", *filter.ClosedSince)
 	}
 	return query
 }

@@ -163,3 +163,32 @@ func requireMFATransition(result sql.Result, err error) error {
 	}
 	return nil
 }
+
+func (r *AccountMFARecords) MFAAccountPermissions(ctx context.Context, accountID, tenantID int64) ([]string, error) {
+	tenantIDs := []int64{tenantID}
+	if tenantID == 0 {
+		var err error
+		tenantIDs, _, err = r.store.ListActiveTenantIDs(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var grants []string
+	for _, id := range tenantIDs {
+		permissions, _, err := r.store.ListAccountPermissionsAtTenant(ctx, accountID, id)
+		if err != nil {
+			return nil, err
+		}
+		grants = append(grants, permissions...)
+	}
+	return grants, nil
+}
+
+func (r *AccountMFARecords) InvalidateSessionMFA(ctx context.Context, accountID int64) error {
+	db, err := r.store.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewUpdate().Model((*accountSessionRow)(nil)).Set("mfa_verified = FALSE").Where("account_id = ?", accountID).Exec(ctx)
+	return err
+}

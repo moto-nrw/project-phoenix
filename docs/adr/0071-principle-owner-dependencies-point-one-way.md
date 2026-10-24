@@ -180,3 +180,32 @@ as a separate mount argument to HTTP. The handler in
 `modules/careplan/http/care_exit_handlers.go` calls this port directly;
 no Care Plan domain command calls it. Care Plan retains the input value and
 error identities, not the workflow command.
+
+## Addendum 2026-10-24: ungranted debt removed (#4825)
+
+[ADR 0099](0099-domain-applications-no-longer-call-workflows.md) removes the
+remaining domain-to-workflow runtime bindings of the #4825 inventory. PR #4833
+removed the first two. No domain application now calls workflow code at
+runtime, apart from the Care Exit Roster/Bookings E2 callbacks granted above.
+The command-effect register lists no #4825 debt. The rule of
+[Other existing bindings are ungranted debt](#other-existing-bindings-are-ungranted-debt)
+still applies: a new binding of this kind is forbidden and is not debt to be
+recorded.
+
+The bindings took the two paths of #4825:
+
+- **The capability belongs to a domain owner.** People Directory owns the
+  relationship-type vocabulary. Care Plan owns its same-day cutoff value.
+  Workforce owns the deletion record of its absences. School Membership offers
+  a live-staff lock in place of a closure parameter. School Structure's
+  handover store calls Workforce's group-substitution commands directly.
+- **A workflow entry reached from HTTP or the root.** These are Parent
+  Portal's guardian attachment downloads, Shift Plan Sync's Terminvertretung,
+  and Shift Plan Sync's sick reports. For sick reports, Workforce returns a
+  `SickCascadePlan`, and the entry applies it in the same tenant transaction.
+
+Each HTTP route reaches its workflow through a port declared in its own
+`http` package; the root binds the workflow there. Timetable's
+pickup-extension routes and Data Import's observed opening commands now use
+the same shape, instead of the domain interface they were typed with. The
+open question about platform triggers is unchanged.

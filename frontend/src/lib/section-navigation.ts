@@ -106,7 +106,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   // Namens (#3114).
   { href: "/database/categories", label: "Terminkategorien" },
   { href: "/database/planning-tracks", label: "Planungsspuren" },
-  { href: "/database/shift-types", label: "Schichtarten" },
+  { href: "/database/shift-types", label: "Dienstarten" },
   { href: "/database/absence-types", label: "Abwesenheitsarten" },
   // „Gruppendaten", nicht „Gruppen": im Tagesbetrieb heißt die Auswahl der
   // Gruppen am laufenden Tag schon „Gruppen" (#4351). Dieselbe Trennung wie
@@ -115,7 +115,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
-  { href: "/database/grade-transitions", label: "Jahrgangswechsel" },
+  { href: "/database/grade-transitions", label: "Schuljahreswechsel" },
   { href: "/database/exports", label: "Exporte" },
 ];
 
@@ -256,7 +256,7 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     label: "Bankverbindungen",
     feature: "bankDetails",
   },
-  { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
+  { href: "/meal-plan", label: "Speiseplan", feature: "mealPlan" },
 ];
 
 /**
@@ -299,7 +299,7 @@ export const STAFF_FLAT_PAGES = {
   // Bewusst „Dateien“, nicht „Dokumente“: der Dokumente-Tab bei Kind und
   // Personal ist ein anderer Ort.
   dateien: { href: "/dateien", label: "Dateien" },
-  substitutions: { href: "/substitutions", label: "Vertretungen" },
+  substitutions: { href: "/substitutions", label: "Übergaben" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   // Eigener Wochenplan der Mitarbeitenden (#3821), nur lesend. Eigene Route,

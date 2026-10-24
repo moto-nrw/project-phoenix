@@ -1,8 +1,9 @@
 # Gemeinsamer Datenkatalog für Löschung und Rückgabe
 
 Stand: 23.10.2026. Entscheidung:
-[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md).
-Grundlage für #3837 und #3838, Slices 3837-a/b.
+[ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md) und
+[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md).
+Grundlage für #3837 und #3838, Slices 3837-a/b und 3838-a/b/c.
 
 ## Stand und Quelle
 
@@ -25,6 +26,17 @@ Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
+**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
+liest den freigegebenen Katalogbestand in einer schreibgeschützten
+`REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.
+Direkte Tabellen werden per `tenant_id`, Kindtabellen per Katalog-FK-Pfad,
+Schul-/Trägerwurzeln und gemeinsame Konten per ausdrücklicher Schulzuordnung
+ausgewählt. Originaldateien, JSONL-Tabellen, Modellmetadaten und SHA-256-
+Prüfsummen liegen in einem neuen privaten Verzeichnis. Ein Teilfehler
+verhindert den Fertig-Marker. Zwei-Mandanten-Tests prüfen jede Katalogtabelle,
+alle Datei-Kinds und alle ausgeschlossenen Spalten. Ausführung, Übergabe und
+Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
+
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
@@ -37,12 +49,29 @@ Wiederholung nach DB-Fehlern werden lokal geprüft. Der Nachweis bleibt nach
 dem DB-Schritt bei `db_done`, nicht `completed`.
 [Vertrag und Grenzen](mandantenloeschung-datenbank.md).
 
-**Noch nicht umgesetzt:** vollständiges Löschverfahren mit CLI, Dateien,
-Nebensystemen und Gesamtabschluss (3837-c), Wiederholung nach Restore
-(3837-d), Personen-/Gesamtexport (#3838). Die Katalogeinträge selbst sind
-keine Berechtigungen und kein produktiver Durchführungsnachweis.
+**CLI und Dateiphase im Code umgesetzt (3837-c):**
+[Runbook](../operations/tenant-erasure.md), Migration `1.15.490`.
+**Personenauskunft im Code (3838-b/c):** `tenant export --person
+kind:<id>|guardian:<id>|staff:<id>` leitet ein internes Prüfpaket aus demselben
+Tabellenexport ab, mit benötigtem Kontext, referenzierten Originalen und
+verbindlichen Zeilen-/Dateimarkierungen in `review.json`. Kontextpersonen
+werden nicht zu neuen Auswahlwurzeln. Geheimnisausschlüsse bleiben wirksam.
+Die manuelle Ergänzungs-/Drittpersonenprüfung und Schulfreigabe sind Bestandteil
+des [Verfahrens](../operations/auskunft-und-rueckgabe.md#6-personenauskunft-auf-weisung-der-schule),
+nicht durch `COMPLETE` erledigt.
 
-**Produktiv nachzuweisen:** Einsatz und Wirksamkeit der späteren Verfahren,
+**Offen:** produktiver Nachweis, manuelle Nebensystemschritte, Trägerwurzel,
+Wiederholung nach Restore (3837-d), organisatorische Fristenbestätigung
+(3838-d) und Data-Act-Abgleich (3838-e).
+Die Katalogeinträge selbst sind
+keine Berechtigungen und kein produktiver Durchführungsnachweis.
+Die breiten Ausschlüsse geheimer/undurchsichtiger Container bleiben wirksam;
+nicht geheimer Settings-/Nachrichtenkontext und rechtlich erforderlicher
+Kontext aus internen Protokollen brauchen weitere geprüfte Projektionen.
+Der technische Export des freigegebenen Umfangs ist daher noch kein Nachweis
+aller Rückgabe-/Data-Act-Pflichten von #3838.
+
+**Produktiv nachzuweisen:** Einsatz und Wirksamkeit der Verfahren,
 Nebensysteme, Sicherungszyklus und erneute Löschung nach Wiederherstellung.
 Dieser Slice verwendet nur lokale Schema-Metadaten, keine produktiven Daten.
 
@@ -82,12 +111,15 @@ Belege, nicht ihre Vollständigkeit für Art.-15-Auskunft. Indirekte Beziehungen
 Snapshots, JSON/Freitext und Drittpersonenrechte bleiben in #3838 zu bearbeiten.
 
 Datei-Kinds verwenden `tenantDir` (`kind/tenant/name`), `tenantPrefix`
-(`kind/tenant_name`) oder `account` (aktuell `avatars/global/name`, über die
-Kontoreferenz). Die Alt-Avatarablage `avatars/<tenantId>/` existiert daneben
-weiterhin; 3837-c muss sie ausdrücklich neben `avatars/global/` berücksichtigen.
-Globale Avatare bleiben beim geteilten Kontenlebenszyklus.
-Originaldateien, Metadaten und offene Datei-Löschaufträge
-gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
+(`kind/tenant_name`) oder `account` (`avatars/global/name` und die Altablage
+`avatars/<tenantId>/name`). Avatarverweise stehen in `auth.accounts.avatar` und
+`users.profiles.avatar`; offene Löschaufträge in `auth.account_avatar_file_cleanup`
+gehören ebenfalls zum Abgleich beider Ablagen. Neue Avatar-Dateien erhalten
+`0600`, ihr Zielverzeichnis `0700`; die Altberechtigungen erfordern das Verfahren
+in [Private Fotodateien](../operations/private-fotodateien-3840.md).
+Auch 3837-c muss beide Ablagen berücksichtigen. Globale Avatare bleiben beim
+geteilten Kontenlebenszyklus. Originaldateien, Metadaten und
+offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
 
 ## Pflege und Prüfung
 
@@ -123,4 +155,5 @@ gehören zusammen. Ein verwaistes Objekt darf nicht stillschweigend fehlen.
 Loki, Sentry, PostHog, journald und Sicherungen sind separate Systeme.
 Deren Bestände, Fristen, Zuständigkeiten, Fehlerbehandlung und menschliche
 Nachweise müssen die Folge-Slices samt Betrieb konkret abdecken. Es wird
-hier kein produktiver Lösch-/Exportablauf oder Runbook vorgetäuscht.
+hier kein produktiver Lösch-/Exportnachweis vorgetäuscht. Der interne
+Rückgabeablauf ist im oben verlinkten Runbook vorbereitet.

@@ -112,3 +112,22 @@ export const MultipleOrganizationsOpen: Story = {
     trigger?.click();
   },
 };
+
+/** A source-school session without proof must offer the target-school login. */
+export const MissingMFAProof: Story = {
+  beforeEach: () =>
+    installStorybookFetch(({ url }) => {
+      if (url.includes("/api/auth/account-tenants"))
+        return jsonResponse({ data: sameOrgTenants });
+      if (url.includes("/api/auth/switch-tenant"))
+        return jsonResponse(
+          {
+            status: 401,
+            code: "identity.mfa_session_required",
+            detail: "second-factor proof required",
+          },
+          { status: 401 },
+        );
+      return undefined;
+    }),
+};

@@ -21,7 +21,7 @@ func (b binding) Record() { b.command() }
 func Build() { enrollment.Run(binding{command: func() { foreign.Ledger{}.Record() }}) }
 `
 	writeFile(t, filename, source)
-	reviewGapFixture(t, project, policy, "unresolved", "unresolved", "0083")
+	reviewGapFixture(t, project, policy, "mutation", "debt", "0083")
 	base := commitGapFixture(t, project)
 	writeFile(t, filename, strings.Replace(source, "foreign.Ledger{}.Record()", "foreign.Ledger{}.Record(); foreign.Ledger{}.Record()", 1))
 	if err := GenerateCommandEffects(project, policy); err != nil {
@@ -65,6 +65,9 @@ func reviewGapFixture(t *testing.T, project string, policy *Policy, effect, clas
 	for i := range manifest.Entries {
 		entry := &manifest.Entries[i]
 		entry.Effect, entry.Classification, entry.ADR = effect, classification, adr
+		if strings.HasPrefix(entry.Target, "unresolved:") {
+			entry.Effect, entry.Classification, entry.ADR = "unresolved", "unresolved", "0083"
+		}
 		entry.Reason = "Exact fixture review: supplied command retains caller scope and failure behavior."
 	}
 	blob, err := marshalCommandEffects(manifest)
@@ -103,22 +106,28 @@ func TestCommandEffectsClosureEvidenceExcludesCommentsAndUnrelatedWiring(t *test
 			project, policy := commandEffectGateFixture(t)
 			filename := filepath.Join(project, "roots", "binding.go")
 			source := `package roots
-import "example.test/effects/enrollment"
+import (
+ "example.test/effects/enrollment"
+ "example.test/effects/foreign"
+)
 type binding struct { command func() }
 func (b binding) Record() { b.command() }
-func Build() { enrollment.Run(binding{command: func() {}}) }
+func Build() { enrollment.Run(binding{command: func() { foreign.Ledger{}.Record() }}) }
 `
 			writeFile(t, filename, source)
-			reviewGapFixture(t, project, policy, "unresolved", "unresolved", "0083")
+			reviewGapFixture(t, project, policy, "mutation", "debt", "0083")
 			base := commitGapFixture(t, project)
-			replacement := "func() { /* no effect */ }"
+			replacement := "func() { foreign.Ledger{}.Record() /* reviewed */ }"
 			if edit == "unrelated closure" {
-				replacement = "func() {}"
+				replacement = "func() { foreign.Ledger{}.Record() }"
 				source += "\nfunc unused() func() { return func() { panic(\"unused\") } }\n"
 			}
-			writeFile(t, filename, strings.Replace(source, "func() {}", replacement, 1))
+			writeFile(t, filename, strings.Replace(source, "func() { foreign.Ledger{}.Record() }", replacement, 1))
 			if err := GenerateCommandEffects(project, policy); err != nil {
 				t.Fatal(err)
+			}
+			if targets := fixtureEffectTargets(t, project, policy); len(targets) != 1 || targets[0] != "enrollment: foreign.Ledger.Record" {
+				t.Fatalf("closure evidence has no reviewed terminal: %v", targets)
 			}
 			if err := CompareCommandEffects(project, base); err != nil {
 				t.Fatal(err)
@@ -143,9 +152,11 @@ func TestCommandEffectsChangedCallableAssignmentsNeedFreshApproval(t *testing.T)
 			t.Parallel()
 			project, policy := commandEffectGateFixture(t)
 			filename := filepath.Join(project, "roots", "binding.go")
-			source := "package roots\nimport \"example.test/effects/enrollment\"\nfunc marker() {}\n" + setup.declarations + "\nfunc (b binding) Record() { " + setup.body + " }\nfunc Build() { " + setup.wiring + " }\n"
+			// The marker is a foreign write: a resolved closure keeps its
+			// evidence on that terminal, an unresolved one on its diagnostic.
+			source := "package roots\nimport (\"example.test/effects/enrollment\"; \"example.test/effects/foreign\")\nfunc marker() { foreign.Ledger{}.Record() }\n" + setup.declarations + "\nfunc (b binding) Record() { " + setup.body + " }\nfunc Build() { " + setup.wiring + " }\n"
 			writeFile(t, filename, source)
-			reviewGapFixture(t, project, policy, "unresolved", "unresolved", "0083")
+			reviewGapFixture(t, project, policy, "mutation", "debt", "0083")
 			base := commitGapFixture(t, project)
 			writeFile(t, filename, strings.Replace(source, "{ marker() }", "{ marker(); marker() }", 1))
 			if err := GenerateCommandEffects(project, policy); err != nil {

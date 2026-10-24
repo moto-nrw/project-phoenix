@@ -98,24 +98,65 @@ func (c staffAbsenceCapability) AbsencesForRange(ctx context.Context, staffID in
 	return publicAbsenceResponses(values), nil
 }
 
-func (c staffAbsenceCapability) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, CreateAbsenceRequest(request)))
+// The sick-report writes run with a planner and return the plan changes they
+// asked for; the shift-plan-sync workflow applies them (#4825).
+
+func (c staffAbsenceCapability) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	absences, plan, err := planSickCascade(c.absences)
+	if err != nil {
+		return nil, nil, err
+	}
+	return plannedAbsence(plan)(c.absence(absences.CreateOwnAbsence(ctx, staffID, actorAccountID, CreateAbsenceRequest(request))))
 }
 
-func (c staffAbsenceCapability) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, CreateAbsenceRequest(request)))
+func (c staffAbsenceCapability) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	absences, plan, err := planSickCascade(c.absences)
+	if err != nil {
+		return nil, nil, err
+	}
+	return plannedAbsence(plan)(c.absence(absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, CreateAbsenceRequest(request))))
 }
 
-func (c staffAbsenceCapability) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, UpdateAbsenceRequest(request)))
+func (c staffAbsenceCapability) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	absences, plan, err := planSickCascade(c.absences)
+	if err != nil {
+		return nil, nil, err
+	}
+	return plannedAbsence(plan)(c.absence(absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, UpdateAbsenceRequest(request))))
 }
 
-func (c staffAbsenceCapability) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
-	return mapTimeTrackingFailure(c.absences.DeleteOwnAbsence(ctx, staffID, actorAccountID, absenceID))
+func (c staffAbsenceCapability) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) (workforce.SickCascadePlan, error) {
+	absences, plan, err := planSickCascade(c.absences)
+	if err != nil {
+		return nil, err
+	}
+	return plannedDeletion(plan, mapTimeTrackingFailure(absences.DeleteOwnAbsence(ctx, staffID, actorAccountID, absenceID)))
 }
 
-func (c staffAbsenceCapability) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
-	return mapTimeTrackingFailure(c.absences.DeleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID))
+func (c staffAbsenceCapability) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) (workforce.SickCascadePlan, error) {
+	absences, plan, err := planSickCascade(c.absences)
+	if err != nil {
+		return nil, err
+	}
+	return plannedDeletion(plan, mapTimeTrackingFailure(absences.DeleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID)))
+}
+
+// plannedAbsence attaches the recorded plan to a successful write.
+func plannedAbsence(plan *workforce.SickCascadePlan) func(*workforce.StaffAbsenceResponse, error) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	return func(value *workforce.StaffAbsenceResponse, err error) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+		if err != nil {
+			return nil, nil, err
+		}
+		return value, *plan, nil
+	}
+}
+
+// plannedDeletion attaches the recorded plan to a successful deletion.
+func plannedDeletion(plan *workforce.SickCascadePlan, err error) (workforce.SickCascadePlan, error) {
+	if err != nil {
+		return nil, err
+	}
+	return *plan, nil
 }
 
 func (c staffAbsenceCapability) PreviewCompTimeBalance(ctx context.Context, staffID int64, start, end string, halfDay bool) (*workforce.CompTimeBalancePreview, error) {

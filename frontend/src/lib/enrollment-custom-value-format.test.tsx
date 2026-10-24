@@ -126,4 +126,38 @@ describe("formatCustomValue", () => {
   it("falls back to String for uncommon primitive values", () => {
     expect(formatCustomValue(Symbol("answer"))).toBe("Symbol(answer)");
   });
+
+  it("lists the file names of a file answer instead of raw entries", () => {
+    const value = [
+      {
+        upload_id: "11",
+        filename: "steuerbescheid.pdf",
+        size_bytes: 1200,
+        content_type: "application/pdf",
+      },
+      {
+        token: "tok",
+        filename: "seite-2.png",
+        size_bytes: 900,
+        content_type: "image/png",
+      },
+    ];
+    const { container } = render(
+      <>{formatCustomValue(value, { type: "file" })}</>,
+    );
+    const items = [...container.querySelectorAll("li")].map(
+      (item) => item.textContent,
+    );
+    expect(items).toEqual(["steuerbescheid.pdf", "seite-2.png"]);
+    expect(container.textContent).not.toContain("upload_id");
+
+    // Without the field definition (student detail) the shape decides.
+    const { container: bare } = render(<>{formatCustomValue(value)}</>);
+    expect(bare.textContent).toContain("steuerbescheid.pdf");
+    expect(bare.textContent).not.toContain("{");
+  });
+
+  it("treats an empty file answer as no answer", () => {
+    expect(formatCustomValue([], { type: "file" })).toBeNull();
+  });
 });

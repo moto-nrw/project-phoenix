@@ -31,8 +31,6 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -56,7 +54,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -87,6 +84,7 @@ func workerRetentionOf(
 		workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: settings}),
 		audit, deliveryCompose.NewRetention(),
 	)
+	steps = append(steps, enrollmentUploadRetentionStep(settings, logger))
 	steps = append(steps, protocolRetentionSteps(
 		audit, settingsCompose.NewAuditRetention(), exportTransferCompose.NewJournalRetention(),
 	)...)
@@ -227,8 +225,6 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
-		mealPlanSettings *mealplanCompose.Settings
-		mealPlan         mealplanModule.Capability
 		feedbackSettings *feedbackCompose.Settings
 		feedback         feedbackModule.Capability
 		structure        StructureRows
@@ -275,7 +271,6 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		requests         CarePlanRequests
 		chat             CommunicationMessaging
 		calendarApp      calendarCompose.Application
-		parent           *parentportal.Portal
 		fileStore        filestorageModule.Capability
 		planExport       planexport.Service
 		workforce        WorkforcePlanning
@@ -338,11 +333,6 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) { appointments, err = BuildServeAppointments(db); return },
 		func() error { operatorAuditLog = NewOperatorAuditLog(db); return nil },
-		func() (err error) { mealPlanSettings, err = BuildMealPlanSettings(settings.Service); return },
-		func() (err error) {
-			mealPlan, err = BuildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students))
-			return
-		},
 		func() (err error) { feedbackSettings, err = BuildFeedbackSettings(settings.Service); return },
 		func() (err error) { feedback, err = BuildServeFeedback(db, feedbackSettings); return },
 		func() (err error) {
@@ -500,12 +490,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return nil
 		},
 		func() (err error) {
-			parent, err = BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
-			return
-		},
-		func() (err error) {
-			fileStore, err = BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements, parent)
+			fileStore, err = BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements)
 			return
 		},
 		func() (err error) {

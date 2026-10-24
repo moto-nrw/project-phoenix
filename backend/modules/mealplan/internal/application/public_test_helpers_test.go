@@ -39,9 +39,15 @@ type seamSettings struct{ e *recordingEngine }
 
 func (s seamSettings) MealPlanEnabled(context.Context) (bool, error)       { return s.e.available, nil }
 func (seamSettings) MealRegistrationEnabled(context.Context) (bool, error) { return true, nil }
-func (seamSettings) MealRegistrationCutoff(context.Context) (string, int, error) {
-	return "09:00", 0, nil
+func (seamSettings) MealParticipationCutoffs(context.Context) (mealplan.Cutoffs, error) {
+	return mealplan.Cutoffs{CutoffTime: "09:00"}, nil
+}
+
+type seamCalendar struct{}
+
+func (seamCalendar) NonWorkingDayDates(context.Context, string, string) (map[string]bool, error) {
+	return map[string]bool{}, nil
 }
 func newTestModule(e *recordingEngine) *Service {
-	return New(seamStore{e: e}, struct{ ports.Directory }{}, seamSettings{e}, seamTransaction{}, func(ports.Observation) {}, func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, calendar.Berlin) })
+	return New(seamStore{e: e}, struct{ ports.Directory }{}, seamSettings{e}, seamCalendar{}, seamTransaction{}, func(ports.Observation) {}, func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, calendar.Berlin) })
 }

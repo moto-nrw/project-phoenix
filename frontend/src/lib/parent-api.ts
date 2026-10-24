@@ -843,7 +843,13 @@ export async function getChildMealPlan(
   );
 }
 
-type MealParticipationSource = "none" | "regular" | "override" | "sick";
+type MealParticipationSource =
+  | "none"
+  | "regular"
+  | "override"
+  | "sick"
+  /** Feiertag oder Schließtag: kein Essen, nicht änderbar. */
+  | "closed";
 
 interface MealParticipationDay {
   readonly date: string;
@@ -858,6 +864,14 @@ export interface MealParticipation {
   readonly cutoff_time: string;
   /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
   readonly cutoff_lead_days?: number;
+  /**
+   * 1-5 (Mo-Fr): Die Frist der ganzen nächsten Woche endet an diesem
+   * Wochentag; 0 = Vorlauf in Werktagen.
+   */
+  readonly cutoff_weekday?: number;
+  /** Spätere Abmeldefrist; fehlt, wenn sie der Änderungsfrist entspricht. */
+  readonly cancellation_cutoff_time?: string;
+  readonly cancellation_cutoff_lead_days?: number;
   readonly days: MealParticipationDay[];
 }
 
@@ -921,7 +935,12 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
 // own messages, "staff" for replies from the OGS. For staff messages
 // `sender_name` is the "OGS [Schulname]" label.
 // The wire message shape is shared with the staff client; see ChatMessage.
-export type ParentMessage = ChatMessage;
+export type ParentMessage = ChatMessage & {
+  // The group thread this own message answers (#4784). Only the guardian and
+  // the OGS see the answer.
+  readonly group_thread_id?: string;
+  readonly group_thread_title?: string;
+};
 
 // One row on the messages landing page: a child's conversation, with the
 // guardian's unread (staff-sent) count and last-activity metadata.
@@ -1337,10 +1356,62 @@ export async function getChildConversation(
 export async function postChildMessage(
   studentId: string,
   body: string,
+  groupThreadId?: string,
 ): Promise<ThreadView> {
   return postJson<ThreadView>(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-    { body },
+    groupThreadId ? { body, group_thread_id: groupThreadId } : { body },
+  );
+}
+
+// Gruppennachrichten (#4784): the OGS writes to a group, class or AG. The
+// guardian sees only what reached them, for their own children; an answer
+// goes into the child's conversation with the OGS.
+
+/** One of the guardian's own children a group thread reached. */
+export interface GroupThreadChild {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+}
+
+/** One row of the guardian's group thread list. */
+export interface GroupThreadSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly target_label: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly closed: boolean;
+  readonly last_message_at?: string; // ISO timestamp
+  readonly last_message_body: string;
+  readonly unread: number;
+  readonly children: readonly GroupThreadChild[];
+}
+
+/** One OGS message of a group thread; the sender is always the OGS. */
+interface GroupThreadMessage {
+  readonly id: string;
+  readonly body: string;
+  readonly created_at: string; // ISO timestamp
+}
+
+/** An opened group thread. */
+export interface GroupThreadView extends GroupThreadSummary {
+  readonly messages: readonly GroupThreadMessage[];
+}
+
+/** Lists the group threads that reached the guardian, newest first. */
+export async function listGroupThreads(): Promise<GroupThreadSummary[]> {
+  return getJson<GroupThreadSummary[]>("/api/parent/me/messages/group-threads");
+}
+
+/** Opens one group thread. Reading marks it read server-side. */
+export async function getGroupThread(
+  groupThreadId: string,
+): Promise<GroupThreadView> {
+  return getJson<GroupThreadView>(
+    `/api/parent/me/messages/group-threads/${encodeURIComponent(groupThreadId)}`,
   );
 }
 

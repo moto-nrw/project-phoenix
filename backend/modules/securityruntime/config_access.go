@@ -68,16 +68,22 @@ const (
 	MealPlanAccessWrite MealPlanAccess = iota
 	MealPlanAccessRead
 	MealPlanAccessParticipants
+	// MealPlanAccessParticipantsWrite changes a child's day on the kitchen
+	// list.
+	MealPlanAccessParticipantsWrite
 )
 
 // MealPlanAccessPermissions names the permissions of a meal plan access
 // level: reading takes config:read, the kitchen list both config:read and
 // users:read (it combines the meal settings with student directory data),
-// and writing (the default) config:update.
+// changing a child's day on it config:update and users:read, and writing
+// (the default) config:update.
 func MealPlanAccessPermissions(level MealPlanAccess) AccessRule {
 	switch level {
 	case MealPlanAccessParticipants:
 		return AccessRule{Permissions: MealParticipantsPermissions(), RequireAll: true}
+	case MealPlanAccessParticipantsWrite:
+		return AccessRule{Permissions: []string{permissionConfigUpdate, permissionUsersRead}, RequireAll: true}
 	case MealPlanAccessRead:
 		return AccessRule{Permissions: []string{permissionConfigRead}}
 	default:

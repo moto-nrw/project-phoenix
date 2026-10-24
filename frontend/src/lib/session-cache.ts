@@ -10,7 +10,12 @@
 export const DELIBERATE_LOGOUT_KEY = "deliberateLogout";
 
 import { getSession } from "next-auth/react";
-import { ApiError, unavailableApiError } from "./api-error";
+import type { ErrorCode } from "./error-codes.generated";
+import {
+  ApiError,
+  apiErrorFromResponse,
+  unavailableApiError,
+} from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 
 let cached: {
@@ -138,6 +143,7 @@ export async function getCachedSession() {
 export async function sessionFetch(
   url: string,
   init?: RequestInit,
+  options: { authRefusals?: readonly ErrorCode[] } = {},
 ): Promise<Response> {
   const session = await getSessionOrUnavailable();
   if (!session?.user?.token) {
@@ -155,6 +161,16 @@ export async function sessionFetch(
   const response = await transportFetch(url, mergedInit);
 
   if (response.status === 401) {
+    // These operation-specific refusals do not invalidate the source session.
+    // Preserve the body for the caller and do not refresh or sign out first.
+    if (options.authRefusals?.length) {
+      const refusal = await apiErrorFromResponse(
+        response.clone(),
+        "Request refused",
+      );
+      if (refusal.code && options.authRefusals.includes(refusal.code))
+        return response;
+    }
     clearSessionCache();
     // Import from auth-failure directly (auth-api only re-exports it):
     // going through auth-api would close a module cycle

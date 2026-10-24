@@ -91,6 +91,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		Documents:          capabilities.Documents,
 		WorkSessions:       capabilities.WorkSessions,
 		StaffAbsences:      capabilities.StaffAbsences,
+		AbsenceWrites:      capabilities.AbsenceWrites,
 		WorkTimeMonth:      capabilities.WorkTimeMonth,
 		BalanceAdjustments: capabilities.BalanceAdjustments,
 		MonthClosing:       capabilities.MonthClosing,

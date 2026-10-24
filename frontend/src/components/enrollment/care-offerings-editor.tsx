@@ -38,7 +38,13 @@ import {
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
+  totalFreePlaces,
 } from "~/lib/care-offering-booking-stats";
+import {
+  offeringCapacityColumn,
+  offeringOccupancyColumn,
+  offeringStatusColumn,
+} from "~/components/enrollment/offering-occupancy";
 import { TranslationsSection } from "~/components/enrollment/translations-section";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -71,11 +77,7 @@ import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
-import {
-  DataTable,
-  DataTableStatusBadge,
-  type DataTableColumn,
-} from "~/components/ui/data-table";
+import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
@@ -456,9 +458,10 @@ export function CareOfferingsEditor({
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
   // Booking stats are display-only (#2186): the availability-rule editor uses
-  // them to say how many existing bookings a rule would contradict. A failure
-  // to load them must never block catalog editing; the rule editor then says
-  // the count is unknown instead of reading as "no conflicts".
+  // them to say how many existing bookings a rule would contradict, the list
+  // shows occupancy and free places (#4782). A failure to load them must never
+  // block catalog editing; the list then hides the numbers, and the rule
+  // editor says the count is unknown instead of reading as "no conflicts".
   const [bookingStats, setBookingStats] = useState<
     Record<string, CareOfferingBookingStats>
   >({});
@@ -493,6 +496,12 @@ export function CareOfferingsEditor({
     if (offering.capacity == null) return sum;
     return sum + offering.capacity;
   }, 0);
+  const hasCapacityLimit = offerings.some(
+    (offering) => offering.capacity != null,
+  );
+  const freePlaces = bookingStatsUnavailable
+    ? null
+    : totalFreePlaces(offerings, bookingStats);
   const autoAddRules = useMemo(() => {
     const offeringsById = new Map(
       offerings.map((offering) => [offering.id, offering]),
@@ -869,18 +878,8 @@ export function CareOfferingsEditor({
           </div>
         ),
       },
-      {
-        key: "capacity",
-        header: "Kapazität",
-        sortValue: (offering) => offering.capacity ?? Number.POSITIVE_INFINITY,
-        render: (offering) => (
-          <span className="text-sm text-gray-700">
-            {offering.capacity == null
-              ? "Unbegrenzt"
-              : `${offering.capacity} Plätze`}
-          </span>
-        ),
-      },
+      offeringCapacityColumn(),
+      offeringOccupancyColumn(bookingStats),
       {
         key: "price",
         header: "Preis",
@@ -891,14 +890,7 @@ export function CareOfferingsEditor({
           </span>
         ),
       },
-      {
-        key: "status",
-        header: "Status",
-        sortValue: (offering) => (offering.is_active ? 1 : 0),
-        render: (offering) => (
-          <DataTableStatusBadge active={offering.is_active} />
-        ),
-      },
+      offeringStatusColumn(bookingStats),
       {
         key: "actions",
         header: "Aktionen",
@@ -925,6 +917,7 @@ export function CareOfferingsEditor({
     ],
     [
       beginEdit,
+      bookingStats,
       deletingId,
       gradeLevelMax,
       saving,
@@ -966,6 +959,8 @@ export function CareOfferingsEditor({
             activeOfferingCount={activeOfferingCount}
             selectableDaysCount={selectableDaysCount}
             totalCapacity={totalCapacity}
+            hasCapacityLimit={hasCapacityLimit}
+            freePlaces={freePlaces}
             focusMode={Boolean(draft || cloneSource)}
             onPhaseChange={(phaseId) => {
               selectedPhaseIdRef.current = phaseId;
@@ -1057,6 +1052,10 @@ export function CareOfferingsEditor({
             <DataTable
               columns={columns}
               rows={offerings}
+              // Ohne geladene Belegung fehlt die Spalte, statt leer zu stehen.
+              hiddenColumns={
+                bookingStatsUnavailable ? OCCUPANCY_COLUMN_HIDDEN : undefined
+              }
               getRowKey={(offering) => offering.id}
               defaultSortKey="name"
               defaultSortDirection="asc"
@@ -1092,6 +1091,8 @@ export function CareOfferingsEditor({
   );
 }
 
+const OCCUPANCY_COLUMN_HIDDEN: ReadonlySet<string> = new Set(["occupancy"]);
+
 function CareOfferingToolbar({
   phases,
   selectedPhaseId,
@@ -1099,6 +1100,8 @@ function CareOfferingToolbar({
   activeOfferingCount,
   selectableDaysCount,
   totalCapacity,
+  hasCapacityLimit,
+  freePlaces,
   focusMode,
   onPhaseChange,
   onCreate,
@@ -1109,6 +1112,9 @@ function CareOfferingToolbar({
   activeOfferingCount: number;
   selectableDaysCount: number;
   totalCapacity: number;
+  hasCapacityLimit: boolean;
+  /** Free places of the phase; null while unknown or without any limit. */
+  freePlaces: number | null;
   focusMode: boolean;
   onPhaseChange: (phaseId: string) => void;
   onCreate: () => void;
@@ -1138,7 +1144,12 @@ function CareOfferingToolbar({
           <CareOfferingMetric
             icon={<MotoConceptIcon concept="children" size={18} />}
             label="Kapazität"
-            value={totalCapacity || "frei"}
+            value={hasCapacityLimit ? totalCapacity : "frei"}
+            detail={
+              freePlaces != null
+                ? `${freePlaces} frei (aktive Angebote)`
+                : undefined
+            }
           />
         </div>
 
@@ -1179,10 +1190,13 @@ function CareOfferingMetric({
   icon,
   label,
   value,
+  detail,
 }: Readonly<{
   icon: React.ReactNode;
   label: string;
   value: number | string;
+  /** Second figure next to the value, e.g. the free places. */
+  detail?: string;
 }>) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
@@ -1190,8 +1204,11 @@ function CareOfferingMetric({
         {icon}
       </span>
       <span>
-        <span className="block text-sm font-semibold text-gray-900">
+        <span className="block text-sm font-semibold whitespace-nowrap text-gray-900">
           {value}
+          {detail ? (
+            <span className="font-normal text-gray-500"> · {detail}</span>
+          ) : null}
         </span>
         <span className="block text-xs text-gray-500">{label}</span>
       </span>

@@ -35,6 +35,16 @@ import {
   AttachmentUploadContext,
 } from "~/components/enrollment/attachment-editor";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import {
+  applyFileFieldRules,
+  createIncomeDeclarationFields,
+  FileFieldOptionsEditor,
+  fileFieldDraftProblem,
+  FilePreviewInput,
+  hasIncomeDeclaration,
+  IncomeDeclarationButton,
+  fieldTypeChangePatch,
+} from "~/components/enrollment/file-field-editor";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   useApiErrorDisplay,
@@ -121,6 +131,7 @@ const fieldTypeLabels: Record<FormFieldType, string> = {
   weekday_mode: "Geh- und Abholregelung",
   weekday_multi_mode: "Erlaubte Heimwege",
   contact_list: "Kontaktliste",
+  file: "Datei",
 };
 
 // German labels for the visibility-condition editor.
@@ -144,6 +155,7 @@ const freeFieldTypes = [
   "textarea",
   "date",
   "select",
+  "file",
 ] satisfies FormFieldType[];
 
 const structuredFieldTypes = new Set<FormFieldType>([
@@ -773,6 +785,16 @@ export function EnrollmentFormEditor({
     setFields((prev) => [...prev, blankInfoField(prev.length)]);
   };
 
+  const addIncomeDeclaration = () => {
+    if (hasIncomeDeclaration(fields)) return;
+    revealAddedFieldRef.current = true;
+    setFields((prev) =>
+      hasIncomeDeclaration(prev)
+        ? prev
+        : [...prev, ...createIncomeDeclarationFields(prev.length)],
+    );
+  };
+
   const addTargetField = (target: Exclude<FormFieldTarget, "">) => {
     if (!fields.some((field) => field.target === target)) {
       revealAddedFieldRef.current = true;
@@ -1282,6 +1304,11 @@ export function EnrollmentFormEditor({
                         <Plus className="h-4 w-4" aria-hidden="true" />
                         Freie Zusatzfrage
                       </Button>
+                      <IncomeDeclarationButton
+                        fields={fields}
+                        onAdd={addIncomeDeclaration}
+                        disabled={saving || hasPendingLegalDocumentUpload}
+                      />
                     </div>
                   </div>
 
@@ -3681,7 +3708,9 @@ function FieldEditorRow({
                     ariaLabel="Typ"
                     value={field.type}
                     onChange={(value) =>
-                      onChange({ type: value as FormFieldType })
+                      onChange(
+                        fieldTypeChangePatch(field, value as FormFieldType),
+                      )
                     }
                     disabled={disabled || isTargetField}
                     className="mt-1"
@@ -3726,6 +3755,16 @@ function FieldEditorRow({
                     rows={3}
                   />
                 </div>
+              ) : null}
+
+              {field.type === "file" ? (
+                <FileFieldOptionsEditor
+                  field={field}
+                  index={index}
+                  onChange={onChange}
+                  disabled={disabled}
+                  error={fieldError(`fields.${index}.file_options`)}
+                />
               ) : null}
 
               {field.target === "schedule.pickup" ? (
@@ -3834,8 +3873,12 @@ function FieldEditorRow({
                     onChange({ applies_to_child: checked })
                   }
                   label="Pro Kind abfragen"
-                  hint="Die Frage erscheint für jedes angemeldete Kind."
-                  disabled={disabled || isTargetField}
+                  hint={
+                    field.type === "file"
+                      ? "Dateien gelten immer für die ganze Anmeldung."
+                      : "Die Frage erscheint für jedes angemeldete Kind."
+                  }
+                  disabled={disabled || isTargetField || field.type === "file"}
                 />
               </div>
             </>
@@ -4657,6 +4700,10 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
     );
   }
 
+  if (field.type === "file") {
+    return <FilePreviewInput field={field} />;
+  }
+
   if (field.type === "textarea") {
     return (
       <div className="mt-3 h-16 rounded-lg border border-gray-200 bg-gray-50" />
@@ -4907,14 +4954,14 @@ export function prepareFieldsForSave(fields: FormField[]): FormField[] {
         attachments: field.attachments,
       };
     }
-    return {
+    return applyFileFieldRules({
       ...field,
       key: field.key.trim() || normalizeFieldKey(field.label),
       label: field.label.trim(),
       help_text: field.help_text?.trim() ?? "",
       sort_order: index,
       visible_when: field.visible_when ?? undefined,
-    };
+    });
   });
 }
 
@@ -5196,6 +5243,9 @@ function getRequiredHint(field: FormField): string {
   if (field.type === "phone_list") {
     return "Eltern müssen mindestens eine Telefonnummer angeben.";
   }
+  if (field.type === "file") {
+    return "Eltern müssen mindestens eine Datei hochladen.";
+  }
   return "Eltern müssen diese Frage beantworten.";
 }
 
@@ -5298,6 +5348,9 @@ function getSchemaDraftValidationMessage({
         message: `Bitte wählen Sie für Frage ${position} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten gibt es nur als feste Vorschläge.`,
       };
     }
+
+    const fileProblem = fileFieldDraftProblem(field, index);
+    if (fileProblem) return fileProblem;
 
     if (field.type === "select" && (field.options ?? []).length === 0) {
       return {

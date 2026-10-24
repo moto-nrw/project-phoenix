@@ -342,6 +342,8 @@ func customValueSatisfiesRequired(field enrollmentNative.FormField, value any) b
 		return weekdayMultiModeWellFormed(value)
 	case enrollmentNative.FormFieldNumber:
 		return numberValueSatisfiesRequired(value)
+	case enrollmentNative.FormFieldFile:
+		return fileAnswerPresent(value)
 	default:
 		return stringValue(value) != ""
 	}

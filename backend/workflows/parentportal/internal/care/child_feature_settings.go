@@ -3,6 +3,8 @@ package care
 import (
 	"context"
 	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
 // childFeatureSettings holds the tenant settings behind ChildFeatureFlags,
@@ -154,7 +156,7 @@ func (s *Service) resolvePickupChangeSettings(r childSettingResolver) (bool, Sam
 	if !enabled {
 		pickupCutoffClock = ""
 	}
-	cutoff, err := s.CarePlanPolicy.NewSameDayCutoff(pickupCutoffClock, s.now())
+	cutoff, err := carerequests.NewSameDayCutoff(pickupCutoffClock, s.now())
 	if err != nil {
 		return false, SameDayCutoff{}, fmt.Errorf("parent: %w", err)
 	}

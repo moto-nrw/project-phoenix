@@ -214,7 +214,15 @@ func (f *fakeParentService) GetChildConversation(context.Context, int64, int64) 
 	return nil, nil
 }
 
-func (f *fakeParentService) PostChildMessage(context.Context, int64, int64, string) (*parentService.MessageThreadView, error) {
+func (f *fakeParentService) PostChildReply(context.Context, int64, int64, string, int64) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListGroupThreads(context.Context, int64) ([]*parentService.GroupThreadListItem, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) GetGroupThread(context.Context, int64, int64) (*parentService.GroupThreadDetail, error) {
 	return nil, nil
 }
 
@@ -459,6 +467,7 @@ func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	t.Parallel()
 	rs := &Resource{ParentService: &fakeParentService{mealParticipation: parentService.MealParticipationPlan{
 		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00", CutoffLeadDays: 2,
+		CutoffWeekday: 3, CancellationCutoffTime: "16:00", CancellationCutoffLeadDays: 1,
 		Days: []parentService.MealParticipationDay{{Date: "2026-08-24", Participating: true, Source: "regular", Changeable: false}},
 	}}}
 	w := httptest.NewRecorder()
@@ -466,7 +475,7 @@ func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	rs.getMealParticipation(w, mealParticipationRequest())
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","cutoff_lead_days":2,"days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","cutoff_lead_days":2,"cutoff_weekday":3,"cancellation_cutoff_time":"16:00","cancellation_cutoff_lead_days":1,"days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
