@@ -365,13 +365,13 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	scheduleSubstitution, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
 		Deviations: liveTimetable.Deviations, Staff: owners.NewPlanStaffDirectory(repos.Staff), Broadcaster: realtimeHub, Logger: logger.With("service", "schedule-substitution"),
-		ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance.Reads),
-		InstanceStaff:     timetableCompose.NewTimetableInstanceStaffReads(reposTimetable.InstanceStaff),
+		Runtime: schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), ActivityInstances: timetableCompose.NewTimetableInstanceReads(reposTimetable.ActivityInstance.Reads),
+		InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(reposTimetable.InstanceStaff),
 	})
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
-	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
+	groupSubstitutions := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
 		Groups: owners.NewSchoolStructureSuiteRepositories(db).Group, Substitutions: NewEducationHandovers(contextRepos.Substitutions, NewTestGroupHandovers(db)),
 		Persons: owners.NewEducationPersonQuery(persons), Teachers: owners.NewEducationCaregivers(repos.Teacher),
 		Staff: owners.NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
@@ -379,8 +379,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		ActiveSupervisorCreator: activeService,
 		Audit:                   NewEducationSubstitutionAudit(studentAudits.SubstitutionChange),
 		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
-		Logger:   logger.With("service", "substitution"),
-		Schedule: scheduleSubstitution,
+		Logger: logger.With("service", "substitution"),
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {
 			if assignmentBound {
 				return false, nil
@@ -393,6 +392,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		},
 		Now: now,
 	})
+	substitutionService := SubstitutionEntries{Groups: groupSubstitutions, Schedule: scheduleSubstitution}
 	studentStatusDayService := presenceservice.NewStatusDays(
 		reposCare.StudentStatusDay,
 		owners.NewManualPartialAbsenceDates(students.CarePlan),

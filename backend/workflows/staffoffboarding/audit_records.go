@@ -1,32 +1,5 @@
 package staffoffboarding
 
-import (
-	"encoding/json"
-
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-)
-
-// AbsenceDeletion is the time-tracking deletion record of one absence the
-// offboarding removes, in the values the Audit Platform stores: the full
-// deleted row as payload, deleted by the acting account.
-type AbsenceDeletion struct {
-	StaffID   int64
-	AbsenceID int64
-	DeletedBy int64
-	Payload   json.RawMessage
-	Note      string
-}
-
-// NewAbsenceDeletion is the deletion record of absence, removed by the
-// offboarding of actorID.
-func NewAbsenceDeletion(absence workforce.StaffAbsence, actorID int64) (AbsenceDeletion, error) {
-	payload, err := json.Marshal(absence)
-	if err != nil {
-		return AbsenceDeletion{}, err
-	}
-	return AbsenceDeletion{StaffID: absence.StaffID, AbsenceID: absence.ID, DeletedBy: actorID, Payload: payload, Note: "Personal-Offboarding"}, nil
-}
-
 // StaffDeletion is the manual data deletion record of one offboarded staff
 // member, in the values the Audit Platform stores: the removed row counts
 // per kind as metadata.
