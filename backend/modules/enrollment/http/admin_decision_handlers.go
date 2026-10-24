@@ -306,12 +306,17 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	var detail AdminRequestDetail
+	var (
+		detail    AdminRequestDetail
+		summary   *RequestSummary
+		signature *capability.RequestSignature
+	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
 		if e != nil {
 			return e
 		}
+		summary = s
 		// Opening the detail reads the enrollment for the caller (#3778).
 		// A read-only staff preview writes nothing in the previewed
 		// person's name.
@@ -321,7 +326,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		detail = rs.toAdminRequestDetail(ctx, s)
-		if e := rs.attachAdminSignature(ctx, &detail, id); e != nil {
+		if signature, e = rs.attachAdminSignature(ctx, &detail, id); e != nil {
 			return e
 		}
 		return rs.attachAdminUploads(ctx, &detail, id)
@@ -332,6 +337,11 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	// ?format=pdf downloads the proof of the parent's signature (#4786).
+	if wantsProofPDF(r) {
+		rs.writeAdminSignatureProof(w, r, summary, signature)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, detail, "Admin request retrieved")

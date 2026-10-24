@@ -79,3 +79,26 @@ type IntakeSignatureProofs interface {
 	// token with its signature; Signature is nil when it has none.
 	SignatureProofByStatusToken(ctx context.Context, token string) (*RequestSignatureProof, error)
 }
+
+// EnrollmentSignatureEntry is one signature the intake stores for a
+// request: who signed, the checksum of the signed submission with its legal
+// snapshot, and the signature as given.
+type EnrollmentSignatureEntry struct {
+	RequestID       int64
+	SignerAccountID *int64
+	SignerName      string
+	DocumentSHA256  string
+	SignedAt        time.Time
+	Signature       SubmitSignature
+}
+
+// IntakeSignatureLedger is the Audit Platform's signature ledger as the
+// intake uses it, inside the request's school (ADR 0103); the root binds
+// it. RecordEnrollmentSignature wraps ErrSignatureInvalid when the
+// signature checks refuse the image or the typed name.
+// LatestEnrollmentSignatures returns, per request of the school in context,
+// its newest signature; requests without one are absent.
+type IntakeSignatureLedger interface {
+	RecordEnrollmentSignature(ctx context.Context, entry EnrollmentSignatureEntry) (int64, error)
+	LatestEnrollmentSignatures(ctx context.Context, requestIDs []int64) (map[int64]*RequestSignature, error)
+}

@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
@@ -64,17 +62,18 @@ func newRequestSignatureResponse(s *capability.RequestSignature, withImage bool)
 	return out
 }
 
-// attachAdminSignature adds the request's signature to the staff detail.
-func (rs *Resource) attachAdminSignature(ctx context.Context, detail *AdminRequestDetail, requestID int64) error {
+// attachAdminSignature adds the request's signature to the staff detail and
+// returns it for the proof.
+func (rs *Resource) attachAdminSignature(ctx context.Context, detail *AdminRequestDetail, requestID int64) (*capability.RequestSignature, error) {
 	if rs.RequestService == nil {
-		return nil
+		return nil, nil
 	}
 	proof, err := rs.RequestService.SignatureProof(ctx, requestID, "")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	detail.Signature = newRequestSignatureResponse(proof.Signature, true)
-	return nil
+	return proof.Signature, nil
 }
 
 // signatureProof is what a proof PDF prints.
@@ -88,86 +87,38 @@ type signatureProof struct {
 
 var errSignatureProofMissing = errors.New("enrollment request has no signature")
 
-// getAdminRequestSignatureProof downloads the staff proof of a signed request.
-func (rs *Resource) getAdminRequestSignatureProof(w http.ResponseWriter, r *http.Request) {
-	if rs.DecisionService == nil || rs.RequestService == nil || rs.ListExportService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment signature proof not configured")))
-		return
-	}
-	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
-	if !ok {
-		return
-	}
-	var proof signatureProof
-	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		summary, err := rs.DecisionService.Get(ctx, id)
-		if err != nil {
-			return err
-		}
-		signed, err := rs.RequestService.SignatureProof(ctx, id, "")
-		if err != nil {
-			return err
-		}
-		if signed.Signature == nil {
-			return errSignatureProofMissing
-		}
-		proof = signatureProof{Request: summary.Request, Children: summary.Children, Guardians: summary.Guardians, Signature: signed.Signature}
-		if summary.Phase != nil {
-			proof.PhaseName = summary.Phase.Name
-		}
-		return nil
-	})
-	switch {
-	case errors.Is(err, capability.ErrDecisionRequestNotFound):
-		common.RenderError(w, r, renderRequestNotFound(err))
-		return
-	case errors.Is(err, errSignatureProofMissing):
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentSignatureNotFound))
-		return
-	case err != nil:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
+// wantsProofPDF reports whether a detail read asks for the signature proof
+// (?format=pdf) instead of the JSON detail.
+func wantsProofPDF(r *http.Request) bool {
+	return r.URL.Query().Get("format") == "pdf"
+}
+
+// writeAdminSignatureProof answers the staff proof of a signed request.
+func (rs *Resource) writeAdminSignatureProof(w http.ResponseWriter, r *http.Request, summary *RequestSummary, signature *capability.RequestSignature) {
+	proof := signatureProof{Request: summary.Request, Children: summary.Children, Guardians: summary.Guardians, Signature: signature}
+	if summary.Phase != nil {
+		proof.PhaseName = summary.Phase.Name
 	}
 	rs.writeSignatureProof(w, r, proof)
 }
 
-// getStatusSignatureProof downloads the parent's proof behind the status
-// link. The token is the only authentication: an unknown, expired or
-// altered token answers like a missing request.
-func (rs *Resource) getStatusSignatureProof(w http.ResponseWriter, r *http.Request) {
-	if rs.RequestService == nil || rs.ListExportService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment signature proof not configured")))
-		return
-	}
-	token := strings.TrimSpace(chi.URLParam(r, "statusToken"))
-	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("status token is required"), common.CodeEnrollmentStatusLinkInvalid))
-		return
-	}
-	var proof *SignatureProof
-	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
-		var err error
-		proof, err = rs.RequestService.SignatureProof(adminCtx, 0, token)
-		return err
-	})
-	if errors.Is(err, capability.ErrRequestNotFound) {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
-		return
-	}
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	if proof.Signature == nil {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(errSignatureProofMissing, common.CodeEnrollmentSignatureNotFound))
-		return
-	}
+// writeStatusSignatureProof answers the parent's proof behind the status
+// link; the token already resolved the request.
+func (rs *Resource) writeStatusSignatureProof(w http.ResponseWriter, r *http.Request, view statusView) {
 	rs.writeSignatureProof(w, r, signatureProof{
-		Request: proof.Request, Children: proof.Children, Guardians: proof.Guardians, Signature: proof.Signature,
+		Request: view.req, Children: view.children, Guardians: view.guardians, Signature: view.proof.Signature,
 	})
 }
 
 func (rs *Resource) writeSignatureProof(w http.ResponseWriter, r *http.Request, proof signatureProof) {
+	if proof.Signature == nil {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errSignatureProofMissing, common.CodeEnrollmentSignatureNotFound))
+		return
+	}
+	if rs.ListExportService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment signature proof not configured")))
+		return
+	}
 	file, err := rs.ListExportService.RenderRecords(signatureProofDocument(proof, time.Now()), "anmeldenachweis")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("render signature proof: %w", err)))

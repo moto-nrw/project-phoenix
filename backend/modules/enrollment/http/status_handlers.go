@@ -137,6 +137,8 @@ type EditDraftOfferingDayResponse struct {
 
 // getStatus returns the per-child status for a token-bearing parent.
 // Public route — caller must wrap in admin-tx because there's no JWT.
+// With ?format=pdf it answers the proof of the parent's signature (#4786)
+// instead: the same token, the same request, no second lookup.
 func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment request service not configured")))
@@ -149,40 +151,16 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		req       *Request
-		children  []*RequestChild
-		guardians []*capability.RequestGuardian
-		editMode  string
-		proof     *SignatureProof
+		view      statusView
 		statusErr error
 	)
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
-		serviceReq, serviceChildren, err := rs.RequestService.GetByStatusToken(adminCtx, token)
-		if err != nil {
-			return err
+		var lookupErr error
+		view, lookupErr, statusErr = rs.loadStatusView(adminCtx, token)
+		if lookupErr != nil {
+			return lookupErr
 		}
-		req = serviceReq
-		children = serviceChildren
-		mode, modeErr := rs.RequestService.EditModeForStatus(adminCtx, req, children)
-		if modeErr != nil {
-			statusErr = fmt.Errorf("status: compute edit mode: %w", modeErr)
-			return statusErr
-		}
-		editMode = mode
-		if proof, statusErr = rs.RequestService.SignatureProof(adminCtx, 0, token); statusErr != nil {
-			statusErr = fmt.Errorf("status: load signature: %w", statusErr)
-			return statusErr
-		}
-		// Best-effort: a failure here must not hide the request status, but a
-		// silent drop would mask a permission/RLS/DB problem behind a 200 with
-		// missing co-guardians. Log it so the failure is visible.
-		if g, gerr := rs.RequestService.GuardiansByStatusToken(adminCtx, token); gerr == nil {
-			guardians = g
-		} else {
-			rs.logger().Warn("enrollment status: load co-guardians failed",
-				slog.String("error", gerr.Error()))
-		}
-		return nil
+		return statusErr
 	})
 	if err != nil {
 		if statusErr != nil {
@@ -192,10 +170,54 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 		return
 	}
+	if r.URL.Query().Get("format") == "pdf" {
+		rs.writeStatusSignatureProof(w, r, view)
+		return
+	}
+	rs.respondStatus(w, r, token, view)
+}
 
-	resp, anyLocked := newStatusResponse(req, editMode, children, guardians)
-	resp.SignatureRequired = proof.SignatureRequired
-	resp.Signature = newRequestSignatureResponse(proof.Signature, false)
+// statusView is everything the status page and its proof show.
+type statusView struct {
+	req       *Request
+	children  []*RequestChild
+	guardians []*capability.RequestGuardian
+	editMode  string
+	proof     *SignatureProof
+}
+
+// loadStatusView reads the request behind the token. A failed lookup
+// (unknown, expired or altered token) comes back as lookupErr; a failure
+// after the request was found is a server error.
+func (rs *Resource) loadStatusView(ctx context.Context, token string) (view statusView, lookupErr, serverErr error) {
+	view.req, view.children, lookupErr = rs.RequestService.GetByStatusToken(ctx, token)
+	if lookupErr != nil {
+		return view, lookupErr, nil
+	}
+	if view.editMode, serverErr = rs.RequestService.EditModeForStatus(ctx, view.req, view.children); serverErr != nil {
+		return view, nil, fmt.Errorf("status: compute edit mode: %w", serverErr)
+	}
+	if view.proof, serverErr = rs.RequestService.SignatureProof(ctx, 0, token); serverErr != nil {
+		return view, nil, fmt.Errorf("status: load signature: %w", serverErr)
+	}
+	// Best-effort: a failure here must not hide the request status, but a
+	// silent drop would mask a permission/RLS/DB problem behind a 200 with
+	// missing co-guardians. Log it so the failure is visible.
+	if g, gerr := rs.RequestService.GuardiansByStatusToken(ctx, token); gerr == nil {
+		view.guardians = g
+	} else {
+		rs.logger().Warn("enrollment status: load co-guardians failed",
+			slog.String("error", gerr.Error()))
+	}
+	return view, nil, nil
+}
+
+// respondStatus answers the status page payload.
+func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token string, view statusView) {
+	req := view.req
+	resp, anyLocked := newStatusResponse(req, view.editMode, view.children, view.guardians)
+	resp.SignatureRequired = view.proof.SignatureRequired
+	resp.Signature = newRequestSignatureResponse(view.proof.Signature, false)
 	if anyLocked {
 		resp.HasParentAccount, resp.ParentPortalAccess = rs.statusParentAccount(r.Context(), token, req.ID)
 	}

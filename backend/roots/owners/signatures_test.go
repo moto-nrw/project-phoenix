@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 )
 
 type declarationSignatureLedgerStub struct {
@@ -52,24 +51,25 @@ func TestParentDeclarationSignaturesPreservesPurposeAndStudent(t *testing.T) {
 func TestEnrollmentSignaturesBindTheRequestAndRefuseInvalidImages(t *testing.T) {
 	t.Parallel()
 
-	own, other := int64(7), int64(8)
+	// Arbitrary map keys: the stub ledger never reaches a database.
+	own, other := int64(4786), int64(4787)
 	adapter := EnrollmentSignatures{Ledger: declarationSignatureLedgerStub{signatures: map[int64]*auditlog.Signature{
-		7: {ID: 1, Purpose: auditlog.SignaturePurposeEnrollment, EnrollmentRequestID: &own, SignerName: "Anna", IntegrityOK: true},
-		9: {ID: 2, Purpose: auditlog.SignaturePurposeEnrollment, EnrollmentRequestID: &other},
+		own:     {ID: 1, Purpose: auditlog.SignaturePurposeEnrollment, EnrollmentRequestID: &own, SignerName: "Anna", IntegrityOK: true},
+		own + 2: {ID: 2, Purpose: auditlog.SignaturePurposeEnrollment, EnrollmentRequestID: &other},
 	}}}
-	got, err := adapter.LatestEnrollmentSignatures(context.Background(), []int64{7, 9})
+	got, err := adapter.LatestEnrollmentSignatures(context.Background(), []int64{own, own + 2})
 	if err != nil {
 		t.Fatalf("LatestEnrollmentSignatures() error = %v", err)
 	}
-	if got[7] == nil || got[7].RequestID != 7 || got[7].SignerName != "Anna" || !got[7].IntegrityOK {
-		t.Errorf("own request signature = %#v", got[7])
+	if got[own] == nil || got[own].RequestID != own || got[own].SignerName != "Anna" || !got[own].IntegrityOK {
+		t.Errorf("own request signature = %#v", got[own])
 	}
-	if _, leaked := got[9]; leaked {
-		t.Errorf("a signature of another request must not be bound to request 9")
+	if _, leaked := got[own+2]; leaked {
+		t.Errorf("a signature of another request must not be bound to this request")
 	}
 
-	_, err = adapter.RecordEnrollmentSignature(context.Background(), enrollmentCompose.EnrollmentSignatureEntry{
-		RequestID: 7, SignerName: "Anna", Signature: enrollmentOwner.SubmitSignature{Method: "drawn", ImagePNG: "a2VpbiBCaWxk"},
+	_, err = adapter.RecordEnrollmentSignature(context.Background(), enrollmentOwner.EnrollmentSignatureEntry{
+		RequestID: own, SignerName: "Anna", Signature: enrollmentOwner.SubmitSignature{Method: "drawn", ImagePNG: "a2VpbiBCaWxk"},
 	})
 	if !errors.Is(err, enrollmentOwner.ErrSignatureInvalid) {
 		t.Errorf("RecordEnrollmentSignature() error = %v, want ErrSignatureInvalid", err)

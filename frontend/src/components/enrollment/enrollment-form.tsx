@@ -72,6 +72,12 @@ import {
 } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
 import {
+  SignaturePad,
+  type SignaturePadLabels,
+  type SignatureValue,
+} from "~/components/ui/signature-pad";
+import { signatureRequestBody } from "~/lib/signature";
+import {
   AT_MOST_ONE_PER_DAY,
   type CareOfferingDayConflict,
   careOfferingDayConflicts,
@@ -239,6 +245,11 @@ interface Props {
    * visible before the form is submitted rather than after.
    */
   readonly offeringBookingStats?: Record<string, CareOfferingBookingStats>;
+  /**
+   * Leaves the signature field out although the form requires one (#4786):
+   * a change request is decided by the school and carries no signature.
+   */
+  readonly withoutSignature?: boolean;
 }
 
 type TranslationValues = Record<string, string | number | Date>;
@@ -307,6 +318,7 @@ export function EnrollmentForm({
   submitLabel,
   showBlockedOfferings = false,
   offeringBookingStats,
+  withoutSignature = false,
 }: Props) {
   const intl = useTranslations("enrollmentForm");
   const activeLocale = useLocale();
@@ -318,6 +330,25 @@ export function EnrollmentForm({
     [intl, localizedCopy],
   );
   const { tenantSlug } = useTenant();
+  const signatureLabels = useMemo(
+    (): SignaturePadLabels => ({
+      label: tr("signature.label"),
+      hint: tr("signature.hint"),
+      canvas: tr("signature.canvas"),
+      clear: tr("signature.clear"),
+      typeInstead: tr("signature.typeInstead"),
+      drawInstead: tr("signature.drawInstead"),
+      typedName: tr("signature.typedName"),
+      confirm: tr("signature.confirm"),
+      confirmed: tr("signature.confirmed"),
+      confirmedTyped: tr("signature.confirmedTyped"),
+      change: tr("signature.change"),
+      preview: tr("signature.preview"),
+      emptyDrawing: tr("signature.emptyDrawing"),
+      nameTooShort: tr("signature.nameTooShort"),
+    }),
+    [tr],
+  );
   // File fields upload at once; the submit waits for running uploads (#4783).
   const { pendingUploads, uploadTarget } = useEnrollmentUploadTarget({
     tenantSlug,
@@ -461,6 +492,9 @@ export function EnrollmentForm({
       prefetchedData?.profile?.guardian.phone ??
       "",
   );
+  // The parent's signature (#4786); null until the parent confirms it in
+  // the pad. A parent edit starts empty: every version is signed again.
+  const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [legalConsents, setLegalConsents] = useState<Record<string, boolean>>(
     () => draftConsentFlags(initialDraft),
   );
@@ -931,6 +965,11 @@ export function EnrollmentForm({
     fieldsByKey,
   });
 
+  // A form can ask the parent to sign (#4786); the signature field then
+  // closes the form after the legal texts.
+  const signatureRequired =
+    Boolean(schema?.core_requirements?.signature) && !withoutSignature;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     formError.clear();
@@ -1219,6 +1258,9 @@ export function EnrollmentForm({
         delete newFieldErrors[key];
       }
     }
+    if (signatureRequired && signature === null) {
+      newFieldErrors[SIGNATURE_FIELD] = tr("signature.required");
+    }
     const fieldErrorKeys = Object.keys(newFieldErrors);
     const dayErrorCount = Object.keys(dayErrors).length;
     const hasOfferingIssue =
@@ -1437,6 +1479,10 @@ export function EnrollmentForm({
         late_invite_token: lateInviteToken?.trim()
           ? lateInviteToken.trim()
           : undefined,
+        signature:
+          signatureRequired && signature
+            ? signatureRequestBody(signature)
+            : undefined,
       };
       const result = submitter
         ? await submitter(payload)
@@ -2543,6 +2589,26 @@ export function EnrollmentForm({
           </section>
         )}
 
+        {signatureRequired && (
+          <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
+            <SectionHeading
+              title={tr("signature.title")}
+              description={tr("signature.description")}
+            />
+            <SignaturePad
+              id={SIGNATURE_FIELD}
+              value={signature}
+              onChange={setSignature}
+              disabled={submitting || previewMode}
+              error={fieldError(SIGNATURE_FIELD)}
+              signerNameHint={
+                `${guardianFirstName} ${guardianLastName}`.trim() || undefined
+              }
+              labels={signatureLabels}
+            />
+          </section>
+        )}
+
         <Modal
           isOpen={openLegalDoc !== null}
           onClose={() => setOpenLegalDoc(null)}
@@ -2598,6 +2664,9 @@ export function EnrollmentForm({
     </EnrollmentUploadScope>
   );
 }
+
+// The signature field's name; the backend names the same field `signature`.
+const SIGNATURE_FIELD = "signature";
 
 // Monotonic source for brand-new ChildDraft.clientId values. Saved edit-draft
 // children derive their keys from the persisted child id so rebuilding the

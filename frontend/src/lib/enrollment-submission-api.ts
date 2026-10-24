@@ -1,3 +1,4 @@
+import type { SignatureRequestBody } from "~/lib/signature";
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
@@ -103,6 +104,8 @@ export interface SubmitEnrollmentPayload {
   children: SubmitChildPayload[];
   captcha_token?: string;
   late_invite_token?: string;
+  /** The parent's signature when the form requires one (#4786). */
+  signature?: SignatureRequestBody;
 }
 
 export interface SubmitEnrollmentResult {

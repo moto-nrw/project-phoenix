@@ -22,26 +22,12 @@ import (
 // signedEnrollmentFormat versions the canonical form of the signed document.
 const signedEnrollmentFormat = 1
 
-// EnrollmentSignatureEntry is one signature to store for a request.
-type EnrollmentSignatureEntry struct {
-	RequestID       int64
-	SignerAccountID *int64
-	SignerName      string
-	DocumentSHA256  string
-	SignedAt        time.Time
-	Signature       enrollmentNative.SubmitSignature
-}
-
-// IntakeSignatures is the Audit Platform's signature ledger as the intake
-// uses it, inside the request's tenant transaction. RecordEnrollmentSignature
-// wraps enrollment.ErrSignatureInvalid when the signature checks refuse the
-// image or the typed name. LatestEnrollmentSignatures returns, per request of
-// the school in context, its newest signature; requests without one are
-// absent.
-type IntakeSignatures interface {
-	RecordEnrollmentSignature(ctx context.Context, entry EnrollmentSignatureEntry) (int64, error)
-	LatestEnrollmentSignatures(ctx context.Context, requestIDs []int64) (map[int64]*enrollmentNative.RequestSignature, error)
-}
+// The signature ledger port and its entry are Enrollment's public values,
+// so the root binds the Audit Platform to them without a compose alias.
+type (
+	EnrollmentSignatureEntry = enrollmentNative.EnrollmentSignatureEntry
+	IntakeSignatures         = enrollmentNative.IntakeSignatureLedger
+)
 
 // signatureRequired reports whether a submission of this form needs the
 // parent's signature. A staff-entered enrollment has no parent signing it.
@@ -217,25 +203,14 @@ func (s *Intake) requestWithChildren(ctx context.Context, requestID int64) (*Req
 // SignatureProofByStatusToken loads the request behind a valid status token
 // with its co-guardians and newest signature. The token is the only
 // authentication: the caller runs the lookup in an administrative
-// transaction, and every read after it runs in the tenant transaction of the
-// request the token names, for that request alone.
+// transaction, and every read after it is scoped to the school and the
+// request the token names, like the status page's own reads.
 func (s *Intake) SignatureProofByStatusToken(ctx context.Context, token string) (*enrollmentNative.RequestSignatureProof, error) {
 	req, children, err := s.statusByToken(ctx, token)
 	if err != nil {
 		return nil, err
 	}
-	if s.deps.Runtime.IsAdminTx(ctx) {
-		ctx = s.deps.Runtime.DetachTransaction(ctx)
-	}
-	var proof *enrollmentNative.RequestSignatureProof
-	err = s.deps.Runtime.TenantTx(s.deps.Runtime.WithTenant(ctx, req.TenantID), req.TenantID, func(txCtx context.Context) error {
-		proof, err = s.signatureProof(txCtx, req, children)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return proof, nil
+	return s.signatureProof(s.tenantContext(ctx, req.TenantID), req, children)
 }
 
 // signatureProof completes a loaded request inside its school's

@@ -26,8 +26,6 @@ type (
 	GuardianStudentAuthorizer      = application.GuardianStudentAuthorizer
 	GuardianInvitationAvailability = application.GuardianInvitationAvailability
 	ManualEnrollmentDecider        = application.ManualEnrollmentDecider
-	IntakeSignatures               = application.IntakeSignatures
-	EnrollmentSignatureEntry       = application.EnrollmentSignatureEntry
 
 	ChangeRequestDependencies = application.ChangeRequestDependencies
 	ChangeRequestRecords      = application.ChangeRequestRecords

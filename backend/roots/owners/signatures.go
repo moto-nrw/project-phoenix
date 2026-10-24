@@ -9,7 +9,6 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -88,9 +87,9 @@ func (p ParentDeclarationSignatures) DeclarationSignatures(ctx context.Context, 
 // account, and a refused image becomes the intake's error.
 type EnrollmentSignatures struct{ Ledger auditlog.SignatureLedger }
 
-var _ enrollmentCompose.IntakeSignatures = EnrollmentSignatures{}
+var _ enrollmentOwner.IntakeSignatureLedger = EnrollmentSignatures{}
 
-func (e EnrollmentSignatures) RecordEnrollmentSignature(ctx context.Context, entry enrollmentCompose.EnrollmentSignatureEntry) (int64, error) {
+func (e EnrollmentSignatures) RecordEnrollmentSignature(ctx context.Context, entry enrollmentOwner.EnrollmentSignatureEntry) (int64, error) {
 	image, err := auditlog.ParseSignatureImage(entry.Signature.Method, entry.Signature.ImagePNG, entry.Signature.TypedName)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", enrollmentOwner.ErrSignatureInvalid, err)

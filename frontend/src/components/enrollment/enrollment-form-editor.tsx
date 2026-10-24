@@ -1269,6 +1269,14 @@ export function EnrollmentFormEditor({
                   onUploadEnd={endLegalDocumentUpload}
                 />
 
+                <SignatureRequirementSection
+                  required={Boolean(coreRequirements.signature)}
+                  onChange={(checked) =>
+                    updateCoreRequirement("signature", checked)
+                  }
+                  disabled={saving || hasPendingLegalDocumentUpload}
+                />
+
                 <section className="space-y-4">
                   <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -2370,6 +2378,47 @@ function CoreFieldsSection({
             disabled={disabled}
           />
         ))}
+      </div>
+    </section>
+  );
+}
+
+// SignatureRequirementSection switches the parent's signature on for the
+// whole form (#4786): the form then ends with a signature field after the
+// legal texts, and every later edit by the parents asks for it again.
+function SignatureRequirementSection({
+  required,
+  onChange,
+  disabled,
+}: Readonly<{
+  required: boolean;
+  onChange: (checked: boolean) => void;
+  disabled: boolean;
+}>) {
+  return (
+    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">
+            Unterschrift
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+            {required
+              ? "Eltern unterschreiben am Ende des Formulars. Ohne Unterschrift lässt sich die Anmeldung nicht absenden. Auch jede spätere Änderung durch die Eltern braucht eine neue Unterschrift."
+              : "Eltern senden die Anmeldung ohne Unterschrift ab."}
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-3 sm:justify-end">
+          <span className="text-xs font-medium text-gray-600">
+            {required ? "Erforderlich" : "Aus"}
+          </span>
+          <BooleanField
+            value={required}
+            onChange={onChange}
+            disabled={disabled}
+            ariaLabel="Unterschrift erforderlich"
+          />
+        </div>
       </div>
     </section>
   );
