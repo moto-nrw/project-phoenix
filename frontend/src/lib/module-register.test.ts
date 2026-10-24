@@ -76,6 +76,9 @@ describe("module register (#4894)", () => {
     expect(moduleOfPath("/staff/dienstplan")).toBe("dienstplan");
     expect(moduleOfPath("/staff/7")).toBeNull();
     expect(moduleOfPath("/database/devices")).toBe("nfc_anwesenheit");
+    expect(moduleOfPath("/database/personal/opening-balances")).toBe(
+      "zeiterfassung",
+    );
     expect(moduleOfPath("/database/rooms")).toBeNull();
     // Kein blankes startsWith: /dienstplan-alt gehört nicht zu /dienstplan.
     expect(moduleOfPath("/dienstplan-alt")).toBeNull();

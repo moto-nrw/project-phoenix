@@ -12,7 +12,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TileCard } from "~/components/ui/tile-card";
 import useSWR from "swr";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Lock } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseCardGridSkeleton } from "./page-skeleton";
@@ -23,8 +23,8 @@ import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { hasAnyDatabasePagePermission } from "~/lib/section-navigation";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
-import { LockSimpleIcon } from "@phosphor-icons/react/ssr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 interface DataSection {
   id: string;
@@ -310,6 +310,7 @@ function DatabaseContent() {
             // Zählern: derselbe Katalog wie Seitenleiste und Route-Guard
             // (#3114, #3469). Der Adminzuschnitt öffnet jede Kachel.
             if (
+              !locked &&
               !hasEffectiveAdminScope(session) &&
               !hasAnyDatabasePagePermission(session, section.href)
             ) {
@@ -347,14 +348,11 @@ function DatabaseContent() {
                       />
                     </div>
                     {locked ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600">
-                        <LockSimpleIcon
-                          size={14}
-                          weight="bold"
-                          aria-hidden="true"
-                        />
-                        Nicht gebucht
-                      </span>
+                      <StatusBadge
+                        label="Nicht gebucht"
+                        tone="gray"
+                        icon={Lock}
+                      />
                     ) : badgeLoading ? (
                       // Platzhalter in der Höhe der fertigen Zahl (Text +
                       // py-1.5), damit die Kachel beim Laden nicht springt.

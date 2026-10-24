@@ -869,6 +869,10 @@ function SidebarContent({
   // Filter flat navigation items based on permissions. Das Modul der Seite
   // entscheidet zuerst (#4894): nicht gebucht heißt weg oder Schloss.
   const filteredNavItems = NAV_ITEMS.flatMap((item) => {
+    // Der Binärmodus schließt diese Seiten vollständig aus. Auch eine Leitung
+    // darf hier kein Schloss sehen, weil die Zielseite nicht erklärt, sondern
+    // als nicht passende Anwesenheitsart gesperrt ist.
+    if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return [];
     const gate = moduleGate(
       moduleNav.page(item.href),
       isNavItemPermitted(item),
@@ -885,7 +889,6 @@ function SidebarContent({
       return changeRequestAccess.canOpenRequestsPage;
     }
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
-    if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     // Info-Point Dashboard is opt-in (display.enabled, default off) — hide
     // the admin entry until a school explicitly turns the feature on.
     if (!displayEnabled && item.href === "/info-displays") return false;

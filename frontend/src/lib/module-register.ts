@@ -102,6 +102,9 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   "/database": BASIS,
   "/database/students": BASIS,
   "/database/personal": BASIS,
+  // Der Import ändert Stundenkonto und Urlaubssaldo und gehört deshalb zur
+  // Zeiterfassung, nicht zu den Basis-Stammdaten des Personals.
+  "/database/personal/opening-balances": "zeiterfassung",
   "/database/rooms": BASIS,
   "/database/activities": "nfc_anwesenheit",
   "/database/categories": BASIS,

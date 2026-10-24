@@ -2187,6 +2187,20 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
 
+    it("hides locked NFC pages for school leads", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseBookedModules.mockReturnValue(bookedWithout("nfc_anwesenheit"));
+
+      render(<Sidebar />);
+
+      // Anker: die Navigation ist geladen.
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+      expect(
+        document.querySelector('[data-setup-tour="nav-/activities"]'),
+      ).not.toBeInTheDocument();
+    });
+
     it("hides the Aktuelle-Aufsicht accordion for supervising staff", () => {
       // Give the user both groups and supervised rooms so detailed mode
       // would definitely render the accordion — then assert binary hides it.

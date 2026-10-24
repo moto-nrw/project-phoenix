@@ -268,6 +268,30 @@ describe("DatabasePage", () => {
     }
   });
 
+  it("zeigt der Leitung gesperrte Kacheln ohne Zielrecht", async () => {
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter((key) => key !== "nfc_anwesenheit"),
+    );
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          roles: ["ogs-leitung"],
+          permissions: ["config:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<DatabasePage />);
+
+    const devices = await screen.findByRole("link", { name: /Geräte/ });
+    expect(devices).toHaveTextContent("Nicht gebucht");
+    expect(devices).toHaveTextContent("Mehr erfahren");
+  });
+
   it("blendet die Kachel eines nicht gebuchten Moduls ohne Leitung aus", async () => {
     vi.mocked(useBookedModules).mockReturnValue(
       MODULE_KEYS.filter((key) => key !== "zeiterfassung"),
