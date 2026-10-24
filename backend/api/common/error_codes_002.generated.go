@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetableStaffAbsentOnDate                   = "timetable.staff_absent_on_date"
+	CodeTimetableStaffAbsentOnSource                 = "timetable.staff_absent_on_source"
+	CodeTimetableStaffAbsentOnTarget                 = "timetable.staff_absent_on_target"
+	CodeTimetableStaffAlreadyOnTarget                = "timetable.staff_already_on_target"
 	CodeTimetableStaffNotFound                       = "timetable.staff_not_found"
 	CodeTimetableStaffNotOnSource                    = "timetable.staff_not_on_source"
 	CodeTimetableStaffPresentAndAbsent               = "timetable.staff_present_and_absent"
@@ -112,6 +116,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.staff_absent_on_date":                    "business_rejection",
+	"timetable.staff_absent_on_source":                  "input",
+	"timetable.staff_absent_on_target":                  "business_rejection",
+	"timetable.staff_already_on_target":                 "business_rejection",
 	"timetable.staff_not_found":                         "business_rejection",
 	"timetable.staff_not_on_source":                     "input",
 	"timetable.staff_present_and_absent":                "input",

@@ -617,7 +617,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"roots/owners/root_worker.go:ComposeWorker":                                              345,
 	"roots/owners/worker.go:NewWorker":                                                       91,
 	// ADR 0087.
-	"seed/avatar/avatar.go:tracePath": 64,
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.

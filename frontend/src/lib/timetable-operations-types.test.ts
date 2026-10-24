@@ -513,3 +513,50 @@ describe("timetable operation mappers", () => {
     });
   });
 });
+
+describe("Lernzeit homework on the roster (#4796)", () => {
+  const instance = {
+    id: 1,
+    title: "Lernzeit",
+    status: "active" as const,
+    room_id: 2,
+  };
+  const studentRow = {
+    student_id: 7,
+    student_name: "Mia Beispiel",
+    school_class: "2a",
+    group_name: "Sonnen",
+    planned: true,
+    is_unplanned: false,
+    currently_present: true,
+    status: "present" as const,
+  };
+
+  it("maps homework, feedback and the verdict, and leaves them out when absent", () => {
+    const mapped = mapRoster({
+      instance,
+      can_record_homework_feedback: true,
+      rows: [
+        {
+          ...studentRow,
+          homework: [{ subject: null, description: "Lesen" }],
+          homework_feedback: { status: "not_done" },
+        },
+      ],
+    });
+    expect(mapped.canRecordHomeworkFeedback).toBe(true);
+    expect(mapped.rows[0]?.homework).toEqual([
+      { subject: null, description: "Lesen" },
+    ]);
+    expect(mapped.rows[0]?.homeworkFeedback).toEqual({
+      status: "not_done",
+      note: null,
+    });
+
+    const plain = mapRoster({ instance, rows: [studentRow] });
+    expect(plain).toHaveProperty("rows.0.studentId", "7");
+    expect(plain).not.toHaveProperty("canRecordHomeworkFeedback");
+    expect(plain.rows[0]).not.toHaveProperty("homework");
+    expect(plain.rows[0]).not.toHaveProperty("homeworkFeedback");
+  });
+});

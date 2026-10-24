@@ -29,6 +29,7 @@ func TestDeletionRetentionWindowsReadTheirSettings(t *testing.T) {
 		configModel.KeyGDPRStatusDayRetentionDays,
 		configModel.KeyGDPRAttendanceRetentionDays,
 		configModel.KeyGDPRMorningAttendanceRetentionDays,
+		configModel.KeyGDPRHomeworkRetentionDays,
 		configModel.KeyGDPRParentMessageRetentionDays,
 		configModel.KeyGDPRStaffMessageRetentionDays,
 		configModel.KeyGDPRTimetableRetentionDays,
