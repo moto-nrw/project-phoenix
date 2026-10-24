@@ -56,7 +56,7 @@ export function AdminEnrollmentSignature({
   return (
     <SectionCard
       title="Unterschrift"
-      description="Die Eltern haben diese Fassung der Anmeldung unterschrieben."
+      description="Die Eltern haben diese Fassung der Anmeldung unterschrieben: einfache elektronische Signatur mit gezeichneter Unterschrift."
       bodyClassName="mt-4 space-y-4"
       actions={
         <Button

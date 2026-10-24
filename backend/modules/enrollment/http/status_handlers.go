@@ -138,7 +138,7 @@ type EditDraftOfferingDayResponse struct {
 // getStatus returns the per-child status for a token-bearing parent.
 // Public route — caller must wrap in admin-tx because there's no JWT.
 // With ?format=pdf it answers the proof of the parent's signature (#4786)
-// instead: the same token, the same request, no second lookup.
+// instead, for the request the same token names.
 func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment request service not configured")))
@@ -198,6 +198,10 @@ func (rs *Resource) loadStatusView(ctx context.Context, token string) (view stat
 		return view, nil, fmt.Errorf("status: compute edit mode: %w", serverErr)
 	}
 	if view.proof, serverErr = rs.RequestService.SignatureProof(ctx, 0, token); serverErr != nil {
+		// The token expired between the two reads: the link is invalid.
+		if errors.Is(serverErr, capability.ErrRequestNotFound) {
+			return view, serverErr, nil
+		}
 		return view, nil, fmt.Errorf("status: load signature: %w", serverErr)
 	}
 	// Best-effort: a failure here must not hide the request status, but a

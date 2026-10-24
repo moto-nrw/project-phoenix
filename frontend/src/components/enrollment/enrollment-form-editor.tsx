@@ -2404,7 +2404,7 @@ function SignatureRequirementSection({
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
             {required
-              ? "Eltern unterschreiben am Ende des Formulars. Ohne Unterschrift lässt sich die Anmeldung nicht absenden. Auch jede spätere Änderung durch die Eltern braucht eine neue Unterschrift."
+              ? "Eltern unterschreiben am Ende des Formulars mit einer einfachen elektronischen Signatur mit gezeichneter Unterschrift. Ohne Unterschrift lässt sich die Anmeldung nicht absenden. Auch jede spätere Änderung durch die Eltern braucht eine neue Unterschrift."
               : "Eltern senden die Anmeldung ohne Unterschrift ab."}
           </p>
         </div>

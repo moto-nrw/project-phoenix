@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
@@ -502,4 +503,43 @@ func remoteIPFromRequestThroughXFFMiddleware(req *http.Request) string {
 	})
 	router.ServeHTTP(httptest.NewRecorder(), req)
 	return ip
+}
+
+// A submission of a signed form without or with an unreadable signature is
+// refused on the wire with its own code and the field (#4786).
+func TestMapSubmitError_SignatureRefusals400WithCodeAndField(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		err  error
+		code string
+	}{
+		{capability.InvalidInput(capability.CodeSignatureRequired, "signature", capability.ErrSignatureRequired), "enrollment.signature_required"},
+		{capability.InvalidInput(capability.CodeSignatureInvalid, "signature", fmt.Errorf("record: %w", capability.ErrSignatureInvalid)), "enrollment.signature_invalid"},
+	} {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/x", nil)
+		mapSubmitError(w, r, tc.err)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var body struct {
+			Code   string `json:"code"`
+			Errors []struct {
+				Field string `json:"field"`
+			} `json:"errors"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, tc.code, body.Code)
+		require.NotEmpty(t, body.Errors)
+		assert.Equal(t, "signature", body.Errors[0].Field)
+	}
+}
+
+// The proof refuses a legal snapshot whose consents cannot be read instead
+// of printing every consent as refused.
+func TestSignatureProofDocument_RefusesUnreadableConsents(t *testing.T) {
+	t.Parallel()
+
+	req := &Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{ConsentFlags: []byte("kaputt")}}}
+	_, err := signatureProofDocument(signatureProof{Request: req, Signature: &capability.RequestSignature{}}, time.Now())
+	require.Error(t, err)
 }

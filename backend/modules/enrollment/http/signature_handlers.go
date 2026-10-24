@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
@@ -106,7 +107,7 @@ func (rs *Resource) writeAdminSignatureProof(w http.ResponseWriter, r *http.Requ
 // link; the token already resolved the request.
 func (rs *Resource) writeStatusSignatureProof(w http.ResponseWriter, r *http.Request, view statusView) {
 	rs.writeSignatureProof(w, r, signatureProof{
-		Request: view.req, Children: view.children, Guardians: view.guardians, Signature: view.proof.Signature,
+		Request: view.req, Children: view.children, Guardians: view.proof.Guardians, Signature: view.proof.Signature,
 	})
 }
 
@@ -119,7 +120,12 @@ func (rs *Resource) writeSignatureProof(w http.ResponseWriter, r *http.Request, 
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment signature proof not configured")))
 		return
 	}
-	file, err := rs.ListExportService.RenderRecords(signatureProofDocument(proof, time.Now()), "anmeldenachweis")
+	doc, err := signatureProofDocument(proof, time.Now())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("signature proof: %w", err)))
+		return
+	}
+	file, err := rs.ListExportService.RenderRecords(doc, "anmeldenachweis")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("render signature proof: %w", err)))
 		return
@@ -134,17 +140,13 @@ func proofField(label, value string) lists.Field {
 }
 
 func proofStamp(t time.Time) string {
-	location, err := time.LoadLocation("Europe/Berlin")
-	if err != nil {
-		location = time.FixedZone("CET", 60*60)
-	}
-	return t.In(location).Format("02.01.2006, 15:04") + " Uhr"
+	return t.In(calendar.Berlin).Format("02.01.2006, 15:04") + " Uhr"
 }
 
 // signatureProofDocument describes the proof: the signature with its
 // checksums, the guardians, the children and the consents of the signed
 // version. The PDF is German like the school's own records.
-func signatureProofDocument(p signatureProof, now time.Time) lists.RecordDocument {
+func signatureProofDocument(p signatureProof, now time.Time) (lists.RecordDocument, error) {
 	req := p.Request
 	guardianName := strings.TrimSpace(req.GuardianFirstName + " " + req.GuardianLastName)
 	doc := lists.RecordDocument{
@@ -158,16 +160,20 @@ func signatureProofDocument(p signatureProof, now time.Time) lists.RecordDocumen
 		lists.RecordGroup{Title: "Unterschrift", Records: []lists.Record{signatureProofRecord(p.Signature)}},
 		lists.RecordGroup{Title: "Anmeldung", Records: signatureProofRequestRecords(p)},
 	)
-	if consents := signatureProofConsents(req); len(consents.Fields) > 0 {
+	consents, err := signatureProofConsents(req)
+	if err != nil {
+		return doc, err
+	}
+	if len(consents.Fields) > 0 {
 		doc.Groups = append(doc.Groups, lists.RecordGroup{Title: "Zustimmungen", Records: []lists.Record{consents}})
 	}
-	return doc
+	return doc, nil
 }
 
 func signatureProofRecord(s *capability.RequestSignature) lists.Record {
-	integrity := "Unterschrift und gespeicherter Eintrag sind unverändert."
+	integrity := "Das Unterschriftsbild und der gespeicherte Eintrag der Unterschrift sind unverändert."
 	if !s.IntegrityOK {
-		integrity = "Achtung: Der gespeicherte Eintrag wurde nachträglich verändert."
+		integrity = "Achtung: Der gespeicherte Eintrag der Unterschrift wurde nachträglich verändert."
 	}
 	method := "Mit Finger, Stift oder Maus gezeichnet"
 	if s.Method == "typed" {
@@ -180,6 +186,7 @@ func signatureProofRecord(s *capability.RequestSignature) lists.Record {
 		proofField("Prüfsumme der unterschriebenen Anmeldung", s.DocumentSHA256),
 		proofField("Prüfsumme des Unterschriftsbilds", s.ImageSHA256),
 		proofField("Prüfung", integrity),
+		proofField("Hinweis", "Die Prüfsumme belegt die Fassung, die unterschrieben wurde. Die Angaben unten zeigen den aktuellen Stand der Anmeldung. Hat die Schule sie später geändert, weichen sie von der unterschriebenen Fassung ab."),
 	}}
 }
 
@@ -219,14 +226,16 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 
 // signatureProofConsents lists the legal blocks of the newest legal
 // snapshot with the parent's answer.
-func signatureProofConsents(req *Request) lists.Record {
+func signatureProofConsents(req *Request) (lists.Record, error) {
 	record := lists.Record{Title: "Rechtstexte zum Zeitpunkt der letzten Abgabe"}
 	if len(req.LegalBlocksSnapshot) == 0 {
-		return record
+		return record, nil
 	}
 	entry := req.LegalBlocksSnapshot[len(req.LegalBlocksSnapshot)-1]
 	flags := map[string]any{}
-	_ = decodeJSONObject(entry.ConsentFlags, &flags)
+	if err := decodeJSONObject(entry.ConsentFlags, &flags); err != nil {
+		return record, fmt.Errorf("decode consent flags of the legal snapshot: %w", err)
+	}
 	for _, b := range entry.Blocks {
 		if b.Kind == capability.LegalBlockKindNotice || b.Kind == capability.LegalBlockKindPrivacyNotice {
 			record.Fields = append(record.Fields, proofField(b.Title, "Zur Kenntnis genommen"))
@@ -238,5 +247,5 @@ func signatureProofConsents(req *Request) lists.Record {
 		}
 		record.Fields = append(record.Fields, proofField(b.Title, answer))
 	}
-	return record
+	return record, nil
 }
